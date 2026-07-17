@@ -2,7 +2,7 @@
 
 Self-contained deep dives for every sub-topic of **A1** in [../02-skills-to-upgrade.md](../02-skills-to-upgrade.md). Read each one and you'll gain the working knowledge a Staff/Principal engineer is expected to have. Every file uses Mermaid diagrams to make the concepts concrete.
 
-> **How to read:** go in order — each builds on the last. Topics 1–2 are the mental models; 3–6 are the building blocks; 7 is the quantitative glue that ties a design together.
+> **How to read:** go in order — each builds on the last. Topics 1–2 are the mental models; 3–6 are the building blocks; 7 is the quantitative glue that ties a design together; 8 covers how to keep it standing when things fail.
 
 | # | Topic | What you'll learn |
 |---|-------|-------------------|
@@ -13,6 +13,7 @@ Self-contained deep dives for every sub-topic of **A1** in [../02-skills-to-upgr
 | 5 | **[Asynchronism & Messaging](05-asynchronism-and-messaging.md)** | Queues, back-pressure, delivery semantics, idempotency, event sourcing, CDC, Kafka internals. |
 | 6 | **[Networking & API Design](06-networking-and-api-design.md)** | TCP/UDP, HTTP/1→2→3, REST vs gRPC vs GraphQL, L4/L7 load balancers, reverse proxy, API gateway, DNS, CDN, API best practices. |
 | 7 | **[Back-of-the-Envelope Estimation](07-back-of-envelope-estimation.md)** | Powers of two, latency numbers, availability math, QPS/storage/bandwidth estimation, a full worked example. |
+| 8 | **[Resilience & Fault Tolerance Patterns](08-resilience-and-fault-tolerance.md)** | Timeouts, retries with backoff & jitter, circuit breakers, bulkheads, graceful degradation, load shedding, health checks. |
 
 ---
 
@@ -31,9 +32,9 @@ flowchart LR
 1. **Requirements & constraints** — functional + non-functional (scale, latency, consistency, availability). Estimate numbers (Topic 7).
 2. **High-level design** — draw the boxes: clients → API → services → data stores.
 3. **Core components** — pick the data model, storage engine, and communication style (Topics 3, 6).
-4. **Scale it & name the trade-offs** — add load balancing, caching, sharding, async, replication — and *say out loud* what you're trading (Topics 1, 2, 4, 5).
+4. **Scale it & name the trade-offs** — add load balancing, caching, sharding, async, replication — and *say out loud* what you're trading (Topics 1, 2, 4, 5). Then harden it against failure (Topic 8).
 
-> **The Staff+ signal is not knowing every pattern — it's naming the trade-off behind every choice.** "Everything is a trade-off" is the through-line of all seven files.
+> **The Staff+ signal is not knowing every pattern — it's naming the trade-off behind every choice.** "Everything is a trade-off" is the through-line of all eight files.
 
 ---
 
@@ -44,3 +45,4 @@ flowchart LR
 - **Designing Data-Intensive Applications** (Kleppmann) — https://dataintensive.net/
 - **Google SRE Book** — https://sre.google/sre-book/table-of-contents/
 - **Martin Fowler — Patterns of Distributed Systems** — https://martinfowler.com/articles/patterns-of-distributed-systems/
+- **Release It!** (Michael Nygard) — https://pragprog.com/titles/mnee2/release-it-second-edition/
