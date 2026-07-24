@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Template · Error-Budget Policy</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<style>
+  body { max-width: 52rem; }
+  .fill { color: var(--accent-2); font-style: italic; }
+  .tmpl { background:#fff; border:1px solid var(--rule); border-radius:8px; padding:1rem 1.2rem; margin:1.4rem 0; }
+  @media print { body { margin: 0; } h2 { margin-top: 1.1rem; } .tmpl { break-inside: avoid; } }
+</style>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Reliability &amp; SRE · Reference 05</p>
+  <h1>Error-Budget Policy &mdash; Template</h1>
+  <div class="meta"><span>Compressed from Lesson 04</span><span class="dot">•</span><span>Fill-in · print-friendly</span></div>
+</header>
+
+<p>
+  A one-page, pre-agreed rule for what the org does as the budget drains. Modelled on Google&rsquo;s
+  example policy. Replace the <span class="fill">italic prompts</span> and get it signed.
+</p>
+
+<div class="tmpl">
+  <h3 style="margin-top:.2rem">Error-Budget Policy &mdash; <span class="fill">Service name</span></h3>
+  <p style="font-size:.9rem"><strong>Owner:</strong> <span class="fill">name</span> ·
+     <strong>Approver:</strong> <span class="fill">senior exec</span> ·
+     <strong>Approved:</strong> <span class="fill">date</span> ·
+     <strong>Revisit:</strong> <span class="fill">date +12mo</span></p>
+
+  <p><strong>Scope.</strong> Applies to <span class="fill">which releases / components</span>.</p>
+
+  <p><strong>Goals.</strong> Protect users from repeated SLO misses; give an incentive to balance
+     reliability with features. <em>This policy is not a punishment</em> &mdash; it gives the team
+     permission to focus on reliability when the data says it matters more than the next feature.</p>
+
+  <p><strong>SLO(s).</strong> <span class="fill">e.g. 99.9% availability; 99% of requests &lt; 300 ms,
+     over a 4-week rolling window.</span></p>
+
+  <p><strong>When at or above SLO.</strong> Releases proceed per the normal release process.</p>
+
+  <p><strong>When the budget is exhausted.</strong> Halt all changes and releases <em>except P0
+     incidents and security fixes</em> until the service is back within SLO.</p>
+
+  <p><strong>Cause matters:</strong></p>
+  <table style="margin:.4rem 0">
+    <thead><tr><th><em>Must</em> stop &amp; fix reliability if…</th><th><em>May</em> keep shipping if…</th></tr></thead>
+    <tbody>
+      <tr><td>your bug / procedural error burned the budget</td><td>a company-wide network problem did</td></tr>
+      <tr><td>a postmortem finds a hard dependency to soften</td><td>another team&rsquo;s service failed &amp; they froze</td></tr>
+      <tr><td>mis-categorised errors hid a real SLO miss</td><td>out-of-scope users burned it (load tests, pentests)</td></tr>
+    </tbody>
+  </table>
+
+  <p><strong>Triggers.</strong> A single incident burning &gt;20% of the 4-week budget &rarr; mandatory
+     postmortem with ≥1 P0 action item. A class of outage &gt;20% per quarter &rarr; P0 on quarterly
+     planning.</p>
+
+  <p><strong>Escalation.</strong> Disagreements on budget calculation or required actions escalate to
+     <span class="fill">named executive</span> for a decision.</p>
+
+  <p style="margin-bottom:0"><strong>Signatures.</strong> Product <span class="fill">___</span> ·
+     Dev lead <span class="fill">___</span> · Ops/SRE <span class="fill">___</span> ·
+     Approver <span class="fill">___</span></p>
+</div>
+
+<h2>Requirements checklist</h2>
+<ul class="checklist">
+  <li>Written &amp; specific — concrete actions, not &ldquo;be careful&rdquo;.</li>
+  <li>Approved by a senior owner with authority to enforce the freeze.</li>
+  <li>Escalation path defined — up, not sideways.</li>
+  <li>Exceptions named (P0/security, out-of-scope traffic) — sparingly.</li>
+  <li>Revisit date set — it&rsquo;s a living agreement.</li>
+</ul>
+
+<div class="callout insight">
+  <span class="label">Why it works</span>
+  <p>Changes cause ~70% of outages. The budget is the control that diverts attention to stability
+     exactly when data demands it — letting you ship fast <em>and</em> stay reliable, instead of
+     trading them off by gut feel.</p>
+</div>
+
+<nav class="lesson-nav">
+  <span class="group"><b>From</b><a href="../lessons/0004-error-budget-policy.html">&larr; Lesson 04 · Error-budget policy</a></span>
+  <span class="group"><b>See also</b><a href="0004-setting-slo-budget-math.html">SLO &amp; budget math</a></span>
+  <span class="group"><b>Primary source</b><a href="https://sre.google/workbook/error-budget-policy/" target="_blank" rel="noopener">SRE Workbook · Example Error Budget Policy</a></span>
+</nav>
+
+</body>
+</html>

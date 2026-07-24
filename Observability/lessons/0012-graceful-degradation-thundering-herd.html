@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 12 · Graceful Degradation &amp; the Thundering Herd</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<script src="../assets/quiz.js" defer></script>
+<script src="../assets/anim.js" defer></script>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Reliability &amp; SRE · Lesson 12</p>
+  <h1>Graceful Degradation &amp; the Thundering Herd</h1>
+  <div class="meta">
+    <span>◷ ~11 min read</span>
+    <span class="dot">•</span>
+    <span>Level: Judgment</span>
+    <span class="dot">•</span>
+    <span>Prereq: <a href="0011-overload-cascading-failure.html">Lesson 11</a> — overload &amp; load shedding</span>
+  </div>
+</header>
+
+<p class="mission-tie">
+  Lesson&nbsp;11 stopped the cascade with load shedding and circuit breakers. Two more spike-survival moves
+  finish the resilience toolkit: when you can&rsquo;t serve full quality, serve <em>something</em>
+  (graceful degradation); and stop your <em>own</em> clients and caches from stampeding in unison (the
+  thundering herd).
+</p>
+
+<h2>1. Graceful degradation: do less, stay up</h2>
+
+<p>
+  Load shedding drops <em>requests</em>; <span class="term">graceful degradation</span> reduces the
+  <em>work per request</em>. When overloaded, serve cheaper, lower-quality results instead of falling
+  over:
+</p>
+<ul>
+  <li>Search a cached <strong>subset</strong> instead of the full on-disk database.</li>
+  <li>Use a <strong>faster, less-accurate</strong> ranking algorithm.</li>
+  <li>Serve <strong>slightly stale</strong> cached data.</li>
+  <li>Drop the recommendations carousel &mdash; but keep <strong>checkout</strong> working.</li>
+</ul>
+
+<div class="callout insight">
+  <span class="label">Protect the critical journey</span>
+  <p>
+    The move is to <strong>preserve the critical user journey and shed quality on the non-critical</strong>.
+    That requires <em>product</em> decisions made <strong>before</strong> the incident: which features are
+    droppable? Decide it calm, not at 3&nbsp;a.m. This is your SLO priorities (Lesson&nbsp;03) turned into a
+    degradation plan.
+  </p>
+</div>
+
+<div class="callout warning">
+  <span class="label">The code path you never use doesn&rsquo;t work</span>
+  <p>
+    Degraded mode should trigger <em>rarely</em> &mdash; which means it&rsquo;s the least-tested code you
+    own, and quietly rots. Keep it simple, <strong>exercise it regularly</strong> (run a few servers near
+    overload), <strong>alert</strong> when servers enter it, and give yourself a <strong>kill switch</strong>.
+  </p>
+</div>
+
+<h2>2. The thundering herd: correlated clients</h2>
+
+<p>
+  A thundering herd is what happens when many independent clients become <strong>synchronised</strong>
+  &mdash; same trigger, same timer, same expiry &mdash; so a spike lands all at once. The family:
+</p>
+
+<table>
+  <thead><tr><th>Herd</th><th>What synchronises</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Retry storm</strong> (L11)</td><td>everyone fails together, so everyone retries together</td></tr>
+    <tr><td><strong>Cache stampede</strong> (dogpile)</td><td>a hot key expires &mdash; every request misses and recomputes the same value at once</td></tr>
+    <tr><td><strong>Cold-cache restart</strong></td><td>a fleet restart / cache flush drops hit rate to ~0, hammering the backend</td></tr>
+    <tr><td><strong>Synchronised timers</strong></td><td>a midnight cron, a reconnect storm after a blip, TTLs all expiring together</td></tr>
+  </tbody>
+</table>
+
+<figure class="anim" data-anim>
+<div class="anim-stage">
+<svg viewBox="0 0 660 148" role="img" aria-label="Step-by-step: a synchronised spike versus a decorrelated, smooth load">
+  <g font-family="system-ui, sans-serif">
+    <g class="anim-el" data-step="1">
+      <line x1="330" y1="16" x2="330" y2="120" stroke="#e2e2da" stroke-width="1"></line>
+      <text x="30" y="26" font-size="11" font-weight="700" fill="#b23b3b">Synchronised → spike</text>
+      <line x1="30" y1="104" x2="300" y2="104" stroke="#8a8a80" stroke-width="1"></line>
+      <rect x="150" y="34" width="34" height="70" fill="#b23b3b"></rect>
+      <text x="167" y="118" text-anchor="middle" font-size="8.5" fill="#63625c">everyone at once</text>
+    </g>
+    <g class="anim-el" data-step="2">
+      <text x="360" y="26" font-size="11" font-weight="700" fill="#14807a">Decorrelated → smooth</text>
+      <line x1="360" y1="104" x2="640" y2="104" stroke="#8a8a80" stroke-width="1"></line>
+      <g fill="#14807a">
+        <rect x="372" y="82" width="16" height="22"></rect>
+        <rect x="404" y="78" width="16" height="26"></rect>
+        <rect x="436" y="84" width="16" height="20"></rect>
+        <rect x="468" y="80" width="16" height="24"></rect>
+        <rect x="500" y="86" width="16" height="18"></rect>
+        <rect x="532" y="82" width="16" height="22"></rect>
+        <rect x="564" y="84" width="16" height="20"></rect>
+        <rect x="596" y="80" width="16" height="24"></rect>
+      </g>
+      <text x="500" y="118" text-anchor="middle" font-size="8.5" fill="#63625c">jitter + coalesce spread it out</text>
+    </g>
+    <g class="anim-el" data-step="3">
+      <text x="330" y="140" text-anchor="middle" font-size="10.5" font-style="italic" fill="#14615f" font-weight="600">Same total work &mdash; decorrelate it: add randomness, dedupe, or ramp.</text>
+    </g>
+  </g>
+</svg>
+</div>
+<div class="anim-caps">
+  <p class="anim-cap" data-step="1"><span class="n">1</span><strong>Synchronised &rarr; a spike.</strong> Thousands of clients fire at the <em>same instant</em> &mdash; they all failed together, or the same cache TTL expired &mdash; and the backend is buried under one giant burst.</p>
+  <p class="anim-cap" data-step="2"><span class="n">2</span><strong>Decorrelate &rarr; smooth.</strong> Jitter the timings, coalesce duplicate work (single-flight), ramp with slow-start. The <em>same</em> requests, now spread over time.</p>
+  <p class="anim-cap" data-step="3"><span class="n">3</span>Same total work &mdash; but a survivable, steady load. Every herd fix is really <strong>one move: add randomness, dedupe, or ramp.</strong></p>
+</div>
+<figcaption>Every herd fix does the same thing: it <em>decorrelates</em> a synchronised spike into a survivable, spread-out load.</figcaption>
+</figure>
+
+<h2>3. The cache trap: latency cache vs capacity cache</h2>
+
+<div class="callout warning">
+  <span class="label">Know which cache you have</span>
+  <p>
+    A <strong>latency cache</strong> just speeds you up &mdash; the service still handles expected load with
+    an <em>empty</em> cache. A <strong>capacity cache</strong> is a <strong>hard dependency</strong>: the
+    service <em>cannot</em> serve normal load cold. Caches added &ldquo;for performance&rdquo; silently
+    become capacity caches &mdash; and then a routine restart becomes an outage. Keep caches as latency
+    caches, or engineer them to survive cold.
+  </p>
+</div>
+
+<h2>4. Taming the herd</h2>
+
+<ul>
+  <li><strong>Jitter &amp; stagger.</strong> Randomise retry waits, cache <strong>TTLs</strong> (so keys
+      don&rsquo;t all expire together), cron times, and reconnect delays.</li>
+  <li><strong>Request coalescing (single-flight).</strong> When many requests want the same missing key,
+      let <em>one</em> compute it and the rest wait for that result &mdash; the backend does the work once.</li>
+  <li><strong>Refresh early / serve-stale-while-revalidate.</strong> Recompute a hot key <em>before</em> it
+      expires, or serve stale during the recompute, so expiry never causes a miss storm.</li>
+  <li><strong>Gradual warmup / slow start.</strong> After a restart, ramp traffic slowly to warm the cache;
+      don&rsquo;t send full load to a cold server. Keep clusters warm.</li>
+  <li><strong>Rate limit / token bucket.</strong> Smooth bursts into a steady flow.</li>
+</ul>
+
+<div class="callout insight">
+  <span class="label">One principle underneath them all</span>
+  <p>
+    Herds happen because independent things became <strong>correlated</strong>. Nearly every fix is one of
+    three moves: <strong>add randomness</strong> (jitter), <strong>dedupe</strong> (coalesce), or
+    <strong>ramp</strong> (slow start). Even config pushes: rolling out to every task at once is a
+    self-inflicted herd &mdash; push gradually, off-peak.
+  </p>
+</div>
+
+<div class="primary-source">
+  <span class="label">Read this next (primary source)</span>
+  <p>
+    <a href="https://sre.google/sre-book/addressing-cascading-failures/" target="_blank" rel="noopener">
+    Google SRE Book &mdash; <em>Addressing Cascading Failures</em></a>: the &ldquo;Load Shedding and Graceful
+    Degradation&rdquo; and cold-cache / slow-startup sections, and the latency-vs-capacity cache
+    distinction.
+  </p>
+</div>
+
+<h2>5. Check yourself</h2>
+<p>Retrieve before revealing.</p>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 1 of 2</p>
+  <p class="quiz-q">Under overload, <em>graceful degradation</em> means&hellip;</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="Right — reduce the work per request while keeping the critical journey alive.">do less work per request — cheaper, lower-quality results</button></li>
+    <li><button data-correct="false" data-feedback="That&rsquo;s load shedding — dropping requests, not reducing per-request work.">reject a fraction of the requests before you fall over</button></li>
+    <li><button data-correct="false" data-feedback="That&rsquo;s a retry strategy, not degradation of the response.">retry the failed requests with exponential backoff and jitter</button></li>
+    <li><button data-correct="false" data-feedback="That&rsquo;s a circuit breaker protecting a failing dependency.">open a breaker so a failing dependency can recover</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Load shedding drops requests; graceful degradation reduces the work per request (stale/subset/faster ranking), preserving the critical journey. They complement each other."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 2 of 2</p>
+  <p class="quiz-q">A hot cache key expires and thousands of requests recompute it at the same instant. Best fix?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="Right — one recompute serves the rest, and staggered TTLs stop synchronised expiry.">coalesce the recomputation and stagger the key TTLs</button></li>
+    <li><button data-correct="false" data-feedback="A shorter TTL means it expires and stampedes more often, not less.">shorten the TTL so the key expires far more often</button></li>
+    <li><button data-correct="false" data-feedback="Immediate retries on every miss is exactly the stampede you&rsquo;re trying to avoid.">retry each cache miss immediately with no backoff</button></li>
+    <li><button data-correct="false" data-feedback="Removing the cache sends every request to the DB — the worst case.">drop the cache so all the requests hit the database</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Request coalescing (single-flight) lets one request recompute while others wait; staggering/jittering TTLs and refreshing early stop keys expiring in unison. Shortening the TTL makes it worse."></div>
+</div>
+
+<div class="callout tryit">
+  <span class="label">Try it in your own system</span>
+  <ul class="checklist">
+    <li>Write your <strong>degradation menu</strong>: which features are droppable under load vs. the critical journey to protect.</li>
+    <li>Are your caches <strong>latency</strong> or <strong>capacity</strong> caches &mdash; can you serve normal load <em>cold</em>?</li>
+    <li>Find one <strong>herd risk</strong> (hot key, synchronised cron, cold restart) and pick a fix: jitter TTLs / coalesce / slow-start.</li>
+  </ul>
+  <p>Bring it &mdash; next we make releases safe: canary, feature flags, and fast rollback.</p>
+</div>
+
+<div class="followup">
+  <strong>I&rsquo;m your teacher &mdash; ask me anything.</strong> Want single-flight pseudocode, or the
+  probabilistic early-expiration formula? Unsure whether your cache is latency or capacity? Wondering how
+  degradation interacts with your SLOs? Ask away.
+</div>
+
+<nav class="lesson-nav">
+  <span class="group">
+    <b>Reference</b>
+    <a href="../reference/0013-degradation-thundering-herd.html">Degradation &amp; herd control &rarr;</a>
+  </span>
+  <span class="group">
+    <b>Previous</b>
+    <a href="0011-overload-cascading-failure.html">&larr; Lesson 11 · Overload &amp; cascading failure</a>
+  </span>
+  <span class="group">
+    <b>Up next</b>
+    <a href="0013-progressive-delivery.html">Lesson 13 · Progressive delivery &rarr;</a>
+  </span>
+</nav>
+
+</body>
+</html>

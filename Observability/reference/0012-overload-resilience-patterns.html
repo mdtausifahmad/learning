@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cheat Sheet · Resilience Patterns</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<style>
+  body { max-width: 52rem; }
+  @media print { body { margin: 0; } h2 { margin-top: 1.1rem; } }
+</style>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Reliability &amp; SRE · Reference 12</p>
+  <h1>Overload &amp; Cascading Failure &mdash; Patterns</h1>
+  <div class="meta"><span>Compressed from Lesson 11</span><span class="dot">•</span><span>Print-friendly</span></div>
+</header>
+
+<div class="callout warning">
+  <span class="label">The mechanism</span>
+  <p>The initial fault is small; <strong>feedback loops amplify it</strong>. Retries pile onto an
+     overloaded backend (100 &rarr; 200 &rarr; 300 failing QPS); crashed servers shove load onto survivors.
+     A service that cascades at 11k QPS may need to shed to ~1k to recover.</p>
+</div>
+
+<h2>The pattern kit</h2>
+<table>
+  <thead><tr><th>Pattern</th><th>Purpose</th><th>Watch out</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Load shedding</strong></td><td>reject excess fast (503) before collapse</td><td>shed low-value first; clear errors</td></tr>
+    <tr><td><strong>Backoff + jitter</strong></td><td>spread retry load, avoid synchronised waves</td><td>idempotent ops only</td></tr>
+    <tr><td><strong>Retry budget</strong></td><td>cap retry amplification (~10%)</td><td>retry at ONE level only</td></tr>
+    <tr><td><strong>Circuit breaker</strong></td><td>stop calling a failing dep; let it recover</td><td>bad thresholds oscillate</td></tr>
+    <tr><td><strong>Bulkhead</strong></td><td>isolate resource pools per dep/tenant</td><td>over-partitioning wastes capacity</td></tr>
+    <tr><td><strong>Graceful degradation</strong></td><td>do <em>less</em> work (cheaper results)</td><td>exercise the code path or it rots</td></tr>
+  </tbody>
+</table>
+
+<h2>Retries, done right</h2>
+<ul class="checklist">
+  <li>Exponential <strong>backoff</strong> + <strong>jitter</strong> (randomise the wait).</li>
+  <li><strong>Retry budget</strong> — stop when retries exceed a small fraction of requests.</li>
+  <li>Retry at <strong>one level</strong> only (they multiply across layers: 3&times;3 = 27&times;).</li>
+  <li>Only retry <strong>idempotent</strong> operations.</li>
+  <li>Send a clear &ldquo;don&rsquo;t retry / retry-after&rdquo; signal when shedding.</li>
+</ul>
+
+<h2>Load shedding</h2>
+<p>Return <code>503</code> once &gt; N in flight; do as much useful work as you can. Swap FIFO &rarr;
+   <strong>LIFO / CoDel</strong> to drop stale requests the user already abandoned.</p>
+
+<div class="callout insight">
+  <span class="label">Prevent, don&rsquo;t just react</span>
+  <p><strong>Load-test to your breaking point</strong> (which resource fails, and how), then capacity-plan
+     with headroom (<strong>N+2</strong>). Saturation (Ref 08) turned into a design decision.</p>
+</div>
+
+<nav class="lesson-nav">
+  <span class="group"><b>From</b><a href="../lessons/0011-overload-cascading-failure.html">&larr; Lesson 11 · Overload &amp; cascading failure</a></span>
+  <span class="group"><b>See also</b><a href="0008-golden-signals-red-use.html">Golden signals (saturation)</a></span>
+  <span class="group"><b>Primary source</b><a href="https://sre.google/sre-book/addressing-cascading-failures/" target="_blank" rel="noopener">SRE Book · Cascading Failures</a></span>
+</nav>
+
+</body>
+</html>

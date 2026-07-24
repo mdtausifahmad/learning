@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 08 · Instrumentation Lab: Prometheus + OpenTelemetry</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<script src="../assets/quiz.js" defer></script>
+<script src="../assets/anim.js" defer></script>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Reliability &amp; SRE · Lesson 08</p>
+  <h1>Instrumentation Lab: Prometheus + OpenTelemetry</h1>
+  <div class="meta">
+    <span>◷ ~20 min hands-on</span>
+    <span class="dot">•</span>
+    <span>Level: Practical</span>
+    <span class="dot">•</span>
+    <span>Prereq: <a href="0007-four-golden-signals.html">L07</a> golden signals · Docker installed</span>
+  </div>
+</header>
+
+<p class="mission-tie">
+  You&rsquo;ve designed telemetry on paper (Lesson&nbsp;07). Now make it real: stand up a local
+  observability stack and watch a service&rsquo;s golden signals and traces actually flow through it. This
+  is the muscle memory that turns SRE concepts into instinct &mdash; and it&rsquo;s the same shape of stack
+  you&rsquo;ll run in production.
+</p>
+
+<h2>1. The pipeline you&rsquo;re building</h2>
+
+<figure class="anim" data-anim>
+<div class="anim-stage">
+<svg viewBox="0 0 660 196" role="img" aria-label="Step-by-step telemetry pipeline from app to collector to Prometheus and Jaeger, visualised in Grafana">
+  <defs>
+    <marker id="arw8" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#63625c"></path>
+    </marker>
+  </defs>
+
+  <g class="anim-el" data-step="1">
+    <rect x="16" y="80" width="104" height="44" rx="8" fill="#f6f7f4" stroke="#2e5a7a" stroke-width="1.5"></rect>
+    <text x="68" y="100" text-anchor="middle" font-family="system-ui, sans-serif" font-size="12" font-weight="600" fill="#1a1a1a">Your app</text>
+    <text x="68" y="115" text-anchor="middle" font-family="system-ui, sans-serif" font-size="9" fill="#63625c">+ OTel SDK</text>
+  </g>
+
+  <g class="anim-el" data-step="2">
+    <line x1="120" y1="102" x2="180" y2="102" stroke="#63625c" stroke-width="1.5" marker-end="url(#arw8)"></line>
+    <text x="150" y="94" text-anchor="middle" font-family="system-ui, sans-serif" font-size="9" fill="#63625c">OTLP :4318</text>
+    <rect x="182" y="80" width="132" height="44" rx="8" fill="#e9f2ef" stroke="#14807a" stroke-width="1.8"></rect>
+    <text x="248" y="100" text-anchor="middle" font-family="system-ui, sans-serif" font-size="12" font-weight="600" fill="#1a1a1a">OTel Collector</text>
+    <text x="248" y="115" text-anchor="middle" font-family="system-ui, sans-serif" font-size="9" fill="#63625c">receive · process · export</text>
+  </g>
+
+  <g class="anim-el" data-step="3">
+    <line x1="314" y1="95" x2="378" y2="55" stroke="#63625c" stroke-width="1.5" marker-end="url(#arw8)"></line>
+    <text x="352" y="74" text-anchor="middle" font-family="system-ui, sans-serif" font-size="9" fill="#63625c">metrics</text>
+    <rect x="380" y="26" width="140" height="42" rx="8" fill="#f6f7f4" stroke="#8a8a80" stroke-width="1.4"></rect>
+    <text x="450" y="45" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11.5" font-weight="600" fill="#1a1a1a">Prometheus</text>
+    <text x="450" y="59" text-anchor="middle" font-family="system-ui, sans-serif" font-size="9" fill="#63625c">metrics · :9090</text>
+  </g>
+
+  <g class="anim-el" data-step="4">
+    <line x1="314" y1="109" x2="378" y2="150" stroke="#63625c" stroke-width="1.5" marker-end="url(#arw8)"></line>
+    <text x="352" y="132" text-anchor="middle" font-family="system-ui, sans-serif" font-size="9" fill="#63625c">traces</text>
+    <rect x="380" y="134" width="140" height="42" rx="8" fill="#f6f7f4" stroke="#8a8a80" stroke-width="1.4"></rect>
+    <text x="450" y="153" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11.5" font-weight="600" fill="#1a1a1a">Jaeger</text>
+    <text x="450" y="167" text-anchor="middle" font-family="system-ui, sans-serif" font-size="9" fill="#63625c">traces · :16686</text>
+  </g>
+
+  <g class="anim-el" data-step="5">
+    <line x1="520" y1="47" x2="546" y2="47" stroke="#63625c" stroke-width="1.5" marker-end="url(#arw8)"></line>
+    <rect x="548" y="26" width="104" height="42" rx="8" fill="#f6f7f4" stroke="#c98a1a" stroke-width="1.5"></rect>
+    <text x="600" y="45" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11.5" font-weight="600" fill="#1a1a1a">Grafana</text>
+    <text x="600" y="59" text-anchor="middle" font-family="system-ui, sans-serif" font-size="9" fill="#63625c">dashboards · :3000</text>
+  </g>
+</svg>
+</div>
+<div class="anim-caps">
+  <p class="anim-cap" data-step="1"><span class="n">1</span>Your <strong>app</strong>, instrumented with the OpenTelemetry SDK (zero-code auto-instrumentation is fastest), produces telemetry.</p>
+  <p class="anim-cap" data-step="2"><span class="n">2</span>It ships that over <strong>OTLP</strong> to the <strong>OTel Collector</strong> &mdash; the vendor-neutral pipeline: receive &rarr; process &rarr; export.</p>
+  <p class="anim-cap" data-step="3"><span class="n">3</span>The Collector exports <strong>metrics to Prometheus</strong>. Query your golden signals with PromQL at <code>:9090</code>.</p>
+  <p class="anim-cap" data-step="4"><span class="n">4</span>&hellip;and <strong>traces to Jaeger</strong>. Follow a single request across services at <code>:16686</code>.</p>
+  <p class="anim-cap" data-step="5"><span class="n">5</span><strong>Grafana</strong> reads Prometheus to render your dashboards at <code>:3000</code>. Instrument once &mdash; all three signals flow, already correlated.</p>
+</div>
+<figcaption>The <span class="term">OpenTelemetry Collector</span> is a vendor-agnostic pipeline: your app sends OTLP to it, and it exports metrics to Prometheus and traces to Jaeger.</figcaption>
+</figure>
+
+<h2>2. Track A &mdash; see it working in 5 minutes</h2>
+
+<p>
+  Fastest possible win: run the official <strong>OpenTelemetry Demo</strong> &mdash; a real microservices
+  shop, fully instrumented, with Prometheus, Grafana (prebuilt dashboards), and Jaeger baked in.
+</p>
+
+<pre><code>git clone https://github.com/open-telemetry/opentelemetry-demo.git
+cd opentelemetry-demo
+docker compose up -d          # first run pulls images — give it a few minutes</code></pre>
+
+<p>Then explore (the demo proxies everything through port 8080):</p>
+<ul>
+  <li><strong>Web store</strong> &mdash; <code>http://localhost:8080/</code> (a load generator is already driving traffic)</li>
+  <li><strong>Grafana</strong> &mdash; <code>http://localhost:8080/grafana/</code> &rarr; open a service dashboard and find the four golden signals</li>
+  <li><strong>Jaeger</strong> &mdash; <code>http://localhost:8080/jaeger/ui/</code> &rarr; pick a service, open a trace, watch it fan across services</li>
+</ul>
+
+<div class="callout tryit">
+  <span class="label">Do this now</span>
+  <p>In Jaeger, open one <code>checkout</code> trace and find the <em>slowest span</em>. That&rsquo;s the
+    &ldquo;where&rdquo; from Lesson&nbsp;06, on real data. Then in Grafana, find a latency panel and confirm
+    it&rsquo;s a <em>percentile</em>, not a mean (Lesson&nbsp;07). <code>docker compose down</code> when done.</p>
+</div>
+
+<h2>3. Track B &mdash; wire up your <em>own</em> service</h2>
+
+<p>The real skill. Use the minimal, transparent stack in this course&rsquo;s
+  <a href="../assets/lab/README.md">lab folder</a>
+  (<a href="../assets/lab/docker-compose.yml">docker-compose.yml</a>,
+   <a href="../assets/lab/otel-collector-config.yaml">collector config</a>,
+   <a href="../assets/lab/prometheus.yml">prometheus.yml</a>):</p>
+
+<pre><code>cd assets/lab
+docker compose up -d
+# Prometheus :9090   Grafana :3000   Jaeger :16686</code></pre>
+
+<p>Now add OpenTelemetry to a service you own &mdash; <strong>zero-code auto-instrumentation</strong> is the
+  fast path. Pick your language:</p>
+
+<pre><code># Python
+pip install opentelemetry-distro opentelemetry-exporter-otlp
+opentelemetry-bootstrap -a install
+opentelemetry-instrument python app.py
+
+# Node.js
+npm i @opentelemetry/api @opentelemetry/auto-instrumentations-node
+node --require @opentelemetry/auto-instrumentations-node/register app.js
+
+# Java
+java -javaagent:opentelemetry-javaagent.jar -jar app.jar</code></pre>
+
+<p>Point every one of them at the local Collector with two environment variables:</p>
+
+<pre><code>export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
+export OTEL_SERVICE_NAME=my-service</code></pre>
+
+<p>Generate some traffic, then open Prometheus (<code>:9090</code>) and query your golden signals
+  (metric names vary by library &mdash; start typing <code>http_</code> to discover them):</p>
+
+<pre><code># Traffic — requests/sec
+sum(rate(http_server_request_duration_seconds_count[5m]))
+
+# Errors — 5xx ratio
+sum(rate(http_server_request_duration_seconds_count{http_response_status_code=~"5.."}[5m]))
+  / sum(rate(http_server_request_duration_seconds_count[5m]))
+
+# Latency — p95
+histogram_quantile(0.95,
+  sum by (le) (rate(http_server_request_duration_seconds_bucket[5m])))</code></pre>
+
+<div class="callout insight">
+  <span class="label">The full loop, closed</span>
+  <p>
+    Those three queries <em>are</em> Lessons 02 and 07 on live data. Drop the availability and latency
+    ratios into <a href="../reference/0003-latency-sli-prometheus-recipe.html">recording rules</a>, add the
+    <a href="../reference/0006-burn-rate-alerting-recipe.html">burn-rate alert</a>, and you&rsquo;ve built
+    the entire SLO stack &mdash; measure &rarr; target &rarr; budget &rarr; policy &rarr; alert &mdash; end to end,
+    on your own service.
+  </p>
+</div>
+
+<h2>4. What the config actually says</h2>
+
+<p>The Collector config is three moving parts &mdash; a <strong>pipeline</strong>:</p>
+<ul>
+  <li><strong>receivers</strong> &mdash; <code>otlp</code> on <code>:4317</code> (gRPC) and <code>:4318</code> (HTTP): where your app&rsquo;s telemetry arrives.</li>
+  <li><strong>processors</strong> &mdash; <code>batch</code>: buffers before export (efficiency).</li>
+  <li><strong>exporters</strong> &mdash; <code>prometheus</code> (re-exposes metrics on <code>:8889</code> for Prometheus to scrape) and <code>otlp/jaeger</code> (ships traces to Jaeger).</li>
+</ul>
+<p>Prometheus then scrapes the Collector; Grafana queries Prometheus. That&rsquo;s the whole dance.</p>
+
+<div class="callout warning">
+  <span class="label">Gotchas</span>
+  <p>
+    <strong>Ports:</strong> SDKs default to OTLP <em>gRPC</em> (<code>:4317</code>); set
+    <code>OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf</code> if you use <code>:4318</code>.
+    <strong>Names:</strong> metric names differ by language/library &mdash; explore in Prometheus.
+    <strong>Cardinality:</strong> auto-instrumentation can attach high-cardinality attributes
+    (full URLs with IDs) &mdash; template or drop them (Lesson&nbsp;07). <strong>Pin</strong> image
+    versions for anything beyond a lab.
+  </p>
+</div>
+
+<div class="primary-source">
+  <span class="label">Read this next (primary source)</span>
+  <p>
+    <a href="https://opentelemetry.io/docs/collector/quick-start/" target="_blank" rel="noopener">OTel
+    Collector &mdash; Quick start</a> and the
+    <a href="https://opentelemetry.io/docs/demo/" target="_blank" rel="noopener">OpenTelemetry Demo</a>.
+    For instrumenting your service, <a href="https://opentelemetry.io/docs/zero-code/" target="_blank" rel="noopener">Zero-code instrumentation</a>.
+  </p>
+</div>
+
+<h2>5. Check yourself</h2>
+<p>Retrieve before revealing.</p>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 1 of 2</p>
+  <p class="quiz-q">What is the OpenTelemetry Collector&rsquo;s job in this stack?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="Right — a vendor-agnostic pipeline: receivers → processors → exporters.">Receive, process, and export telemetry to backends</button></li>
+    <li><button data-correct="false" data-feedback="That&rsquo;s Prometheus&rsquo;s job; the Collector doesn&rsquo;t store or query.">Store metrics long-term and run PromQL queries on them</button></li>
+    <li><button data-correct="false" data-feedback="That&rsquo;s Grafana; the Collector renders nothing.">Render dashboards and alerts for the on-call engineer</button></li>
+    <li><button data-correct="false" data-feedback="A load generator does that; the Collector moves telemetry.">Generate synthetic user traffic against your service</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="The Collector is the pipeline (receivers → processors → exporters). Prometheus stores/queries metrics, Jaeger stores traces, Grafana renders dashboards."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 2 of 2</p>
+  <p class="quiz-q">You want to follow one slow request across services. Which UI do you open?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="Right — traces (spans across services) live in Jaeger.">Jaeger — it shows the request&rsquo;s trace and its spans</button></li>
+    <li><button data-correct="false" data-feedback="Prometheus aggregates metrics; it can&rsquo;t follow one request.">Prometheus — it aggregates the metrics with PromQL</button></li>
+    <li><button data-correct="false" data-feedback="Grafana charts time series; it doesn&rsquo;t trace a request.">Grafana — it renders the time-series dashboards only</button></li>
+    <li><button data-correct="false" data-feedback="The Collector moves data; it isn&rsquo;t an investigation UI.">The Collector — it batches and exports the telemetry</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Traces live in Jaeger (:16686); metrics in Prometheus (:9090); dashboards in Grafana (:3000); the Collector is the pipeline in between."></div>
+</div>
+
+<div class="callout tryit">
+  <span class="label">Try it in your own system</span>
+  <p>
+    Get <strong>one golden-signal query returning real data</strong> &mdash; via the demo (Track&nbsp;A) or
+    your own service (Track&nbsp;B). Screenshot the Grafana panel or Prometheus graph, and note which
+    metric names <em>your</em> instrumentation produced. If you wire your own service, follow one of its
+    requests end-to-end in Jaeger. Bring your questions.
+  </p>
+</div>
+
+<div class="followup">
+  <strong>I&rsquo;m your teacher &mdash; ask me anything.</strong> Stuck on OTLP gRPC vs HTTP? Metrics not
+  showing in Prometheus? Want a ready-made Grafana golden-signals dashboard JSON, or help reading your
+  library&rsquo;s exact metric names? Ask &mdash; debugging the lab <em>is</em> the learning.
+</div>
+
+<nav class="lesson-nav">
+  <span class="group">
+    <b>Reference</b>
+    <a href="../reference/0009-observability-lab-quickstart.html">Lab quickstart &rarr;</a>
+    <a href="../assets/lab/README.md">Lab files &rarr;</a>
+  </span>
+  <span class="group">
+    <b>Previous</b>
+    <a href="0007-four-golden-signals.html">&larr; Lesson 07 · Golden signals</a>
+  </span>
+  <span class="group">
+    <b>Up next</b>
+    <a href="0009-oncall-incident-lifecycle.html">Lesson 09 · On-call &amp; the incident lifecycle &rarr;</a>
+  </span>
+</nav>
+
+</body>
+</html>

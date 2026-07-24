@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 07 · The Four Golden Signals</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<script src="../assets/quiz.js" defer></script>
+<script src="../assets/anim.js" defer></script>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Reliability &amp; SRE · Lesson 07</p>
+  <h1>The Four Golden Signals</h1>
+  <div class="meta">
+    <span>◷ ~11 min read</span>
+    <span class="dot">•</span>
+    <span>Level: Foundations</span>
+    <span class="dot">•</span>
+    <span>Prereq: <a href="0006-observability-metrics-logs-traces.html">Lesson 06</a> — the three signals</span>
+  </div>
+</header>
+
+<p class="mission-tie">
+  Lesson 06 said metrics, logs, and traces exist. But <em>what do you actually measure?</em> Instrument
+  everything and you drown in noise and cardinality bills; instrument nothing and you&rsquo;re blind. The
+  <strong>four golden signals</strong> are the canonical answer to &ldquo;if you could measure only a few
+  things about a user-facing system, measure these.&rdquo;
+</p>
+
+<h2>1. First frame: symptoms vs. causes</h2>
+
+<p>
+  Good monitoring answers two questions: <strong>what&rsquo;s broken</strong> (the <em>symptom</em>) and
+  <strong>why</strong> (the <em>cause</em>). The SRE book calls this &ldquo;one of the most important
+  distinctions in writing good monitoring.&rdquo; You <strong>page on symptoms</strong> (user impact) and
+  <strong>debug with causes</strong>. The golden signals are mostly symptom metrics &mdash; measured from
+  the user&rsquo;s side, which is exactly where your SLIs live.
+</p>
+
+<h2>2. The four signals</h2>
+
+<figure class="anim" data-anim>
+<div class="anim-stage">
+<svg viewBox="0 0 660 116" role="img" aria-label="Step-by-step: the four golden signals as dashboard tiles">
+  <g font-family="system-ui, sans-serif">
+    <g class="anim-el" data-step="1">
+      <rect x="8"   y="14" width="150" height="88" rx="8" fill="#f6f7f4" stroke="#14807a" stroke-width="1.4"></rect>
+      <text x="83"  y="42" text-anchor="middle" font-size="13" font-weight="700" fill="#14615f">Latency</text>
+      <text x="83"  y="60" text-anchor="middle" font-size="10" fill="#63625c">how long?</text>
+      <polyline points="28,88 50,86 72,84 94,80 116,76 138,66" fill="none" stroke="#14807a" stroke-width="2"></polyline>
+    </g>
+    <g class="anim-el" data-step="2">
+      <rect x="171" y="14" width="150" height="88" rx="8" fill="#f6f7f4" stroke="#2e5a7a" stroke-width="1.4"></rect>
+      <text x="246" y="42" text-anchor="middle" font-size="13" font-weight="700" fill="#14615f">Traffic</text>
+      <text x="246" y="60" text-anchor="middle" font-size="10" fill="#63625c">how much?</text>
+      <g fill="#2e5a7a"><rect x="196" y="78" width="10" height="12"></rect><rect x="214" y="72" width="10" height="18"></rect><rect x="232" y="80" width="10" height="10"></rect><rect x="250" y="70" width="10" height="20"></rect><rect x="268" y="76" width="10" height="14"></rect><rect x="286" y="82" width="10" height="8"></rect></g>
+    </g>
+    <g class="anim-el" data-step="3">
+      <rect x="334" y="14" width="150" height="88" rx="8" fill="#f6f7f4" stroke="#b23b3b" stroke-width="1.4"></rect>
+      <text x="409" y="42" text-anchor="middle" font-size="13" font-weight="700" fill="#14615f">Errors</text>
+      <text x="409" y="60" text-anchor="middle" font-size="10" fill="#63625c">how many fail?</text>
+      <polyline points="354,88 376,87 398,86 404,70 410,86 432,85 454,84" fill="none" stroke="#b23b3b" stroke-width="2"></polyline>
+    </g>
+    <g class="anim-el" data-step="4">
+      <rect x="497" y="14" width="155" height="88" rx="8" fill="#f6f7f4" stroke="#c98a1a" stroke-width="1.4"></rect>
+      <text x="574" y="42" text-anchor="middle" font-size="13" font-weight="700" fill="#14615f">Saturation</text>
+      <text x="574" y="60" text-anchor="middle" font-size="10" fill="#63625c">how full?</text>
+      <rect x="517" y="78" width="114" height="12" rx="2" fill="#eee5cf"></rect>
+      <rect x="517" y="78" width="84"  height="12" rx="2" fill="#c98a1a"></rect>
+    </g>
+  </g>
+</svg>
+</div>
+<div class="anim-caps">
+  <p class="anim-cap" data-step="1"><span class="n">1</span><strong>Latency</strong> &mdash; how long requests take. Crucially, track the latency of <em>successful</em> and <em>failed</em> requests separately (a fast 500 flatters the number).</p>
+  <p class="anim-cap" data-step="2"><span class="n">2</span><strong>Traffic</strong> &mdash; how much demand the system is under: requests/sec for a web service, sessions for streaming, transactions/sec for a store.</p>
+  <p class="anim-cap" data-step="3"><span class="n">3</span><strong>Errors</strong> &mdash; the rate of failures: explicit (500s), implicit (200 with wrong content), or by-policy (&ldquo;over 1s = an error&rdquo;).</p>
+  <p class="anim-cap" data-step="4"><span class="n">4</span><strong>Saturation</strong> &mdash; how full your most-constrained resource is. The subtle one: it degrades <em>before</em> 100%, and rising p99 latency is its earliest warning.</p>
+</div>
+<figcaption>If you measure all four and page when one is problematic (for saturation: <em>nearly</em> problematic), your service is at least decently covered.</figcaption>
+</figure>
+
+<table>
+  <thead><tr><th>Signal</th><th>What it measures</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Latency</strong></td><td>Time to serve a request. <strong>Measure success and error latency separately</strong> (below).</td></tr>
+    <tr><td><strong>Traffic</strong></td><td>Demand on the system &mdash; req/s for web, sessions for streaming, txns/s for a store.</td></tr>
+    <tr><td><strong>Errors</strong></td><td>Rate of failures: explicit (500s), implicit (200 + wrong content), or by policy (over 1&nbsp;s = error).</td></tr>
+    <tr><td><strong>Saturation</strong></td><td>How &ldquo;full&rdquo; the most-constrained resource is. Set a <em>utilization target</em> &mdash; systems degrade before 100%.</td></tr>
+  </tbody>
+</table>
+
+<div class="callout warning">
+  <span class="label">Don&rsquo;t average error latency away</span>
+  <p>
+    A fast <code>500</code> (DB connection refused, returned in 3&nbsp;ms) mixed into your latency makes
+    the numbers <em>look</em> great &mdash; misleading. But a <strong>slow</strong> error is worse than a
+    fast one, so don&rsquo;t just filter errors out either. Track the latency of successful and failed
+    requests <em>separately</em>.
+  </p>
+</div>
+
+<div class="callout insight">
+  <span class="label">Saturation is the subtle one</span>
+  <p>
+    Because systems degrade before 100%, saturation is a <em>leading</em> indicator. <strong>Rising
+    p99 latency is often the earliest saturation signal</strong>; it&rsquo;s also predictive
+    (&ldquo;this disk fills in 4 hours&rdquo;). Watch it &mdash; but page on it only when it&rsquo;s
+    <em>nearly</em> problematic, not on every wiggle.
+  </p>
+</div>
+
+<h2>3. Two lenses that specialise the signals: RED &amp; USE</h2>
+
+<table>
+  <thead><tr><th>Lens</th><th>Scope</th><th>Signals</th><th>Use for</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Golden signals</strong></td><td>a user-facing service</td><td>Latency · Traffic · Errors · Saturation</td><td>the baseline dashboard</td></tr>
+    <tr><td><strong>RED</strong> <span style="color:var(--muted);font-size:.85rem">(Tom Wilkie)</span></td><td>per request-driven service</td><td><strong>R</strong>ate · <strong>E</strong>rrors · <strong>D</strong>uration</td><td>every service (user view)</td></tr>
+    <tr><td><strong>USE</strong> <span style="color:var(--muted);font-size:.85rem">(Brendan Gregg)</span></td><td>per resource</td><td><strong>U</strong>tilisation · <strong>S</strong>aturation · <strong>E</strong>rrors</td><td>CPU, memory, disk, network (causes)</td></tr>
+  </tbody>
+</table>
+
+<p>
+  They fit together: <strong>RED is the user-symptom view</strong> (≈ golden signals minus saturation),
+  <strong>USE is the resource-cause view</strong>. RED tells you the checkout is slow; USE tells you the
+  database&rsquo;s disk queue is saturated. <em>&ldquo;For every resource, check utilisation, saturation,
+  and errors.&rdquo;</em>
+</p>
+
+<div class="callout warning">
+  <span class="label">Low utilisation &ne; no saturation</span>
+  <p>
+    A resource can average 70% utilisation and still saturate: a burst hits 100% for seconds, queues
+    form, latency spikes &mdash; and the five-minute average hides it entirely. Averages lie here too.
+    Use short-window p99s and queue depth, not just mean utilisation.
+  </p>
+</div>
+
+<h2>4. Design the telemetry (the staff-level part)</h2>
+
+<ul>
+  <li><strong>Name with conventions.</strong> Use OpenTelemetry <em>semantic conventions</em>
+      (<code>http.server.request.duration</code>, <code>http.response.status_code</code>). Stable,
+      standard names mean your dashboards and alerts survive refactors.</li>
+  <li><strong>Bound your cardinality.</strong> Good metric labels are low-cardinality:
+      <code>method</code>, <code>route</code> (templated &mdash; <code>/users/{id}</code>, not
+      <code>/users/12345</code>), <code>status_class</code>. Never <code>user_id</code>, raw paths, or
+      timestamps &mdash; push that detail into traces/logs.</li>
+  <li><strong>Histogram the tail.</strong> Never mean latency &mdash; bucket by latency
+      (exponential boundaries, ~&times;3) so you can read p99. Remember: the p99 of one backend can
+      become the <em>median</em> of your frontend.</li>
+  <li><strong>Right resolution.</strong> Per-minute CPU misses second-long spikes that drive tail
+      latency; sample/bucket internally to catch them cheaply.</li>
+</ul>
+
+<h2>5. It all connects back</h2>
+
+<p>
+  Your SLIs (Lesson 02) <em>are</em> golden signals: availability&nbsp;=&nbsp;Errors,
+  latency&nbsp;SLI&nbsp;=&nbsp;Latency. You alert on those user-facing symptoms via burn rate
+  (Lesson&nbsp;05); saturation and USE metrics are your <strong>diagnostic and predictive</strong>
+  signals &mdash; kept for debugging and capacity, not for paging on every wiggle. Symptom pages, cause
+  metrics debug.
+</p>
+
+<div class="primary-source">
+  <span class="label">Read this next (primary source)</span>
+  <p>
+    <a href="https://sre.google/sre-book/monitoring-distributed-systems/" target="_blank" rel="noopener">
+    Google SRE Book &mdash; <em>Monitoring Distributed Systems</em></a> (the golden signals, symptoms vs
+    causes, tail latency). Then Brendan Gregg&rsquo;s
+    <a href="https://www.brendangregg.com/usemethod.html" target="_blank" rel="noopener">The USE Method</a>
+    for the resource lens.
+  </p>
+</div>
+
+<h2>6. Check yourself</h2>
+<p>Retrieve before revealing.</p>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 1 of 2</p>
+  <p class="quiz-q">CPU averages 70%, yet users see latency spikes. The golden-signals lesson is&hellip;</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="Right — short bursts hit 100% and queue, but vanish in a 5-minute average.">saturation can bite below 100% — bursts hide in the average</button></li>
+    <li><button data-correct="false" data-feedback="A comfortable average doesn&rsquo;t rule out saturation; bursts do the damage.">seventy-percent average CPU proves there is no saturation issue</button></li>
+    <li><button data-correct="false" data-feedback="Rising p99 latency is often the *earliest* saturation signal.">latency spikes are unrelated to how saturated a service is</button></li>
+    <li><button data-correct="false" data-feedback="Saturation, not just errors, is a classic driver of user-visible latency.">only errors, never saturation, cause user-visible latency spikes</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Systems degrade before 100% utilisation, and short bursts disappear in a long average. Set a utilisation target and watch short-window p99 latency."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 2 of 2</p>
+  <p class="quiz-q">You&rsquo;re instrumenting a CPU / memory / disk resource. Which method fits?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="Right — USE is the resource lens: utilisation, saturation, errors, per resource.">USE — utilisation, saturation, errors, for each resource</button></li>
+    <li><button data-correct="false" data-feedback="RED is the per-service request lens, not the resource lens.">RED — rate, errors, duration, for each single resource</button></li>
+    <li><button data-correct="false" data-feedback="A CPU isn&rsquo;t a request-driven service; RED is the wrong fit.">RED — a CPU serves requests just like a web service</button></li>
+    <li><button data-correct="false" data-feedback="Resources absolutely need signals — that&rsquo;s what USE is for.">Neither — raw resources need no signals tracked at all</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="USE (Gregg) = per resource: utilisation, saturation, errors. RED (Wilkie) = per request-driven service: rate, errors, duration. Golden signals ≈ RED + saturation."></div>
+</div>
+
+<div class="callout tryit">
+  <span class="label">Try it in your own system</span>
+  <ul class="checklist">
+    <li>Pick one service. Write down its <strong>four golden signals</strong> and where each comes from.</li>
+    <li>List its key <strong>resources</strong> (CPU, memory, DB connections) and their <strong>USE</strong> metrics.</li>
+    <li>Audit your metric labels: any <strong>unbounded</strong> ones (<code>user_id</code>, raw paths)? Templatise them.</li>
+    <li>Confirm latency is a <strong>histogram</strong>, and that errors aren&rsquo;t polluting success latency.</li>
+  </ul>
+  <p>Bring it &mdash; next we make it real: a hands-on Prometheus + OpenTelemetry instrumentation lab.</p>
+</div>
+
+<div class="followup">
+  <strong>I&rsquo;m your teacher &mdash; ask me anything.</strong> Want a starter Grafana layout for the four
+  signals? Unsure how to pick a saturation metric for a specific service? Want the OTel semantic-convention
+  names for HTTP, DB, and messaging? Ask away.
+</div>
+
+<nav class="lesson-nav">
+  <span class="group">
+    <b>Reference</b>
+    <a href="../reference/0008-golden-signals-red-use.html">Golden signals · RED · USE &rarr;</a>
+  </span>
+  <span class="group">
+    <b>Previous</b>
+    <a href="0006-observability-metrics-logs-traces.html">&larr; Lesson 06 · Observability</a>
+  </span>
+  <span class="group">
+    <b>Up next</b>
+    <a href="0008-instrumentation-lab-prometheus-otel.html">Lesson 08 · Instrumentation lab: Prometheus + OTel &rarr;</a>
+  </span>
+</nav>
+
+</body>
+</html>

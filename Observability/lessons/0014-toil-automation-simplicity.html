@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 14 · Toil, Automation &amp; Simplicity</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<script src="../assets/quiz.js" defer></script>
+<script src="../assets/anim.js" defer></script>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Reliability &amp; SRE · Lesson 14</p>
+  <h1>Toil, Automation &amp; Simplicity</h1>
+  <div class="meta">
+    <span>◷ ~11 min read</span>
+    <span class="dot">•</span>
+    <span>Level: Judgment (Staff+)</span>
+    <span class="dot">•</span>
+    <span>Prereq: you&rsquo;ve met the operator&rsquo;s workload (Lessons 9, 11, 13)</span>
+  </div>
+</header>
+
+<p class="mission-tie">
+  You can now build, measure, defend, and safely change reliable systems. This lesson is the meta-skill
+  that keeps all of it <em>sustainable at scale</em>: kill toil, and pursue simplicity. As Tony Hoare put
+  it, <em>&ldquo;the price of reliability is the pursuit of the utmost simplicity.&rdquo;</em> This is the
+  lever most engineers ignore &mdash; and the one that separates &ldquo;works&rdquo; from &ldquo;scales.&rdquo;
+</p>
+
+<h2>1. What toil actually is</h2>
+
+<p>
+  Toil is <em>not</em> &ldquo;work I dislike,&rdquo; and it&rsquo;s not <strong>overhead</strong> (meetings,
+  HR, planning &mdash; not tied to running a service). Grungy work with lasting value isn&rsquo;t toil either
+  (cleaning up your alerting config is grungy but leaves a permanent improvement). Toil is running-a-service
+  work that matches these traits &mdash; the more, the toilier:
+</p>
+
+<table>
+  <thead><tr><th>Trait</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Manual</strong></td><td>hands-on human time (even running a script counts)</td></tr>
+    <tr><td><strong>Repetitive</strong></td><td>done over and over &mdash; not the first or second time</td></tr>
+    <tr><td><strong>Automatable</strong></td><td>a machine could do it; no human judgment essential</td></tr>
+    <tr><td><strong>Tactical</strong></td><td>interrupt-driven and reactive (handling pages)</td></tr>
+    <tr><td><strong>No enduring value</strong></td><td>the service is in the same state afterward</td></tr>
+    <tr><td><strong>O(n) with growth</strong></td><td>scales linearly with size / traffic / users</td></tr>
+  </tbody>
+</table>
+
+<p style="font-size:.93rem;color:var(--muted)">
+  <strong>Not toil:</strong> debugging a novel outage, building an automation tool, improving an SLO
+  &mdash; that&rsquo;s <em>engineering</em>: novel, judgment-driven, permanently improving.
+</p>
+
+<h2>2. Why toil is the enemy of scale</h2>
+
+<figure class="anim" data-anim>
+<div class="anim-stage">
+<svg viewBox="0 0 660 168" role="img" aria-label="Step-by-step: toil grows linearly with service size while engineering bends the curve">
+  <g font-family="system-ui, sans-serif">
+    <g class="anim-el" data-step="1">
+      <line x1="58" y1="20" x2="58" y2="132" stroke="#8a8a80" stroke-width="1.2"></line>
+      <line x1="58" y1="132" x2="626" y2="132" stroke="#8a8a80" stroke-width="1.2"></line>
+      <text x="58" y="150" font-size="9.5" fill="#63625c">small</text>
+      <text x="590" y="150" font-size="9.5" fill="#63625c">large</text>
+      <text x="342" y="163" text-anchor="middle" font-size="10" fill="#63625c">service size &rarr;</text>
+      <text x="20" y="26" font-size="10" fill="#63625c">effort</text>
+    </g>
+    <g class="anim-el" data-step="2">
+      <polyline points="58,124 626,30" fill="none" stroke="#b23b3b" stroke-width="2.2"></polyline>
+      <text x="512" y="34" font-size="10" font-weight="600" fill="#b23b3b">toil: O(n)</text>
+    </g>
+    <g class="anim-el" data-step="3">
+      <polyline points="58,122 200,110 380,100 626,92" fill="none" stroke="#14807a" stroke-width="2.2"></polyline>
+      <text x="470" y="105" font-size="10" font-weight="600" fill="#14807a">with engineering: sublinear</text>
+    </g>
+  </g>
+</svg>
+</div>
+<div class="anim-caps">
+  <p class="anim-cap" data-step="1"><span class="n">1</span><strong>Effort vs. service size.</strong> As your system grows &mdash; more traffic, more users, more services &mdash; how does the <em>operational</em> work scale?</p>
+  <p class="anim-cap" data-step="2"><span class="n">2</span><strong>Toil grows O(n)</strong> &mdash; linearly with size. Left unchecked it keeps climbing until it fills <strong>100% of your time</strong>, capping how big and reliable you can get with a fixed team.</p>
+  <p class="anim-cap" data-step="3"><span class="n">3</span><strong>Engineering bends the curve.</strong> Automation and simplicity let the same team run an order-of-magnitude bigger system. That gap between the lines is the &ldquo;<strong>E</strong>&rdquo; in SRE.</p>
+</div>
+<figcaption>Left unchecked, toil expands to fill 100% of your time &mdash; capping how big and reliable your system can get with a fixed team.</figcaption>
+</figure>
+
+<p>
+  Toil scales with the service, so it crowds out the very work that would reduce it &mdash; a vicious cycle
+  that ends in burnout, stagnation, and more errors. The escape is <strong>engineering</strong>: the
+  &ldquo;E&rdquo; in SRE, the work that lets a team handle an order-of-magnitude bigger system without an
+  order-of-magnitude more people.
+</p>
+
+<h2>3. The toil budget</h2>
+
+<div class="callout insight">
+  <span class="label">Cap it, and the cap drives investment</span>
+  <p>
+    Google&rsquo;s rule: keep toil <strong>below 50%</strong> of each engineer&rsquo;s time; spend the rest on
+    engineering that reduces future toil or adds reliability. <strong>Measure</strong> your toil; when it
+    breaches the cap, that&rsquo;s the trigger to <strong>automate, self-heal, fix the product, or
+    redesign</strong>. It&rsquo;s the same shape as an error budget &mdash; a limit that forces the org to
+    fund the right work instead of drowning in ops.
+  </p>
+</div>
+
+<h2>4. Automate the right thing &mdash; carefully</h2>
+
+<p>
+  Automation removes judgment-free repetition. But automation is itself a system to run, and
+  <strong>automating a bad process just makes failure faster</strong>. Simplify or fix the process first;
+  keep a human where judgment truly matters. The ladder to climb: <em>manual &rarr; documented runbook
+  &rarr; human-triggered automation &rarr; self-healing.</em>
+</p>
+
+<h2>5. Simplicity is a reliability control &mdash; not aesthetics</h2>
+
+<p>
+  Every component you add brings state, configuration, failure modes, an owner, and cognitive load. Simple
+  systems are easier to <strong>observe</strong> (L06), <strong>test</strong>, <strong>roll back</strong>
+  (L13), <strong>survive under load</strong> (L11), and <strong>explain on-call at 3&nbsp;a.m.</strong>
+  (L09). Complex systems <em>can</em> be reliable &mdash; but only with matching investment in expertise
+  and automation.
+</p>
+
+<ul>
+  <li><strong>Essential vs. accidental complexity</strong> (Brooks). Keep the complexity the problem truly
+      requires; ruthlessly cut the complexity <em>you</em> introduced.</li>
+  <li><strong>Boring is a virtue.</strong> &ldquo;Surprises in production are the nemeses of SRE.&rdquo;
+      You want code that predictably sticks to the script.</li>
+  <li><strong>Every line of code is a liability.</strong> Delete dead code &mdash; don&rsquo;t comment it out
+      or leave it behind a permanently-off flag. (That&rsquo;s how Knight Capital lost $440M in 45 minutes:
+      dead code behind a stale flag &mdash; the flag-debt trap from Lesson&nbsp;13, at catastrophic scale.)</li>
+</ul>
+
+<div class="callout warning">
+  <span class="label">The Staff+ question: does it pay rent?</span>
+  <p>
+    For any proposed component, ask: does it <strong>remove more complexity than it adds</strong>? Does it
+    <strong>reduce blast radius</strong>? Does it have a <strong>clear owner</strong>? Can the on-call
+    engineer <strong>explain it at 03:00</strong>? If not, it doesn&rsquo;t pay rent &mdash; and it&rsquo;s a
+    reliability liability, however clever.
+  </p>
+</div>
+
+<div class="primary-source">
+  <span class="label">Read this next (primary source)</span>
+  <p>
+    <a href="https://sre.google/sre-book/eliminating-toil/" target="_blank" rel="noopener">Google SRE Book
+    &mdash; <em>Eliminating Toil</em></a> and
+    <a href="https://sre.google/sre-book/simplicity/" target="_blank" rel="noopener"><em>Simplicity</em></a>.
+    Short, sharp, and quotable &mdash; the philosophical spine under the whole discipline.
+  </p>
+</div>
+
+<h2>6. Check yourself</h2>
+<p>Retrieve before revealing.</p>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 1 of 2</p>
+  <p class="quiz-q">Which of these is <em>toil</em>?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="Right — manual, repetitive, automatable, no enduring value, scales with the service.">Manually rerunning the same recovery script every week</button></li>
+    <li><button data-correct="false" data-feedback="Novel debugging needs judgment and isn&rsquo;t repetitive — that&rsquo;s engineering.">Debugging a novel outage you have never seen before</button></li>
+    <li><button data-correct="false" data-feedback="Building automation leaves a permanent improvement — engineering, not toil.">Designing an automated, safer deployment pipeline now</button></li>
+    <li><button data-correct="false" data-feedback="Improving an SLO is strategic and enduring — engineering work.">Revising an SLO after reviewing fresh user-impact data</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Toil is manual, repetitive, automatable, tactical, without enduring value, and O(n) with growth. Novel debugging, building automation, and improving SLOs are engineering — they leave a permanent improvement."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 2 of 2</p>
+  <p class="quiz-q">A teammate proposes adding a new service. The sharpest Staff+ question is&hellip;</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="Right — every component adds failure modes and cognitive load; make it earn its place.">Does it remove more complexity than it adds?</button></li>
+    <li><button data-correct="false" data-feedback="Newest framework often adds accidental complexity, not reliability.">Is it built on the newest, most powerful framework?</button></li>
+    <li><button data-correct="false" data-feedback="One feature&rsquo;s speed rarely justifies a permanent new failure domain.">Will it help us ship this one feature a bit sooner?</button></li>
+    <li><button data-correct="false" data-feedback="Deploy speed says nothing about the lasting reliability cost.">Can we get it deployed before the sprint ends?</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Ask whether the component &lsquo;pays rent&rsquo;: removes more complexity than it adds, shrinks blast radius, has a clear owner, and can be explained at 3am. Boring and simple is a reliability feature."></div>
+</div>
+
+<div class="callout tryit">
+  <span class="label">Try it in your own system</span>
+  <ul class="checklist">
+    <li>List your top 2&ndash;3 <strong>toil</strong> items (manual, repetitive, scales with load).</li>
+    <li>Roughly, what <strong>fraction of your week</strong> is toil &mdash; over 50%?</li>
+    <li>Take the worst one: sketch how to <strong>automate or eliminate</strong> it (after checking the process is worth keeping).</li>
+    <li>Name one component in your system that may <strong>not pay rent</strong>.</li>
+  </ul>
+  <p>Bring it &mdash; then we finish with NALSD: designing reliable systems from concrete production numbers.</p>
+</div>
+
+<div class="followup">
+  <strong>I&rsquo;m your teacher &mdash; ask me anything.</strong> Want a lightweight way to <em>measure</em>
+  toil on your team? Unsure whether a task is toil or valuable grunt work? Wondering how to make the case
+  to delete a beloved-but-dead subsystem? Ask away.
+</div>
+
+<nav class="lesson-nav">
+  <span class="group">
+    <b>Reference</b>
+    <a href="../reference/0015-toil-and-simplicity.html">Toil &amp; simplicity &rarr;</a>
+  </span>
+  <span class="group">
+    <b>Previous</b>
+    <a href="0013-progressive-delivery.html">&larr; Lesson 13 · Progressive delivery</a>
+  </span>
+  <span class="group">
+    <b>Up next</b>
+    <a href="0015-nalsd-designing-for-reliability.html">Lesson 15 · NALSD &mdash; designing for reliability &rarr;</a>
+  </span>
+</nav>
+
+</body>
+</html>

@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 06 · Observability: Metrics, Logs &amp; Traces</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<script src="../assets/quiz.js" defer></script>
+<script src="../assets/anim.js" defer></script>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Reliability &amp; SRE · Lesson 06</p>
+  <h1>Observability: Metrics, Logs &amp; Traces</h1>
+  <div class="meta">
+    <span>◷ ~11 min read</span>
+    <span class="dot">•</span>
+    <span>Level: Foundations</span>
+    <span class="dot">•</span>
+    <span>Prereq: <a href="0005-burn-rate-alerting.html">Lesson 05</a> — you can alert on an SLO</span>
+  </div>
+</header>
+
+<p class="mission-tie">
+  Lessons 1&ndash;5 answered one question: <em>is my service healthy?</em> &mdash; with a single number.
+  But when that number goes red at 3&nbsp;a.m., you need a different answer: <em>why?</em> &mdash; and
+  it&rsquo;s usually a question nobody built a dashboard for. <span class="term">Observability</span> is
+  understanding a system&rsquo;s internal state from its outputs well enough to ask brand-new questions.
+</p>
+
+<h2>1. Monitoring vs. observability</h2>
+
+<table>
+  <thead><tr><th>Monitoring</th><th>Observability</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>Watches <strong>predefined</strong> signals for <strong>known</strong> failure modes.</td>
+      <td>Lets you answer questions you <strong>didn&rsquo;t anticipate</strong>.</td>
+    </tr>
+    <tr>
+      <td>&ldquo;Is the SLO burning? Is CPU high?&rdquo; &mdash; <em>known-unknowns.</em></td>
+      <td>&ldquo;Why do only Android users in Brazil on checkout v3 get 500s?&rdquo; &mdash; <em>unknown-unknowns.</em></td>
+    </tr>
+    <tr>
+      <td>You built this in Lesson&nbsp;05.</td>
+      <td>What you need the moment the alert fires.</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="callout insight">
+  <span class="label">The definition that matters</span>
+  <p>
+    Observability lets you understand a system <em>from the outside</em> &mdash; asking questions about
+    it without shipping new code to answer them. A system is <strong>properly instrumented</strong> when
+    you <em>don&rsquo;t</em> need to add instrumentation mid-incident to find the cause. Monitoring tells
+    you <strong>that</strong> something is wrong; observability lets you find out <strong>why</strong>
+    &mdash; even for a failure you&rsquo;ve never seen before.
+  </p>
+</div>
+
+<h2>2. The three signals</h2>
+
+<table>
+  <thead><tr><th>Signal</th><th>What it is</th><th>Best at</th><th>Weak at</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><strong>Metrics</strong></td>
+      <td>Numeric values aggregated over time (a time series).</td>
+      <td>Cheap trends, dashboards, alerts, SLIs.</td>
+      <td>Explaining one request; must stay <em>low-cardinality</em>.</td>
+    </tr>
+    <tr>
+      <td><strong>Logs</strong></td>
+      <td>Timestamped records of discrete events.</td>
+      <td>Rich detail &amp; forensics of a specific event.</td>
+      <td>Costly at volume; hard to aggregate; not request-linked by default.</td>
+    </tr>
+    <tr>
+      <td><strong>Traces</strong></td>
+      <td>The path of <em>one</em> request across services, as a tree of <strong>spans</strong>.</td>
+      <td>Localising <em>which</em> hop is slow or failing; causality.</td>
+      <td>Usually sampled; needs context propagation.</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>
+  None is sufficient alone. A <span class="term">span</span> is a single unit of work (with a name,
+  timing, and attributes like <code>http.route</code> or <code>db.system</code>); a
+  <span class="term">trace</span> stitches a request&rsquo;s spans end-to-end. And a log &mdash; on its own
+  a context-poor line &mdash; becomes far more powerful once it&rsquo;s <em>correlated</em> with a span.
+</p>
+
+<h2>3. Together: the 3 a.m. flow</h2>
+
+<figure class="anim" data-anim>
+<div class="anim-stage">
+<svg viewBox="0 0 660 180" role="img" aria-label="Step-by-step investigation funnel from metrics to traces to logs">
+  <defs>
+    <marker id="arw6" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#63625c"></path>
+    </marker>
+  </defs>
+
+  <g class="anim-el" data-step="1">
+    <rect x="8" y="26" width="196" height="120" rx="8" fill="#f6f7f4" stroke="#8a8a80" stroke-width="1.4"></rect>
+    <text x="106" y="48" text-anchor="middle" font-family="system-ui, sans-serif" font-size="13" font-weight="700" fill="#14615f">METRICS</text>
+    <text x="106" y="64" text-anchor="middle" font-family="system-ui, sans-serif" font-size="10.5" fill="#63625c">that it&rsquo;s wrong</text>
+    <polyline points="30,128 55,126 80,128 102,123 120,118 140,86 165,74 190,70" fill="none" stroke="#b23b3b" stroke-width="2"></polyline>
+    <text x="106" y="140" text-anchor="middle" font-family="system-ui, sans-serif" font-size="8.5" font-style="italic" fill="#63625c">SLO burn alert fires</text>
+  </g>
+
+  <g class="anim-el" data-step="2">
+    <line x1="204" y1="86" x2="230" y2="86" stroke="#63625c" stroke-width="1.5" marker-end="url(#arw6)"></line>
+    <rect x="232" y="26" width="196" height="120" rx="8" fill="#f6f7f4" stroke="#8a8a80" stroke-width="1.4"></rect>
+    <text x="330" y="48" text-anchor="middle" font-family="system-ui, sans-serif" font-size="13" font-weight="700" fill="#14615f">TRACES</text>
+    <text x="330" y="64" text-anchor="middle" font-family="system-ui, sans-serif" font-size="10.5" fill="#63625c">where it&rsquo;s wrong</text>
+    <rect x="244" y="78"  width="172" height="13" rx="2" fill="#2e5a7a"></rect><text x="249" y="88" font-family="system-ui, sans-serif" font-size="8.5" fill="#fff">gateway</text>
+    <rect x="258" y="96"  width="150" height="13" rx="2" fill="#2e5a7a"></rect><text x="263" y="106" font-family="system-ui, sans-serif" font-size="8.5" fill="#fff">api</text>
+    <rect x="300" y="114" width="108" height="13" rx="2" fill="#b23b3b"></rect><text x="305" y="124" font-family="system-ui, sans-serif" font-size="8.5" fill="#fff">db &mdash; slow</text>
+  </g>
+
+  <g class="anim-el" data-step="3">
+    <line x1="428" y1="86" x2="454" y2="86" stroke="#63625c" stroke-width="1.5" marker-end="url(#arw6)"></line>
+    <rect x="456" y="26" width="196" height="120" rx="8" fill="#f6f7f4" stroke="#8a8a80" stroke-width="1.4"></rect>
+    <text x="554" y="48" text-anchor="middle" font-family="system-ui, sans-serif" font-size="13" font-weight="700" fill="#14615f">LOGS</text>
+    <text x="554" y="64" text-anchor="middle" font-family="system-ui, sans-serif" font-size="10.5" fill="#63625c">why it&rsquo;s wrong</text>
+    <text x="470" y="90"  font-family="Menlo, monospace" font-size="9" fill="#1a1a1a">500 POST /checkout</text>
+    <text x="470" y="106" font-family="Menlo, monospace" font-size="9" fill="#63625c">trace_id=a1b2c3</text>
+    <text x="470" y="122" font-family="Menlo, monospace" font-size="9" fill="#b23b3b">db timeout after 2s</text>
+  </g>
+</svg>
+</div>
+<div class="anim-caps">
+  <p class="anim-cap" data-step="1"><span class="n">1</span><strong>Metrics</strong> tell you <em>that</em> something is wrong: your SLO burn-rate alert fires. You know there&rsquo;s a problem &mdash; but not yet where, or why.</p>
+  <p class="anim-cap" data-step="2"><span class="n">2</span>Follow a <strong>trace</strong> to see <em>where</em>: the request fans across gateway &rarr; api &rarr; db, and the trace exposes the <strong>db span</strong> as the slow hop.</p>
+  <p class="anim-cap" data-step="3"><span class="n">3</span>Read the <strong>logs</strong> for that span to learn <em>why</em>: a db timeout after 2s. The shared <code>trace_id</code> is what let you hop cleanly from metric &rarr; trace &rarr; log.</p>
+</div>
+<figcaption>Each signal answers a different question &mdash; and <em>correlation</em> (a shared <code>trace_id</code>, metric exemplars) is what lets you hop from one to the next.</figcaption>
+</figure>
+
+<ol>
+  <li><strong>Metric / SLO alert</strong> fires (your burn-rate alert) &rarr; <em>that</em> it&rsquo;s wrong, and which SLI.</li>
+  <li><strong>Trace</strong> &rarr; find the slow/erroring requests and see <em>which service</em> is the culprit.</li>
+  <li><strong>Logs</strong> for that span &rarr; the exact error &mdash; <em>why</em>.</li>
+</ol>
+
+<h2>4. OpenTelemetry: instrument once, emit all three</h2>
+
+<p>
+  <span class="term">OpenTelemetry</span> (OTel) is how you make a system observable in a
+  vendor-neutral way: one set of APIs/SDKs to emit traces, metrics, and logs, sharing context (the
+  <code>trace_id</code>) and <strong>semantic conventions</strong> (standard names like
+  <code>http.response.status_code</code>). Its <strong>Collector</strong> then exports to whatever
+  backends you run &mdash; Prometheus/Grafana for metrics, Tempo or Jaeger for traces, Loki for logs.
+</p>
+
+<div class="callout insight">
+  <span class="label">Why it&rsquo;s the right default</span>
+  <p>
+    You instrument <em>once</em> and <strong>own your data</strong> &mdash; no lock-in to one vendor&rsquo;s
+    agent. Learn one API, and the three signals arrive already correlated. For a green operator, this is
+    the single highest-leverage instrumentation decision you can make.
+  </p>
+</div>
+
+<h2>5. The staff nuance: three pillars &ne; observability</h2>
+
+<p>
+  Having metrics, logs, <em>and</em> traces in three separate silos is not the same as being able to
+  answer a novel question. Real observability means slicing by <em>any</em> dimension &mdash;
+  &ldquo;show me p99 for Android&nbsp;&times;&nbsp;Brazil&nbsp;&times;&nbsp;checkout-v3&rdquo; &mdash; which
+  needs <strong>high-cardinality, high-dimensionality</strong> context (rich span attributes, wide
+  structured events) and correlation across signals. Collecting three data types but being unable to
+  ask that question is just three dashboards.
+</p>
+
+<div class="callout warning">
+  <span class="label">The cardinality reality (→ Lesson 07)</span>
+  <p>
+    Metrics are cheap <em>because</em> their labels are low-cardinality. Tag a Prometheus metric with a
+    raw <code>user_id</code> and you mint a new time series per user &mdash; an explosion that can take
+    down your metrics system. Rule of thumb: <strong>low-cardinality dimensions &rarr; metrics;
+    high-cardinality detail &rarr; traces &amp; logs</strong> (or wide events). Designing that split is
+    the next lesson.
+  </p>
+</div>
+
+<div class="primary-source">
+  <span class="label">Read this next (primary source)</span>
+  <p>
+    <a href="https://opentelemetry.io/docs/concepts/observability-primer/" target="_blank" rel="noopener">
+    OpenTelemetry &mdash; <em>Observability primer</em></a>: crisp definitions of signals, spans, and
+    traces. For the deeper &ldquo;pillars aren&rsquo;t enough&rdquo; argument, see
+    <a href="https://info.honeycomb.io/observability-engineering-oreilly-book-2022" target="_blank" rel="noopener"><em>Observability
+    Engineering</em></a> (Majors, Fong-Jones, Miranda).
+  </p>
+</div>
+
+<h2>6. Check yourself</h2>
+<p>Retrieve before revealing.</p>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 1 of 2</p>
+  <p class="quiz-q">A request is slow and fans out across six services. Which signal best shows <em>which hop</em> is slow?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="Metrics show the aggregate trend, not a single request&rsquo;s path.">Metrics — they aggregate latency into one time series</button></li>
+    <li><button data-correct="true" data-feedback="Right — a trace stitches the request&rsquo;s spans, exposing the slow hop.">Traces — they show the request&rsquo;s path and per-hop timing</button></li>
+    <li><button data-correct="false" data-feedback="Logs give local detail but don&rsquo;t stitch the cross-service path.">Logs — they record every event each service emits locally</button></li>
+    <li><button data-correct="false" data-feedback="They answer different questions; only traces localise the hop.">All three are equally good at localising the slow hop</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Traces stitch a request&rsquo;s spans across services, so you see exactly which hop added the latency. Metrics say &lsquo;that&rsquo;; logs say &lsquo;why&rsquo;; traces say &lsquo;where&rsquo;."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 2 of 2</p>
+  <p class="quiz-q">Why is tagging a Prometheus metric with a raw <code>user_id</code> a bad idea?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="Right — each label value mints a time series; unbounded values explode storage.">It mints a new time series per user — cardinality explosion</button></li>
+    <li><button data-correct="false" data-feedback="Prometheus labels are strings; that&rsquo;s not the problem here.">Prometheus forbids string labels, so a user_id cannot store</button></li>
+    <li><button data-correct="false" data-feedback="Scrape cadence isn&rsquo;t the issue; the series count is.">User IDs change too fast for Prometheus to scrape them</button></li>
+    <li><button data-correct="false" data-feedback="Panel speed is a symptom; the root problem is series count.">It makes the Grafana panel a little slower to render</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Metrics need low-cardinality labels; unbounded ones (user_id) blow up series count and storage. Put high-cardinality detail in traces and logs instead."></div>
+</div>
+
+<div class="callout tryit">
+  <span class="label">Try it in your own system</span>
+  <ul class="checklist">
+    <li>Inventory your signals: do you have <strong>metrics</strong>? <strong>structured</strong> (queryable) logs? <strong>distributed traces</strong>?</li>
+    <li>Name your biggest gap &mdash; most teams have metrics + logs but <em>no traces</em>.</li>
+    <li>Take one recent incident: which signal told you <em>where</em>, which told you <em>why</em>, and which was <em>missing</em>?</li>
+  </ul>
+  <p>Bring it &mdash; next we design telemetry deliberately: the four golden signals, RED/USE, naming, and cardinality.</p>
+</div>
+
+<div class="followup">
+  <strong>I&rsquo;m your teacher &mdash; ask me anything.</strong> Want to see a single request emit a
+  metric, a span, and a correlated log via OpenTelemetry? Curious how trace sampling decides what to
+  keep? Wondering where &ldquo;wide events&rdquo; fit versus the three pillars? Ask away.
+</div>
+
+<nav class="lesson-nav">
+  <span class="group">
+    <b>Reference</b>
+    <a href="../reference/0007-metrics-logs-traces.html">Metrics vs logs vs traces &rarr;</a>
+  </span>
+  <span class="group">
+    <b>Previous</b>
+    <a href="0005-burn-rate-alerting.html">&larr; Lesson 05 · Burn-rate alerting</a>
+  </span>
+  <span class="group">
+    <b>Up next</b>
+    <a href="0007-four-golden-signals.html">Lesson 07 · The four golden signals &rarr;</a>
+  </span>
+</nav>
+
+</body>
+</html>

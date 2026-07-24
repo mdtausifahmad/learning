@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 15 · NALSD — Designing for Reliability</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<script src="../assets/quiz.js" defer></script>
+<script src="../assets/anim.js" defer></script>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Reliability &amp; SRE · Lesson 15 · Capstone</p>
+  <h1>NALSD — Designing for Reliability</h1>
+  <div class="meta">
+    <span>◷ ~13 min read</span>
+    <span class="dot">•</span>
+    <span>Level: Staff+ synthesis</span>
+    <span class="dot">•</span>
+    <span>Prereq: the whole course</span>
+  </div>
+</header>
+
+<p class="mission-tie">
+  This is the capstone. Everything you&rsquo;ve learned &mdash; SLOs, observability, incident response,
+  resilience, safe change, simplicity &mdash; comes together the moment you <em>design</em> a system.
+  <span class="term">NALSD</span> is the Staff+ discipline of designing from concrete production numbers and
+  operational reality, not hand-wavy boxes. It&rsquo;s what &ldquo;being in the room&rdquo; for a design
+  review actually requires.
+</p>
+
+<h2>1. Non-abstract means: the numbers must add up</h2>
+
+<p>
+  Most design discussions are boxes and arrows. NALSD &mdash; <em>Non-Abstract Large System Design</em> &mdash;
+  forces concreteness, because every system eventually runs on real machines, in real datacenters, over
+  real networks. You develop the muscle of turning a whiteboard into <strong>concrete resource
+  estimates</strong>: how many QPS? how much data per day? how many machines? how much RAM, bandwidth,
+  storage?
+</p>
+
+<div class="callout insight">
+  <span class="label">Reliability is the top feature</span>
+  <p>
+    Google&rsquo;s stance: reliability is the <em>most critical feature</em> of any system, and deferring it
+    during design means fewer features at higher cost. And a caveat that frees you up: <strong>sound
+    assumptions matter more than perfect numbers</strong>. The value is combining many
+    imperfect-but-reasonable estimates into a better understanding of the design.
+  </p>
+</div>
+
+<h2>2. The iterative loop: four questions</h2>
+
+<table>
+  <thead><tr><th>Phase</th><th>Question</th><th>Asks</th></tr></thead>
+  <tbody>
+    <tr><td rowspan="2"><strong>Basic design</strong></td><td>Is it <strong>possible</strong>?</td><td>Ignoring resource limits, could this satisfy the requirements at all?</td></tr>
+    <tr><td>Can we do <strong>better</strong>?</td><td>Faster, smaller, more efficient? O(N) &rarr; O(log&nbsp;N)?</td></tr>
+    <tr><td rowspan="2"><strong>Scale up</strong></td><td>Is it <strong>feasible</strong>?</td><td>Within real money/hardware limits &mdash; what distributed design fits?</td></tr>
+    <tr><td>Is it <strong>resilient</strong>?</td><td>Fails gracefully? Survives a component &mdash; or whole-datacenter &mdash; failure?</td></tr>
+  </tbody>
+</table>
+
+<p>
+  You bounce between them and <strong>iterate</strong> &mdash; a design may pass the early questions and
+  flounder later, so you modify or replace components and go again. The final design is the end of a story
+  of twists and turns.
+</p>
+
+<h2>3. Reason from numbers (a taste)</h2>
+
+<p>
+  Take Google&rsquo;s AdWords example: report an accurate click-through rate for every ad. First, state the
+  requirements <strong>as SLOs</strong> (Lesson&nbsp;03):
+</p>
+<ul>
+  <li>99.9% of dashboard queries complete in &lt; 1 second.</li>
+  <li>99.9% of the time, the data shown is &lt; 5 minutes old.</li>
+</ul>
+<p>
+  Then the scale: ~<strong>500,000 search QPS</strong> and 10,000 ad-clicks/sec. Now the numbers drive the
+  design. At ~100 bytes/entry, 500k QPS is ~50&nbsp;MB/s &mdash; roughly <strong>4&nbsp;TB of logs a
+  day</strong>. You can&rsquo;t scan that per dashboard query and still hit &ldquo;&lt; 1 second,&rdquo; so
+  you must <em>pre-aggregate</em> CTR in a rolling window. One machine can&rsquo;t take 50&nbsp;MB/s plus
+  millions of advertisers querying &mdash; so you <em>shard</em>. A datacenter can fail &mdash; so you
+  <em>replicate</em> (N+2), and the 5-minute freshness SLO bounds how you buffer the pipeline. The SLOs and
+  the QPS <em>chose the architecture.</em>
+</p>
+
+<h2>4. The completeness test &mdash; where this whole course lands</h2>
+
+<p>An architect draws the boxes. NALSD makes them real <em>and operable</em>. A design isn&rsquo;t done until it answers:</p>
+
+<figure class="anim" data-anim>
+<div class="anim-stage">
+<svg viewBox="0 0 660 118" role="img" aria-label="Step-by-step: the five questions a complete reliable design must answer, mapped to the course">
+  <g font-family="system-ui, sans-serif">
+    <g class="anim-el" data-step="1">
+      <text x="330" y="18" text-anchor="middle" font-size="11" font-style="italic" fill="#63625c">A reliable design must explain&hellip;</text>
+      <rect x="12"  y="32" width="120" height="58" rx="8" fill="#e9f2ef" stroke="#14807a" stroke-width="1.4"></rect>
+      <text x="72"  y="58" text-anchor="middle" font-size="11" font-weight="700" fill="#14615f">Measured?</text>
+      <text x="72"  y="74" text-anchor="middle" font-size="8.5" fill="#63625c">SLOs · signals</text>
+      <text x="72"  y="85" text-anchor="middle" font-size="8" fill="#8a8a80">L1–3 · 6 · 7</text>
+    </g>
+    <g class="anim-el" data-step="2">
+      <rect x="142" y="32" width="120" height="58" rx="8" fill="#f6f7f4" stroke="#8a8a80" stroke-width="1.3"></rect>
+      <text x="202" y="58" text-anchor="middle" font-size="11" font-weight="700" fill="#1a1a1a">Fails?</text>
+      <text x="202" y="74" text-anchor="middle" font-size="8.5" fill="#63625c">overload · degrade</text>
+      <text x="202" y="85" text-anchor="middle" font-size="8" fill="#8a8a80">L11 · 12</text>
+    </g>
+    <g class="anim-el" data-step="3">
+      <rect x="272" y="32" width="120" height="58" rx="8" fill="#f6f7f4" stroke="#8a8a80" stroke-width="1.3"></rect>
+      <text x="332" y="58" text-anchor="middle" font-size="11" font-weight="700" fill="#1a1a1a">Recovers?</text>
+      <text x="332" y="74" text-anchor="middle" font-size="8.5" fill="#63625c">incident · rollback</text>
+      <text x="332" y="85" text-anchor="middle" font-size="8" fill="#8a8a80">L9 · 13</text>
+    </g>
+    <g class="anim-el" data-step="4">
+      <rect x="402" y="32" width="120" height="58" rx="8" fill="#f6f7f4" stroke="#8a8a80" stroke-width="1.3"></rect>
+      <text x="462" y="58" text-anchor="middle" font-size="11" font-weight="700" fill="#1a1a1a">Changes safely?</text>
+      <text x="462" y="74" text-anchor="middle" font-size="8.5" fill="#63625c">budget · canary</text>
+      <text x="462" y="85" text-anchor="middle" font-size="8" fill="#8a8a80">L4 · 13</text>
+    </g>
+    <g class="anim-el" data-step="5">
+      <rect x="532" y="32" width="120" height="58" rx="8" fill="#e9f2ef" stroke="#14807a" stroke-width="1.4"></rect>
+      <text x="592" y="58" text-anchor="middle" font-size="11" font-weight="700" fill="#14615f">Owned?</text>
+      <text x="592" y="74" text-anchor="middle" font-size="8.5" fill="#63625c">simple · on-call</text>
+      <text x="592" y="85" text-anchor="middle" font-size="8" fill="#8a8a80">L9 · 14</text>
+    </g>
+  </g>
+</svg>
+</div>
+<div class="anim-caps">
+  <p class="anim-cap" data-step="1"><span class="n">1</span><strong>Measured?</strong> SLOs and signals (Lessons 1&ndash;3, 6, 7). Can you even <em>see</em> how it&rsquo;s doing, from the user&rsquo;s side?</p>
+  <p class="anim-cap" data-step="2"><span class="n">2</span><strong>Fails &amp; degrades?</strong> Overload and graceful degradation (11, 12). What happens under stress &mdash; does it shed and survive, or collapse?</p>
+  <p class="anim-cap" data-step="3"><span class="n">3</span><strong>Recovers?</strong> Incident response and rollback (9, 13). How do you get back to healthy &mdash; <em>fast</em> &mdash; when it breaks?</p>
+  <p class="anim-cap" data-step="4"><span class="n">4</span><strong>Changes safely?</strong> Error-budget policy and canary (4, 13). Can you ship into it without breaking it?</p>
+  <p class="anim-cap" data-step="5"><span class="n">5</span><strong>Owned &amp; simple?</strong> A clear owner, simple enough to run at 3&nbsp;a.m. (9, 14). <em>Every lesson in this course is one answer on this checklist.</em></p>
+</div>
+<figcaption>Every lesson in this course is one answer on this checklist. That&rsquo;s what makes a design <em>complete</em> &mdash; not just correct.</figcaption>
+</figure>
+
+<h2>5. This is &ldquo;being in the room&rdquo;</h2>
+
+<p>
+  NALSD bridges architecture and SRE, and that bridge <em>is</em> the Staff+ job. In a design review you
+  carry both: the design that&rsquo;s elegant <strong>and</strong> monitorable, that fails gracefully,
+  recovers fast, changes safely, and is simple enough for someone to run at 3&nbsp;a.m. When you can turn a
+  whiteboard into concrete resources <em>and</em> walk the completeness test, you&rsquo;re no longer
+  &ldquo;a better senior engineer&rdquo; &mdash; you&rsquo;re operating at the next level.
+</p>
+
+<div class="primary-source">
+  <span class="label">Read this next (primary source)</span>
+  <p>
+    <a href="https://sre.google/workbook/non-abstract-design/" target="_blank" rel="noopener">SRE Workbook
+    &mdash; <em>Non-Abstract Large System Design</em></a> (the full AdWords walkthrough). Then revisit the
+    <a href="https://sre.google/books/" target="_blank" rel="noopener">whole SRE corpus</a> &mdash; you now
+    have the scaffolding to read it as a practitioner.
+  </p>
+</div>
+
+<h2>6. Check yourself</h2>
+<p>Retrieve before revealing.</p>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 1 of 2</p>
+  <p class="quiz-q">What does the &ldquo;non-abstract&rdquo; in NALSD demand?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="Right — turn the whiteboard into concrete resource estimates that must add up.">concrete numbers — QPS, data size, machines — that must add up</button></li>
+    <li><button data-correct="false" data-feedback="A tidy diagram without numbers is exactly what NALSD pushes past.">a polished architecture diagram with clean boxes and arrows</button></li>
+    <li><button data-correct="false" data-feedback="Tool choice isn&rsquo;t the point; the resource math is.">choosing the newest framework and cloud provider available</button></li>
+    <li><button data-correct="false" data-feedback="Capacity reasoning is the designer&rsquo;s job in NALSD, not a hand-off.">deferring the capacity questions to the operations team</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="NALSD reasons from real numbers (QPS, bytes, machines, bandwidth) and iterates: is it possible, better, feasible, resilient? Sound assumptions matter more than perfect values."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 2 of 2</p>
+  <p class="quiz-q">By the SRE view, a system design is <em>incomplete</em> until it explains&hellip;</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="Right — that&rsquo;s the completeness test the whole course builds toward.">how it&rsquo;s monitored, fails, recovers, changes, and who owns it</button></li>
+    <li><button data-correct="false" data-feedback="Pattern and language are details; operability is the gap NALSD closes.">which design pattern and programming language it will use</button></li>
+    <li><button data-correct="false" data-feedback="Estimation effort isn&rsquo;t the reliability question.">how many story points the whole build will take the team</button></li>
+    <li><button data-correct="false" data-feedback="Class-level UML says nothing about how the system behaves in prod.">the exact UML for every class in the whole codebase</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="A design isn&rsquo;t done until it answers how it&rsquo;s measured, how it fails and degrades, how it recovers, how it changes safely, and who owns it — the operational reality, not just the architecture."></div>
+</div>
+
+<div class="callout tryit">
+  <span class="label">Capstone challenge</span>
+  <p>Pick a system you own or want to design, and run the full method:</p>
+  <ul class="checklist">
+    <li>State its top <strong>SLI/SLO</strong> (Lesson&nbsp;03).</li>
+    <li>Do the <strong>back-of-envelope</strong>: QPS, data/day, machines (+ N+2).</li>
+    <li>Run the four questions: <strong>possible? better? feasible? resilient?</strong></li>
+    <li>Run the <strong>completeness test</strong>: measured? fails/degrades? recovers? changes safely? owned &amp; simple?</li>
+    <li>Note your biggest gap &mdash; and bring the design to a real review.</li>
+  </ul>
+</div>
+
+<div class="callout insight">
+  <span class="label">You&rsquo;ve built the whole loop</span>
+  <p>
+    Fifteen lessons: define reliability &rarr; measure it (SLI/SLO/budget) &rarr; govern it (policy) &rarr;
+    alert on it (burn rate) &rarr; observe it (signals, traces) &rarr; instrument it &rarr; respond (incidents)
+    &rarr; learn (postmortems) &rarr; prevent failure (resilience) &rarr; change safely &rarr; keep it simple
+    &rarr; and design it whole. That&rsquo;s the measurable, non-heroic core of SRE &mdash; the operational
+    judgment your mission set out to build.
+  </p>
+</div>
+
+<div class="followup">
+  <strong>I&rsquo;m your teacher &mdash; and we&rsquo;re not done.</strong> The next gains are
+  <em>application</em> and <em>wisdom</em>: bring me a real design or incident from your work and we&rsquo;ll
+  run it through the method; or I can set up spaced-retrieval reviews to make it all stick. Consider a
+  community for real-world feedback &mdash; <a href="https://reddit.com/r/sre" target="_blank" rel="noopener">r/sre</a>
+  or <a href="https://www.usenix.org/srecon" target="_blank" rel="noopener">SREcon</a> talks. Just ask.
+</div>
+
+<nav class="lesson-nav">
+  <span class="group">
+    <b>Reference</b>
+    <a href="../reference/0016-nalsd-reliable-design-checklist.html">NALSD &amp; reliable-design checklist &rarr;</a>
+  </span>
+  <span class="group">
+    <b>Previous</b>
+    <a href="0014-toil-automation-simplicity.html">&larr; Lesson 14 · Toil &amp; simplicity</a>
+  </span>
+  <span class="group">
+    <b>Extension</b>
+    <a href="0016-chaos-engineering.html">Lesson 16 · Chaos engineering &rarr;</a>
+  </span>
+  <span class="group">
+    <b>Course map</b>
+    <a href="../index.html">All lessons &amp; references &rarr;</a>
+  </span>
+</nav>
+
+</body>
+</html>

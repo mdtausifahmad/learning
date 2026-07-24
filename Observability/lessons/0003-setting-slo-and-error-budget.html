@@ -6,6 +6,7 @@
 <title>Lesson 03 · Setting the SLO &amp; the Error Budget</title>
 <link rel="stylesheet" href="../assets/styles.css">
 <script src="../assets/quiz.js" defer></script>
+<script src="../assets/anim.js" defer></script>
 </head>
 <body>
 
@@ -112,13 +113,52 @@
   <strong>half your budget for the whole window</strong>:
 </p>
 
-<div class="ebudget">
-  <div class="ebudget-track">
-    <div class="ebudget-good" style="flex:50">budget remaining · 1,500</div>
-    <div class="ebudget-err" style="flex:50">spent by one outage · 1,500</div>
-  </div>
-  <div class="ebudget-cap"><span>0</span><span>error budget = 3,000 failures / 4 weeks</span><span>3,000</span></div>
+<figure class="anim" data-anim>
+<div class="anim-stage">
+<svg viewBox="0 0 660 176" role="img" aria-label="Step-by-step: computing an error budget and draining it with one outage">
+  <defs>
+    <marker id="arw3" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#63625c"></path>
+    </marker>
+  </defs>
+
+  <g class="anim-el" data-step="1">
+    <text x="330" y="26" text-anchor="middle" font-family="system-ui, sans-serif" font-size="12.5" fill="#1a1a1a">Measured over 4 weeks: <tspan font-weight="700">3,000,000</tspan> valid requests, ~99.9% succeed</text>
+  </g>
+  <g class="anim-el" data-step="2">
+    <text x="330" y="50" text-anchor="middle" font-family="system-ui, sans-serif" font-size="12.5" fill="#14615f">SLO = 99.9%  &rarr;  error budget = 1 &minus; SLO = <tspan font-weight="700">0.1%</tspan></text>
+  </g>
+
+  <!-- budget bar -->
+  <g class="anim-el" data-step="3">
+    <rect x="40" y="74" width="580" height="40" rx="5" fill="#1f7a5e"></rect>
+    <text x="330" y="99" text-anchor="middle" font-family="system-ui, sans-serif" font-size="12" fill="#fff" font-weight="700">error budget = 0.1% &times; 3,000,000 = 3,000 failures</text>
+    <text x="40"  y="132" font-family="system-ui, sans-serif" font-size="9.5" fill="#63625c">0</text>
+    <text x="620" y="132" text-anchor="end" font-family="system-ui, sans-serif" font-size="9.5" fill="#63625c">3,000 · 4 weeks</text>
+  </g>
+
+  <!-- outage consumes half -->
+  <g class="anim-el" data-step="4">
+    <rect x="40" y="74" width="290" height="40" rx="5" fill="#b23b3b"></rect>
+    <text x="185" y="99" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11.5" fill="#fff" font-weight="700">outage burns 1,500</text>
+    <line x1="330" y1="66" x2="330" y2="122" stroke="#1a1a1a" stroke-width="1.5" stroke-dasharray="3 2"></line>
+  </g>
+
+  <g class="anim-el" data-step="5">
+    <text x="475" y="99" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11.5" fill="#fff" font-weight="700">remaining 1,500</text>
+    <text x="330" y="156" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11.5" font-style="italic" fill="#b23b3b">One outage just spent 50% of the whole month&rsquo;s budget.</text>
+  </g>
+</svg>
 </div>
+<div class="anim-caps">
+  <p class="anim-cap" data-step="1"><span class="n">1</span><strong>Measure</strong> the SLI over ~4 weeks: say 3,000,000 valid requests, about 99.9% succeeding. Real data, not a guess in a meeting.</p>
+  <p class="anim-cap" data-step="2"><span class="n">2</span>Round down to a starter <strong>SLO of 99.9%</strong>. Your error budget is simply what&rsquo;s left over: 1 &minus; SLO = <strong>0.1%</strong>.</p>
+  <p class="anim-cap" data-step="3"><span class="n">3</span>Turn that percentage into a <strong>count</strong>: 0.1% &times; 3,000,000 = <strong>3,000 failures</strong> allowed this window. Now it&rsquo;s a spendable number.</p>
+  <p class="anim-cap" data-step="4"><span class="n">4</span>One outage burns <strong>1,500</strong> failed requests &mdash; instantly <strong>half</strong> your entire month&rsquo;s budget is gone.</p>
+  <p class="anim-cap" data-step="5"><span class="n">5</span><strong>Remaining = 1,500.</strong> Now &ldquo;was that outage a big deal?&rdquo; has a crisp answer: it cost 50% of the window. How fast you spend is the <em>burn rate</em> &mdash; next lesson.</p>
+</div>
+<figcaption>The error budget turns reliability into a bank account: a concrete count of failures you can spend &mdash; and watch drain.</figcaption>
+</figure>
 
 <p>
   Suddenly &ldquo;was that outage a big deal?&rdquo; has a crisp answer: <em>it cost 50% of our
@@ -236,7 +276,7 @@
   </span>
   <span class="group">
     <b>Up next</b>
-    <a href="#" title="Ask your teacher to generate it">Lesson 04 · Error-budget policy &amp; burn-rate alerts &rarr;</a>
+    <a href="0004-error-budget-policy.html">Lesson 04 · The error-budget policy &rarr;</a>
   </span>
 </nav>
 

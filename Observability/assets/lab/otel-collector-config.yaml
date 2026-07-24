@@ -1,0 +1,37 @@
+# OpenTelemetry Collector — minimal lab pipeline
+# Receives OTLP from your app, exports metrics to Prometheus and traces to Jaeger.
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317   # your app's default OTLP/gRPC target
+      http:
+        endpoint: 0.0.0.0:4318   # OTLP/HTTP target
+
+processors:
+  batch: {}
+
+exporters:
+  # Expose a /metrics endpoint on :8889 for Prometheus to scrape.
+  prometheus:
+    endpoint: 0.0.0.0:8889
+  # Forward traces to Jaeger over OTLP.
+  otlp/jaeger:
+    endpoint: jaeger:4317
+    tls:
+      insecure: true
+  # Echo everything to the Collector log — handy while learning.
+  debug:
+    verbosity: detailed
+
+service:
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [prometheus, debug]
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlp/jaeger, debug]

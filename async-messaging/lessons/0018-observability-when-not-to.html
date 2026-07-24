@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 18 · Observability, Operations &amp; When NOT to Use Messaging</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<script src="../assets/quiz.js" defer></script>
+<script src="../assets/stepflow.js" defer></script>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Async &amp; Messaging · Lesson 18 · Finale</p>
+  <h1>Observability, Operations &amp; When <em>Not</em> to Use Messaging</h1>
+  <div class="meta">
+    <span>◷ ~17 min read · interactive</span>
+    <span class="dot">•</span>
+    <span>Level: Staff / Judgment</span>
+    <span class="dot">•</span>
+    <span>The capstone — ties the whole course together</span>
+  </div>
+</header>
+
+<p class="mission-tie">
+  You can now design almost any async system. The last two things that separate a good engineer from a
+  staff one: being able to <em>operate</em> what you built when it misbehaves at 3&nbsp;a.m., and the
+  wisdom to <em>not build it</em> when a boring synchronous call would do. This lesson is about running
+  these systems in production — and knowing when the right answer is &ldquo;no broker.&rdquo;
+</p>
+
+<h2>1. Why async systems are hard to observe</h2>
+
+<p>
+  A synchronous request has a call stack: one trace, one latency number, one place to look. An async
+  flow has none of that. The work happens <em>later</em>, in <em>another</em> service, possibly
+  <em>retried</em> and <em>reordered</em>, fanned out to consumers you didn&rsquo;t write. There is no
+  stack that spans the hops — which is exactly the flow-visibility trap from Lesson 13. So you have to
+  <strong>build</strong> visibility in, deliberately, with the three pillars.
+</p>
+
+<h2>2. Pillar 1 — distributed tracing across the hops</h2>
+
+<p>
+  The fix is <span class="term">context propagation</span>: carry a <strong>trace id</strong> (and the
+  current span id) <em>through the message</em>, so the consumer&rsquo;s work becomes a child span of the
+  producer&rsquo;s. OpenTelemetry&rsquo;s default is the W3C <code>traceparent</code> header
+  (<code>&lt;version&gt;-&lt;trace-id&gt;-&lt;parent-id&gt;-&lt;flags&gt;</code>) &mdash; the same id rides producer
+  → broker → consumer → next producer, and a backend like Jaeger stitches them into one trace.
+</p>
+
+<h3>Watch it: one trace across producer, broker, and consumers</h3>
+<p>Step through a trace id stitching an async flow into a single waterfall (← / → keys work).</p>
+
+<div class="stepflow" data-token="token">
+  <div class="sf-stage">
+    <svg viewBox="0 0 720 320" role="img" aria-label="A trace id propagated through message headers stitches spans from Order, Inventory, and Shipping into one distributed trace">
+      <defs>
+        <marker id="l18a" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#6b6459"></path></marker>
+      </defs>
+
+      <rect id="order" class="sf-actor" x="24" y="40" width="176" height="52" rx="10" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.5"></rect>
+      <text x="112" y="70" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" font-weight="600" fill="#1a1a1a">Order</text>
+      <rect id="inventory" class="sf-actor" x="272" y="40" width="176" height="52" rx="10" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.5"></rect>
+      <text x="360" y="70" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" font-weight="600" fill="#1a1a1a">Inventory</text>
+      <rect id="shipping" class="sf-actor" x="520" y="40" width="176" height="52" rx="10" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.5"></rect>
+      <text x="608" y="70" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" font-weight="600" fill="#1a1a1a">Shipping</text>
+
+      <g id="msgArr1" style="display:none"><line x1="200" y1="66" x2="270" y2="66" stroke="#6b6459" stroke-width="1.5" marker-end="url(#l18a)"></line><text x="235" y="56" text-anchor="middle" font-family="system-ui,sans-serif" font-size="7" fill="#7a2e2e">traceparent abc-123</text></g>
+      <g id="msgArr2" style="display:none"><line x1="448" y1="66" x2="518" y2="66" stroke="#6b6459" stroke-width="1.5" marker-end="url(#l18a)"></line><text x="483" y="56" text-anchor="middle" font-family="system-ui,sans-serif" font-size="7" fill="#7a2e2e">traceparent abc-123</text></g>
+
+      <text x="130" y="114" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="600" fill="#6b6459">Distributed trace · abc-123</text>
+      <rect x="40" y="122" width="640" height="150" rx="10" fill="#fdfcf9" stroke="#e4ded2" stroke-width="1.25"></rect>
+      <g id="spanOrder" style="display:none"><rect x="60" y="146" width="180" height="26" rx="5" fill="#d9e2ec" stroke="#2e5a7a" stroke-width="1.1"></rect><text x="150" y="164" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" fill="#1a1a1a">span: order</text></g>
+      <g id="spanInv" style="display:none"><rect x="210" y="186" width="210" height="26" rx="5" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.1"></rect><text x="315" y="204" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" fill="#1a1a1a">span: inventory (child)</text></g>
+      <g id="spanShip" style="display:none"><rect x="380" y="226" width="210" height="26" rx="5" fill="#f3ecec" stroke="#7a2e2e" stroke-width="1.1"></rect><text x="485" y="244" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" fill="#1a1a1a">span: shipping (child)</text></g>
+
+      <text id="traceStartBadge" x="360" y="292" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="600" fill="#2e5a7a" style="display:none">▶ a new trace (abc-123) starts at Order</text>
+      <text id="stitchBadge" x="360" y="292" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="700" fill="#1f4a29" style="display:none">one trace — the whole async flow, end to end, visible</text>
+      <text id="recapBadge" x="360" y="292" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="700" fill="#1a1a1a" style="display:none">propagate the trace id in message headers → async becomes observable</text>
+
+      <g id="token" style="display:none"></g>
+    </svg>
+  </div>
+
+  <div class="sf-caption"><p class="sf-title"></p><p class="sf-desc"></p></div>
+  <div class="sf-controls">
+    <button class="sf-btn sf-prev" type="button">◀ Prev</button>
+    <button class="sf-btn sf-next" type="button">Next ▶</button>
+    <button class="sf-btn sf-reset" type="button">↺ Reset</button>
+    <button class="sf-btn sf-play" type="button">▶ Play</button>
+    <span class="sf-counter"></span>
+  </div>
+
+  <script type="application/json" class="sf-steps">
+  [
+    {"title":"A request starts a trace","desc":"A request hits Order. A new trace <code>abc-123</code> begins; the first span &ldquo;order&rdquo; opens.","token":null,"visible":["spanOrder","traceStartBadge"],"highlight":["order"]},
+    {"title":"The trace id rides the message","desc":"Order publishes <code>OrderPlaced</code> with the W3C <code>traceparent</code> header (<code>abc-123</code>) in the message metadata.","token":null,"visible":["spanOrder","msgArr1"],"highlight":["order","inventory"]},
+    {"title":"Consumer continues the same trace","desc":"Inventory consumes, extracts the <code>traceparent</code>, and opens a span that is a <strong>child</strong> of the order span — same trace.","token":null,"visible":["spanOrder","spanInv","msgArr1"],"highlight":["inventory"]},
+    {"title":"…and propagates it onward","desc":"Inventory publishes <code>InventoryReserved</code>, carrying <code>abc-123</code> again.","token":null,"visible":["spanOrder","spanInv","msgArr1","msgArr2"],"highlight":["inventory","shipping"]},
+    {"title":"The next hop joins too","desc":"Shipping consumes and opens its span — still trace <code>abc-123</code>.","token":null,"visible":["spanOrder","spanInv","spanShip","msgArr2"],"highlight":["shipping"]},
+    {"title":"Stitched into one trace","desc":"The tracing backend assembles the spans into a single <strong>waterfall</strong> — the entire async flow, across every hop, in one view.","token":null,"visible":["spanOrder","spanInv","spanShip","stitchBadge"],"highlight":[]},
+    {"title":"Async, made observable","desc":"Propagating the trace id through message headers is what makes the flow that choreography (Lesson 13) hid visible again — and debuggable.","token":null,"visible":["spanOrder","spanInv","spanShip","recapBadge"],"highlight":["order","inventory","shipping"]}
+  ]
+  </script>
+</div>
+
+<pre><code>// Spring Boot + Micrometer Tracing auto-injects/extracts W3C traceparent via Kafka headers
+kafkaTemplate.setObservationEnabled(true)
+containerFactory.containerProperties.observationEnabled = true
+// Logs then carry [traceId, spanId] via MDC → one correlation id ties logs + traces across services</code></pre>
+
+<h2>3. Pillar 2 — the metrics that actually matter (and alert on them)</h2>
+<table>
+  <thead><tr><th>Metric</th><th>Watch for</th><th>Lesson</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Consumer lag</strong></td><td>The #1 signal — rising lag = falling behind (or a hung transaction)</td><td>L10, L07</td></tr>
+    <tr><td><strong>DLQ depth / rate</strong></td><td>Any message entering the DLQ is an incident to triage</td><td>L11</td></tr>
+    <tr><td><strong>End-to-end latency</strong></td><td>produce timestamp → consume; the real user-facing delay</td><td>L10</td></tr>
+    <tr><td><strong>Throughput</strong></td><td>Produce vs consume rate — are you keeping up?</td><td>L10</td></tr>
+    <tr><td><strong>Rebalance frequency</strong></td><td>Rebalance storms = stalls; check membership churn</td><td>L03, L07</td></tr>
+    <tr><td><strong>Producer error / retry rate</strong></td><td>Rising = broker or downstream trouble</td><td>L05</td></tr>
+  </tbody>
+</table>
+
+<p>
+  <strong>Autoscale on lag</strong> (KEDA), not CPU (L10). And logs — pillar 3 — become useful only when
+  they carry the same <strong>correlation id</strong> as your traces, so one search follows a message
+  across every service.
+</p>
+
+<div class="callout insight">
+  <span class="label">Keep a runbook</span>
+  <p>
+    Operating messaging is mostly a handful of rehearsed responses: lag climbing (scale consumers or
+    find the stuck partition / hung transaction), DLQ filling (triage &amp; redrive, L11), rebalance storm
+    (static membership / cooperative rebalancing, L07), schema break (compatibility gate in CI, L16),
+    poison message (bounded retry → DLQ, L11). Write them down before you need them.
+  </p>
+</div>
+
+<h2>4. The wisdom: when <em>not</em> to use messaging</h2>
+
+<p>
+  Every capability in this course came with a cost — a broker to run and keep highly available,
+  eventual consistency, duplicates, reordering, lag, and harder debugging. Async is a
+  <strong>deliberate trade</strong> (Lesson 01), not a default. The staff move is often to <em>not</em>
+  reach for it.
+</p>
+
+<div class="callout warning">
+  <span class="label">Signs you should NOT use a broker</span>
+  <p>
+    <strong>You need an immediate answer to continue</strong> → synchronous REST/gRPC (don&rsquo;t fake sync
+    over async). <strong>You need strong, read-your-writes consistency now</strong> → a database
+    transaction is simpler. <strong>Simple CRUD, one service, low volume</strong> → a direct call or a
+    DB; a broker is pure overhead. <strong>You&rsquo;re querying/updating messages</strong> → that&rsquo;s a
+    database, not a queue. <strong>Your &ldquo;events&rdquo; are really synchronous calls in disguise</strong>
+    (the passive-aggressive command, L04) → you&rsquo;ve built a <em>distributed monolith</em>, the worst of
+    both worlds. And <strong>event sourcing / CQRS / sagas on a simple domain</strong> → over-engineering
+    (L15, L17).
+  </p>
+</div>
+
+<div class="callout insight">
+  <span class="label">The decision, in one breath</span>
+  <p>
+    Reach for async messaging when you genuinely need <strong>decoupling in time, fan-out, load
+    leveling, or resilience to downstream outages</strong> — <em>and</em> you can afford a broker plus
+    eventual consistency plus the operational weight. Otherwise, choose the boring, synchronous, single
+    thing that works. The best architects add complexity reluctantly, and can always say <em>why</em>.
+  </p>
+</div>
+
+<h2>5. The journey — and where you go next</h2>
+
+<p>
+  Look how far this went. You started having only ever built synchronous request/response, and you now
+  hold the full arc:
+</p>
+<p style="font-size:.92rem; color:var(--muted);">
+  decoupling in time (<a href="0001-why-async.html">01</a>) → topology
+  (<a href="0002-queue-vs-topic.html">02</a>) → partitions (<a href="0003-kafka-consumer-groups-deep-dive.html">03</a>)
+  → intent (<a href="0004-event-command-query.html">04</a>) → delivery guarantees
+  (<a href="0005-delivery-guarantees.html">05</a>–<a href="0007-operating-kafka-exactly-once.html">07</a>) →
+  idempotency (<a href="0008-idempotency-deduplication.html">08</a>) → ordering
+  (<a href="0009-ordering-partitioning.html">09</a>) → backpressure (<a href="0010-backpressure-load-leveling.html">10</a>)
+  → failure &amp; DLQs (<a href="0011-retries-dlq-poison-messages.html">11</a>) → the log model
+  (<a href="0012-log-vs-queue-brokers.html">12</a>) → EDA / outbox / saga
+  (<a href="0013-choreography-orchestration.html">13</a>–<a href="0015-saga-pattern.html">15</a>) → schema
+  (<a href="0016-schema-evolution.html">16</a>) → event sourcing &amp; CQRS
+  (<a href="0017-event-sourcing-cqrs.html">17</a>) → operate &amp; know when not to (18).
+</p>
+
+<div class="callout tryit">
+  <span class="label">The real work now: wisdom</span>
+  <p>
+    Knowledge and skills you have. <strong>Wisdom comes from doing it in the real world</strong> and
+    from other practitioners. Take one async decision at work this week and defend it out loud — sync or
+    async, and <em>why</em>. And bring the hard questions somewhere with strong practitioners:
+    <a href="https://reddit.com/r/apachekafka" target="_blank" rel="noopener">r/apachekafka</a>,
+    <a href="https://www.confluent.io/community/" target="_blank" rel="noopener">the Confluent Community</a>,
+    <a href="https://reddit.com/r/softwarearchitecture" target="_blank" rel="noopener">r/softwarearchitecture</a>.
+    See <a href="../RESOURCES.md">RESOURCES.md</a> for the curated list.
+  </p>
+</div>
+
+<div class="primary-source">
+  <span class="label">Go deeper (primary sources)</span>
+  <p>
+    <a href="https://opentelemetry.io/docs/concepts/context-propagation/" target="_blank" rel="noopener">OpenTelemetry &mdash; <em>Context Propagation</em></a>
+    and <a href="https://opentelemetry.io/docs/specs/semconv/messaging/messaging-spans/" target="_blank" rel="noopener"><em>Messaging spans</em></a>
+    (traceparent across producer/consumer). For the &ldquo;when not to&rdquo; wisdom: Dan McKinley&rsquo;s
+    <em>Choose Boring Technology</em>, and the trade-off framing back in
+    <a href="0001-why-async.html">Lesson 01</a>.
+  </p>
+</div>
+
+<h2>6. Check yourself</h2>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 1 of 2</p>
+  <p class="quiz-q">How do you get one end-to-end trace across an async producer → broker → consumer flow?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="Propagate the trace context (traceparent) in the message headers so spans stitch across hops.">Propagate a trace id in the message headers</button></li>
+    <li><button data-correct="false" data-feedback="A synchronous call stack doesn't exist across async hops — that's the whole problem.">Read the synchronous call stack across hops</button></li>
+    <li><button data-correct="false" data-feedback="Averaging latencies loses causality; you need propagated context to correlate.">Average each service&rsquo;s latency together</button></li>
+    <li><button data-correct="false" data-feedback="Bigger logs without a shared correlation id still can't be stitched into a trace.">Increase the log level on every service</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Context propagation: carry the W3C traceparent (trace id + parent span id) in message headers so consumer spans become children of the producer span — one trace."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 2 of 2</p>
+  <p class="quiz-q">Which situation is a clear sign <em>not</em> to introduce a message broker?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="If the caller must have the answer to continue, that's synchronous by nature — a broker just adds cost.">The caller needs the result to continue now</button></li>
+    <li><button data-correct="false" data-feedback="Fanning one event to many independent consumers is a core reason TO use messaging.">One event must fan out to many consumers</button></li>
+    <li><button data-correct="false" data-feedback="Absorbing spikes (load leveling) is a core reason TO use a buffer.">Traffic spikes must be absorbed by a buffer</button></li>
+    <li><button data-correct="false" data-feedback="Surviving downstream outages is a core reason TO decouple via a broker.">Work must survive a downstream outage</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Need the answer to proceed → synchronous. Fan-out, load leveling, and outage resilience are reasons FOR messaging; an immediate answer is a reason against."></div>
+</div>
+
+<div class="followup">
+  <strong>I&rsquo;m your teacher &mdash; this isn&rsquo;t the end.</strong> You&rsquo;ve completed the core curriculum. Ask
+  me for a hands-on capstone project, a deep dive on any tool you use (Kafka internals, RabbitMQ,
+  Pulsar, SQS), a mock staff-level design review, or spaced-repetition review of earlier lessons. Where
+  do you want to go?
+</div>
+
+<nav class="lesson-nav">
+  <span class="group">
+    <b>Previous</b>
+    <a href="0017-event-sourcing-cqrs.html">← Lesson 17 · Event Sourcing &amp; CQRS</a>
+  </span>
+  <span class="group">
+    <b>Reference</b>
+    <a href="../reference/0018-observability-when-not-cheatsheet.html">Observability &amp; judgment cheat sheet →</a>
+  </span>
+  <span class="group">
+    <b>Course</b>
+    <a href="0001-why-async.html">↩ Back to Lesson 01</a>
+  </span>
+</nav>
+
+</body>
+</html>

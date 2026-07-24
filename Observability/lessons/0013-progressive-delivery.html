@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 13 · Progressive Delivery</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<script src="../assets/quiz.js" defer></script>
+<script src="../assets/anim.js" defer></script>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Reliability &amp; SRE · Lesson 13</p>
+  <h1>Progressive Delivery: Canary, Flags &amp; Rollback</h1>
+  <div class="meta">
+    <span>◷ ~12 min read</span>
+    <span class="dot">•</span>
+    <span>Level: Practical → Judgment</span>
+    <span class="dot">•</span>
+    <span>Prereq: <a href="0004-error-budget-policy.html">L04</a> budget · <a href="0007-four-golden-signals.html">L07</a> signals</span>
+  </div>
+</header>
+
+<p class="mission-tie">
+  A <em>majority</em> of incidents are triggered by binary or config pushes. So the highest-leverage
+  reliability work isn&rsquo;t heroics &mdash; it&rsquo;s making <strong>change</strong> safe. Progressive
+  delivery exposes a change gradually and gives you an escape hatch. For a builder who ships features,
+  this is where reliability meets your daily workflow.
+</p>
+
+<h2>1. The foundation: separate deploy from release</h2>
+
+<table>
+  <thead><tr><th>Deploy</th><th>Release</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>Get the new code onto production servers &mdash; <strong>dark</strong>, with no user impact.</td>
+      <td>Expose the new behaviour to users.</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="callout insight">
+  <span class="label">Why decoupling is the master move</span>
+  <p>
+    Feature flags let you <strong>deploy safely anytime</strong>, then <strong>release gradually</strong>
+    and <strong>disable instantly</strong> &mdash; with no redeploy. Deploy becomes low-risk; release
+    becomes a dial you control. Everything else in this lesson builds on that split.
+  </p>
+</div>
+
+<h2>2. Canary: prove it on a small slice of real traffic</h2>
+
+<p>
+  A <span class="term">canary</span> is a <strong>partial, time-limited deployment of a change plus its
+  evaluation</strong>. The subset that gets the change is <em>the canary</em>; the rest is
+  <em>the control</em>. You compare the canary&rsquo;s SLIs &mdash; errors and latency, your
+  <a href="0007-four-golden-signals.html">golden signals</a> &mdash; against the control, on the
+  <em>same real traffic</em>. It&rsquo;s A/B testing for safety.
+</p>
+
+<figure class="anim" data-anim>
+<div class="anim-stage">
+<svg viewBox="0 0 660 150" role="img" aria-label="Step-by-step safe-change flow: build, deploy dark, canary, evaluate, then expand or roll back">
+  <defs>
+    <marker id="arw13" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#63625c"></path>
+    </marker>
+  </defs>
+  <g font-family="system-ui, sans-serif">
+    <g class="anim-el" data-step="1">
+      <rect x="10"  y="28" width="86"  height="40" rx="7" fill="#f6f7f4" stroke="#8a8a80" stroke-width="1.3"></rect>
+      <text x="53"  y="52" text-anchor="middle" font-size="10.5" font-weight="600" fill="#1a1a1a">Build</text>
+    </g>
+    <g class="anim-el" data-step="2">
+      <line x1="96"  y1="48" x2="109" y2="48" stroke="#63625c" stroke-width="1.4" marker-end="url(#arw13)"></line>
+      <rect x="110" y="28" width="104" height="40" rx="7" fill="#f6f7f4" stroke="#8a8a80" stroke-width="1.3"></rect>
+      <text x="162" y="52" text-anchor="middle" font-size="10.5" font-weight="600" fill="#1a1a1a">Deploy dark</text>
+    </g>
+    <g class="anim-el" data-step="3">
+      <line x1="214" y1="48" x2="227" y2="48" stroke="#63625c" stroke-width="1.4" marker-end="url(#arw13)"></line>
+      <rect x="228" y="28" width="86"  height="40" rx="7" fill="#f6f7f4" stroke="#8a8a80" stroke-width="1.3"></rect>
+      <text x="271" y="52" text-anchor="middle" font-size="10.5" font-weight="600" fill="#1a1a1a">Canary 1%</text>
+    </g>
+    <g class="anim-el" data-step="4">
+      <line x1="314" y1="48" x2="331" y2="48" stroke="#63625c" stroke-width="1.4" marker-end="url(#arw13)"></line>
+      <polygon points="392,18 452,48 392,78 332,48" fill="#e9f2ef" stroke="#14807a" stroke-width="1.6"></polygon>
+      <text x="392" y="45" text-anchor="middle" font-size="9.5" font-weight="600" fill="#14615f">SLIs</text>
+      <text x="392" y="56" text-anchor="middle" font-size="9.5" font-weight="600" fill="#14615f">healthy?</text>
+    </g>
+    <g class="anim-el" data-step="5">
+      <line x1="452" y1="48" x2="475" y2="48" stroke="#14807a" stroke-width="1.4" marker-end="url(#arw13)"></line>
+      <text x="464" y="40" text-anchor="middle" font-size="8.5" fill="#14807a">yes</text>
+      <rect x="476" y="28" width="174" height="40" rx="7" fill="#e9f2ef" stroke="#14807a" stroke-width="1.4"></rect>
+      <text x="563" y="52" text-anchor="middle" font-size="10.5" font-weight="600" fill="#1a1a1a">Expand → full release</text>
+    </g>
+    <g class="anim-el" data-step="6">
+      <line x1="392" y1="78" x2="392" y2="97" stroke="#b23b3b" stroke-width="1.4" marker-end="url(#arw13)"></line>
+      <text x="404" y="92" font-size="8.5" fill="#b23b3b">no</text>
+      <rect x="322" y="98" width="140" height="36" rx="7" fill="#fbecec" stroke="#b23b3b" stroke-width="1.4"></rect>
+      <text x="392" y="121" text-anchor="middle" font-size="10.5" font-weight="600" fill="#1a1a1a">Rollback / flag off</text>
+    </g>
+  </g>
+</svg>
+</div>
+<div class="anim-caps">
+  <p class="anim-cap" data-step="1"><span class="n">1</span><strong>Build</strong> the artifact &mdash; a small, self-contained change (small changes are cheap to roll back).</p>
+  <p class="anim-cap" data-step="2"><span class="n">2</span><strong>Deploy dark.</strong> Get the new code onto production servers with <em>no user impact</em> &mdash; deploy is now decoupled from release.</p>
+  <p class="anim-cap" data-step="3"><span class="n">3</span><strong>Canary 1%.</strong> Release the change to a tiny slice of real traffic &mdash; the canary &mdash; while everyone else stays on the control.</p>
+  <p class="anim-cap" data-step="4"><span class="n">4</span><strong>Evaluate.</strong> Compare the canary&rsquo;s SLIs (errors, latency) against the control on the <em>same</em> traffic. A/B testing for safety.</p>
+  <p class="anim-cap" data-step="5"><span class="n">5</span><strong>Healthy &rarr; expand.</strong> Widen gradually &mdash; 1% &rarr; 10% &rarr; 50% &rarr; 100% &mdash; with bake time, gating each step on the error budget.</p>
+  <p class="anim-cap" data-step="6"><span class="n">6</span><strong>Unhealthy &rarr; roll back</strong> (or flip the flag off). The defect hit <strong>1% of users, not 100%</strong>, and never spread. That&rsquo;s the whole point.</p>
+</div>
+<figcaption>Blast radius = the canary size. A defect hits 1% of users, not 100% &mdash; and rolls back before it spreads.</figcaption>
+</figure>
+
+<p>
+  Widen gradually &mdash; internal &rarr; 1% &rarr; 10% &rarr; 50% &rarr; 100% &mdash; with <strong>bake
+  time</strong> at each step, and gate promotion on your SLOs / error budget (Lessons 3&ndash;5).
+  Tests are never 100% like production; a canary catches what only real traffic reveals.
+</p>
+
+<h2>3. Feature flags: the escape hatch</h2>
+
+<p>Flags do more than gate releases &mdash; and different kinds are managed differently:</p>
+<table>
+  <thead><tr><th>Toggle type</th><th>Purpose</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Release</strong></td><td>hide a half-built feature; short-lived, dev-owned.</td></tr>
+    <tr><td><strong>Experiment</strong></td><td>A/B test for impact; product-owned.</td></tr>
+    <tr><td><strong>Ops</strong></td><td>the <strong>kill switch</strong> &mdash; disable a feature under load (e.g. &ldquo;use the simplistic recommendation algorithm&rdquo;).</td></tr>
+  </tbody>
+</table>
+
+<div class="callout insight">
+  <span class="label">The Ops toggle <em>is</em> graceful degradation</span>
+  <p>
+    That kill switch is exactly Lesson&nbsp;12&rsquo;s degraded mode, made operable. Best practices: expose
+    the <strong>current flag state</strong> to operators, give each flag a <strong>human-readable
+    description</strong> (priceless mid-incident), and pay down <strong>flag debt</strong> &mdash; delete
+    toggles once they&rsquo;ve served their purpose.
+  </p>
+</div>
+
+<h2>4. Rollback is a reliability feature</h2>
+
+<p>
+  Fast, tested rollback beats fast diagnosis (Lesson&nbsp;09: mitigate first). But a rollback is only safe
+  if you&rsquo;ve engineered for it:
+</p>
+<ul>
+  <li><strong>Tested</strong> &mdash; practised and automated, not improvised at 3&nbsp;a.m.</li>
+  <li><strong>Schema-safe</strong> &mdash; database changes are backward-compatible, so the <em>old</em> code
+      still works against the <em>new</em> schema.</li>
+  <li><strong>Mixed-version safe</strong> &mdash; during a rollout, old and new run <em>together</em>; both
+      must cope.</li>
+</ul>
+<p>
+  Small, self-contained deployments make rollback cheap. If a change is <em>irreversible</em> (a
+  destructive migration), the rollout needs extra safeguards &mdash; you&rsquo;ve given up your escape hatch.
+</p>
+
+<div class="callout warning">
+  <span class="label">Expand / contract for stateful changes</span>
+  <p>
+    Make schema and API changes in compatible steps: <strong>expand</strong> (add the new, both old and
+    new work) &rarr; migrate &rarr; <strong>contract</strong> (remove the old). At every step old and new
+    coexist, so canary <em>and</em> rollback stay safe. Skip this and a &ldquo;simple&rdquo; column
+    rename can make rollback impossible.
+  </p>
+</div>
+
+<div class="primary-source">
+  <span class="label">Read this next (primary source)</span>
+  <p>
+    <a href="https://sre.google/workbook/canarying-releases/" target="_blank" rel="noopener">SRE Workbook
+    &mdash; <em>Canarying Releases</em></a> (canary vs control, evaluation, release principles). And Pete
+    Hodgson&rsquo;s <a href="https://martinfowler.com/articles/feature-toggles.html" target="_blank" rel="noopener">Feature
+    Toggles</a> on Martin Fowler&rsquo;s site for the toggle categories and their lifecycle.
+  </p>
+</div>
+
+<h2>5. Check yourself</h2>
+<p>Retrieve before revealing.</p>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 1 of 2</p>
+  <p class="quiz-q">A canary release works by&hellip;</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="Right — canary vs control on real traffic; healthy → widen, unhealthy → roll back.">sending a small traffic slice to the new version and comparing signals</button></li>
+    <li><button data-correct="false" data-feedback="Deploying everywhere at once is exactly what a canary avoids.">deploying to every server at once and then watching the dashboards</button></li>
+    <li><button data-correct="false" data-feedback="Staging isn&rsquo;t production; canaries need real traffic to catch real defects.">running the new version only in a staging environment first</button></li>
+    <li><button data-correct="false" data-feedback="Auto-rollback is a nice add-on, but it isn&rsquo;t what a canary *is*.">rolling back automatically whenever any single error occurs</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="A canary exposes a small cohort to the new version and compares its SLIs against the control on real traffic. Blast radius = canary size; widen gradually with bake time."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 2 of 2</p>
+  <p class="quiz-q">Why can a database schema change make rollback unsafe?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="Right — roll back the code and it now faces a schema it wasn&rsquo;t written for.">the new schema may not work with the old code you roll back to</button></li>
+    <li><button data-correct="false" data-feedback="Databases can be migrated back — the issue is code/schema compatibility.">databases can never be rolled back once they have been changed</button></li>
+    <li><button data-correct="false" data-feedback="Rollback doesn&rsquo;t delete data; the risk is incompatibility, not loss.">rollback always deletes all data written during the release</button></li>
+    <li><button data-correct="false" data-feedback="There&rsquo;s plenty to undo — the schema and any partially-migrated data.">schema changes are instant, so there is nothing to undo</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="During rollout old and new coexist, and after rollback old code meets the new schema. Use expand/contract (backward-compatible) migrations so rollback stays safe."></div>
+</div>
+
+<div class="callout tryit">
+  <span class="label">Try it in your own system</span>
+  <ul class="checklist">
+    <li>Take your last risky change: did you <em>deploy = release</em> in one step, or could you have canaried it?</li>
+    <li>Is there an <strong>Ops kill-switch flag</strong> for your riskiest feature?</li>
+    <li>Could you roll back your last DB migration with the <strong>old code still running</strong>?</li>
+    <li>How long would it take to roll back prod <em>right now</em> &mdash; do you know?</li>
+  </ul>
+  <p>Bring it &mdash; next: toil, automation, and simplicity as a reliability control.</p>
+</div>
+
+<div class="followup">
+  <strong>I&rsquo;m your teacher &mdash; ask me anything.</strong> Want a canary evaluation checklist, or how to
+  automate the promotion gate on error budget? Unsure how to sequence an expand/contract migration?
+  Wondering about blue-green vs canary vs rolling? Ask away.
+</div>
+
+<nav class="lesson-nav">
+  <span class="group">
+    <b>Reference</b>
+    <a href="../reference/0014-progressive-delivery.html">Progressive delivery &rarr;</a>
+  </span>
+  <span class="group">
+    <b>Previous</b>
+    <a href="0012-graceful-degradation-thundering-herd.html">&larr; Lesson 12 · Degradation &amp; herd</a>
+  </span>
+  <span class="group">
+    <b>Up next</b>
+    <a href="0014-toil-automation-simplicity.html">Lesson 14 · Toil, automation &amp; simplicity &rarr;</a>
+  </span>
+</nav>
+
+</body>
+</html>

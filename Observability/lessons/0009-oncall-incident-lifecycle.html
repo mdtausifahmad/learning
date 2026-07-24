@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 09 · On-Call &amp; the Incident Lifecycle</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<script src="../assets/quiz.js" defer></script>
+<script src="../assets/anim.js" defer></script>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Reliability &amp; SRE · Lesson 09</p>
+  <h1>On-Call &amp; the Incident Lifecycle</h1>
+  <div class="meta">
+    <span>◷ ~12 min read</span>
+    <span class="dot">•</span>
+    <span>Level: Judgment</span>
+    <span class="dot">•</span>
+    <span>Prereq: <a href="0005-burn-rate-alerting.html">Lesson 05</a> — something paged you</span>
+  </div>
+</header>
+
+<p class="mission-tie">
+  You can measure reliability and see <em>why</em> it breaks (Lessons 1&ndash;8). But when it breaks badly
+  at 3&nbsp;a.m., you need a <strong>system</strong> for responding &mdash; not heroics. Incident response is
+  socio-technical: coordinate, mitigate, communicate, learn. For a green operator, this is the muscle to
+  build <em>before</em> you&rsquo;re handed a pager.
+</p>
+
+<h2>1. The anti-pattern: the unmanaged incident</h2>
+
+<p>
+  Google&rsquo;s SRE book opens with Mary. Her pager explodes &mdash; a datacenter stops serving. Head down,
+  she starts fixing. A second datacenter fails, then a third; the survivors overload. VPs demand an ETA
+  (&ldquo;increase the page size!&rdquo;); colleagues are &ldquo;just looking&rdquo;; and off in another
+  timezone, a well-meaning Malcolm deploys an uncoordinated &ldquo;fix&rdquo; that kills the remaining
+  servers outright.
+</p>
+
+<div class="callout warning">
+  <span class="label">Everyone was doing their job</span>
+  <p>
+    Nobody was incompetent. Mary was too busy firefighting to <em>coordinate</em> or
+    <em>communicate</em>; Malcolm changed production without telling anyone. Technical firefighting
+    <em>without command</em> is exactly how a one-datacenter blip becomes a total outage.
+  </p>
+</div>
+
+<h2>2. The fix: separate command from firefighting</h2>
+
+<p>
+  Google&rsquo;s incident management is built on the <strong>Incident Command System</strong> (the same ICS
+  that fire services use). The core move: split <em>coordinating</em> the incident from <em>doing</em> the
+  technical work. Counterintuitively, clear roles give people <em>more</em> autonomy &mdash; nobody has to
+  second-guess a colleague&rsquo;s lane.
+</p>
+
+<table>
+  <thead><tr><th>Role</th><th>Owns</th><th>Crucial rule</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Incident Commander</strong></td><td>the high-level state; delegates work; single source of truth; makes decisions.</td><td><strong>Is NOT a resolver</strong> &mdash; the IC coordinates, doesn&rsquo;t fix.</td></tr>
+    <tr><td><strong>Ops Lead</strong></td><td>the hands-on investigation &amp; mitigation.</td><td><strong>The only one who changes the system</strong> (this alone prevents &ldquo;Malcolm&rdquo;).</td></tr>
+    <tr><td><strong>Comms Lead</strong></td><td>the public face; periodic stakeholder updates; keeps the incident doc current.</td><td>Shields responders from VP interruptions.</td></tr>
+    <tr><td><strong>Planning Lead</strong></td><td>longer-term: bugs, handoffs, tracking changes to revert later.</td><td>Frees Ops to stay on the fix.</td></tr>
+  </tbody>
+</table>
+
+<div class="callout insight">
+  <span class="label">Scale the structure, don&rsquo;t bloat it</span>
+  <p>
+    You don&rsquo;t need four people. For a small incident, one person is IC + Ops + Comms; you split roles
+    out <em>as</em> the incident grows. Start by declaring an incident and naming an IC &mdash; even if
+    that IC is also, for now, everyone else.
+  </p>
+</div>
+
+<h2>3. Severity: by impact, not by panic</h2>
+
+<p>
+  A <strong>severity model</strong> keyed to user/business impact makes the response consistent &mdash; it
+  decides who&rsquo;s paged, the comms cadence, and escalation, <em>before</em> anyone is arguing at 3&nbsp;a.m.
+</p>
+
+<table>
+  <thead><tr><th>Sev</th><th>Impact</th><th>Response</th></tr></thead>
+  <tbody>
+    <tr><td><strong>SEV1</strong></td><td>broad outage / data loss</td><td>all-hands, IC + exec comms, ~30-min updates</td></tr>
+    <tr><td><strong>SEV2</strong></td><td>significant degradation, partial</td><td>on-call team + IC, ~hourly updates</td></tr>
+    <tr><td><strong>SEV3</strong></td><td>minor / limited blast radius</td><td>single team, next business day</td></tr>
+  </tbody>
+</table>
+
+<h2>4. The lifecycle &mdash; and the one instinct that matters</h2>
+
+<figure class="anim" data-anim>
+<div class="anim-stage">
+<svg viewBox="0 0 660 150" role="img" aria-label="Step-by-step incident lifecycle with continuous communication">
+  <defs>
+    <marker id="arw9" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#63625c"></path>
+    </marker>
+  </defs>
+  <g font-family="system-ui, sans-serif">
+    <g class="anim-el" data-step="1">
+      <rect x="10"  y="24" width="96" height="46" rx="7" fill="#f6f7f4" stroke="#8a8a80" stroke-width="1.3"></rect>
+      <text x="58"  y="44" text-anchor="middle" font-size="11" font-weight="600" fill="#1a1a1a">Detect</text>
+      <text x="58"  y="58" text-anchor="middle" font-size="8" fill="#63625c">alert fires</text>
+    </g>
+    <g class="anim-el" data-step="2">
+      <line x1="106" y1="47" x2="115" y2="47" stroke="#63625c" stroke-width="1.4" marker-end="url(#arw9)"></line>
+      <rect x="116" y="24" width="96" height="46" rx="7" fill="#f6f7f4" stroke="#8a8a80" stroke-width="1.3"></rect>
+      <text x="164" y="44" text-anchor="middle" font-size="11" font-weight="600" fill="#1a1a1a">Triage</text>
+      <text x="164" y="58" text-anchor="middle" font-size="8" fill="#63625c">set severity</text>
+    </g>
+    <g class="anim-el" data-step="3">
+      <line x1="212" y1="47" x2="221" y2="47" stroke="#63625c" stroke-width="1.4" marker-end="url(#arw9)"></line>
+      <rect x="222" y="24" width="96" height="46" rx="7" fill="#f6f7f4" stroke="#8a8a80" stroke-width="1.3"></rect>
+      <text x="270" y="44" text-anchor="middle" font-size="11" font-weight="600" fill="#1a1a1a">Assign</text>
+      <text x="270" y="58" text-anchor="middle" font-size="8" fill="#63625c">IC · Ops · Comms</text>
+      <rect x="10" y="92" width="640" height="30" rx="7" fill="#e9f2ef" stroke="#14807a" stroke-width="1.2"></rect>
+      <text x="330" y="111" text-anchor="middle" font-size="10.5" fill="#14615f" font-weight="600">Communicate &mdash; a steady cadence, throughout the entire incident</text>
+    </g>
+    <g class="anim-el" data-step="4">
+      <line x1="318" y1="47" x2="327" y2="47" stroke="#63625c" stroke-width="1.4" marker-end="url(#arw9)"></line>
+      <rect x="328" y="24" width="96" height="46" rx="7" fill="#fbf1e7" stroke="#c98a1a" stroke-width="1.8"></rect>
+      <text x="376" y="44" text-anchor="middle" font-size="11" font-weight="700" fill="#8a5a12">Mitigate</text>
+      <text x="376" y="58" text-anchor="middle" font-size="8" fill="#8a5a12">stop the bleeding</text>
+    </g>
+    <g class="anim-el" data-step="5">
+      <line x1="424" y1="47" x2="433" y2="47" stroke="#63625c" stroke-width="1.4" marker-end="url(#arw9)"></line>
+      <rect x="434" y="24" width="96" height="46" rx="7" fill="#f6f7f4" stroke="#8a8a80" stroke-width="1.3"></rect>
+      <text x="482" y="44" text-anchor="middle" font-size="11" font-weight="600" fill="#1a1a1a">Resolve</text>
+      <text x="482" y="58" text-anchor="middle" font-size="8" fill="#63625c">service restored</text>
+    </g>
+    <g class="anim-el" data-step="6">
+      <line x1="530" y1="47" x2="539" y2="47" stroke="#63625c" stroke-width="1.4" marker-end="url(#arw9)"></line>
+      <rect x="540" y="24" width="110" height="46" rx="7" fill="#e9f2ef" stroke="#14807a" stroke-width="1.5"></rect>
+      <text x="595" y="44" text-anchor="middle" font-size="11" font-weight="600" fill="#1a1a1a">Postmortem</text>
+      <text x="595" y="58" text-anchor="middle" font-size="8" fill="#63625c">learn →</text>
+    </g>
+  </g>
+</svg>
+</div>
+<div class="anim-caps">
+  <p class="anim-cap" data-step="1"><span class="n">1</span><strong>Detect.</strong> An alert fires (ideally your burn-rate alert, not a human noticing). The clock starts.</p>
+  <p class="anim-cap" data-step="2"><span class="n">2</span><strong>Triage.</strong> Set a severity by <em>user/business impact</em> &mdash; that decides who&rsquo;s paged, the comms cadence, and escalation.</p>
+  <p class="anim-cap" data-step="3"><span class="n">3</span><strong>Assign roles</strong> &mdash; IC (coordinates), Ops (the only one who touches the system), Comms. And from here, <strong>communication runs continuously</strong>, the whole length of the incident.</p>
+  <p class="anim-cap" data-step="4"><span class="n">4</span><strong>Mitigate &mdash; the key instinct.</strong> Stop the bleeding <em>first</em>: roll back, fail over, shed load, flip a flag. Diagnose <em>later</em>.</p>
+  <p class="anim-cap" data-step="5"><span class="n">5</span><strong>Resolve.</strong> Service is restored to steady state. The user-facing emergency is over &mdash; but you&rsquo;re not done.</p>
+  <p class="anim-cap" data-step="6"><span class="n">6</span><strong>Postmortem.</strong> Turn the incident into durable learning (Lesson&nbsp;10). That&rsquo;s what stops it recurring.</p>
+</div>
+<figcaption>Communication isn&rsquo;t a phase &mdash; it runs the whole length of the incident.</figcaption>
+</figure>
+
+<div class="callout insight">
+  <span class="label">Mitigate before you diagnose</span>
+  <p>
+    The instinct a green operator most needs: <strong>stop the bleeding first, root-cause later.</strong>
+    Roll back, fail over, shed load, flip a feature flag &mdash; restore service, <em>then</em> understand
+    why. Users don&rsquo;t care <em>why</em> checkout was down; they care that it works now. Diagnosis is for
+    the postmortem.
+  </p>
+</div>
+
+<h2>5. Communication is the job, not a distraction</h2>
+
+<ul>
+  <li><strong>A steady cadence.</strong> Update on a timer &mdash; even &ldquo;no change, next update in
+      30&nbsp;minutes&rdquo; is gold. Silence breeds VP phone calls.</li>
+  <li><strong>One source of truth.</strong> A living incident document (concurrently editable, key facts
+      at top) plus a status page. Don&rsquo;t host it on the system you&rsquo;re debugging.</li>
+  <li><strong>Declare early.</strong> The bar to <em>declare</em> an incident should be low &mdash; declaring
+      is cheap; heroic silence is expensive.</li>
+  <li><strong>Hand off cleanly.</strong> Across shifts/timezones, transfer the IC role explicitly, with
+      state &mdash; never just drift.</li>
+</ul>
+
+<h2>6. On-call has to be sustainable</h2>
+
+<p>
+  The human on the other end of your burn-rate alert (Lesson&nbsp;05) needs: <strong>actionable pages</strong>
+  (not noise), <strong>runbooks</strong>, a <strong>humane rotation</strong>, and the <strong>authority to
+  fix what pages them</strong>. If on-call is misery, people ignore alerts and reliability rots. Alert
+  quality isn&rsquo;t a nicety &mdash; it&rsquo;s how you keep your responders sharp.
+</p>
+
+<div class="primary-source">
+  <span class="label">Read this next (primary source)</span>
+  <p>
+    <a href="https://sre.google/sre-book/managing-incidents/" target="_blank" rel="noopener">Google SRE
+    Book &mdash; <em>Managing Incidents</em></a> (the Mary story, the roles). Then the superbly practical
+    <a href="https://response.pagerduty.com/" target="_blank" rel="noopener">PagerDuty Incident Response</a>
+    guide &mdash; roles, severity, and how to actually run the call.
+  </p>
+</div>
+
+<h2>7. Check yourself</h2>
+<p>Retrieve before revealing.</p>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 1 of 2</p>
+  <p class="quiz-q">What does the Incident Commander primarily do?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="Right — the IC holds state, delegates repair to Ops, and is the single source of truth.">Coordinate and delegate — the IC does not fix hands-on</button></li>
+    <li><button data-correct="false" data-feedback="That&rsquo;s the Ops lead; if the IC dives in, nobody is coordinating.">Personally debug and deploy the fix as lead engineer</button></li>
+    <li><button data-correct="false" data-feedback="The postmortem comes after; during the incident the IC coordinates.">Write the postmortem while the incident is still ongoing</button></li>
+    <li><button data-correct="false" data-feedback="Only the Ops lead changes the system; the IC delegates, not approves each diff.">Personally approve every code change during the incident</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="The IC coordinates and is the single source of truth, delegating all repair to the Ops lead. Separating command from firefighting is the whole point of ICS."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 2 of 2</p>
+  <p class="quiz-q">Checkout is down; a rollback would likely restore it, but you don&rsquo;t yet know the cause. You&hellip;</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="Right — restore service first (via the Ops lead), then root-cause in the postmortem.">roll back to stop the bleeding, then diagnose calmly</button></li>
+    <li><button data-correct="false" data-feedback="Diagnosis while users suffer is backwards; mitigate first.">keep digging until you fully understand the root cause</button></li>
+    <li><button data-correct="false" data-feedback="Waiting prolongs user pain; the postmortem is for later.">wait for the postmortem to choose the correct fix</button></li>
+    <li><button data-correct="false" data-feedback="That&rsquo;s the &lsquo;Malcolm&rsquo; failure — only the Ops lead changes the system.">ask every engineer to change the system in parallel</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Mitigate before you diagnose: roll back / fail over / flip a flag to restore service, then find the root cause later. And only the Ops lead changes the system."></div>
+</div>
+
+<div class="callout tryit">
+  <span class="label">Try it in your own system</span>
+  <ul class="checklist">
+    <li>Draft a <strong>3-tier severity model</strong> for your service, keyed to user impact, with response expectations for each.</li>
+    <li>For one recent (or hypothetical) incident, name who&rsquo;d be <strong>IC / Ops / Comms</strong>.</li>
+    <li>List your top-3 <strong>&ldquo;stop the bleeding&rdquo;</strong> mitigations (rollback? feature flag? failover? shed load?).</li>
+  </ul>
+  <p>Bring it &mdash; next we turn the incident into <em>learning</em>: the blameless postmortem.</p>
+</div>
+
+<div class="followup">
+  <strong>I&rsquo;m your teacher &mdash; ask me anything.</strong> Want an incident-doc template, or a starter
+  severity matrix? Curious how a solo on-call engineer wears all the roles? Wondering how to run this on
+  Slack + a status page? Ask away.
+</div>
+
+<nav class="lesson-nav">
+  <span class="group">
+    <b>Reference</b>
+    <a href="../reference/0010-incident-response-roles-severity.html">Incident response: roles &amp; severity &rarr;</a>
+  </span>
+  <span class="group">
+    <b>Previous</b>
+    <a href="0008-instrumentation-lab-prometheus-otel.html">&larr; Lesson 08 · Instrumentation lab</a>
+  </span>
+  <span class="group">
+    <b>Up next</b>
+    <a href="0010-blameless-postmortems.html">Lesson 10 · Blameless postmortems &rarr;</a>
+  </span>
+</nav>
+
+</body>
+</html>

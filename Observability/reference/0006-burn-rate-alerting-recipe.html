@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cheat Sheet · Burn-Rate Alerting Recipe</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<style>
+  body { max-width: 52rem; }
+  @media print { body { margin: 0; } h2 { margin-top: 1.1rem; } }
+</style>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Reliability &amp; SRE · Reference 06</p>
+  <h1>Burn-Rate Alerting &mdash; Recipe</h1>
+  <div class="meta"><span>Compressed from Lesson 05</span><span class="dot">•</span><span>Print-friendly</span></div>
+</header>
+
+<h2>Judge every alert on four attributes</h2>
+<ul>
+  <li><strong>Precision</strong> — fraction of alerts that were significant (low = noise).</li>
+  <li><strong>Recall</strong> — fraction of significant events caught (low = missed outages).</li>
+  <li><strong>Detection time</strong> — how fast it fires.</li>
+  <li><strong>Reset time</strong> — how fast it stops firing once fixed.</li>
+</ul>
+
+<h2>Burn rate</h2>
+<div class="callout insight">
+  <span class="label">Definition</span>
+  <p>How fast, relative to the SLO, you spend the budget. Rate <strong>1</strong> empties it exactly at
+     the window&rsquo;s end; rate <strong>N</strong> empties it in <strong>1/N</strong> of the window.</p>
+</div>
+<pre><code>alert threshold        = burn rate &times; (1 &minus; SLO)
+budget consumed @ fire = burn rate &times; (window &divide; period)</code></pre>
+<table>
+  <thead><tr><th>Burn</th><th>Empties 30-day budget in</th></tr></thead>
+  <tbody>
+    <tr><td>1&times;</td><td>30 days</td></tr>
+    <tr><td>6&times;</td><td>5 days</td></tr>
+    <tr><td>14.4&times;</td><td>~50 hours</td></tr>
+    <tr><td>36&times;</td><td>~20 hours</td></tr>
+    <tr><td>1000&times;</td><td>~43 minutes</td></tr>
+  </tbody>
+</table>
+
+<h2>The recommended config (99.9% SLO / 30-day)</h2>
+<table>
+  <thead><tr><th>Severity</th><th>Long</th><th>Short (=long/12)</th><th>Burn</th><th>Budget</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Page</strong></td><td>1 hour</td><td>5 min</td><td>14.4&times;</td><td>2%</td></tr>
+    <tr><td><strong>Page</strong></td><td>6 hours</td><td>30 min</td><td>6&times;</td><td>5%</td></tr>
+    <tr><td><strong>Ticket</strong></td><td>3 days</td><td>6 hours</td><td>1&times;</td><td>10%</td></tr>
+  </tbody>
+</table>
+<ul>
+  <li><strong>Multi-burn-rate</strong> (fast page + slow ticket) &rarr; recall across severities.</li>
+  <li><strong>Multi-window</strong>: fire only if <em>both</em> long &amp; short exceed threshold &rarr;
+      fast reset, fewer false positives.</li>
+</ul>
+
+<h2>PromQL (reads Reference 03 recording rules)</h2>
+<pre><code># PAGE
+(rate1h &gt; 14.4*0.001 and rate5m  &gt; 14.4*0.001)
+or
+(rate6h &gt; 6*0.001    and rate30m &gt; 6*0.001)
+
+# TICKET
+rate3d &gt; 1*0.001 and rate6h &gt; 1*0.001
+
+# 0.001 = 1 − 99.9% SLO. Swap in your own (1 − SLO).</code></pre>
+
+<h2>Avoid these</h2>
+<ul>
+  <li>Alert on raw error rate &ge; SLO over 10 min &rarr; noisy, low precision.</li>
+  <li>One giant window (36 h) &rarr; a 2-min outage fires for 36 h (awful reset).</li>
+  <li><code>for:</code> durations &rarr; don&rsquo;t scale with severity; spiky outages slip through.</li>
+</ul>
+
+<div class="callout warning">
+  <span class="label">Low-traffic trap</span>
+  <p>At 10 req/h, one failure = 10% = 1000&times; burn = instant page (only ~7 failures / 30 days
+     allowed). Fixes: synthetic traffic, aggregate services into one SLO, or a coarser target.</p>
+</div>
+
+<nav class="lesson-nav">
+  <span class="group"><b>From</b><a href="../lessons/0005-burn-rate-alerting.html">&larr; Lesson 05 · Burn-rate alerting</a></span>
+  <span class="group"><b>See also</b><a href="0003-latency-sli-prometheus-recipe.html">Recording rules (Ref 03)</a></span>
+  <span class="group"><b>Primary source</b><a href="https://sre.google/workbook/alerting-on-slos/" target="_blank" rel="noopener">SRE Workbook · Alerting on SLOs</a></span>
+</nav>
+
+</body>
+</html>

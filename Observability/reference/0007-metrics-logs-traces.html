@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cheat Sheet · Metrics vs Logs vs Traces</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<style>
+  body { max-width: 52rem; }
+  @media print { body { margin: 0; } h2 { margin-top: 1.1rem; } }
+</style>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Reliability &amp; SRE · Reference 07</p>
+  <h1>Metrics vs Logs vs Traces</h1>
+  <div class="meta"><span>Compressed from Lesson 06</span><span class="dot">•</span><span>Print-friendly</span></div>
+</header>
+
+<div class="callout insight">
+  <span class="label">Monitoring vs observability</span>
+  <p><strong>Monitoring</strong> watches known signals for known failures (known-unknowns) &mdash;
+     tells you <em>that</em> it&rsquo;s wrong. <strong>Observability</strong> answers questions you
+     didn&rsquo;t pre-plan (unknown-unknowns) &mdash; lets you find <em>why</em>, without shipping new
+     code to do it.</p>
+</div>
+
+<h2>The three signals</h2>
+<table>
+  <thead><tr><th>Signal</th><th>Is</th><th>Best at</th><th>Weak at</th><th>Answers</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Metrics</strong></td><td>numeric time series</td><td>trends, dashboards, alerts, SLIs; cheap</td><td>one request; low-cardinality only</td><td><em>that</em></td></tr>
+    <tr><td><strong>Traces</strong></td><td>a request&rsquo;s spans across services</td><td>localising the slow/failing hop; causality</td><td>sampling; context propagation</td><td><em>where</em></td></tr>
+    <tr><td><strong>Logs</strong></td><td>timestamped event records</td><td>rich per-event detail &amp; forensics</td><td>volume/cost; aggregation; not request-linked</td><td><em>why</em></td></tr>
+  </tbody>
+</table>
+
+<h2>The 3 a.m. flow</h2>
+<pre><code>metric/SLO alert  →  trace  →  logs
+   (THAT + which)   (WHERE)    (WHY)</code></pre>
+<p><strong>Correlation is the glue:</strong> metric <em>exemplars</em> link a spike to example traces;
+   a <code>trace_id</code> on structured logs links traces &harr; logs. Without it, you have three
+   silos, not observability.</p>
+
+<h2>OpenTelemetry model</h2>
+<ul>
+  <li>One vendor-neutral API/SDK emits <strong>traces + metrics + logs</strong> with shared context.</li>
+  <li><strong>Semantic conventions</strong> = standard attribute names (<code>http.response.status_code</code>).</li>
+  <li>The <strong>Collector</strong> exports to any backend (Prometheus/Grafana, Tempo/Jaeger, Loki).</li>
+  <li>Instrument once · own your data · no lock-in.</li>
+</ul>
+
+<div class="callout warning">
+  <span class="label">Cardinality rule</span>
+  <p>Low-cardinality dimensions &rarr; <strong>metrics</strong>. High-cardinality detail
+     (<code>user_id</code>, <code>request_id</code>) &rarr; <strong>traces &amp; logs</strong> (or wide
+     events). A raw <code>user_id</code> label mints one time series per user &mdash; an explosion.</p>
+</div>
+
+<h2>Pillars &ne; observability</h2>
+<p>Three data types in silos isn&rsquo;t observability. The test: can you slice by <em>any</em> dimension
+   to answer a question you didn&rsquo;t anticipate (&ldquo;p99 for Android &times; Brazil &times;
+   checkout-v3&rdquo;)? That needs high-cardinality context + correlation.</p>
+
+<nav class="lesson-nav">
+  <span class="group"><b>From</b><a href="../lessons/0006-observability-metrics-logs-traces.html">&larr; Lesson 06 · Observability</a></span>
+  <span class="group"><b>Canonical terms</b><a href="../GLOSSARY.md">GLOSSARY.md</a></span>
+  <span class="group"><b>Primary source</b><a href="https://opentelemetry.io/docs/concepts/observability-primer/" target="_blank" rel="noopener">OTel · Observability primer</a></span>
+</nav>
+
+</body>
+</html>

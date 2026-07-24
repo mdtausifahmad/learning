@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 05 · Burn-Rate Alerting on SLOs</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<script src="../assets/quiz.js" defer></script>
+<script src="../assets/anim.js" defer></script>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Reliability &amp; SRE · Lesson 05</p>
+  <h1>Burn-Rate Alerting on SLOs</h1>
+  <div class="meta">
+    <span>◷ ~12 min read</span>
+    <span class="dot">•</span>
+    <span>Level: Foundations → Judgment</span>
+    <span class="dot">•</span>
+    <span>Prereq: <a href="0003-setting-slo-and-error-budget.html">L03</a> budget · <a href="../reference/0003-latency-sli-prometheus-recipe.html">Ref 03</a> recording rules</span>
+  </div>
+</header>
+
+<p class="mission-tie">
+  You freeze at zero budget (Lesson&nbsp;04) &mdash; but you want to know you&rsquo;re in trouble
+  <em>before</em> zero, and be woken only when it&rsquo;s real. Burn-rate alerting pages you on <em>how
+  fast</em> you&rsquo;re spending the budget. This is where your recording rules finally page a human &mdash;
+  and where you kill the alert noise that makes on-call miserable.
+</p>
+
+<h2>1. What a good alert optimises</h2>
+
+<p>Judge any alerting scheme on four attributes:</p>
+
+<table>
+  <thead><tr><th>Attribute</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Precision</strong></td><td>Of the alerts that fired, what fraction were significant? (Low precision = noise.)</td></tr>
+    <tr><td><strong>Recall</strong></td><td>Of the significant events, what fraction alerted? (Low recall = missed outages.)</td></tr>
+    <tr><td><strong>Detection time</strong></td><td>How long until it fires. (Slow = more budget burned first.)</td></tr>
+    <tr><td><strong>Reset time</strong></td><td>How long it keeps firing after the problem is fixed. (Long = ignored alerts.)</td></tr>
+  </tbody>
+</table>
+
+<p>
+  A &ldquo;significant&rdquo; event is one that consumes a <em>large fraction of your error budget</em>.
+  That&rsquo;s the whole trick: tie the page to the budget, not to raw errors.
+</p>
+
+<h2>2. Why the obvious approaches fail</h2>
+
+<table>
+  <thead><tr><th>Naive approach</th><th>Why it breaks</th></tr></thead>
+  <tbody>
+    <tr><td>Alert if error rate over 10&nbsp;min &ge; SLO</td><td>Fires on tiny insignificant blips &mdash; terrible precision, pager fatigue.</td></tr>
+    <tr><td>Widen the window to 36&nbsp;h (5% budget)</td><td>Precise, but a 2-minute outage keeps the alert firing for <strong>36 hours</strong>. Awful reset.</td></tr>
+    <tr><td>Add a <code>for:</code> duration</td><td>Doesn&rsquo;t scale with severity, and resets on any momentary recovery &mdash; spiky outages can burn 35% of budget and <em>never</em> alert.</td></tr>
+  </tbody>
+</table>
+
+<p>
+  Static thresholds and durations can&rsquo;t be precise, sensitive, <em>and</em> reset quickly at the
+  same time. You need a different quantity.
+</p>
+
+<h2>3. The unlock: alert on burn rate</h2>
+
+<div class="callout insight">
+  <span class="label">Burn rate, defined</span>
+  <p>
+    <strong>Burn rate</strong> is how fast, relative to the SLO, you&rsquo;re consuming the error budget.
+    A burn rate of <strong>1</strong> spends the budget exactly evenly &mdash; empty precisely at the
+    window&rsquo;s end. (99.9% over 30 days ↔ a steady 0.1% error rate.) A burn rate of
+    <strong>N</strong> empties the budget in <strong>1/N</strong> of the window.
+  </p>
+</div>
+
+<table>
+  <thead><tr><th>Burn rate</th><th>Time to exhaust a 30-day budget</th></tr></thead>
+  <tbody>
+    <tr><td>1&times;</td><td>30 days</td></tr>
+    <tr><td>6&times;</td><td>5 days</td></tr>
+    <tr><td>14.4&times;</td><td>~50 hours</td></tr>
+    <tr><td>36&times;</td><td>~20 hours</td></tr>
+    <tr><td>1000&times;</td><td>~43 minutes</td></tr>
+  </tbody>
+</table>
+
+<p>
+  Now the alert threshold is <code>burn rate &times; (1 &minus; SLO)</code>, and the budget consumed when
+  it fires is just <code>burn rate &times; (window &divide; period)</code>. Pick the budget-spend you care
+  about, and the burn rate falls out. <em>2% of a 30-day budget in 1 hour = a burn rate of 14.4.</em>
+</p>
+
+<h2>4. The recipe: multi-burn-rate, multi-window</h2>
+
+<p>Two refinements turn burn-rate alerts into the production-grade answer:</p>
+
+<ul>
+  <li><strong>Multiple burn rates</strong> &mdash; a fast <em>page</em> for catastrophes and a slow
+      <em>ticket</em> for leaks &rarr; good recall across severities.</li>
+  <li><strong>Multiple windows</strong> &mdash; pair each long window (significance) with a
+      <strong>short window = 1/12 its length</strong>, and fire only when <em>both</em> exceed the
+      threshold. The short window confirms you&rsquo;re <em>still</em> burning &rarr; the alert resets
+      minutes after the problem ends, not hours.</li>
+</ul>
+
+<figure class="anim" data-anim>
+<div class="anim-stage">
+<svg viewBox="0 0 660 178" role="img" aria-label="Step-by-step: short-window and long-window thresholds and when the combined burn-rate alert fires">
+  <g class="anim-el" data-step="1">
+    <line x1="70" y1="158" x2="628" y2="158" stroke="#c9c9c0" stroke-width="1"></line>
+    <g font-family="system-ui, sans-serif" font-size="9" fill="#63625c" text-anchor="middle">
+      <text x="70"  y="171">0</text><text x="180" y="171">20</text><text x="290" y="171">40</text>
+      <text x="400" y="171">60</text><text x="510" y="171">80</text><text x="620" y="171">100 min</text>
+    </g>
+    <g font-family="system-ui, sans-serif" font-size="10" fill="#1a1a1a" text-anchor="end">
+      <text x="64" y="46">errors present</text>
+      <text x="64" y="78">short window &gt; thr</text>
+      <text x="64" y="110">long window &gt; thr</text>
+      <text x="64" y="142">ALERT (both)</text>
+    </g>
+    <rect x="125" y="34" width="165" height="16" rx="3" fill="#b23b3b"></rect>
+  </g>
+  <g class="anim-el" data-step="2">
+    <rect x="130" y="66" width="188" height="16" rx="3" fill="#14807a"></rect>
+  </g>
+  <g class="anim-el" data-step="3">
+    <rect x="152" y="98" width="468" height="16" rx="3" fill="#8a8a80"></rect>
+    <text x="470" y="110" font-family="system-ui, sans-serif" font-size="9" fill="#fff" text-anchor="middle">long window alone would fire 60 min longer</text>
+  </g>
+  <g class="anim-el" data-step="4">
+    <rect x="152" y="130" width="166" height="16" rx="3" fill="#c98a1a"></rect>
+  </g>
+  <g class="anim-el" data-step="5">
+    <line x1="290" y1="28" x2="290" y2="150" stroke="#b23b3b" stroke-width="1" stroke-dasharray="3 3"></line>
+    <text x="294" y="28" font-family="system-ui, sans-serif" font-size="9" fill="#b23b3b">errors stop</text>
+    <text x="322" y="142" font-family="system-ui, sans-serif" font-size="9" fill="#14807a">resets ~5 min after</text>
+  </g>
+</svg>
+</div>
+<div class="anim-caps">
+  <p class="anim-cap" data-step="1"><span class="n">1</span>A burst of <strong>errors</strong> begins &mdash; you&rsquo;re now burning error budget fast. The question: how do you page on this <em>without</em> firing on every tiny blip?</p>
+  <p class="anim-cap" data-step="2"><span class="n">2</span>The <strong>short window</strong> (e.g. 5&nbsp;min) crosses the threshold almost immediately &mdash; fast detection. But alone it&rsquo;s noisy, so it isn&rsquo;t enough by itself.</p>
+  <p class="anim-cap" data-step="3"><span class="n">3</span>The <strong>long window</strong> (e.g. 1&nbsp;hour) also crosses &mdash; confirming you&rsquo;ve burned a <em>significant</em> chunk of budget, not just a momentary spike.</p>
+  <p class="anim-cap" data-step="4"><span class="n">4</span>Only when <strong>both</strong> exceed the burn-rate threshold does the <strong>page</strong> fire. Long window = significance; short window = it&rsquo;s still happening now.</p>
+  <p class="anim-cap" data-step="5"><span class="n">5</span>Errors stop &rarr; the short window drops in <strong>~5 minutes</strong>, so the alert clears fast. The long window <em>alone</em> would have kept firing for ~60 more minutes.</p>
+</div>
+<figcaption>Requiring the <em>short</em> window too (teal) chops the alert&rsquo;s reset time from ~60&nbsp;min (long window alone) down to ~5&nbsp;min after the errors stop.</figcaption>
+</figure>
+
+<p>The Workbook&rsquo;s recommended starting parameters (99.9% SLO, 30-day window):</p>
+
+<table>
+  <thead><tr><th>Severity</th><th>Long window</th><th>Short window</th><th>Burn rate</th><th>Budget in window</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Page</strong></td><td>1 hour</td><td>5 min</td><td>14.4&times;</td><td>2%</td></tr>
+    <tr><td><strong>Page</strong></td><td>6 hours</td><td>30 min</td><td>6&times;</td><td>5%</td></tr>
+    <tr><td><strong>Ticket</strong></td><td>3 days</td><td>6 hours</td><td>1&times;</td><td>10%</td></tr>
+  </tbody>
+</table>
+
+<h2>5. In your stack (the payoff)</h2>
+
+<p>
+  These alerts just read the <code>ratio_rate</code> series your recording rules already produce
+  (Reference&nbsp;03) &mdash; that&rsquo;s why you recorded several windows. With
+  <code>0.001&nbsp;=&nbsp;1&nbsp;&minus;&nbsp;99.9%</code>:
+</p>
+
+<pre><code># PAGE — fast burn (fires only if BOTH windows exceed the threshold)
+- alert: ErrorBudgetBurn_Page
+  expr: |
+    (
+      job:slo_error:ratio_rate1h  &gt; (14.4 * 0.001)
+      and job:slo_error:ratio_rate5m  &gt; (14.4 * 0.001)
+    )
+    or
+    (
+      job:slo_error:ratio_rate6h  &gt; (6 * 0.001)
+      and job:slo_error:ratio_rate30m &gt; (6 * 0.001)
+    )
+  labels: { severity: page }
+
+# TICKET — slow leak
+- alert: ErrorBudgetBurn_Ticket
+  expr: |
+    job:slo_error:ratio_rate3d &gt; (1 * 0.001)
+    and job:slo_error:ratio_rate6h &gt; (1 * 0.001)
+  labels: { severity: ticket }</code></pre>
+
+<div class="callout warning">
+  <span class="label">The low-traffic trap</span>
+  <p>
+    This recipe assumes enough traffic to be a meaningful signal. At 10 requests/hour, a
+    <em>single</em> failure is a 10% error rate &mdash; a 1000&times; burn that pages instantly, allowing
+    only ~7 failures per 30 days. For low-QPS services: generate <strong>synthetic traffic</strong>,
+    <strong>aggregate</strong> related services into one SLO, or accept a coarser target. Don&rsquo;t
+    blind-copy the numbers onto a sleepy service.
+  </p>
+</div>
+
+<div class="primary-source">
+  <span class="label">Read this next (primary source)</span>
+  <p>
+    <a href="https://sre.google/workbook/alerting-on-slos/" target="_blank" rel="noopener">SRE Workbook
+    &mdash; <em>Alerting on SLOs</em></a>. It builds all six approaches in order, with the graphs, and ends
+    on exactly this multiwindow, multi-burn-rate configuration (and the low-traffic fixes).
+  </p>
+</div>
+
+<h2>6. Check yourself</h2>
+<p>Retrieve before revealing.</p>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 1 of 2</p>
+  <p class="quiz-q">A burn rate of 10&times; means&hellip;</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="Right — rate N empties the window&rsquo;s budget in 1/N of the window.">you&rsquo;ll exhaust the window&rsquo;s whole budget in one-tenth the time</button></li>
+    <li><button data-correct="false" data-feedback="That&rsquo;s budget *consumed so far*, a different quantity from burn rate.">you have already spent ten percent of the error budget</button></li>
+    <li><button data-correct="false" data-feedback="The error rate depends on the SLO; 10&times; burn on 99.9% is only 1%.">ten percent of your requests are failing at this moment</button></li>
+    <li><button data-correct="false" data-feedback="Burn rate is a spend *speed*, not a multiplier on the SLO miss.">you will miss the stated SLO by a factor of ten</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Burn rate = budget-consumption speed vs an even pace. Rate N empties the window&rsquo;s budget in 1/N of the window; the alert threshold is burn &times; (1 − SLO)."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 2 of 2</p>
+  <p class="quiz-q">Why require the <em>short</em> window (≈1/12 the long) as well, before paging?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="Right — the short window confirms you&rsquo;re still burning, so the alert resets fast.">so the alert stops firing soon after the problem resolves</button></li>
+    <li><button data-correct="false" data-feedback="The short window doesn&rsquo;t lower the bar; both must exceed the same threshold.">so the page also triggers on smaller insignificant error spikes</button></li>
+    <li><button data-correct="false" data-feedback="Cost isn&rsquo;t the point; the short window is about reset time, not compute.">so the long window becomes cheaper for Prometheus to compute</button></li>
+    <li><button data-correct="false" data-feedback="That&rsquo;s the low-traffic failure mode you want to avoid, not the goal.">so one single failed request is enough to page someone</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Long window = significance (you burned a real chunk); short window = still happening now → fast reset and fewer false positives. Fire only when both cross the threshold."></div>
+</div>
+
+<div class="callout tryit">
+  <span class="label">Try it in your own system</span>
+  <ul class="checklist">
+    <li>Take your SLO&rsquo;s <code>1 &minus; SLO</code> and your recording rules (Reference&nbsp;03).</li>
+    <li>Write the <strong>page</strong> alert: 14.4&times; over 1h+5m, OR 6&times; over 6h+30m.</li>
+    <li>Write the <strong>ticket</strong> alert: 1&times; over 3d+6h.</li>
+    <li>Sanity-check: is your request rate high enough for a single failure <em>not</em> to page?</li>
+  </ul>
+  <p>Bring it &mdash; and we&rsquo;ll have closed the full SLO loop: measure &rarr; target &rarr; budget &rarr; policy &rarr; alert. Next we widen the lens to <strong>observability</strong>.</p>
+</div>
+
+<div class="followup">
+  <strong>I&rsquo;m your teacher &mdash; ask me anything.</strong> Want the recording rules for all five
+  windows spelled out? Curious how alert suppression stops the page <em>and</em> ticket both firing?
+  Wondering how this maps onto Grafana or Alertmanager routing? Ask away.
+</div>
+
+<nav class="lesson-nav">
+  <span class="group">
+    <b>Reference</b>
+    <a href="../reference/0006-burn-rate-alerting-recipe.html">Burn-rate alerting recipe &rarr;</a>
+  </span>
+  <span class="group">
+    <b>Previous</b>
+    <a href="0004-error-budget-policy.html">&larr; Lesson 04 · Error-budget policy</a>
+  </span>
+  <span class="group">
+    <b>Up next</b>
+    <a href="0006-observability-metrics-logs-traces.html">Lesson 06 · Observability: metrics, logs, traces &rarr;</a>
+  </span>
+</nav>
+
+</body>
+</html>

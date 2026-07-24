@@ -6,6 +6,7 @@
 <title>Lesson 01 · Why SRE? Reliability as a Measured Target, Not Heroics</title>
 <link rel="stylesheet" href="../assets/styles.css">
 <script src="../assets/quiz.js" defer></script>
+<script src="../assets/anim.js" defer></script>
 </head>
 <body>
 
@@ -106,8 +107,9 @@
   </li>
 </ul>
 
-<figure>
-<svg viewBox="0 0 660 150" role="img" aria-label="The SRE chain from user journey to SLI to SLO to error budget to policy">
+<figure class="anim" data-anim>
+<div class="anim-stage">
+<svg viewBox="0 0 660 150" role="img" aria-label="Step-by-step: the SRE chain from user journey to SLI to SLO to error budget to policy">
   <defs>
     <marker id="arw" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
       <path d="M0,0 L7,3 L0,6 Z" fill="#63625c"></path>
@@ -115,37 +117,51 @@
   </defs>
 
   <!-- boxes -->
-  <rect x="6"   y="46" width="108" height="56" rx="7" fill="#f6f7f4" stroke="#2e5a7a" stroke-width="1.5"></rect>
-  <text x="60"  y="72" text-anchor="middle" font-family="system-ui, sans-serif" font-size="12.5" fill="#1a1a1a" font-weight="600">User journey</text>
-  <text x="60"  y="90" text-anchor="middle" font-family="system-ui, sans-serif" font-size="10" fill="#63625c">what users do</text>
+  <g class="anim-el" data-step="1">
+    <rect x="6"   y="46" width="108" height="56" rx="7" fill="#f6f7f4" stroke="#2e5a7a" stroke-width="1.5"></rect>
+    <text x="60"  y="72" text-anchor="middle" font-family="system-ui, sans-serif" font-size="12.5" fill="#1a1a1a" font-weight="600">User journey</text>
+    <text x="60"  y="90" text-anchor="middle" font-family="system-ui, sans-serif" font-size="10" fill="#63625c">what users do</text>
+  </g>
 
-  <rect x="134" y="46" width="108" height="56" rx="7" fill="#f6f7f4" stroke="#2e5a7a" stroke-width="1.5"></rect>
-  <text x="188" y="72" text-anchor="middle" font-family="system-ui, sans-serif" font-size="13" fill="#1a1a1a" font-weight="600">SLI</text>
-  <text x="188" y="90" text-anchor="middle" font-family="system-ui, sans-serif" font-size="10" fill="#63625c">measured signal</text>
+  <g class="anim-el" data-step="2">
+    <line x1="114" y1="74" x2="132" y2="74" stroke="#63625c" stroke-width="1.5" marker-end="url(#arw)"></line>
+    <rect x="134" y="46" width="108" height="56" rx="7" fill="#f6f7f4" stroke="#2e5a7a" stroke-width="1.5"></rect>
+    <text x="188" y="72" text-anchor="middle" font-family="system-ui, sans-serif" font-size="13" fill="#1a1a1a" font-weight="600">SLI</text>
+    <text x="188" y="90" text-anchor="middle" font-family="system-ui, sans-serif" font-size="10" fill="#63625c">measured signal</text>
+    <text x="188" y="126" text-anchor="middle" font-family="system-ui, sans-serif" font-size="10.5" font-style="italic" fill="#14615f">you measure it</text>
+  </g>
 
-  <rect x="262" y="46" width="108" height="56" rx="7" fill="#e9f2ef" stroke="#14807a" stroke-width="1.9"></rect>
-  <text x="316" y="72" text-anchor="middle" font-family="system-ui, sans-serif" font-size="13" fill="#1a1a1a" font-weight="600">SLO</text>
-  <text x="316" y="90" text-anchor="middle" font-family="system-ui, sans-serif" font-size="10" fill="#63625c">target + window</text>
+  <g class="anim-el" data-step="3">
+    <line x1="242" y1="74" x2="260" y2="74" stroke="#63625c" stroke-width="1.5" marker-end="url(#arw)"></line>
+    <rect x="262" y="46" width="108" height="56" rx="7" fill="#e9f2ef" stroke="#14807a" stroke-width="1.9"></rect>
+    <text x="316" y="72" text-anchor="middle" font-family="system-ui, sans-serif" font-size="13" fill="#1a1a1a" font-weight="600">SLO</text>
+    <text x="316" y="90" text-anchor="middle" font-family="system-ui, sans-serif" font-size="10" fill="#63625c">target + window</text>
+    <text x="316" y="126" text-anchor="middle" font-family="system-ui, sans-serif" font-size="10.5" font-style="italic" fill="#14615f">you choose it</text>
+  </g>
 
-  <rect x="390" y="46" width="108" height="56" rx="7" fill="#fbecec" stroke="#b23b3b" stroke-width="1.7"></rect>
-  <text x="444" y="72" text-anchor="middle" font-family="system-ui, sans-serif" font-size="12.5" fill="#1a1a1a" font-weight="600">Error budget</text>
-  <text x="444" y="90" text-anchor="middle" font-family="system-ui, sans-serif" font-size="10" fill="#63625c">1 &minus; SLO</text>
+  <g class="anim-el" data-step="4">
+    <line x1="370" y1="74" x2="388" y2="74" stroke="#63625c" stroke-width="1.5" marker-end="url(#arw)"></line>
+    <rect x="390" y="46" width="108" height="56" rx="7" fill="#fbecec" stroke="#b23b3b" stroke-width="1.7"></rect>
+    <text x="444" y="72" text-anchor="middle" font-family="system-ui, sans-serif" font-size="12.5" fill="#1a1a1a" font-weight="600">Error budget</text>
+    <text x="444" y="90" text-anchor="middle" font-family="system-ui, sans-serif" font-size="10" fill="#63625c">1 &minus; SLO</text>
+    <text x="444" y="126" text-anchor="middle" font-family="system-ui, sans-serif" font-size="10.5" font-style="italic" fill="#14615f">you spend it</text>
+  </g>
 
-  <rect x="518" y="46" width="108" height="56" rx="7" fill="#eef1f6" stroke="#2e5a7a" stroke-width="1.5"></rect>
-  <text x="572" y="72" text-anchor="middle" font-family="system-ui, sans-serif" font-size="13" fill="#1a1a1a" font-weight="600">Policy</text>
-  <text x="572" y="90" text-anchor="middle" font-family="system-ui, sans-serif" font-size="10" fill="#63625c">ship or freeze</text>
-
-  <!-- arrows -->
-  <line x1="114" y1="74" x2="132" y2="74" stroke="#63625c" stroke-width="1.5" marker-end="url(#arw)"></line>
-  <line x1="242" y1="74" x2="260" y2="74" stroke="#63625c" stroke-width="1.5" marker-end="url(#arw)"></line>
-  <line x1="370" y1="74" x2="388" y2="74" stroke="#63625c" stroke-width="1.5" marker-end="url(#arw)"></line>
-  <line x1="498" y1="74" x2="516" y2="74" stroke="#63625c" stroke-width="1.5" marker-end="url(#arw)"></line>
-
-  <!-- verbs -->
-  <text x="188" y="126" text-anchor="middle" font-family="system-ui, sans-serif" font-size="10.5" font-style="italic" fill="#14615f">you measure it</text>
-  <text x="316" y="126" text-anchor="middle" font-family="system-ui, sans-serif" font-size="10.5" font-style="italic" fill="#14615f">you choose it</text>
-  <text x="444" y="126" text-anchor="middle" font-family="system-ui, sans-serif" font-size="10.5" font-style="italic" fill="#14615f">you spend it</text>
+  <g class="anim-el" data-step="5">
+    <line x1="498" y1="74" x2="516" y2="74" stroke="#63625c" stroke-width="1.5" marker-end="url(#arw)"></line>
+    <rect x="518" y="46" width="108" height="56" rx="7" fill="#eef1f6" stroke="#2e5a7a" stroke-width="1.5"></rect>
+    <text x="572" y="72" text-anchor="middle" font-family="system-ui, sans-serif" font-size="13" fill="#1a1a1a" font-weight="600">Policy</text>
+    <text x="572" y="90" text-anchor="middle" font-family="system-ui, sans-serif" font-size="10" fill="#63625c">ship or freeze</text>
+  </g>
 </svg>
+</div>
+<div class="anim-caps">
+  <p class="anim-cap" data-step="1"><span class="n">1</span>Start with a real <strong>user journey</strong> &mdash; the thing users actually do, like &ldquo;complete checkout.&rdquo; Reliability is measured from <em>here</em>, not from your servers.</p>
+  <p class="anim-cap" data-step="2"><span class="n">2</span>Measure that journey as an <strong>SLI</strong> &mdash; a number for how well it works (good &divide; valid events). This is the signal that proxies user happiness.</p>
+  <p class="anim-cap" data-step="3"><span class="n">3</span>Pick an <strong>SLO</strong> &mdash; the target for that SLI over a window (e.g. 99.9% over 30 days). This is the number you <em>choose</em> to aim for.</p>
+  <p class="anim-cap" data-step="4"><span class="n">4</span>Everything left below 100% is your <strong>error budget</strong> = 1 &minus; SLO &mdash; the unreliability you&rsquo;re <em>allowed</em>. A currency, not a failure.</p>
+  <p class="anim-cap" data-step="5"><span class="n">5</span>The budget becomes <strong>policy</strong>: budget healthy &rarr; ship fast; budget spent &rarr; stabilise. That single loop is the whole game.</p>
+</div>
 <figcaption>The SRE chain: measure the user&rsquo;s experience, choose a target, and the leftover becomes a budget you spend on change.</figcaption>
 </figure>
 

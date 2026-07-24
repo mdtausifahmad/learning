@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cheat Sheet · Degradation &amp; Thundering Herd</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<style>
+  body { max-width: 52rem; }
+  @media print { body { margin: 0; } h2 { margin-top: 1.1rem; } }
+</style>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Reliability &amp; SRE · Reference 13</p>
+  <h1>Graceful Degradation &amp; the Thundering Herd</h1>
+  <div class="meta"><span>Compressed from Lesson 12</span><span class="dot">•</span><span>Print-friendly</span></div>
+</header>
+
+<h2>Graceful degradation &mdash; do less, stay up</h2>
+<p>Reduce the <em>work per request</em> (vs load shedding, which drops requests): cached subset, faster
+   ranking, stale data, drop non-critical features. <strong>Preserve the critical journey</strong> &mdash;
+   decide which features are droppable <em>before</em> the incident.</p>
+<div class="callout warning">
+  <span class="label">Caveat</span>
+  <p>Degraded mode is your least-tested code. Exercise it regularly, alert when it engages, keep it simple,
+     and give it a kill switch. &ldquo;The code path you never use is the one that doesn&rsquo;t work.&rdquo;</p>
+</div>
+
+<h2>The herd family</h2>
+<table>
+  <thead><tr><th>Herd</th><th>What synchronises</th></tr></thead>
+  <tbody>
+    <tr><td>Retry storm</td><td>all fail together → all retry together</td></tr>
+    <tr><td>Cache stampede</td><td>hot key expires → all recompute at once</td></tr>
+    <tr><td>Cold-cache restart</td><td>hit rate → ~0 → backend hammered</td></tr>
+    <tr><td>Synchronised timers</td><td>midnight cron, reconnect storm, TTLs expiring together</td></tr>
+  </tbody>
+</table>
+
+<div class="callout warning">
+  <span class="label">Latency cache vs capacity cache</span>
+  <p><strong>Latency cache</strong>: survives an empty cache (just faster). <strong>Capacity cache</strong>:
+     a hard dependency &mdash; can&rsquo;t serve normal load cold, so a restart = outage. Know which you have.</p>
+</div>
+
+<h2>Taming techniques</h2>
+<ul class="checklist">
+  <li><strong>Jitter / stagger</strong> retry waits, cache TTLs, cron times, reconnects.</li>
+  <li><strong>Coalesce (single-flight)</strong>: one request recomputes, the rest wait.</li>
+  <li><strong>Refresh early / serve-stale-while-revalidate</strong> so expiry never misses.</li>
+  <li><strong>Gradual warmup / slow start</strong>: ramp traffic to warm caches; keep clusters warm.</li>
+  <li><strong>Rate limit / token bucket</strong> to smooth bursts.</li>
+  <li>Push config <strong>gradually, off-peak</strong> — an all-at-once rollout is a self-made herd.</li>
+</ul>
+
+<div class="callout insight">
+  <span class="label">The principle</span>
+  <p>Herds happen because independent things became <strong>correlated</strong>. Every fix is one of three:
+     <strong>add randomness</strong> (jitter), <strong>dedupe</strong> (coalesce), or <strong>ramp</strong>
+     (slow start).</p>
+</div>
+
+<nav class="lesson-nav">
+  <span class="group"><b>From</b><a href="../lessons/0012-graceful-degradation-thundering-herd.html">&larr; Lesson 12 · Degradation &amp; herd</a></span>
+  <span class="group"><b>See also</b><a href="0012-overload-resilience-patterns.html">Resilience patterns (Ref 12)</a></span>
+  <span class="group"><b>Primary source</b><a href="https://sre.google/sre-book/addressing-cascading-failures/" target="_blank" rel="noopener">SRE Book · Cascading Failures</a></span>
+</nav>
+
+</body>
+</html>

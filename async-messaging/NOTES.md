@@ -41,9 +41,27 @@
          explicit flow); Fowler flow-visibility trap; coupling/visibility trade-offs; when to choose; tooling
   0014 ✅ Transactional outbox & the dual-write problem (lost/phantom events; why 2PC/@Transactional
          fail; outbox in same tx + relay; polling vs CDC/Debezium; at-least-once → idempotent consumer)
-  0015 ← NEXT: The Saga pattern & distributed workflows (compensation)
-  Backlog (unscheduled, order flexible):
-   • Delivery semantics in practice per tool
+  0015 ✅ The saga pattern (local transactions + compensations; choreography vs orchestration sagas;
+         no isolation → semantic lock; no auto-rollback; pivot/compensatable/retriable; outbox+idempotency)
+  0016 ✅ Schema evolution & contracts (why hard: independent deploys/retained logs/unknown consumers;
+         backward/forward/full/transitive; additive golden rules; formats; schema registry; breaking→migrate)
+  0017 ✅ Event sourcing & CQRS (store events/derive state; event store; snapshots; no dual write;
+         CQRS write/read split + projections; eventual consistency; benefits/costs; use-judiciously caution)
+  0018 ✅ FINALE: Observability, operations & when NOT to use messaging (distributed tracing via
+         traceparent in headers; lag/DLQ/latency/rebalance metrics; runbooks; the "when not to" wisdom;
+         journey recap + communities). CORE CURRICULUM COMPLETE (L01–18). See learning-record 0002.
+
+## Post-curriculum directions (learner's choice)
+   • ★ ACTIVE: Hands-on capstone — event-driven Order Saga (Kotlin/Spring Boot 4 + Kafka).
+     - Location: ./capstone/  (brief: capstone/capstone-brief.html ; repo: capstone/order-saga/)
+     - Scope: FULL orchestration saga (Order→Inventory→Payment + compensation), scaffolded, per-milestone review.
+     - Scaffold generated via Spring Initializr (SB 4.1.0), overlaid with compose (podman/docker), Flyway,
+       entities/repos/DTOs complete; pattern logic left as TODO(Mx). VALIDATED: ./gradlew compileKotlin = BUILD SUCCESSFUL.
+     - 7 milestones tracked in SQL todos (cap-m0..cap-m7). Learner does M0 (boot) first, then M1 outbox, etc.
+     - Review loop: learner implements a milestone → pastes/pushes code + observations → I review vs acceptance criteria.
+   • Tool-specific deep dives to broaden beyond Kafka: RabbitMQ, Pulsar, SQS/SNS, Redis Streams internals
+   • Mock staff-level design review / interview
+   • Spaced-repetition review of earlier lessons (retrieval practice — recall may lag recognition)
    • Event-driven architecture: choreography vs orchestration (Fowler flow-visibility trap)
    • Transactional outbox & the dual-write problem
    • Saga pattern & distributed workflows

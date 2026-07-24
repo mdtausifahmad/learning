@@ -21,6 +21,12 @@ All links verified live on **2026-07-24** (✅).
 - [OpenTelemetry docs](https://opentelemetry.io/docs/) ✅
   Vendor-neutral traces/metrics/logs; "understand internal state from outputs". Use for: the
   instrumentation model, semantic conventions, the Collector, language SDKs.
+- [OpenTelemetry Demo (runnable microservices + Prometheus/Grafana/Jaeger)](https://opentelemetry.io/docs/demo/) ✅
+  [repo](https://github.com/open-telemetry/opentelemetry-demo) ✅ — `docker compose up` for a fully
+  instrumented app. Use for: the hands-on lab (Lesson 08, Track A); real golden-signal dashboards & traces.
+- [OTel Collector — Quick start](https://opentelemetry.io/docs/collector/quick-start/) ✅ &
+  [Zero-code instrumentation](https://opentelemetry.io/docs/zero-code/) ✅
+  Use for: the Collector pipeline (receivers/processors/exporters) and auto-instrumenting your own service.
 - [Prometheus docs — overview](https://prometheus.io/docs/introduction/overview/) ✅
   Pull-based time-series metrics, labels, PromQL. Use for: metrics data model, querying,
   recording/alerting rules.
@@ -33,12 +39,21 @@ All links verified live on **2026-07-24** (✅).
   Use for: high-cardinality, event-based observability and why dashboards alone fall short.
 
 ### Depth & judgment
+- [Google — "Managing Incidents" (SRE Book Ch 14)](https://sre.google/sre-book/managing-incidents/) ✅
+  The Incident Command System applied to outages: IC / Ops / Comms / Planning roles, the living
+  incident doc. Use for: how to run an incident without it spiralling.
+- [PagerDuty — Incident Response](https://response.pagerduty.com/) ✅
+  Superbly practical, battle-tested guide: roles, severity, comms, being on-call, running the call.
+  Use for: templates and the human mechanics of response.
 - [Google — "Addressing Cascading Failures" (SRE Book Ch 22)](https://sre.google/sre-book/addressing-cascading-failures/) ✅
   Use for: overload, retries, load shedding, thundering herd.
 - [AWS — "Timeouts, retries, and backoff with jitter" (Builders' Library)](https://aws.amazon.com/builders-library/timeouts-retries-and-backoff-with-jitter/) ✅
   Use for: the canonical retry / backoff / jitter argument, with the reasoning and math.
 - [Martin Fowler — CircuitBreaker](https://martinfowler.com/bliki/CircuitBreaker.html) ✅
   Use for: precise circuit-breaker semantics and states.
+- [Principles of Chaos Engineering](https://principlesofchaos.org/) ✅
+  The canonical definition + the four experiment steps + advanced principles. Use for: designing chaos
+  experiments / GameDays to verify resilience (Lesson 16).
 
 ## Wisdom (Communities)
 - [r/sre](https://reddit.com/r/sre) — practitioner Q&A; incident and SLO war stories. Use for:
@@ -50,9 +65,9 @@ All links verified live on **2026-07-24** (✅).
   scale. Use for: wisdom from practitioners; watch a few recorded talks.
 
 ## Gaps
-- Need a concrete **runnable local lab** (docker-compose: sample app + Prometheus + Grafana + OTel
-  Collector) for the hands-on instrumentation lessons (~lesson 7). Find & verify before then.
-- Need a strong, free **incident-command** walkthrough (PagerDuty's incident-response docs are a
-  candidate) before the on-call lessons (~lesson 9). Verify liveness when we reach it.
+- ~~Runnable local lab~~ **RESOLVED (2026-07-24):** minimal validated scaffold lives in
+  `assets/lab/` (Collector + Prometheus + Grafana + Jaeger); official OTel Demo is the richer option.
+- Need a strong, free **incident-command** walkthrough — **RESOLVED (2026-07-24):** SRE "Managing
+  Incidents" + PagerDuty Incident Response (both added above, verified).
 - Community preference **not yet asked** — check whether he wants to join r/sre / CNCF Slack before
   leaning on them for wisdom.

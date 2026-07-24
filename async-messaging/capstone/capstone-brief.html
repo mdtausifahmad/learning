@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Capstone · Event-Driven Order Saga</title>
+<link rel="stylesheet" href="../assets/styles.css">
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Async &amp; Messaging · Capstone Project</p>
+  <h1>Build an Event-Driven Order Saga</h1>
+  <div class="meta">
+    <span>Kotlin · Spring Boot 4 · Kafka · Postgres</span>
+    <span class="dot">•</span>
+    <span>Orchestration-based saga</span>
+    <span class="dot">•</span>
+    <span>7 milestones · per-milestone review</span>
+  </div>
+</header>
+
+<p class="mission-tie">
+  This is where knowledge and skills become <em>wisdom</em>. You&rsquo;ll build a real, running
+  event-driven pipeline in your daily stack — and every pattern from the course shows up as code you
+  write yourself. The scaffold (in <code>./order-saga/</code>) hands you the infrastructure and
+  plumbing; you fill in the pattern logic at the <code>TODO(Mx)</code> markers, one milestone at a
+  time. I review each milestone against its acceptance criteria before you move on.
+</p>
+
+<h2>What you&rsquo;re building</h2>
+<p>
+  A customer places an order. A <strong>saga orchestrator</strong> drives it across three services —
+  each with its own tables — reserving inventory, charging payment, and confirming (or, on failure,
+  <strong>compensating</strong> and cancelling). Every event is published reliably via a
+  <strong>transactional outbox</strong>, every consumer is <strong>idempotent</strong>, failures land
+  in a <strong>DLQ</strong>, and the whole flow is one <strong>distributed trace</strong>.
+</p>
+
+<figure>
+<svg viewBox="0 0 720 340" role="img" aria-label="Architecture: Order service writes to an outbox, a relay publishes to Kafka, an orchestrator drives inventory and payment via command/reply topics">
+  <defs>
+    <marker id="ca" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#6b6459"></path></marker>
+  </defs>
+
+  <rect x="20" y="40" width="120" height="48" rx="9" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.5"></rect>
+  <text x="80" y="60" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" font-weight="600" fill="#1a1a1a">Order Service</text>
+  <text x="80" y="76" text-anchor="middle" font-family="system-ui,sans-serif" font-size="8.5" fill="#6b6459">REST /orders</text>
+
+  <rect x="20" y="112" width="120" height="52" rx="9" fill="#f7f4ec" stroke="#a98b3f" stroke-width="1.25"></rect>
+  <text x="80" y="132" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9.5" fill="#1a1a1a">orders + outbox</text>
+  <text x="80" y="150" text-anchor="middle" font-family="system-ui,sans-serif" font-size="8" fill="#6b6459">one local tx (M1)</text>
+
+  <rect x="20" y="188" width="120" height="44" rx="9" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.25"></rect>
+  <text x="80" y="214" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" fill="#1a1a1a">Outbox Relay</text>
+
+  <line x1="80" y1="88" x2="80" y2="110" stroke="#6b6459" stroke-width="1.3" marker-end="url(#ca)"></line>
+  <line x1="80" y1="164" x2="80" y2="186" stroke="#6b6459" stroke-width="1.3" marker-end="url(#ca)"></line>
+
+  <rect x="250" y="120" width="120" height="90" rx="10" fill="#eef1f6" stroke="#2e5a7a" stroke-width="1.75"></rect>
+  <text x="310" y="150" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" font-weight="700" fill="#1a1a1a">Kafka</text>
+  <text x="310" y="168" text-anchor="middle" font-family="system-ui,sans-serif" font-size="7.5" fill="#6b6459">order.created</text>
+  <text x="310" y="180" text-anchor="middle" font-family="system-ui,sans-serif" font-size="7.5" fill="#6b6459">*.commands / *.replies</text>
+  <text x="310" y="192" text-anchor="middle" font-family="system-ui,sans-serif" font-size="7.5" fill="#a32f2f">*.DLT (M5)</text>
+
+  <line x1="140" y1="210" x2="248" y2="180" stroke="#6b6459" stroke-width="1.3" marker-end="url(#ca)"></line>
+
+  <rect x="480" y="30" width="220" height="60" rx="10" fill="#eef1f6" stroke="#2e5a7a" stroke-width="1.75"></rect>
+  <text x="590" y="55" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" font-weight="700" fill="#1a1a1a">Saga Orchestrator</text>
+  <text x="590" y="72" text-anchor="middle" font-family="system-ui,sans-serif" font-size="8" fill="#6b6459">state machine · commands + replies (M3/M4)</text>
+
+  <rect x="480" y="130" width="105" height="50" rx="9" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.5"></rect>
+  <text x="532" y="152" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" font-weight="600" fill="#1a1a1a">Inventory</text>
+  <text x="532" y="168" text-anchor="middle" font-family="system-ui,sans-serif" font-size="7.5" fill="#6b6459">idempotent (M2)</text>
+
+  <rect x="595" y="130" width="105" height="50" rx="9" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.5"></rect>
+  <text x="647" y="152" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" font-weight="600" fill="#1a1a1a">Payment</text>
+  <text x="647" y="168" text-anchor="middle" font-family="system-ui,sans-serif" font-size="7.5" fill="#6b6459">idempotent (M3)</text>
+
+  <line x1="370" y1="150" x2="478" y2="70" stroke="#6b6459" stroke-width="1.3" marker-end="url(#ca)"></line>
+  <line x1="532" y1="90" x2="532" y2="128" stroke="#6b6459" stroke-width="1.3" marker-end="url(#ca)"></line>
+  <line x1="640" y1="90" x2="646" y2="128" stroke="#6b6459" stroke-width="1.3" marker-end="url(#ca)"></line>
+  <line x1="560" y1="180" x2="372" y2="170" stroke="#c9c1b1" stroke-width="1.1" stroke-dasharray="3 3" marker-end="url(#ca)"></line>
+
+  <rect x="250" y="250" width="450" height="44" rx="9" fill="#fdfcf9" stroke="#e4ded2" stroke-width="1.25"></rect>
+  <text x="475" y="270" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9.5" fill="#6b6459">traceparent propagated through message headers → one trace in Jaeger (M7 · Lesson 18)</text>
+  <text x="475" y="285" text-anchor="middle" font-family="system-ui,sans-serif" font-size="8.5" fill="#6b6459">keys = orderId → per-order ordering (Lesson 09) · consumer lag = health (Lesson 10)</text>
+</svg>
+<figcaption>Order → outbox → relay → Kafka → orchestrator ↔ inventory/payment, with DLQ and tracing.</figcaption>
+</figure>
+
+<h2>How the review loop works</h2>
+<p>
+  You picked <strong>per-milestone review</strong>. For each milestone: implement its
+  <code>TODO(Mx)</code>s, verify against the <strong>acceptance criteria</strong>, then come back and
+  paste the code you wrote (or push to a repo and share) plus what you observed. I&rsquo;ll review it
+  against the criteria and the relevant lessons — catching bugs, missed edge cases, and design
+  issues — before you move to the next. Bring questions any time; that&rsquo;s the point.
+</p>
+
+<h2>The milestones</h2>
+
+<h3>M0 · Boot the stack <span style="font-weight:400;color:var(--muted)">(setup)</span></h3>
+<div class="callout tryit">
+  <span class="label">Goal</span>
+  <p>Get everything running before you write logic.</p>
+</div>
+<ul>
+  <li><strong>Do:</strong> <code>podman compose up -d</code>; <code>./gradlew bootRun</code>.</li>
+  <li><strong>Acceptance:</strong> app starts; <code>curl localhost:8080/actuator/health</code> is
+      <code>UP</code>; the 6 topics appear in Kafka UI (localhost:8080); Jaeger UI loads
+      (localhost:16686). (The listeners log but do nothing yet — expected.)</li>
+</ul>
+
+<h3>M1 · Transactional outbox <span style="font-weight:400;color:var(--muted)">(Lessons 14, 09)</span></h3>
+<ul>
+  <li><strong>Build:</strong> <code>OrderService.placeOrder</code> (create <code>Order(PENDING)</code>
+      + insert an <code>OutboxEvent(OrderCreated)</code> in one <code>@Transactional</code>);
+      <code>OutboxRelay.publishPending</code> (poll unsent rows in order, publish keyed by orderId,
+      mark sent).</li>
+  <li><strong>Acceptance:</strong> POST an order → an <code>OrderCreated</code> lands on
+      <code>order.created</code> in Kafka UI, and the <code>outbox</code> row flips to
+      <code>sent=true</code>. <strong>Crash test:</strong> throw right after the DB commit but before
+      the relay runs (or stop the app) → on restart the event <em>still</em> publishes. No lost, no
+      phantom events.</li>
+</ul>
+
+<h3>M2 · Idempotent inventory consumer <span style="font-weight:400;color:var(--muted)">(Lessons 08, 05)</span></h3>
+<ul>
+  <li><strong>Build:</strong> <code>InventoryListener.onReserve</code> — dedup on
+      <code>messageId</code> via <code>processed_messages</code>, reserve stock, and reply
+      <code>InventoryReserved</code>/<code>InventoryFailed</code> — all atomically.</li>
+  <li><strong>Acceptance:</strong> hand-produce the <em>same</em> <code>ReserveInventory</code> twice
+      (Kafka UI can produce) → stock is reserved <strong>once</strong>; the second is skipped. A
+      reply appears on <code>inventory.replies</code>.</li>
+</ul>
+
+<h3>M3 · Saga happy path <span style="font-weight:400;color:var(--muted)">(Lessons 13, 15)</span></h3>
+<ul>
+  <li><strong>Build:</strong> the orchestrator handlers (<code>OrderCreated</code> →
+      <code>ReserveInventory</code>; <code>InventoryReserved</code> → <code>ChargePayment</code>;
+      <code>PaymentCharged</code> → confirm) and <code>PaymentListener.onCharge</code> (idempotent
+      charge; reply). Persist <code>SagaInstance</code> state; keep transitions idempotent.</li>
+  <li><strong>Acceptance:</strong> POST an order with <code>amount ≤ 1000</code> → within a moment
+      <code>GET /orders/{id}</code> is <code>CONFIRMED</code>, inventory reserved, a payment row
+      exists, and an <code>OrderConfirmed</code> is on <code>order.events</code>.</li>
+</ul>
+
+<h3>M4 · Compensation <span style="font-weight:400;color:var(--muted)">(Lesson 15)</span></h3>
+<ul>
+  <li><strong>Build:</strong> failure handlers — <code>PaymentFailed</code> → send
+      <code>ReleaseInventory</code> then cancel; <code>InventoryFailed</code> → cancel;
+      <code>InventoryListener.onRelease</code> (idempotent compensation).</li>
+  <li><strong>Acceptance:</strong> POST an order with <code>amount &gt; 1000</code> (simulated
+      decline) → order ends <code>CANCELLED</code>, the reservation is released (inventory back to
+      where it started), no charge. A consistent end state — no partial mess.</li>
+</ul>
+
+<h3>M5 · Retries, backoff &amp; DLQ <span style="font-weight:400;color:var(--muted)">(Lesson 11)</span></h3>
+<ul>
+  <li><strong>Build:</strong> in <code>KafkaConfig.errorHandler</code>, a
+      <code>DefaultErrorHandler</code> with <code>ExponentialBackOffWithMaxRetries</code> +
+      <code>DeadLetterPublishingRecoverer</code>; mark a parse/validation error non-retryable; add
+      <code>ErrorHandlingDeserializer</code> in <code>application.yml</code>.</li>
+  <li><strong>Acceptance:</strong> produce a malformed/poison message to a command topic → after N
+      bounded retries it lands on <code>&lt;topic&gt;.DLT</code> <em>without</em> blocking the
+      partition (later valid messages still process). A transient failure retries then succeeds.</li>
+</ul>
+
+<h3>M6 · Guarantees &amp; ordering <span style="font-weight:400;color:var(--muted)">(Lessons 05, 06, 09)</span></h3>
+<ul>
+  <li><strong>Build:</strong> confirm <code>enable.idempotence=true</code>, <code>acks=all</code>;
+      ensure every send is keyed by <code>orderId</code>. (Stretch: wrap the read-process-write in
+      Kafka transactions with <code>read_committed</code>.)</li>
+  <li><strong>Acceptance:</strong> fire many concurrent orders → each order&rsquo;s events stay in order
+      on its partition; no duplicate side effects (your idempotency + producer idempotence hold).</li>
+</ul>
+
+<h3>M7 · Observability &amp; load <span style="font-weight:400;color:var(--muted)">(Lessons 10, 18)</span></h3>
+<ul>
+  <li><strong>Build:</strong> tracing is pre-wired — confirm a single trace spans Order → relay →
+      orchestrator → inventory/payment in <strong>Jaeger</strong>. Watch <strong>consumer lag</strong>
+      (Kafka UI / actuator metrics). Drive a burst of orders and observe lag rise then drain.</li>
+  <li><strong>Acceptance:</strong> one Jaeger trace shows the whole async flow as a waterfall; under a
+      load spike, lag climbs then recovers (load leveling), with no lost work.</li>
+</ul>
+
+<div class="callout insight">
+  <span class="label">Definition of done</span>
+  <p>
+    An order either fully <strong>completes</strong> (confirmed, stock reserved, charged) or fully
+    <strong>compensates</strong> (cancelled, stock released, no charge) — reliably, idempotently, in
+    order, with poison messages quarantined to a DLQ and the whole flow visible as one trace. When you
+    can demo that end to end, you&rsquo;ve built a staff-grade event-driven system.
+  </p>
+</div>
+
+<div class="callout warning">
+  <span class="label">Stretch goals (if you&rsquo;re hungry)</span>
+  <p>
+    Publish orchestrator commands via their <em>own</em> outboxes (reliable everywhere) · add a
+    <strong>CQRS read model</strong> projecting <code>order.events</code> into an order-summary view
+    (Lesson 17) · add a <strong>schema registry</strong> + Avro and evolve an event compatibly
+    (Lesson 16) · split the single app into真 separate deployable services.
+  </p>
+</div>
+
+<div class="followup">
+  <strong>Ready when you are.</strong> Do <strong>M0</strong> first (get it booting), then tell me
+  &ldquo;M0 done&rdquo; (or share any startup errors) and I&rsquo;ll confirm you&rsquo;re green before M1. Stuck on
+  setup, podman, or an SB4 quirk? Just ask.
+</div>
+
+<nav class="lesson-nav">
+  <span class="group"><b>Repo</b><a href="order-saga/README.md">order-saga/README.md</a></span>
+  <span class="group"><b>Course</b><a href="../lessons/0001-why-async.html">Lessons</a></span>
+  <span class="group"><b>Terms</b><a href="../GLOSSARY.md">GLOSSARY.md</a></span>
+</nav>
+
+</body>
+</html>

@@ -200,6 +200,94 @@ Streaming a database's committed changes by tailing its transaction log (WAL/bin
 way to relay an outbox (Debezium). Preserves order because the log is ordered.
 _Avoid_: Log tailing (acceptable alias), replication
 
+## Sagas
+
+**Saga**:
+A distributed transaction implemented as a sequence of local transactions across services, each
+publishing a message that triggers the next; on failure, compensating transactions undo the completed
+steps. Trades ACID guarantees for cross-service consistency without 2PC.
+_Avoid_: Distributed transaction (a saga is the alternative to one)
+
+**Compensating transaction**:
+A new local transaction that semantically undoes a previously committed step of a saga
+(ReserveInventory → ReleaseInventory). Must be reliable and idempotent; there is no automatic rollback.
+_Avoid_: Rollback (a committed step can't be rolled back — only compensated)
+
+**Semantic lock**:
+A saga countermeasure for the lack of isolation: a state flag (e.g. `PENDING`) marking a record as
+in-progress so concurrent sagas/readers treat it carefully until the saga completes.
+_Avoid_: Lock (implies a real DB lock, which a saga deliberately avoids)
+
+**Pivot transaction**:
+The commit point of a saga: steps before it are compensatable (can be undone), the pivot makes the
+saga's outcome final, and steps after it are retriable (must eventually succeed).
+_Avoid_: Commit point (acceptable description, but "pivot transaction" is the term)
+
+## Schema evolution
+
+**Schema evolution**:
+Changing an event's schema over time while keeping producers and consumers on different versions
+interoperable. Required because deploys are independent and logs retain old events.
+_Avoid_: Versioning (that's one tactic within evolution)
+
+**Backward / forward / full compatibility**:
+*Backward* = a new schema can read old data (upgrade consumers first; the default). *Forward* = an old
+schema can read new data (upgrade producers first). *Full* = both. *Transitive* = holds against all
+prior versions, not just the last.
+_Avoid_: Compatible (unqualified — always say which direction)
+
+**Schema registry**:
+A service that stores schemas per subject, enforces the chosen compatibility rule at registration
+(rejecting breaking schemas), and lets messages carry a small schema ID instead of the full schema.
+_Avoid_: Schema store
+
+**Tolerant reader**:
+A consumer that ignores fields it doesn't recognize and doesn't over-validate (Postel's law) — which
+grants forward compatibility for free.
+_Avoid_: Lenient parser
+
+## Event sourcing & CQRS
+
+**Event sourcing**:
+Persisting an entity's state as the append-only sequence of state-changing events, and deriving current
+state by replaying them. The event log is the source of truth; saving an event is atomic (no dual write).
+_Avoid_: Event logging (logging is observability; this is the system of record)
+
+**Projection**:
+An event handler that consumes an event stream and maintains a derived, query-optimized read model
+(a view, index, or cache). The mechanism behind CQRS read models.
+_Avoid_: View (a projection produces a view; they aren't the same)
+
+**CQRS (Command Query Responsibility Segregation)**:
+Using a different model to update information (command side) than to read it (query side), often with
+separate stores kept eventually consistent. Fowler: valuable for complex domains, "risky complexity"
+for most.
+_Avoid_: Read/write split (too vague)
+
+**Snapshot**:
+A periodically saved copy of an event-sourced entity's current state, so rebuilding replays only the
+events since the snapshot rather than from the beginning.
+_Avoid_: Checkpoint (reserve for consumer offset/stream-processing checkpoints)
+
+## Observability
+
+**Context propagation**:
+Carrying a trace context (trace id + span id) across service boundaries — through message headers for
+async hops — so a consumer's work becomes a child span of the producer's and the whole flow forms one
+trace. OpenTelemetry's default uses the W3C `traceparent` header.
+_Avoid_: Tracing (that's the outcome; propagation is the mechanism)
+
+**Correlation id**:
+A single identifier attached to a message (and its logs and spans) that lets you follow one logical
+flow across every service and hop. Often the trace id.
+_Avoid_: Request id (reserve for a single synchronous request)
+
+**Consumer lag**:
+The gap between the latest offset in a partition and a consumer group's committed offset — the primary
+health metric of an async system. Rising lag means the consumer is behind (or blocked by a hung
+transaction). Alert and autoscale on it.
+_Avoid_: Backlog (informal), delay
+
 ## Message intent
 
 **Command**:

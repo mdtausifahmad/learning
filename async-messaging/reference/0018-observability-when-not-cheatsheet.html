@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cheat Sheet · Observability &amp; When Not To</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<style>
+  body { max-width: 52rem; }
+  @media print { body { margin: 0; } h2 { margin-top: 1.1rem; } }
+</style>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Async &amp; Messaging · Reference 18</p>
+  <h1>Observability &amp; Judgment — Cheat Sheet</h1>
+  <div class="meta"><span>Compressed from Lesson 18</span><span class="dot">•</span><span>Print-friendly</span></div>
+</header>
+
+<h2>Three pillars for async</h2>
+<ul>
+  <li><strong>Tracing:</strong> propagate the W3C <code>traceparent</code> (trace id + span id) in <strong>message headers</strong> → producer/consumer spans stitch into one trace. Defeats the flow-visibility trap (L13).</li>
+  <li><strong>Metrics:</strong> see below. Alert &amp; autoscale on <strong>lag</strong> (KEDA), not CPU.</li>
+  <li><strong>Logs:</strong> structured + the same <strong>correlation id</strong> as traces.</li>
+</ul>
+
+<h2>Metrics that matter</h2>
+<table>
+  <thead><tr><th>Metric</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Consumer lag</strong></td><td>#1 signal — behind, or a hung txn (L10/L07)</td></tr>
+    <tr><td><strong>DLQ depth/rate</strong></td><td>Any entry = triage &amp; redrive (L11)</td></tr>
+    <tr><td><strong>End-to-end latency</strong></td><td>produce → consume; user-facing delay</td></tr>
+    <tr><td><strong>Rebalance freq</strong></td><td>Storms = stalls (L03/L07)</td></tr>
+    <tr><td><strong>Producer error rate</strong></td><td>Broker/downstream trouble</td></tr>
+  </tbody>
+</table>
+
+<h2>When NOT to use messaging</h2>
+<div class="callout warning">
+  <span class="label">Choose sync / a DB instead when…</span>
+  <p>You need an <strong>immediate answer</strong> to continue · you need <strong>read-your-writes
+     consistency now</strong> · <strong>simple CRUD / one service / low volume</strong> · you're
+     querying/updating messages (that's a DB) · your "events" are disguised sync calls (distributed
+     monolith) · ES/CQRS/saga on a simple domain.</p>
+</div>
+
+<div class="callout insight">
+  <span class="label">Use messaging when…</span>
+  <p>You genuinely need <strong>decoupling in time, fan-out, load leveling, or outage resilience</strong>
+     — AND can afford a broker + eventual consistency + the ops. Otherwise, choose boring.</p>
+</div>
+
+<h2>Runbook (rehearse these)</h2>
+<ul>
+  <li>Lag climbing → scale consumers / find stuck partition or hung txn.</li>
+  <li>DLQ filling → triage + redrive (L11).</li>
+  <li>Rebalance storm → static membership + cooperative rebalancing (L07).</li>
+  <li>Schema break → compatibility gate in CI (L16).</li>
+</ul>
+
+<nav class="lesson-nav">
+  <span class="group"><b>From</b><a href="../lessons/0018-observability-when-not-to.html">← Lesson 18 · Observability &amp; When Not To</a></span>
+  <span class="group"><b>Canonical terms</b><a href="../GLOSSARY.md">GLOSSARY.md</a></span>
+</nav>
+
+</body>
+</html>

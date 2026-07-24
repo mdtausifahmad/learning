@@ -1,0 +1,48 @@
+spring:
+  application:
+    name: order-saga
+  datasource:
+    url: jdbc:postgresql://localhost:5432/ordersaga
+    username: app
+    password: app
+  jpa:
+    hibernate:
+      ddl-auto: validate          # Flyway owns the schema; entities must match it
+    open-in-view: false
+  flyway:
+    enabled: true
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: all
+      properties:
+        enable.idempotence: true            # Milestone 6 / Lesson 06: no duplicate producer writes, order kept
+    consumer:
+      group-id: order-saga
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      # Milestone 5 / Lesson 11: wrap with ErrorHandlingDeserializer so a poison message can't kill the container.
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "dev.async.ordersaga.*"
+        # isolation.level: read_committed    # Milestone 6 (stretch) / Lesson 06: if you add Kafka transactions
+
+# Observability — Milestone 7 / Lesson 18
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  tracing:
+    sampling:
+      probability: 1.0                       # sample everything in dev
+  otlp:
+    tracing:
+      endpoint: http://localhost:4318/v1/traces   # → Jaeger (docker-compose)
+
+logging:
+  pattern:
+    # put the trace/span id on every log line so logs correlate with traces (Lesson 18)
+    level: "%5p [${spring.application.name},%X{traceId:-},%X{spanId:-}]"

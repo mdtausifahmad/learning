@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 17 · Event Sourcing &amp; CQRS</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<script src="../assets/quiz.js" defer></script>
+<script src="../assets/stepflow.js" defer></script>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Async &amp; Messaging · Lesson 17</p>
+  <h1>Event Sourcing &amp; CQRS</h1>
+  <div class="meta">
+    <span>◷ ~16 min read · interactive</span>
+    <span class="dot">•</span>
+    <span>Level: Staff / Architecture</span>
+    <span class="dot">•</span>
+    <span>Builds on: <a href="0012-log-vs-queue-brokers.html">L12</a> (the log), <a href="0014-transactional-outbox.html">L14</a></span>
+  </div>
+</header>
+
+<p class="mission-tie">
+  The most advanced event-driven patterns take the log idea to its conclusion: what if the stream of
+  events <em>is</em> your database? Event sourcing and CQRS are powerful — and powerfully easy to
+  over-apply. A staff engineer knows exactly what they buy, what they cost, and (most importantly)
+  when to walk away from them.
+</p>
+
+<h2>1. Event sourcing: store the events, derive the state</h2>
+
+<p>
+  Normal CRUD stores <em>current state</em> and mutates it — an <code>UPDATE</code> overwrites the old
+  value and its history is gone. <span class="term">Event sourcing</span> inverts this: it &ldquo;persists
+  the state of a business entity as a <strong>sequence of state-changing events</strong>&rdquo;
+  (microservices.io). The event log is the source of truth; current state is <em>reconstructed by
+  replaying the events</em>. Fowler&rsquo;s analogy: a version-control system — the commit log is the event
+  store, the working copy is the derived state.
+</p>
+
+<div class="callout insight">
+  <span class="label">A quiet superpower: no dual write</span>
+  <p>
+    Because &ldquo;saving an event is a single operation, it is inherently atomic,&rdquo; event sourcing sidesteps
+    the dual-write problem (Lesson 14) entirely: the event <em>is</em> the state change, and the event
+    store also acts as a broker others subscribe to. No separate outbox needed.
+  </p>
+</div>
+
+<h2>2. Watch it: events in, state &amp; views out</h2>
+<p>Step through an account&rsquo;s events becoming state and a read model (← / → keys work).</p>
+
+<div class="stepflow" data-token="token">
+  <div class="sf-stage">
+    <svg viewBox="0 0 720 320" role="img" aria-label="Events are appended to an event store; current state is derived by folding them; a CQRS projection builds a read model">
+      <defs>
+        <marker id="l17a" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#6b6459"></path></marker>
+      </defs>
+
+      <g id="crudBox" style="display:none">
+        <rect x="180" y="118" width="360" height="66" rx="10" fill="#fbf1e7" stroke="#b5651d" stroke-width="1.5"></rect>
+        <text x="360" y="146" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" font-weight="700" fill="#8a4d16">CRUD: balance = 120</text>
+        <text x="360" y="168" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" fill="#8a4d16">UPDATE overwrites in place → history &amp; context lost</text>
+      </g>
+
+      <g id="eventstore" class="sf-actor" style="display:none">
+        <rect x="40" y="52" width="212" height="216" rx="10" fill="#fdfcf9" stroke="#2e5a7a" stroke-width="1.5"></rect>
+        <text x="146" y="44" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="600" fill="#6b6459">event store — source of truth</text>
+      </g>
+      <g id="e1" style="display:none"><rect x="52" y="62" width="188" height="40" rx="5" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.1"></rect><text x="146" y="86" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" fill="#1f4a29">1 · Deposited +100</text></g>
+      <g id="e2" style="display:none"><rect x="52" y="108" width="188" height="40" rx="5" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.1"></rect><text x="146" y="132" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" fill="#1f4a29">2 · Withdrew −30</text></g>
+      <g id="e3" style="display:none"><rect x="52" y="154" width="188" height="40" rx="5" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.1"></rect><text x="146" y="178" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" fill="#1f4a29">3 · Deposited +50</text></g>
+      <g id="e4" style="display:none"><rect x="52" y="200" width="188" height="40" rx="5" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.4"></rect><text x="146" y="224" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="700" fill="#1f4a29">4 · Withdrew −40</text></g>
+
+      <g id="foldArrow" style="display:none"><line x1="252" y1="110" x2="466" y2="94" stroke="#6b6459" stroke-width="1.5" marker-end="url(#l17a)"></line><text x="356" y="90" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9" fill="#6b6459">fold / replay</text></g>
+      <g id="projArrow" style="display:none"><line x1="252" y1="210" x2="466" y2="212" stroke="#6b6459" stroke-width="1.5" marker-end="url(#l17a)"></line><text x="356" y="230" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9" fill="#6b6459">projection</text></g>
+
+      <g id="currentState" class="sf-actor" style="display:none">
+        <rect x="470" y="58" width="212" height="74" rx="10" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.5"></rect>
+        <text x="576" y="80" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" fill="#6b6459">current state (derived)</text>
+      </g>
+      <text id="bal120" x="576" y="110" text-anchor="middle" font-family="system-ui,sans-serif" font-size="14" font-weight="700" fill="#1a1a1a" style="display:none">balance = 120</text>
+      <text id="bal80" x="576" y="110" text-anchor="middle" font-family="system-ui,sans-serif" font-size="14" font-weight="700" fill="#1a1a1a" style="display:none">balance = 80</text>
+
+      <g id="readModel" class="sf-actor" style="display:none">
+        <rect x="470" y="178" width="212" height="80" rx="10" fill="#eef1f6" stroke="#2e5a7a" stroke-width="1.5"></rect>
+        <text x="576" y="202" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" fill="#6b6459">read model (CQRS)</text>
+        <text x="576" y="226" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" font-weight="700" fill="#1a1a1a">balance 80 · 4 txns</text>
+      </g>
+
+      <text id="deriveNote" x="360" y="300" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="600" fill="#1f4a29" style="display:none">current state is DERIVED by folding events — not stored</text>
+      <text id="appendNote" x="360" y="300" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="600" fill="#1f4a29" style="display:none">a change APPENDS a new event, then re-fold → 80 (never mutate)</text>
+      <text id="timeNote" x="360" y="300" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="600" fill="#2e5a7a" style="display:none">replay up to event 3 → balance AS OF then = 120 (time travel)</text>
+      <text id="cqrsNote" x="360" y="300" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="600" fill="#2e5a7a" style="display:none">CQRS: a projection builds a query-optimized read model</text>
+      <text id="recapNote" x="360" y="300" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="700" fill="#1a1a1a" style="display:none">events = truth · write appends, read projects · eventually consistent</text>
+
+      <g id="token" style="display:none"></g>
+    </svg>
+  </div>
+
+  <div class="sf-caption"><p class="sf-title"></p><p class="sf-desc"></p></div>
+  <div class="sf-controls">
+    <button class="sf-btn sf-prev" type="button">◀ Prev</button>
+    <button class="sf-btn sf-next" type="button">Next ▶</button>
+    <button class="sf-btn sf-reset" type="button">↺ Reset</button>
+    <button class="sf-btn sf-play" type="button">▶ Play</button>
+    <span class="sf-counter"></span>
+  </div>
+
+  <script type="application/json" class="sf-steps">
+  [
+    {"title":"CRUD loses history","desc":"A CRUD row stores only the current balance; each <code>UPDATE</code> overwrites it — the history and the &ldquo;why&rdquo; are gone.","token":null,"visible":["crudBox"],"highlight":[]},
+    {"title":"Event sourcing: store the events","desc":"Instead, append the <strong>sequence of events</strong> to an event store — immutable, append-only, the source of truth.","token":null,"visible":["eventstore","e1","e2","e3"],"highlight":["eventstore"]},
+    {"title":"Derive the current state","desc":"Balance = 120 is <strong>derived</strong> by folding the events (100 − 30 + 50) — it is computed, not stored.","token":null,"visible":["eventstore","e1","e2","e3","currentState","bal120","foldArrow","deriveNote"],"highlight":["currentState"]},
+    {"title":"A change appends an event","desc":"Withdraw 40 → <strong>append</strong> event 4 and re-fold → balance 80. You never mutate; you add.","token":null,"visible":["eventstore","e1","e2","e3","e4","currentState","bal80","foldArrow","appendNote"],"highlight":["eventstore","currentState"]},
+    {"title":"Time travel for free","desc":"Want the balance <em>as of</em> event 3? Replay only up to there → 120. Full audit and temporal queries come built in.","token":null,"visible":["eventstore","e1","e2","e3","currentState","bal120","foldArrow","timeNote"],"highlight":["eventstore"]},
+    {"title":"CQRS: build a read model","desc":"A <strong>projection</strong> consumes the same event stream and maintains a denormalized <strong>read model</strong> (balance + txn count) — separate from the write side.","token":null,"visible":["eventstore","e1","e2","e3","e4","currentState","bal80","readModel","projArrow","cqrsNote"],"highlight":["readModel"]},
+    {"title":"Write appends, read projects","desc":"The command side appends events; the query side serves fast, purpose-built views from projections — eventually consistent. That separation is CQRS.","token":null,"visible":["eventstore","e1","e2","e3","e4","currentState","bal80","readModel","projArrow","recapNote"],"highlight":["readModel","currentState"]}
+  ]
+  </script>
+</div>
+
+<pre><code>// Event sourcing: current state is a fold over the events
+data class Account(val balance: Int = 0) {
+    fun apply(e: AccountEvent) = when (e) {
+        is Deposited -> copy(balance = balance + e.amount)
+        is Withdrew  -> copy(balance = balance - e.amount)
+    }
+}
+fun rebuild(events: List&lt;AccountEvent&gt;) = events.fold(Account()) { acc, e -&gt; acc.apply(e) }
+
+// A command: rebuild state → validate → APPEND a new event (never mutate)
+fun withdraw(id: String, amount: Int) {
+    val acct = rebuild(store.eventsFor(id))
+    require(acct.balance &gt;= amount) { "insufficient funds" }
+    store.append(id, Withdrew(amount))
+}</code></pre>
+
+<h2>3. CQRS: separate the write model from the read model</h2>
+
+<p>
+  <span class="term">CQRS</span> (Command Query Responsibility Segregation, from Greg Young) is, in
+  Fowler&rsquo;s words, &ldquo;the notion that you can use a <strong>different model to update information than
+  the model you use to read information</strong>.&rdquo; The write side enforces invariants; the read
+  side(s) are denormalized and tuned per query. With event sourcing they pair naturally: the write
+  side appends events; <strong>projections</strong> turn that stream into read models (a SQL view, a
+  search index, a cache) — each eventually consistent.
+</p>
+
+<pre><code>// A projection (@KafkaListener) builds and updates a read model from the event stream
+@KafkaListener(topics = ["account.events"], groupId = "summary-projection")
+fun project(e: AccountEvent) = summaryView.apply(e)   // separate query-optimized store</code></pre>
+
+<div class="callout warning">
+  <span class="label">Eventual consistency, on purpose</span>
+  <p>
+    Because the read model is updated <em>after</em> the write, a query right after a command may not
+    see it yet. CQRS &ldquo;raises the likelihood of using eventual consistency&rdquo; (Fowler). You must design
+    the UX for it — the same read-your-writes gap you meet all over async systems.
+  </p>
+</div>
+
+<h2>4. Benefits, costs — and the big caution</h2>
+<table>
+  <thead><tr><th>You gain</th><th>You pay</th></tr></thead>
+  <tbody>
+    <tr><td>Complete audit trail &amp; temporal queries (replay to any point)</td><td>Querying current state means deriving it (snapshots needed)</td></tr>
+    <tr><td>Rebuild state / fix bugs by replaying; multiple read models</td><td>Event <strong>schema evolution</strong> is now critical (L16) — events live forever</td></tr>
+    <tr><td>No dual write; events are your integration stream</td><td>Replay + external side effects = non-determinism; deletes (GDPR) are hard</td></tr>
+    <tr><td>Read and write scale independently</td><td>Eventual consistency + a lot more moving parts</td></tr>
+  </tbody>
+</table>
+
+<div class="callout warning">
+  <span class="label">Use judiciously — really</span>
+  <p>
+    Fowler is blunt: &ldquo;for most systems CQRS adds <strong>risky complexity</strong>.&rdquo; Event sourcing
+    is similar. These shine in <strong>complex, audit-heavy domains</strong> (finance, ledgers,
+    compliance, trading) and specific bounded contexts — <em>not</em> as a default for a whole system.
+    For ordinary CRUD, they are massive over-engineering. Reach for a <strong>snapshot</strong> to keep
+    replays fast, and keep the pattern scoped to where it earns its cost.
+  </p>
+</div>
+
+<div class="primary-source">
+  <span class="label">Go deeper (primary sources)</span>
+  <p>
+    <a href="https://martinfowler.com/bliki/CQRS.html" target="_blank" rel="noopener">Martin Fowler &mdash; <em>CQRS</em></a>
+    (and his <a href="https://martinfowler.com/eaaDev/EventSourcing.html" target="_blank" rel="noopener">Event Sourcing</a>), plus
+    <a href="https://microservices.io/patterns/data/event-sourcing.html" target="_blank" rel="noopener">microservices.io &mdash; <em>Event Sourcing</em></a>
+    (event store, snapshots). Deeper still: Kleppmann&rsquo;s &ldquo;Turning the Database Inside-Out.&rdquo;
+  </p>
+</div>
+
+<h2>5. Check yourself</h2>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 1 of 2</p>
+  <p class="quiz-q">In event sourcing, how do you get an entity&rsquo;s <em>current</em> state?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="State is derived by folding/replaying the event sequence (optionally from a snapshot).">Replay (fold) its events to rebuild it</button></li>
+    <li><button data-correct="false" data-feedback="There is no current-state row to read — only the events are stored.">Read the current-state row directly</button></li>
+    <li><button data-correct="false" data-feedback="Events are immutable and appended; you never update them in place.">Update the latest event in place</button></li>
+    <li><button data-correct="false" data-feedback="Deleting history would defeat the audit/replay purpose entirely.">Delete old events and keep the newest</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Events are the source of truth; current state is derived by replaying them. Snapshots skip replaying from the very beginning."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 2 of 2</p>
+  <p class="quiz-q">What is the main thing CQRS separates?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="CQRS uses a different model to update than to read — command side vs query side.">The write model from the read model(s)</button></li>
+    <li><button data-correct="false" data-feedback="Producers/consumers is messaging topology, not what CQRS segregates.">The producers from the consumers</button></li>
+    <li><button data-correct="false" data-feedback="That's sharding/partitioning, a different concern.">Hot data from cold archived data</button></li>
+    <li><button data-correct="false" data-feedback="Sync vs async is a delivery choice, not the CQRS split.">Synchronous calls from async ones</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="CQRS = Command Query Responsibility Segregation: a distinct model for updates (commands) vs reads (queries), often different stores, eventually consistent."></div>
+</div>
+
+<div class="callout tryit">
+  <span class="label">Try it in your own system</span>
+  <p>
+    Pick one entity. Would storing it as events buy you anything real — an audit trail, temporal
+    queries, replay? If it&rsquo;s plain CRUD with none of those needs, event sourcing is over-engineering,
+    and that&rsquo;s the right answer. If it&rsquo;s a ledger/compliance case, sketch its events and one read
+    model. Bring your verdict — including &ldquo;no.&rdquo;
+  </p>
+</div>
+
+<div class="followup">
+  <strong>I&rsquo;m your teacher &mdash; ask anything.</strong> Want snapshot strategies, how Kafka (compacted
+  topics) serves as an event store, or the read-your-writes fixes for CQRS&rsquo;s eventual consistency?
+  Ask &mdash; or answer a quiz back so I can tune the finale.
+</div>
+
+<nav class="lesson-nav">
+  <span class="group">
+    <b>Previous</b>
+    <a href="0016-schema-evolution.html">← Lesson 16 · Schema Evolution</a>
+  </span>
+  <span class="group">
+    <b>Reference</b>
+    <a href="../reference/0017-event-sourcing-cqrs-cheatsheet.html">Event sourcing / CQRS cheat sheet →</a>
+  </span>
+  <span class="group">
+    <b>Up next</b>
+    <a href="0018-observability-when-not-to.html">Lesson 18 · Observability, ops &amp; when NOT to use messaging</a>
+  </span>
+</nav>
+
+</body>
+</html>

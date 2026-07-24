@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cheat Sheet · NALSD &amp; Reliable-Design Checklist</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<style>
+  body { max-width: 52rem; }
+  @media print { body { margin: 0; } h2 { margin-top: 1.1rem; } }
+</style>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Reliability &amp; SRE · Reference 16</p>
+  <h1>NALSD &amp; the Reliable-Design Checklist</h1>
+  <div class="meta"><span>Compressed from Lesson 15 (capstone)</span><span class="dot">•</span><span>Print-friendly</span></div>
+</header>
+
+<div class="callout insight">
+  <span class="label">Non-abstract</span>
+  <p>Turn the whiteboard into <strong>concrete resource estimates</strong> &mdash; QPS, bytes/day, machines,
+     bandwidth. Reliability is the top feature. <strong>Sound assumptions beat perfect numbers.</strong></p>
+</div>
+
+<h2>The four questions (iterate)</h2>
+<table>
+  <thead><tr><th>Phase</th><th>Question</th></tr></thead>
+  <tbody>
+    <tr><td rowspan="2"><strong>Basic design</strong></td><td><strong>Possible?</strong> — ignoring limits, does it satisfy the requirements?</td></tr>
+    <tr><td><strong>Better?</strong> — faster / smaller / more efficient?</td></tr>
+    <tr><td rowspan="2"><strong>Scale up</strong></td><td><strong>Feasible?</strong> — within money/hardware; what distributed design?</td></tr>
+    <tr><td><strong>Resilient?</strong> — component &amp; whole-datacenter failure?</td></tr>
+  </tbody>
+</table>
+
+<h2>Back-of-envelope template</h2>
+<pre><code>1. Requirements AS SLOs        e.g. 99.9% &lt; 1s ; data &lt; 5 min old
+2. Load                        QPS, writes/s, users
+3. Data                        QPS &times; bytes/entry  →  MB/s  →  GB–TB/day
+4. Machines                    load / per-machine capacity  (+ overhead)
+5. Redundancy                  N+2 ; replicate across zones/regions
+6. Bottleneck?                 RAM? CPU? bandwidth? → reshape (shard, cache, pre-aggregate)</code></pre>
+
+<h2>The completeness test (a design isn&rsquo;t done until&hellip;)</h2>
+<table>
+  <thead><tr><th>Question</th><th>Covered by</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Measured?</strong> SLOs, golden signals, observability</td><td>Lessons 1&ndash;3, 6, 7</td></tr>
+    <tr><td><strong>Fails &amp; degrades?</strong> overload, graceful degradation</td><td>Lessons 11, 12</td></tr>
+    <tr><td><strong>Recovers?</strong> incident response, rollback</td><td>Lessons 9, 13</td></tr>
+    <tr><td><strong>Changes safely?</strong> error-budget policy, canary/flags</td><td>Lessons 4, 13</td></tr>
+    <tr><td><strong>Owned &amp; simple?</strong> clear owner, explainable at 3am</td><td>Lessons 9, 14</td></tr>
+  </tbody>
+</table>
+
+<div class="callout warning">
+  <span class="label">Pays rent?</span>
+  <p>Every component: removes more complexity than it adds? reduces blast radius? has an owner? explainable
+     at 03:00? If not, cut it.</p>
+</div>
+
+<nav class="lesson-nav">
+  <span class="group"><b>From</b><a href="../lessons/0015-nalsd-designing-for-reliability.html">&larr; Lesson 15 · NALSD</a></span>
+  <span class="group"><b>Course map</b><a href="../index.html">All lessons &amp; references</a></span>
+  <span class="group"><b>Primary source</b><a href="https://sre.google/workbook/non-abstract-design/" target="_blank" rel="noopener">SRE Workbook · NALSD</a></span>
+</nav>
+
+</body>
+</html>

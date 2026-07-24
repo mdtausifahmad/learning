@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 10 · Blameless Postmortems</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<script src="../assets/quiz.js" defer></script>
+<script src="../assets/anim.js" defer></script>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Reliability &amp; SRE · Lesson 10</p>
+  <h1>Blameless Postmortems</h1>
+  <div class="meta">
+    <span>◷ ~11 min read</span>
+    <span class="dot">•</span>
+    <span>Level: Judgment</span>
+    <span class="dot">•</span>
+    <span>Prereq: <a href="0009-oncall-incident-lifecycle.html">Lesson 09</a> — you ran an incident</span>
+  </div>
+</header>
+
+<p class="mission-tie">
+  An incident you survived (Lesson&nbsp;09) is wasted unless you <em>learn</em> from it. The postmortem is
+  how an outage becomes durable <strong>risk reduction</strong> instead of a scar. But most postmortems
+  fail two ways: they turn into <em>blame</em> (so people hide the truth) or <em>paperwork</em> (so nothing
+  changes). This lesson makes them actually reduce risk &mdash; and closes the whole reliability loop.
+</p>
+
+<h2>1. Why &ldquo;blameless&rdquo; &mdash; the mechanism, not the platitude</h2>
+
+<p>
+  Blameless isn&rsquo;t about being nice. It&rsquo;s about <strong>information</strong>. If people fear being
+  shamed, they hide context, sugarcoat the timeline, and get defensive &mdash; and you lose exactly the
+  facts you need to fix the system. Remove blame, and the truth comes out, so you can fix the systemic
+  causes.
+</p>
+
+<div class="callout insight">
+  <span class="label">The core commitment</span>
+  <p>
+    A blameless postmortem assumes everyone involved <strong>had good intentions and did the right thing
+    with the information they had</strong>. It asks <em>how the system allowed the failure</em>, not
+    <em>who erred</em>. As the SRE book puts it: <strong>you can&rsquo;t &ldquo;fix&rdquo; people, but you
+    can fix the systems and processes</strong> that let good people make the wrong move. (The idea comes
+    from healthcare and avionics &mdash; fields where hiding mistakes kills.)
+  </p>
+</div>
+
+<p>
+  Blameless is <em>not</em> the absence of accountability. Teams still own their follow-up actions. And a
+  good postmortem <em>should</em> sharply call out where the <strong>system</strong> failed &mdash; just
+  never a person.
+</p>
+
+<h2>2. &ldquo;Human error&rdquo; is not a root cause</h2>
+
+<p>
+  The subtle failure is the &ldquo;blame-aware&rdquo; postmortem: <em>&ldquo;we&rsquo;re blameless,
+  but&hellip; the operator ran the wrong command.&rdquo;</em> That&rsquo;s still blame. Human error is a
+  <strong>symptom</strong> of a system that made the error easy and its blast radius large.
+</p>
+
+<table>
+  <thead><tr><th>Blame-shaped (stop)</th><th>System-shaped (do this)</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>&ldquo;Sara ran the wrong command and dropped the prod DB.&rdquo;</td>
+      <td>&ldquo;The tool let a single typo drop the prod DB &mdash; no confirmation, no dry-run, no undo.&rdquo;</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>Every &ldquo;someone was careless&rdquo; hides a fixable guardrail that was missing.</p>
+
+<h2>3. When to write one (decide before the incident)</h2>
+
+<p>Postmortems cost effort, so pre-agree the <strong>triggers</strong> &mdash; then it&rsquo;s never political:</p>
+<ul>
+  <li>User-visible downtime or degradation beyond a threshold</li>
+  <li><strong>Data loss</strong> of any kind</li>
+  <li>On-call <strong>intervention</strong> (rollback, traffic rerouting)</li>
+  <li>Resolution time above a threshold</li>
+  <li>A <strong>monitoring failure</strong> &mdash; a human found it before an alert did</li>
+</ul>
+<p>
+  Any stakeholder may also request one. And recall your <a href="0004-error-budget-policy.html">error-budget
+  policy</a> (Lesson&nbsp;04): a single incident burning &gt;20% of the budget <em>mandates</em> a postmortem
+  with a P0 action item. The loop connects.
+</p>
+
+<h2>4. What a postmortem that reduces risk contains</h2>
+
+<table>
+  <thead><tr><th>Section</th><th>The honest question</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Impact</strong></td><td>Who was affected, how badly, how long?</td></tr>
+    <tr><td><strong>Detection</strong></td><td>How did we find out &mdash; and was it late?</td></tr>
+    <tr><td><strong>Timeline</strong></td><td>Key events, signals, and decisions.</td></tr>
+    <tr><td><strong>Contributing factors</strong></td><td>Technical, process, org, and knowledge gaps &mdash; not a person.</td></tr>
+    <tr><td><strong>What went well / poorly</strong></td><td>Which defences worked, which failed or were missing?</td></tr>
+    <tr><td><strong>Action items</strong></td><td>Specific, owned, prioritised, and <em>verified</em>.</td></tr>
+  </tbody>
+</table>
+
+<h2>5. The crux: action items that reduce risk, not theater</h2>
+
+<p>This is where postmortems live or die. Most action items are exhortations that change nothing.</p>
+
+<table>
+  <thead><tr><th>Theater (weak)</th><th>Risk reduction (strong)</th></tr></thead>
+  <tbody>
+    <tr><td>&ldquo;Be more careful with prod commands.&rdquo;</td><td>Add a <strong>confirmation guard</strong> so one typo can&rsquo;t drop prod.</td></tr>
+    <tr><td>&ldquo;Train the team to double-check.&rdquo;</td><td><strong>Change the default</strong> to dry-run; require an explicit flag to apply.</td></tr>
+    <tr><td>&ldquo;Add more monitoring.&rdquo;</td><td>Add the <em>specific</em> alert that would have caught this <strong>sooner</strong>.</td></tr>
+  </tbody>
+</table>
+
+<div class="callout warning">
+  <span class="label">The action-item test</span>
+  <p>
+    Prefer items that <strong>change a default, automate a check, reduce blast radius, or make failure
+    visible sooner</strong> &mdash; over &ldquo;be careful&rdquo; or &ldquo;add more monitoring&rdquo;. Each
+    must be <strong>specific, owned, prioritised, and tracked to completion</strong>. An action item nobody
+    owns is a wish.
+  </p>
+</div>
+
+<h2>6. Culture: reviewed, shared, rewarded</h2>
+
+<ul>
+  <li><strong>Reviewed.</strong> A senior engineer checks it: impact complete? root cause deep enough?
+      action items at the right priority? <em>&ldquo;An unreviewed postmortem might as well never have
+      existed.&rdquo;</em></li>
+  <li><strong>Shared</strong> widely, into a searchable repository &mdash; so other teams learn from your
+      outage without living it.</li>
+  <li><strong>Rewarded.</strong> Praise the people who surface problems; never stigmatise frequent
+      postmortems. Punish honesty and issues get swept under the rug &mdash; which is far riskier.</li>
+</ul>
+
+<h2>7. This closes the loop</h2>
+
+<figure class="anim" data-anim>
+<div class="anim-stage">
+<svg viewBox="0 0 660 130" role="img" aria-label="Step-by-step reliability loop: measure, alert, respond, learn, reduce risk, repeat">
+  <defs>
+    <marker id="arw10" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#63625c"></path>
+    </marker>
+  </defs>
+  <g font-family="system-ui, sans-serif">
+    <g class="anim-el" data-step="1">
+      <rect x="12"  y="58" width="112" height="44" rx="7" fill="#f6f7f4" stroke="#8a8a80" stroke-width="1.3"></rect>
+      <text x="68"  y="78" text-anchor="middle" font-size="11" font-weight="600" fill="#1a1a1a">Measure</text>
+      <text x="68"  y="92" text-anchor="middle" font-size="8" fill="#63625c">SLO · budget</text>
+    </g>
+    <g class="anim-el" data-step="2">
+      <line x1="124" y1="80" x2="141" y2="80" stroke="#63625c" stroke-width="1.4" marker-end="url(#arw10)"></line>
+      <rect x="142" y="58" width="112" height="44" rx="7" fill="#f6f7f4" stroke="#8a8a80" stroke-width="1.3"></rect>
+      <text x="198" y="78" text-anchor="middle" font-size="11" font-weight="600" fill="#1a1a1a">Alert</text>
+      <text x="198" y="92" text-anchor="middle" font-size="8" fill="#63625c">burn rate</text>
+    </g>
+    <g class="anim-el" data-step="3">
+      <line x1="254" y1="80" x2="271" y2="80" stroke="#63625c" stroke-width="1.4" marker-end="url(#arw10)"></line>
+      <rect x="272" y="58" width="112" height="44" rx="7" fill="#f6f7f4" stroke="#8a8a80" stroke-width="1.3"></rect>
+      <text x="328" y="78" text-anchor="middle" font-size="11" font-weight="600" fill="#1a1a1a">Respond</text>
+      <text x="328" y="92" text-anchor="middle" font-size="8" fill="#63625c">incident</text>
+    </g>
+    <g class="anim-el" data-step="4">
+      <line x1="384" y1="80" x2="401" y2="80" stroke="#63625c" stroke-width="1.4" marker-end="url(#arw10)"></line>
+      <rect x="402" y="58" width="112" height="44" rx="7" fill="#e9f2ef" stroke="#14807a" stroke-width="1.7"></rect>
+      <text x="458" y="78" text-anchor="middle" font-size="11" font-weight="700" fill="#14615f">Learn</text>
+      <text x="458" y="92" text-anchor="middle" font-size="8" fill="#63625c">postmortem</text>
+    </g>
+    <g class="anim-el" data-step="5">
+      <line x1="514" y1="80" x2="531" y2="80" stroke="#63625c" stroke-width="1.4" marker-end="url(#arw10)"></line>
+      <rect x="532" y="58" width="116" height="44" rx="7" fill="#f6f7f4" stroke="#8a8a80" stroke-width="1.3"></rect>
+      <text x="590" y="78" text-anchor="middle" font-size="11" font-weight="600" fill="#1a1a1a">Reduce risk</text>
+      <text x="590" y="92" text-anchor="middle" font-size="8" fill="#63625c">action items</text>
+    </g>
+    <g class="anim-el" data-step="6">
+      <path d="M 590 58 C 590 12, 70 12, 70 56" fill="none" stroke="#14807a" stroke-width="1.4" stroke-dasharray="4 3" marker-end="url(#arw10)"></path>
+      <text x="330" y="20" text-anchor="middle" font-size="9.5" font-style="italic" fill="#14615f">&hellip; and repeat</text>
+    </g>
+  </g>
+</svg>
+</div>
+<div class="anim-caps">
+  <p class="anim-cap" data-step="1"><span class="n">1</span><strong>Measure.</strong> Define reliability as SLOs and an error budget (Lessons 1&ndash;3). You can&rsquo;t manage what you don&rsquo;t measure.</p>
+  <p class="anim-cap" data-step="2"><span class="n">2</span><strong>Alert.</strong> A burn-rate alert (Lesson&nbsp;5) tells you when the budget is draining fast enough to matter &mdash; without the noise.</p>
+  <p class="anim-cap" data-step="3"><span class="n">3</span><strong>Respond.</strong> Run the incident (Lesson&nbsp;9): roles, mitigate-first, communicate. Stop the user harm.</p>
+  <p class="anim-cap" data-step="4"><span class="n">4</span><strong>Learn.</strong> The blameless postmortem &mdash; the step this lesson is about. Understand how the <em>system</em> allowed the failure.</p>
+  <p class="anim-cap" data-step="5"><span class="n">5</span><strong>Reduce risk.</strong> Ship the action items that change defaults, automate checks, shrink blast radius &mdash; making the system genuinely more reliable.</p>
+  <p class="anim-cap" data-step="6"><span class="n">6</span><strong>&hellip;and repeat.</strong> The loop feeds back into a better-measured, more resilient system. That&rsquo;s the whole discipline, turning.</p>
+</div>
+<figcaption>Postmortems are the step that turns an outage back into a <em>more reliable</em> system &mdash; completing the loop you&rsquo;ve built across Lessons 1&ndash;10.</figcaption>
+</figure>
+
+<div class="primary-source">
+  <span class="label">Read this next (primary source)</span>
+  <p>
+    <a href="https://sre.google/sre-book/postmortem-culture/" target="_blank" rel="noopener">Google SRE
+    Book &mdash; <em>Postmortem Culture: Learning from Failure</em></a>, and its
+    <a href="https://sre.google/sre-book/example-postmortem/" target="_blank" rel="noopener">Example
+    Postmortem</a>. For the ops mechanics, PagerDuty&rsquo;s
+    <a href="https://response.pagerduty.com/after/post_mortem_process/" target="_blank" rel="noopener">postmortem process</a>.
+  </p>
+</div>
+
+<h2>8. Check yourself</h2>
+<p>Retrieve before revealing.</p>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 1 of 2</p>
+  <p class="quiz-q">What does &ldquo;blameless&rdquo; actually mean &mdash; and why?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="Right — blame makes people hide context, so you lose the facts needed to fix the system.">Focus on how the system allowed it, not who erred</button></li>
+    <li><button data-correct="false" data-feedback="Accountability for follow-ups remains; it&rsquo;s the *system* you interrogate, not people.">Skip accountability so nobody ever feels any criticism</button></li>
+    <li><button data-correct="false" data-feedback="Hiding it defeats the point; postmortems are shared widely to spread learning.">Keep the postmortem private so blame stays contained</button></li>
+    <li><button data-correct="false" data-feedback="&lsquo;Operator error&rsquo; is a symptom of a weak system, never the root cause.">Assign the root cause to the operator who erred</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Blameless = ask how the system let the failure happen, assuming good intent. Blame drives issues underground. You can&rsquo;t fix people; you can fix systems and processes."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 2 of 2</p>
+  <p class="quiz-q">Which is the strongest postmortem action item?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="Right — it changes the system so the same mistake can&rsquo;t recur.">Add a confirmation guard so one typo can&rsquo;t drop prod</button></li>
+    <li><button data-correct="false" data-feedback="&lsquo;Be careful&rsquo; changes nothing; it&rsquo;s theater, not risk reduction.">Remind the team to be more careful with prod commands</button></li>
+    <li><button data-correct="false" data-feedback="Exhortation again &mdash; it relies on humans never slipping.">Tell everyone to double-check before running anything</button></li>
+    <li><button data-correct="false" data-feedback="Vague &lsquo;more monitoring&rsquo; is the classic weak item; be specific.">Add more monitoring dashboards for the on-call to watch</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Strong action items change a default, automate a check, reduce blast radius, or make failure visible sooner — and are specific, owned, prioritised, and verified. &lsquo;Be careful&rsquo; and vague &lsquo;more monitoring&rsquo; are theater."></div>
+</div>
+
+<div class="callout tryit">
+  <span class="label">Try it in your own system</span>
+  <p>Take one incident (real, or your Lesson&nbsp;09 hypothetical) and write a mini-postmortem:</p>
+  <ul class="checklist">
+    <li>Impact · a 3&ndash;5 event timeline · contributing factors (at least one <strong>systemic</strong>, not &ldquo;human error&rdquo;).</li>
+    <li>What went well / poorly.</li>
+    <li>Two action items that change the <strong>system</strong> &mdash; each with an owner and a priority.</li>
+    <li>Find any &ldquo;be careful&rdquo; item and rewrite it as a <strong>guardrail</strong>.</li>
+  </ul>
+  <p>Bring it &mdash; next we shift from responding to failure to <em>preventing</em> it: overload &amp; cascading failure.</p>
+</div>
+
+<div class="followup">
+  <strong>I&rsquo;m your teacher &mdash; ask me anything.</strong> Want a full postmortem template you can drop
+  into your wiki? Struggling to reframe a &ldquo;human error&rdquo; into a system fix? Wondering how to
+  introduce blameless culture on a team that currently points fingers? Ask away.
+</div>
+
+<nav class="lesson-nav">
+  <span class="group">
+    <b>Reference</b>
+    <a href="../reference/0011-blameless-postmortem-template.html">Blameless postmortem template &rarr;</a>
+  </span>
+  <span class="group">
+    <b>Previous</b>
+    <a href="0009-oncall-incident-lifecycle.html">&larr; Lesson 09 · On-call &amp; incidents</a>
+  </span>
+  <span class="group">
+    <b>Up next</b>
+    <a href="0011-overload-cascading-failure.html">Lesson 11 · Overload &amp; cascading failure &rarr;</a>
+  </span>
+</nav>
+
+</body>
+</html>

@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 04 · The Error-Budget Policy</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<script src="../assets/quiz.js" defer></script>
+<script src="../assets/anim.js" defer></script>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Reliability &amp; SRE · Lesson 04</p>
+  <h1>The Error-Budget Policy</h1>
+  <div class="meta">
+    <span>◷ ~10 min read</span>
+    <span class="dot">•</span>
+    <span>Level: Foundations → Judgment</span>
+    <span class="dot">•</span>
+    <span>Prereq: <a href="0003-setting-slo-and-error-budget.html">Lesson 03</a> — you have a budget</span>
+  </div>
+</header>
+
+<p class="mission-tie">
+  A budget nobody acts on is just a number on a dashboard &mdash; that&rsquo;s the &ldquo;SLO without
+  teeth&rdquo; rung you&rsquo;re trying to climb past. The <span class="term">error-budget policy</span>
+  is the teeth: a written, pre-agreed rule for what the organisation <em>does</em> as the budget
+  drains. This is the staff-level heart of SRE &mdash; where a metric becomes organisational behaviour.
+</p>
+
+<h2>1. The gap a policy closes</h2>
+
+<p>
+  You computed a budget in Lesson&nbsp;03. But what actually <em>happens</em> when it runs low? Without a
+  pre-agreed answer, every near-miss is re-litigated in the moment &mdash; and the loudest voice, or the
+  shipping deadline, usually wins. The policy&rsquo;s whole job is to <strong>decide in advance</strong>,
+  calmly, before anyone is under incident pressure.
+</p>
+
+<div class="callout insight">
+  <span class="label">Not a punishment</span>
+  <p>
+    Google&rsquo;s own policy says it plainly: halting change is undesirable, and the policy is
+    <em>not</em> a punishment for missing an SLO. It <strong>gives teams permission</strong> to focus
+    exclusively on reliability when the data shows reliability now matters more than the next feature.
+    It&rsquo;s a blameless control mechanism, not a stick.
+  </p>
+</div>
+
+<h2>2. The core rule: ship until you can&rsquo;t</h2>
+
+<p>The spine of every error-budget policy is two states:</p>
+
+<ul>
+  <li><strong>At or above SLO</strong> &mdash; budget healthy &rarr; releases proceed as normal. Ship,
+      experiment, spend the budget. That&rsquo;s what it&rsquo;s for.</li>
+  <li><strong>Budget exhausted</strong> (over the rolling window) &rarr; <strong>halt all changes and
+      releases except P0 incidents and security fixes</strong>, until the service is back within SLO.</li>
+</ul>
+
+<figure class="anim" data-anim>
+<div class="anim-stage">
+<svg viewBox="0 0 660 172" role="img" aria-label="Step-by-step: how the error-budget policy governs shipping as the budget drains">
+  <!-- budget gauge -->
+  <g class="anim-el" data-step="1">
+    <rect x="40" y="30" width="580" height="34" rx="5" fill="#e7e4da"></rect>
+    <rect x="40" y="30" width="580" height="34" rx="5" fill="#1f7a5e"></rect>
+    <text x="330" y="52" text-anchor="middle" font-family="system-ui, sans-serif" font-size="12" fill="#fff" font-weight="700">budget healthy</text>
+    <text x="40"  y="82" font-family="system-ui, sans-serif" font-size="9.5" fill="#63625c">budget full</text>
+    <text x="620" y="82" text-anchor="end" font-family="system-ui, sans-serif" font-size="9.5" fill="#63625c">budget zero</text>
+    <text x="330" y="112" text-anchor="middle" font-family="system-ui, sans-serif" font-size="12.5" fill="#1f7a5e" font-weight="700">&#9654; ship normally &mdash; take risks, launch</text>
+  </g>
+
+  <g class="anim-el" data-step="2">
+    <rect x="330" y="30" width="290" height="34" rx="0" fill="#e7e4da"></rect>
+    <rect x="330" y="30" width="150" height="34" fill="#c98a1a"></rect>
+    <text x="405" y="52" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" fill="#fff" font-weight="700">draining</text>
+    <text x="330" y="140" text-anchor="middle" font-family="system-ui, sans-serif" font-size="12.5" fill="#8a5a12" font-weight="700">burn-rate alert &mdash; slow down, tighten rollouts</text>
+  </g>
+
+  <g class="anim-el" data-step="3">
+    <rect x="40" y="30" width="580" height="34" rx="5" fill="#b23b3b"></rect>
+    <text x="330" y="52" text-anchor="middle" font-family="system-ui, sans-serif" font-size="12" fill="#fff" font-weight="700">budget exhausted</text>
+    <text x="330" y="112" text-anchor="middle" font-family="system-ui, sans-serif" font-size="12.5" fill="#b23b3b" font-weight="700">&#10073; FREEZE &mdash; only P0 &amp; security fixes</text>
+  </g>
+
+  <g class="anim-el" data-step="4">
+    <text x="330" y="140" text-anchor="middle" font-family="system-ui, sans-serif" font-size="12.5" fill="#14615f" font-weight="700">fix reliability &rarr; budget recovers &rarr; resume shipping</text>
+    <path d="M 600 47 C 640 47, 640 128, 350 133" fill="none" stroke="#14807a" stroke-width="1.4" stroke-dasharray="4 3"></path>
+  </g>
+</svg>
+</div>
+<div class="anim-caps">
+  <p class="anim-cap" data-step="1"><span class="n">1</span><strong>Budget healthy (at or above SLO).</strong> Releases proceed as normal &mdash; ship fast, experiment, spend the budget. That&rsquo;s exactly what it&rsquo;s for.</p>
+  <p class="anim-cap" data-step="2"><span class="n">2</span><strong>Draining fast.</strong> A burn-rate alert (Lesson&nbsp;5) warns you <em>before</em> zero &mdash; a common extension: slow down and tighten rollouts to protect what&rsquo;s left.</p>
+  <p class="anim-cap" data-step="3"><span class="n">3</span><strong>Budget exhausted.</strong> The policy&rsquo;s teeth engage: halt all changes except <strong>P0 incidents and security fixes</strong> until you&rsquo;re back within SLO.</p>
+  <p class="anim-cap" data-step="4"><span class="n">4</span>The team fixes reliability, the budget <strong>recovers</strong>, and normal shipping resumes. The budget &mdash; not the loudest voice &mdash; made every call.</p>
+</div>
+<figcaption>The error-budget policy: a pre-agreed, blameless rule that turns one number into shared ship / freeze behaviour.</figcaption>
+</figure>
+<p style="font-size:.85rem;color:var(--muted);font-style:italic;margin-top:-.5rem;">
+  The green and red ends are the Google model. The amber middle &mdash; <em>slow down</em> before you hit
+  zero &mdash; is a common extension that <strong>burn-rate alerting</strong> makes possible (Lesson&nbsp;05).
+</p>
+
+<p>
+  That freeze is the mechanism that makes product and engineering <em>share</em> the cost of
+  reliability. Suddenly &ldquo;ship the feature vs. fix stability&rdquo; isn&rsquo;t a debate &mdash; the
+  budget already decided.
+</p>
+
+<h2>3. It depends on the cause</h2>
+
+<p>
+  A good policy doesn&rsquo;t freeze blindly on any budget miss &mdash; it asks <em>whose reliability
+  problem is this?</em> Straight from Google&rsquo;s example:
+</p>
+
+<table>
+  <thead><tr><th>The team <em>must</em> stop and fix reliability if&hellip;</th><th>The team <em>may</em> keep shipping features if&hellip;</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>A code bug or procedural error in <strong>your</strong> service burned the budget.</td>
+      <td>A <strong>company-wide network</strong> problem caused the outage.</td>
+    </tr>
+    <tr>
+      <td>A postmortem reveals a chance to <strong>soften a hard dependency</strong>.</td>
+      <td>Another team&rsquo;s service failed &mdash; and <strong>they&rsquo;ve</strong> frozen to fix it.</td>
+    </tr>
+    <tr>
+      <td>Mis-categorised errors hid spend that <em>would</em> have missed the SLO.</td>
+      <td>Budget was burned by <strong>out-of-scope</strong> users (load tests, pentesters).</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>
+  The principle: the freeze exists to fix reliability <em>you can control</em> &mdash; not to punish you
+  for a provider&rsquo;s bad day.
+</p>
+
+<h2>4. Triggers, escalation, and teeth</h2>
+
+<ul>
+  <li><strong>Postmortem trigger.</strong> If a single incident burns more than <strong>20% of the
+      four-week budget</strong>, a postmortem is mandatory &mdash; with at least one P0 action item on the
+      root cause. (A recurring <em>class</em> of outage &gt;20% per quarter earns a P0 on quarterly
+      planning.)</li>
+  <li><strong>Escalation path.</strong> Disagreements about the budget calculation or the required
+      actions escalate to a <strong>named executive</strong> (in Google&rsquo;s example, the CTO).</li>
+  <li><strong>Executive sign-off is the teeth.</strong> A policy an exec has approved can&rsquo;t be
+      waved away by a shipping deadline. Without that backing, you&rsquo;re back to the loudest voice.</li>
+</ul>
+
+<div class="callout warning">
+  <span class="label">Why it&rsquo;s worth the friction</span>
+  <p>
+    Changes cause roughly <strong>70% of outages</strong>. The error budget is the control that diverts
+    attention to stability exactly when the data demands it &mdash; and no sooner. That&rsquo;s how you
+    ship fast <em>and</em> stay reliable, instead of trading one off against the other by gut feel.
+  </p>
+</div>
+
+<h2>5. What makes a policy real</h2>
+
+<ul class="checklist">
+  <li><strong>Written &amp; specific</strong> &mdash; concrete actions, not &ldquo;we&rsquo;ll be careful&rdquo;.</li>
+  <li><strong>Approved by a senior owner</strong> with authority to enforce the freeze.</li>
+  <li><strong>Has an escalation path</strong> for disagreements &mdash; up, not sideways.</li>
+  <li><strong>Names its exceptions</strong> (P0/security; out-of-scope traffic) &mdash; sparingly, or it loses teeth.</li>
+  <li><strong>Has a revisit date</strong> &mdash; it&rsquo;s a living agreement, not a stone tablet.</li>
+</ul>
+
+<div class="primary-source">
+  <span class="label">Read this next (primary source)</span>
+  <p>
+    <a href="https://sre.google/workbook/error-budget-policy/" target="_blank" rel="noopener">SRE
+    Workbook &mdash; <em>Example Error Budget Policy</em></a>: the exact one-page policy this lesson is
+    built from. Pair it with
+    <a href="https://sre.google/workbook/implementing-slos/" target="_blank" rel="noopener">&ldquo;Establishing
+    an Error Budget Policy&rdquo;</a> for how to get it agreed.
+  </p>
+</div>
+
+<h2>6. Check yourself</h2>
+<p>Retrieve before revealing.</p>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 1 of 2</p>
+  <p class="quiz-q">What is the primary purpose of an error-budget policy?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="Right — it pre-commits the response so it isn&rsquo;t re-argued mid-incident.">Decide in advance what happens as the budget drains</button></li>
+    <li><button data-correct="false" data-feedback="Measuring is the SLO&rsquo;s job; the policy governs the response, not the math.">Measure the error budget more precisely each week</button></li>
+    <li><button data-correct="false" data-feedback="Policies are blameless — they change systems and behaviour, not punish.">Punish the engineer who caused the recent outage</button></li>
+    <li><button data-correct="false" data-feedback="SLAs are a separate business layer; the policy governs internal actions.">Replace the external SLA with a stricter target</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="An error-budget policy is a pre-agreed, written rule for what the organisation does as reliability drains — the teeth that make an SLO more than a dashboard number."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 2 of 2</p>
+  <p class="quiz-q">Your service exhausted its budget from your own bug, and a big feature is ready. Default action?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="Right — your fault + exhausted → halt changes except P0/security until recovered.">Freeze releases except P0 and security until back in SLO</button></li>
+    <li><button data-correct="false" data-feedback="A policy with teeth isn&rsquo;t advisory — that&rsquo;s the &lsquo;SLO without teeth&rsquo; failure.">Ship it anyway — the budget is only advisory guidance</button></li>
+    <li><button data-correct="false" data-feedback="Moving the goalposts defeats the purpose; the target reflects user happiness.">Lower the SLO so the budget immediately refills again</button></li>
+    <li><button data-correct="false" data-feedback="Watching doesn&rsquo;t reduce risk; the response is to stop risky change.">Keep shipping but ask on-call to watch it closely</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="At/above SLO → ship normally. Exhausted through your own fault → freeze everything but P0/security until back within SLO. Cause matters: a provider&rsquo;s outage may not require a freeze."></div>
+</div>
+
+<div class="callout tryit">
+  <span class="label">Try it in your own system</span>
+  <p>Draft a one-page error-budget policy for your service. Include:</p>
+  <ul class="checklist">
+    <li>The <strong>goal</strong> (protect users; balance reliability vs features; not punishment).</li>
+    <li>Action <strong>at/above SLO</strong> and action when <strong>exhausted</strong> (P0/security exception).</li>
+    <li>The cause-based <strong>must-fix vs. may-continue</strong> split.</li>
+    <li>The <strong>&gt;20% postmortem</strong> trigger, the <strong>escalation owner</strong>, and a <strong>revisit date</strong>.</li>
+  </ul>
+  <p>Use <a href="../reference/0005-error-budget-policy-template.html">Reference&nbsp;05</a> as a fill-in template. Bring it &mdash; next we make it fire <em>before</em> zero.</p>
+</div>
+
+<div class="followup">
+  <strong>I&rsquo;m your teacher &mdash; ask me anything.</strong> Unsure how to get an exec to actually sign
+  a freeze policy? Want examples of &ldquo;out-of-scope&rdquo; traffic exclusions? Wondering how a freeze
+  interacts with hotfixes and rollbacks? Ask &mdash; this is where reliability meets org reality.
+</div>
+
+<nav class="lesson-nav">
+  <span class="group">
+    <b>Reference</b>
+    <a href="../reference/0005-error-budget-policy-template.html">Error-budget policy template &rarr;</a>
+  </span>
+  <span class="group">
+    <b>Previous</b>
+    <a href="0003-setting-slo-and-error-budget.html">&larr; Lesson 03 · Setting the SLO</a>
+  </span>
+  <span class="group">
+    <b>Up next</b>
+    <a href="0005-burn-rate-alerting.html">Lesson 05 · Burn-rate alerting on SLOs &rarr;</a>
+  </span>
+</nav>
+
+</body>
+</html>

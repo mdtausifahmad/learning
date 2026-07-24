@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 11 · Overload &amp; Cascading Failure</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<script src="../assets/quiz.js" defer></script>
+<script src="../assets/anim.js" defer></script>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Reliability &amp; SRE · Lesson 11</p>
+  <h1>Overload &amp; Cascading Failure</h1>
+  <div class="meta">
+    <span>◷ ~12 min read</span>
+    <span class="dot">•</span>
+    <span>Level: Judgment</span>
+    <span class="dot">•</span>
+    <span>Prereq: <a href="0007-four-golden-signals.html">Lesson 07</a> — saturation</span>
+  </div>
+</header>
+
+<p class="mission-tie">
+  You can respond to and learn from failure (Lessons 9&ndash;10). Now <em>prevent</em> the worst kind: the
+  local hiccup that becomes a global outage. Overload and cascading failure is how one slow dependency
+  takes down everything &mdash; and the patterns here are the difference between a blip and a company-wide
+  incident. This is core staff-level design judgment.
+</p>
+
+<h2>1. How a 1% blip becomes a total outage</h2>
+
+<p>
+  The danger is never the initial fault &mdash; it&rsquo;s the <strong>feedback loops</strong> that amplify
+  it. Google&rsquo;s canonical example: a backend caps at 10,000&nbsp;QPS. The frontend sends 10,100 &mdash;
+  just 1% over. The backend rejects 100; naive clients retry them; now it&rsquo;s 10,200, of which 200
+  fail; the retries snowball 100 &rarr; 200 &rarr; 300&nbsp;QPS&hellip; until the backend melts down.
+</p>
+
+<figure class="anim" data-anim>
+<div class="anim-stage">
+<svg viewBox="0 0 660 124" role="img" aria-label="Step-by-step: the retry amplification loop that turns a small overload into a cascade">
+  <defs>
+    <marker id="arw11" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#63625c"></path>
+    </marker>
+    <marker id="arw11r" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#b23b3b"></path>
+    </marker>
+  </defs>
+  <g font-family="system-ui, sans-serif">
+    <g class="anim-el" data-step="1">
+      <rect x="12"  y="50" width="140" height="46" rx="7" fill="#fbecec" stroke="#b23b3b" stroke-width="1.3"></rect>
+      <text x="82"  y="71" text-anchor="middle" font-size="11" font-weight="600" fill="#1a1a1a">Small overload</text>
+      <text x="82"  y="85" text-anchor="middle" font-size="8" fill="#63625c">1% too much</text>
+    </g>
+    <g class="anim-el" data-step="2">
+      <line x1="152" y1="73" x2="167" y2="73" stroke="#63625c" stroke-width="1.4" marker-end="url(#arw11)"></line>
+      <rect x="168" y="50" width="140" height="46" rx="7" fill="#f6f7f4" stroke="#8a8a80" stroke-width="1.3"></rect>
+      <text x="238" y="71" text-anchor="middle" font-size="11" font-weight="600" fill="#1a1a1a">Rejected / slow</text>
+      <text x="238" y="85" text-anchor="middle" font-size="8" fill="#63625c">timeouts</text>
+    </g>
+    <g class="anim-el" data-step="3">
+      <line x1="308" y1="73" x2="323" y2="73" stroke="#63625c" stroke-width="1.4" marker-end="url(#arw11)"></line>
+      <rect x="324" y="50" width="140" height="46" rx="7" fill="#f6f7f4" stroke="#8a8a80" stroke-width="1.3"></rect>
+      <text x="394" y="71" text-anchor="middle" font-size="11" font-weight="600" fill="#1a1a1a">Clients retry</text>
+      <text x="394" y="85" text-anchor="middle" font-size="8" fill="#63625c">no jitter</text>
+    </g>
+    <g class="anim-el" data-step="4">
+      <line x1="464" y1="73" x2="479" y2="73" stroke="#63625c" stroke-width="1.4" marker-end="url(#arw11)"></line>
+      <rect x="480" y="50" width="140" height="46" rx="7" fill="#fbecec" stroke="#b23b3b" stroke-width="1.3"></rect>
+      <text x="550" y="71" text-anchor="middle" font-size="11" font-weight="600" fill="#1a1a1a">More load</text>
+      <text x="550" y="85" text-anchor="middle" font-size="8" fill="#63625c">&rarr; crash-loop</text>
+    </g>
+    <g class="anim-el" data-step="5">
+      <path d="M 550 50 C 550 14, 82 14, 82 50" fill="none" stroke="#b23b3b" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arw11r)"></path>
+      <text x="316" y="24" text-anchor="middle" font-size="10" font-style="italic" fill="#b23b3b" font-weight="600">&hellip; amplifies &hellip;</text>
+    </g>
+
+    <!-- QPS readout, changes per step -->
+    <text class="anim-el" data-only="1" x="330" y="116" text-anchor="middle" font-size="11" fill="#1a1a1a" font-weight="700">10,100 QPS in  ·  capacity 10,000</text>
+    <text class="anim-el" data-only="2" x="330" y="116" text-anchor="middle" font-size="11" fill="#b23b3b" font-weight="700">100 QPS over the limit → rejected</text>
+    <text class="anim-el" data-only="3" x="330" y="116" text-anchor="middle" font-size="11" fill="#b23b3b" font-weight="700">retries pile on → 10,200 QPS (200 failing)</text>
+    <text class="anim-el" data-only="4" x="330" y="116" text-anchor="middle" font-size="11" fill="#b23b3b" font-weight="700">10,300 → 10,400 QPS → servers crash</text>
+    <text class="anim-el" data-only="5" x="330" y="116" text-anchor="middle" font-size="11" fill="#b23b3b" font-weight="700">backend melts down — total outage</text>
+  </g>
+</svg>
+</div>
+<div class="anim-caps">
+  <p class="anim-cap" data-step="1"><span class="n">1</span>A backend caps at 10,000&nbsp;QPS. The frontend sends <strong>10,100</strong> &mdash; just <strong>1% over</strong>. Nothing dramatic&hellip; yet.</p>
+  <p class="anim-cap" data-step="2"><span class="n">2</span>The backend <strong>rejects</strong> the 100 excess requests (or serves them slowly). So far, so contained &mdash; graceful degradation is working.</p>
+  <p class="anim-cap" data-step="3"><span class="n">3</span>But naive clients <strong>retry</strong> those failures &mdash; with no jitter. Now it&rsquo;s 10,200&nbsp;QPS, of which 200 fail. The retries have become <em>new load</em>.</p>
+  <p class="anim-cap" data-step="4"><span class="n">4</span>The retries <strong>snowball</strong>: 200 &rarr; 300 &rarr; 400 failing QPS. Fewer requests succeed on first try, so more get retried &mdash; and servers start to crash.</p>
+  <p class="anim-cap" data-step="5"><span class="n">5</span>Each crash shoves its load onto the survivors, which crash too. A <strong>1% blip amplified into a total outage.</strong> The danger was never the fault &mdash; it was the feedback loop.</p>
+</div>
+<figcaption>And once servers crash, their load shifts to the survivors &mdash; which then crash too.</figcaption>
+</figure>
+
+<div class="callout warning">
+  <span class="label">Recovery is brutal</span>
+  <p>
+    A service healthy at 10k&nbsp;QPS that cascades at 11k <strong>will not recover by dropping to
+    9k</strong> &mdash; you&rsquo;re now serving increased demand with crash-looping capacity. You might have
+    to shed all the way down to ~1k&nbsp;QPS before it stabilises. Far better to never enter the spiral.
+  </p>
+</div>
+
+<h2>2. Load shedding &mdash; fail early and cheaply</h2>
+
+<p>
+  When a server approaches overload, it should <strong>reject excess work fast</strong> (e.g. return
+  <code>503</code> once more than <em>N</em> requests are in flight) rather than accept everything and
+  collapse. Shed the least valuable work first, and do as much useful work as you can. A
+  <strong>fast rejection beats a slow collapse.</strong>
+</p>
+<p>
+  Smarter queues help too: switch FIFO &rarr; <strong>LIFO</strong> or <strong>CoDel</strong> to drop
+  stale requests the user already abandoned &mdash; if a request has queued 10&nbsp;seconds, the user has
+  refreshed and it&rsquo;s pointless to serve.
+</p>
+
+<h2>3. Retries &mdash; necessary, and dangerous</h2>
+
+<p>Retries caused the spiral above. Do them right:</p>
+<ul>
+  <li><strong>Exponential backoff</strong> &mdash; wait longer after each failure.</li>
+  <li><strong>Jitter</strong> &mdash; randomise the wait so clients don&rsquo;t retry in a synchronised wave (a self-inflicted thundering herd).</li>
+  <li><strong>Retry budget</strong> &mdash; cap retries to a small fraction of requests (say 10%); when exceeded, stop.</li>
+  <li><strong>Retry at one level only</strong> &mdash; retries at every layer <em>multiply</em> (3 layers &times; 3 tries = 27&times;).</li>
+  <li><strong>Only retry idempotent operations</strong> &mdash; or you duplicate effects.</li>
+</ul>
+
+<div class="callout insight">
+  <span class="label">Why jitter matters</span>
+  <p>
+    Plain backoff still lets thousands of clients retry <em>in lockstep</em> &mdash; they all failed at the
+    same instant, so they all wait the same interval and hit the recovering dependency together. Adding
+    randomness spreads them out, so recovery isn&rsquo;t crushed by a synchronised retry wave.
+  </p>
+</div>
+
+<h2>4. Circuit breaker &mdash; stop hammering a failing dependency</h2>
+
+<p>
+  When a dependency is failing, calling it harder makes things worse. A <span class="term">circuit
+  breaker</span> tracks failures and, after a threshold, <strong>opens</strong> &mdash; failing fast
+  <em>without</em> calling the dependency &mdash; giving it room to recover. Periodically it
+  <strong>half-opens</strong> to test with one request; if that succeeds, it <strong>closes</strong> and
+  resumes. Watch your thresholds, or the breaker oscillates.
+</p>
+
+<h2>5. Bulkhead &mdash; isolate the blast radius</h2>
+
+<p>
+  Named after a ship&rsquo;s watertight compartments: give each dependency (or tenant, or feature) its
+  <strong>own</strong> resource pool &mdash; separate thread pools, connection pools. Then one saturated
+  dependency can&rsquo;t consume every thread and sink the whole service. The cost: over-partitioning
+  wastes capacity, so isolate what matters.
+</p>
+
+<h2>6. The pattern kit</h2>
+
+<table>
+  <thead><tr><th>Pattern</th><th>Purpose</th><th>Watch out</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Load shedding</strong></td><td>reject excess before collapse</td><td>shed low-value work first; return clear errors</td></tr>
+    <tr><td><strong>Backoff + jitter</strong></td><td>spread retry load</td><td>only for idempotent ops</td></tr>
+    <tr><td><strong>Retry budget</strong></td><td>cap retry amplification</td><td>retry at one level only</td></tr>
+    <tr><td><strong>Circuit breaker</strong></td><td>stop calling a failing dep</td><td>bad thresholds oscillate</td></tr>
+    <tr><td><strong>Bulkhead</strong></td><td>isolate resource pools</td><td>over-partitioning wastes capacity</td></tr>
+  </tbody>
+</table>
+
+<h2>7. You can&rsquo;t tune what you haven&rsquo;t measured</h2>
+
+<p>
+  None of this works without knowing your <strong>breaking point</strong>. Load-test to find the QPS where
+  the service fails and <em>how</em> it fails, then capacity-plan with headroom (e.g. <strong>N+2</strong>).
+  This is <a href="0007-four-golden-signals.html">saturation</a> (Lesson&nbsp;07) turned into a design
+  decision.
+</p>
+
+<div class="primary-source">
+  <span class="label">Read this next (primary source)</span>
+  <p>
+    <a href="https://sre.google/sre-book/addressing-cascading-failures/" target="_blank" rel="noopener">
+    Google SRE Book &mdash; <em>Addressing Cascading Failures</em></a> (the retry spiral, load shedding). The
+    <a href="https://aws.amazon.com/builders-library/timeouts-retries-and-backoff-with-jitter/" target="_blank" rel="noopener">AWS
+    Builders&rsquo; Library</a> on backoff + jitter, and Martin Fowler&rsquo;s
+    <a href="https://martinfowler.com/bliki/CircuitBreaker.html" target="_blank" rel="noopener">CircuitBreaker</a>.
+  </p>
+</div>
+
+<h2>8. Check yourself</h2>
+<p>Retrieve before revealing.</p>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 1 of 2</p>
+  <p class="quiz-q">Your backend is 1% overloaded and rejecting some requests. Naive client retries will&hellip;</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="Right — retries pile onto an overloaded backend: 100 → 200 → 300 failing QPS.">amplify the overload into a possible death spiral</button></li>
+    <li><button data-correct="false" data-feedback="Retries add load; they don&rsquo;t clear an overload, they deepen it.">quickly clear the backlog and restore normal service</button></li>
+    <li><button data-correct="false" data-feedback="They add real load on top of the existing demand — not neutral.">have no real effect on the backend&rsquo;s total load</button></li>
+    <li><button data-correct="false" data-feedback="Retries concentrate load on a weak backend; they don&rsquo;t spread it.">reduce load by spreading requests more evenly out</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Retries add to an already-overloaded backend and snowball. Defend with backoff + jitter + a retry budget, retry at one level only, and load-shed early."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 2 of 2</p>
+  <p class="quiz-q">A dependency is failing; you want to stop hammering it and let it recover. Which pattern?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="Right — the breaker opens, fails fast without calling, and half-opens to test recovery.">Circuit breaker — stop calling it, fail fast, retry later</button></li>
+    <li><button data-correct="false" data-feedback="A bulkhead isolates resources; it doesn&rsquo;t stop the calls.">Bulkhead — give it a bigger dedicated thread pool</button></li>
+    <li><button data-correct="false" data-feedback="Load shedding protects *you* by dropping *your* inbound work.">Load shedding — drop your own incoming requests</button></li>
+    <li><button data-correct="false" data-feedback="Backoff still calls the dependency, just a little later.">Backoff — keep calling it but wait a bit longer</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="A circuit breaker opens after repeated failures and fails fast without calling — giving the dependency room to recover — then half-opens to test. Bulkheads isolate; load shedding protects you; backoff still calls."></div>
+</div>
+
+<div class="callout tryit">
+  <span class="label">Try it in your own system</span>
+  <ul class="checklist">
+    <li>At <strong>2&times; normal load</strong>, does your service shed (return 503) or fall over?</li>
+    <li>Do your clients retry with <strong>backoff + jitter + a budget</strong>, or naively?</li>
+    <li>Which dependency, if slow, would sink you &mdash; and would a <strong>circuit breaker</strong> or <strong>bulkhead</strong> help?</li>
+    <li>Do you know your <strong>breaking-point QPS</strong> (load-tested)?</li>
+  </ul>
+  <p>Bring your answers &mdash; next we cover graceful degradation and taming the thundering herd.</p>
+</div>
+
+<div class="followup">
+  <strong>I&rsquo;m your teacher &mdash; ask me anything.</strong> Want jitter pseudocode (full/equal/decorrelated)?
+  Unsure where to put load shedding in your stack? Wondering how circuit breakers interact with retries and
+  timeouts? Ask away.
+</div>
+
+<nav class="lesson-nav">
+  <span class="group">
+    <b>Reference</b>
+    <a href="../reference/0012-overload-resilience-patterns.html">Resilience patterns &rarr;</a>
+  </span>
+  <span class="group">
+    <b>Previous</b>
+    <a href="0010-blameless-postmortems.html">&larr; Lesson 10 · Blameless postmortems</a>
+  </span>
+  <span class="group">
+    <b>Up next</b>
+    <a href="0012-graceful-degradation-thundering-herd.html">Lesson 12 · Graceful degradation &amp; the thundering herd &rarr;</a>
+  </span>
+</nav>
+
+</body>
+</html>

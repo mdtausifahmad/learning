@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 16 · Schema Evolution &amp; Contracts</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<script src="../assets/quiz.js" defer></script>
+<script src="../assets/stepflow.js" defer></script>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Async &amp; Messaging · Lesson 16</p>
+  <h1>Schema Evolution &amp; Contracts</h1>
+  <div class="meta">
+    <span>◷ ~15 min read · interactive</span>
+    <span class="dot">•</span>
+    <span>Level: Staff / Design</span>
+    <span class="dot">•</span>
+    <span>Builds on: <a href="0012-log-vs-queue-brokers.html">L12</a> (retained logs), <a href="0004-event-command-query.html">L04</a></span>
+  </div>
+</header>
+
+<p class="mission-tie">
+  Every event you publish is a <strong>contract</strong> — and unlike a function signature, you can&rsquo;t
+  change it and recompile the callers. Consumers you&rsquo;ve never met deploy on their own schedule, and
+  (on a log) they replay events you wrote months ago. Change a schema carelessly and you break them
+  silently, in production, at a distance. This lesson is how events change <em>safely</em> forever.
+</p>
+
+<h2>1. Why event schemas are hard to change</h2>
+
+<p>An event schema is a public API with three properties that make it unforgiving:</p>
+<ul>
+  <li><strong>Independent deploys.</strong> Producer and consumer versions overlap in time — you can&rsquo;t
+      upgrade them atomically, so <em>both</em> versions must interoperate.</li>
+  <li><strong>Retained history (Lesson 12).</strong> A log keeps old events; a consumer reading history
+      sees <em>every</em> past schema version. Old and new must both be readable.</li>
+  <li><strong>Unknown consumers.</strong> With pub/sub you may not even know who subscribes. You can&rsquo;t
+      call them to coordinate a change.</li>
+</ul>
+
+<h2>2. Compatibility: the rules that keep you safe</h2>
+
+<p>Confluent&rsquo;s Schema Registry frames evolution as <em>compatibility types</em> (default: <code>BACKWARD</code>):</p>
+<ul>
+  <li><strong>Backward</strong> — the <em>new</em> schema can read data written with the <em>old</em> one.
+      &ldquo;Consumers using the new schema can read data produced with the last schema.&rdquo; → <strong>upgrade
+      consumers first.</strong> The common default.</li>
+  <li><strong>Forward</strong> — the <em>old</em> schema can read data written with the <em>new</em> one.
+      → <strong>upgrade producers first</strong>; old consumers keep working.</li>
+  <li><strong>Full</strong> — both backward and forward. <strong>Transitive</strong> variants check
+      against <em>all</em> prior versions, not just the last.</li>
+</ul>
+
+<h3>Watch it: an additive change stays compatible — a rename breaks</h3>
+<p>Step through a schema evolving safely, then unsafely (← / → keys work).</p>
+
+<div class="stepflow" data-token="token">
+  <div class="sf-stage">
+    <svg viewBox="0 0 720 300" role="img" aria-label="Adding an optional field with a default stays backward and forward compatible; renaming a required field breaks old consumers">
+      <defs>
+        <marker id="l16a" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#c9c1b1"></path></marker>
+      </defs>
+
+      <rect id="prod" class="sf-actor" x="24" y="104" width="150" height="64" rx="10" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.5"></rect>
+      <text x="99" y="132" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" font-weight="600" fill="#1a1a1a">Producer</text>
+      <text id="verV1" x="99" y="152" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9.5" fill="#6b6459" style="display:none">schema v1</text>
+      <text id="verV2" x="99" y="152" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9.5" font-weight="700" fill="#1f4a29" style="display:none">schema v2 (+phone, default)</text>
+      <text id="verV3" x="99" y="152" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9.5" font-weight="700" fill="#a32f2f" style="display:none">schema v3 (rename email!)</text>
+
+      <line x1="174" y1="136" x2="248" y2="136" stroke="#c9c1b1" stroke-width="1.5" marker-end="url(#l16a)"></line>
+      <rect x="250" y="106" width="204" height="60" rx="8" fill="#f7f4ec" stroke="#a98b3f" stroke-width="1.25"></rect>
+      <text id="msgV1" x="352" y="141" text-anchor="middle" font-family="SF Mono, Menlo, monospace" font-size="11" fill="#1a1a1a" style="display:none">{ id, email }</text>
+      <text id="msgV2" x="352" y="141" text-anchor="middle" font-family="SF Mono, Menlo, monospace" font-size="11" fill="#1a1a1a" style="display:none">{ id, email, phone }</text>
+      <text id="msgV3" x="352" y="141" text-anchor="middle" font-family="SF Mono, Menlo, monospace" font-size="10.5" fill="#a32f2f" style="display:none">{ id, emailAddress, phone }</text>
+
+      <rect id="cons1" class="sf-actor" x="540" y="44" width="156" height="56" rx="10" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.5"></rect>
+      <text x="618" y="68" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11.5" font-weight="600" fill="#1a1a1a">Consumer v1</text>
+      <text x="618" y="87" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9" fill="#6b6459">reads: id, email</text>
+      <rect id="cons2" class="sf-actor" x="540" y="172" width="156" height="56" rx="10" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.5"></rect>
+      <text x="618" y="196" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11.5" font-weight="600" fill="#1a1a1a">Consumer v2</text>
+      <text x="618" y="215" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9" fill="#6b6459">reads: id, email, phone?</text>
+
+      <line x1="454" y1="126" x2="538" y2="82" stroke="#c9c1b1" stroke-width="1.25" marker-end="url(#l16a)"></line>
+      <line x1="454" y1="150" x2="538" y2="196" stroke="#c9c1b1" stroke-width="1.25" marker-end="url(#l16a)"></line>
+
+      <text id="c1ok" x="522" y="76" text-anchor="middle" font-family="system-ui,sans-serif" font-size="15" font-weight="700" fill="#3f7a3f" style="display:none">✓</text>
+      <text id="c1break" x="522" y="76" text-anchor="middle" font-family="system-ui,sans-serif" font-size="15" font-weight="700" fill="#a32f2f" style="display:none">✗</text>
+      <text id="c2ok" x="522" y="204" text-anchor="middle" font-family="system-ui,sans-serif" font-size="15" font-weight="700" fill="#3f7a3f" style="display:none">✓</text>
+      <text id="c2break" x="522" y="204" text-anchor="middle" font-family="system-ui,sans-serif" font-size="15" font-weight="700" fill="#a32f2f" style="display:none">✗</text>
+
+      <text id="noteLine" x="352" y="196" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="600" fill="#1f4a29" style="display:none"></text>
+      <text id="defaultNote" x="352" y="196" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="600" fill="#1f4a29" style="display:none">v2 reads old v1 msg → phone = default (BACKWARD ✓)</text>
+      <text id="ignoreNote" x="352" y="196" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="600" fill="#1f4a29" style="display:none">v1 reads new v2 msg → ignores unknown &lsquo;phone&rsquo; (FORWARD ✓)</text>
+      <text id="ruleBadge" x="352" y="224" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="700" fill="#1f4a29" style="display:none">✓ additive + defaults = both versions coexist safely</text>
+      <text id="breakRuleBadge" x="352" y="224" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="700" fill="#a32f2f" style="display:none">✗ renamed a required field → old consumers can&rsquo;t find &lsquo;email&rsquo;</text>
+
+      <g id="token" style="display:none"></g>
+    </svg>
+  </div>
+
+  <div class="sf-caption"><p class="sf-title"></p><p class="sf-desc"></p></div>
+  <div class="sf-controls">
+    <button class="sf-btn sf-prev" type="button">◀ Prev</button>
+    <button class="sf-btn sf-next" type="button">Next ▶</button>
+    <button class="sf-btn sf-reset" type="button">↺ Reset</button>
+    <button class="sf-btn sf-play" type="button">▶ Play</button>
+    <span class="sf-counter"></span>
+  </div>
+
+  <script type="application/json" class="sf-steps">
+  [
+    {"title":"An event is a contract","desc":"The producer emits <code>{ id, email }</code> under schema v1. Two consumers depend on it and deploy independently.","token":null,"visible":["verV1","msgV1"],"highlight":["prod"]},
+    {"title":"Everyone reads v1 fine","desc":"Both consumers read <code>{ id, email }</code> — the baseline contract holds.","token":null,"visible":["verV1","msgV1","c1ok","c2ok"],"highlight":["cons1","cons2"]},
+    {"title":"Additive change → schema v2","desc":"Add an <strong>optional</strong> field <code>phone</code> <em>with a default</em>. The producer now emits v2 messages.","token":null,"visible":["verV2","msgV2"],"highlight":["prod"]},
+    {"title":"Backward: new reads old","desc":"Consumer v2 reads an <em>old, retained</em> v1 message. The missing <code>phone</code> falls back to its default — no break.","token":null,"visible":["verV2","msgV1","c2ok","defaultNote"],"highlight":["cons2"]},
+    {"title":"Forward: old reads new","desc":"Consumer v1 reads a <em>new</em> v2 message and simply ignores the unknown <code>phone</code> field — a tolerant reader.","token":null,"visible":["verV2","msgV2","c1ok","ignoreNote"],"highlight":["cons1"]},
+    {"title":"Both versions coexist","desc":"Additive changes with defaults are backward <em>and</em> forward compatible — the whole point.","token":null,"visible":["verV2","msgV2","c1ok","c2ok","ruleBadge"],"highlight":["cons1","cons2"]},
+    {"title":"A breaking change → schema v3","desc":"Now v3 <strong>renames</strong> <code>email</code> to <code>emailAddress</code> (required, no default). The producer emits it.","token":null,"visible":["verV3","msgV3"],"highlight":["prod"]},
+    {"title":"…and old consumers break","desc":"Consumers v1 and v2 look for <code>email</code> — it&rsquo;s gone. Both <strong>break</strong>. Never rename/remove a required field: add a new version/topic and migrate.","token":null,"visible":["verV3","msgV3","c1break","c2break","breakRuleBadge"],"highlight":["cons1","cons2"]}
+  ]
+  </script>
+</div>
+
+<div class="callout insight">
+  <span class="label">The golden rules</span>
+  <p>
+    <strong>Add fields as optional, with a default.</strong> <strong>Never remove or rename a required
+    field</strong> (deprecate instead). <strong>Never change a field&rsquo;s type</strong> (add a new field).
+    <strong>Never reuse a field&rsquo;s tag/number</strong> (Protobuf) or position. Keep every change
+    <em>additive</em> and old readers keep working.
+  </p>
+</div>
+
+<h2>3. Formats &amp; the Schema Registry</h2>
+<table>
+  <thead><tr><th>Format</th><th>Evolution story</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Avro</strong></td><td>Built for evolution: reader + writer schemas resolved via defaults &amp; aliases. Compact binary. The Schema Registry default.</td></tr>
+    <tr><td><strong>Protobuf</strong></td><td>Field <em>numbers</em>; add fields with new numbers, never reuse them; unknown fields preserved. Best practice: <code>BACKWARD_TRANSITIVE</code>.</td></tr>
+    <tr><td><strong>JSON (+ JSON Schema)</strong></td><td>Human-readable, flexible; no enforced schema unless you add JSON Schema. Easy to add fields, but no compile-time safety and larger payloads.</td></tr>
+  </tbody>
+</table>
+
+<p>
+  A <span class="term">schema registry</span> stores schemas per subject, <strong>enforces your
+  compatibility rule at registration</strong> (rejecting an incompatible schema before it ever ships),
+  and lets messages carry a small <em>schema ID</em> instead of the whole schema. It turns &ldquo;don&rsquo;t
+  break consumers&rdquo; from a hope into a build-time guarantee.
+</p>
+
+<pre><code>// Spring Kafka + Confluent Schema Registry (Avro): compatibility enforced on register
+spring:
+  kafka:
+    producer:
+      value-serializer: io.confluent.kafka.serializers.KafkaAvroSerializer
+      properties:
+        schema.registry.url: http://schema-registry:8081
+
+// Avro field added compatibly — optional with a default
+{ "name": "phone", "type": ["null", "string"], "default": null }
+
+// JSON tolerant reader (forward compat): ignore fields you don't know
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class OrderPlaced(val id: String, val email: String)</code></pre>
+
+<h2>4. Strategy &amp; staff judgment</h2>
+<ul>
+  <li><strong>Pick a compatibility mode</strong> (usually <code>BACKWARD</code>) and <strong>enforce it in
+      CI</strong> via the registry — a schema change that would break consumers fails the build.</li>
+  <li><strong>Evolve additively.</strong> Optional, defaulted fields only. Treat the schema as a
+      reviewed, versioned artifact (like an API).</li>
+  <li><strong>When a breaking change is unavoidable</strong> — a new major version: publish to a
+      <em>new topic</em> (or add a version field), <strong>dual-publish</strong> old+new during
+      migration, move consumers over, then retire the old one. Never break in place.</li>
+  <li><strong>Be a tolerant reader</strong> (Postel&rsquo;s law): ignore unknown fields, don&rsquo;t
+      over-validate. It buys you forward compatibility for free.</li>
+</ul>
+
+<div class="primary-source">
+  <span class="label">Go deeper (primary sources)</span>
+  <p>
+    <a href="https://docs.confluent.io/platform/current/schema-registry/fundamentals/schema-evolution.html" target="_blank" rel="noopener">Confluent &mdash; <em>Schema Evolution and Compatibility</em></a>
+    (backward/forward/full/transitive, allowed changes per format) and Martin Kleppmann&rsquo;s <em>DDIA</em>,
+    ch. 4 (Encoding and Evolution — Avro, Protobuf, Thrift, JSON).
+  </p>
+</div>
+
+<h2>5. Check yourself</h2>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 1 of 2</p>
+  <p class="quiz-q">Which change to an event schema is safe (keeps old consumers working)?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="Optional + default = additive; old readers ignore it, new readers get the default on old data.">Add an optional field with a default</button></li>
+    <li><button data-correct="false" data-feedback="Renaming a required field means old consumers can't find it — a break.">Rename a required field to a clearer name</button></li>
+    <li><button data-correct="false" data-feedback="Changing a type breaks decoding of existing data.">Change a field from string to integer</button></li>
+    <li><button data-correct="false" data-feedback="Removing a required field breaks readers that still expect it.">Remove a field that&rsquo;s no longer needed</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Additive, optional, defaulted changes are compatible. Rename/remove/retype of required fields break consumers — deprecate or version instead."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 2 of 2</p>
+  <p class="quiz-q">With <code>BACKWARD</code> compatibility (the default), which side do you upgrade first?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="Backward = new schema reads old data, so consumers (new schema) go first and can read both.">Consumers first — they read old and new</button></li>
+    <li><button data-correct="false" data-feedback="Producers-first is the FORWARD strategy, not backward.">Producers first — they emit the new schema</button></li>
+    <li><button data-correct="false" data-feedback="Independent deploys are the whole problem; you can't upgrade atomically.">Both at once, in a coordinated deploy</button></li>
+    <li><button data-correct="false" data-feedback="Order matters precisely because versions overlap in time.">Order doesn&rsquo;t matter for compatibility</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="BACKWARD = new schema reads data from the old schema → upgrade consumers first. FORWARD (old reads new) → producers first."></div>
+</div>
+
+<div class="callout tryit">
+  <span class="label">Try it in your own system</span>
+  <p>
+    Take one event you publish. Is its schema enforced anywhere, or just a data class? What compatibility
+    mode would you pick? Now imagine you must rename a field — write down the migration (new topic or
+    version, dual-publish, cut over). If you can&rsquo;t, that field is effectively frozen. Bring your plan.
+  </p>
+</div>
+
+<div class="followup">
+  <strong>I&rsquo;m your teacher &mdash; ask anything.</strong> Want the Avro reader/writer resolution in detail,
+  a Protobuf field-number migration, or how consumer-driven contract tests (Pact) catch breakage in CI?
+  Ask &mdash; or answer a quiz back so I can tune Lesson 17.
+</div>
+
+<nav class="lesson-nav">
+  <span class="group">
+    <b>Previous</b>
+    <a href="0015-saga-pattern.html">← Lesson 15 · The Saga Pattern</a>
+  </span>
+  <span class="group">
+    <b>Reference</b>
+    <a href="../reference/0016-schema-evolution-cheatsheet.html">Schema evolution cheat sheet →</a>
+  </span>
+  <span class="group">
+    <b>Up next</b>
+    <a href="0017-event-sourcing-cqrs.html">Lesson 17 · Event sourcing &amp; CQRS</a>
+  </span>
+</nav>
+
+</body>
+</html>

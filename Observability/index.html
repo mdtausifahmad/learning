@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reliability, Observability &amp; SRE — Course Map</title>
+<link rel="stylesheet" href="assets/styles.css">
+<style>
+  .course-sec { margin: 1.8rem 0; }
+  .course-sec > h2 { margin-bottom: .3rem; }
+  .arc { font-size: .82rem; color: var(--muted); font-style: italic; margin: 0 0 .7rem; }
+  ol.lessons { margin: .3rem 0; padding-left: 1.4rem; }
+  ol.lessons li { margin: .5rem 0; }
+  ol.lessons a { font-weight: 600; }
+  .desc { color: var(--muted); font-size: .92rem; }
+  .refs { display: grid; grid-template-columns: 1fr 1fr; gap: .3rem 1.4rem; list-style: none; padding: 0; font-size: .92rem; }
+  .docs a { margin-right: 1.2rem; }
+  @media (max-width: 620px) { .refs { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Principal-Engineering Track</p>
+  <h1>Reliability, Observability &amp; Operating at Scale</h1>
+  <div class="meta"><span>16 lessons · 17 reference sheets · 1 runnable lab</span><span class="dot">•</span><span>Grounded in the Google SRE books, OpenTelemetry &amp; Prometheus</span></div>
+</header>
+
+<p class="mission-tie">
+  A practical path from <em>strong builder, green operator</em> to Staff/Principal-level reliability
+  judgment: define reliability, measure it, defend it, observe it, respond to failure, prevent it, change
+  safely, and design it whole. See <a href="MISSION.md">MISSION.md</a> for the why.
+</p>
+
+<div class="course-sec">
+  <h2>Part I · The SLO discipline</h2>
+  <p class="arc">Reliability as a measured, spendable, governed number.</p>
+  <ol class="lessons">
+    <li><a href="lessons/0001-why-sre-reliability-as-a-target.html">Why SRE? Reliability as a measured target</a><br><span class="desc">SLI → SLO → error budget; 100% is the wrong target.</span></li>
+    <li><a href="lessons/0002-choosing-good-slis.html">Choosing good SLIs</a><br><span class="desc">good ÷ valid events; the SLI menu; specification vs implementation.</span></li>
+    <li><a href="lessons/0003-setting-slo-and-error-budget.html">Setting the SLO &amp; the error budget</a><br><span class="desc">Pick the target &amp; window; compute the budget.</span></li>
+    <li><a href="lessons/0004-error-budget-policy.html">The error-budget policy</a><br><span class="desc">The SLO&rsquo;s teeth: ship/freeze decisions.</span></li>
+    <li><a href="lessons/0005-burn-rate-alerting.html">Burn-rate alerting on SLOs</a><br><span class="desc">Multi-window / multi-burn-rate; killing alert noise.</span></li>
+  </ol>
+</div>
+
+<div class="course-sec">
+  <h2>Part II · Observability</h2>
+  <p class="arc">Understanding a system from its outputs.</p>
+  <ol class="lessons" start="6">
+    <li><a href="lessons/0006-observability-metrics-logs-traces.html">Observability: metrics, logs &amp; traces</a><br><span class="desc">The three signals and what each is for.</span></li>
+    <li><a href="lessons/0007-four-golden-signals.html">The four golden signals</a><br><span class="desc">Latency, traffic, errors, saturation; RED &amp; USE.</span></li>
+    <li><a href="lessons/0008-instrumentation-lab-prometheus-otel.html">Instrumentation lab: Prometheus + OpenTelemetry</a><br><span class="desc">Hands-on: stand up the stack, instrument a service.</span></li>
+  </ol>
+</div>
+
+<div class="course-sec">
+  <h2>Part III · Operating &amp; learning</h2>
+  <p class="arc">Responding to failure without heroics.</p>
+  <ol class="lessons" start="9">
+    <li><a href="lessons/0009-oncall-incident-lifecycle.html">On-call &amp; the incident lifecycle</a><br><span class="desc">Roles, severity, mitigate-first.</span></li>
+    <li><a href="lessons/0010-blameless-postmortems.html">Blameless postmortems</a><br><span class="desc">Turn outages into risk reduction.</span></li>
+  </ol>
+</div>
+
+<div class="course-sec">
+  <h2>Part IV · Resilience</h2>
+  <p class="arc">Preventing the local hiccup that becomes a global outage.</p>
+  <ol class="lessons" start="11">
+    <li><a href="lessons/0011-overload-cascading-failure.html">Overload &amp; cascading failure</a><br><span class="desc">Load shedding, backoff+jitter, circuit breakers, bulkheads.</span></li>
+    <li><a href="lessons/0012-graceful-degradation-thundering-herd.html">Graceful degradation &amp; the thundering herd</a><br><span class="desc">Do less to survive; decorrelate stampedes.</span></li>
+  </ol>
+</div>
+
+<div class="course-sec">
+  <h2>Part V · Change &amp; scale (Staff+)</h2>
+  <p class="arc">Shipping safely, staying simple, designing whole.</p>
+  <ol class="lessons" start="13">
+    <li><a href="lessons/0013-progressive-delivery.html">Progressive delivery</a><br><span class="desc">Canary, feature flags, safe &amp; fast rollback.</span></li>
+    <li><a href="lessons/0014-toil-automation-simplicity.html">Toil, automation &amp; simplicity</a><br><span class="desc">Simplicity as a reliability control.</span></li>
+    <li><a href="lessons/0015-nalsd-designing-for-reliability.html">NALSD — designing for reliability</a> <strong>· capstone</strong><br><span class="desc">Design from concrete numbers; the completeness test.</span></li>
+  </ol>
+</div>
+
+<hr>
+
+<div class="course-sec">
+  <h2>Part VI · Verifying reliability <span style="font-weight:400;color:var(--muted);font-size:.8em">(extensions)</span></h2>
+  <p class="arc">Proving, empirically, that what you built actually works.</p>
+  <ol class="lessons" start="16">
+    <li><a href="lessons/0016-chaos-engineering.html">Chaos engineering</a><br><span class="desc">Inject failure on purpose; GameDays; verify resilience.</span></li>
+  </ol>
+</div>
+
+<hr>
+
+<div class="course-sec">
+  <h2>Reference cheat sheets</h2>
+  <ul class="refs">
+    <li><a href="reference/0001-sli-slo-error-budget-cheatsheet.html">01 · SLI · SLO · error budget</a></li>
+    <li><a href="reference/0002-sli-menu-cheatsheet.html">02 · Choosing SLIs</a></li>
+    <li><a href="reference/0003-latency-sli-prometheus-recipe.html">03 · Latency SLI in Prometheus</a></li>
+    <li><a href="reference/0004-setting-slo-budget-math.html">04 · Setting an SLO &amp; budget math</a></li>
+    <li><a href="reference/0005-error-budget-policy-template.html">05 · Error-budget policy template</a></li>
+    <li><a href="reference/0006-burn-rate-alerting-recipe.html">06 · Burn-rate alerting recipe</a></li>
+    <li><a href="reference/0007-metrics-logs-traces.html">07 · Metrics vs logs vs traces</a></li>
+    <li><a href="reference/0008-golden-signals-red-use.html">08 · Golden signals · RED · USE</a></li>
+    <li><a href="reference/0009-observability-lab-quickstart.html">09 · Observability lab quickstart</a></li>
+    <li><a href="reference/0010-incident-response-roles-severity.html">10 · Incident response</a></li>
+    <li><a href="reference/0011-blameless-postmortem-template.html">11 · Blameless postmortem template</a></li>
+    <li><a href="reference/0012-overload-resilience-patterns.html">12 · Resilience patterns</a></li>
+    <li><a href="reference/0013-degradation-thundering-herd.html">13 · Degradation &amp; thundering herd</a></li>
+    <li><a href="reference/0014-progressive-delivery.html">14 · Progressive delivery</a></li>
+    <li><a href="reference/0015-toil-and-simplicity.html">15 · Toil &amp; simplicity</a></li>
+    <li><a href="reference/0016-nalsd-reliable-design-checklist.html">16 · NALSD &amp; reliable-design checklist</a></li>
+    <li><a href="reference/0017-chaos-engineering-gameday.html">17 · Chaos engineering / GameDay</a></li>
+  </ul>
+</div>
+
+<div class="course-sec">
+  <h2>Hands-on &amp; workspace</h2>
+  <p class="docs">
+    <a href="assets/lab/README.md">Local observability lab (docker-compose)</a>
+    <a href="MISSION.md">Mission</a>
+    <a href="GLOSSARY.md">Glossary</a>
+    <a href="RESOURCES.md">Resources</a>
+    <a href="NOTES.md">Notes</a>
+  </p>
+</div>
+
+<div class="followup">
+  <strong>Your teacher is still here.</strong> The next gains are application and wisdom: bring a real
+  design or incident and we&rsquo;ll run it through the method, or set up spaced-retrieval reviews to make it
+  stick. Ask anytime.
+</div>
+
+</body>
+</html>

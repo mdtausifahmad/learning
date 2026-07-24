@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cheat Sheet · Chaos Engineering &amp; GameDays</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<style>
+  body { max-width: 52rem; }
+  @media print { body { margin: 0; } h2 { margin-top: 1.1rem; } }
+</style>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Reliability &amp; SRE · Reference 17</p>
+  <h1>Chaos Engineering &amp; GameDays</h1>
+  <div class="meta"><span>Compressed from Lesson 16</span><span class="dot">•</span><span>Print-friendly</span></div>
+</header>
+
+<div class="callout insight">
+  <span class="label">Definition</span>
+  <p>&ldquo;Experimenting on a system to build confidence in its capability to withstand turbulent
+     conditions in production.&rdquo; A <strong>controlled experiment</strong> &mdash; not random breakage.</p>
+</div>
+
+<h2>The experiment — 4 steps</h2>
+<ol>
+  <li><strong>Steady state</strong> — a measurable, user-facing output = your SLIs (not CPU).</li>
+  <li><strong>Hypothesise</strong> it holds in control &amp; experimental groups.</li>
+  <li><strong>Inject</strong> real-world events (crash, latency, severed network, dep failure, resource exhaustion).</li>
+  <li><strong>Try to disprove</strong> — did steady state diverge? Harder to break = more confidence; a weakness = a fix target.</li>
+</ol>
+
+<h2>Advanced principles</h2>
+<ul class="checklist">
+  <li>Hypothesise on the <strong>output</strong>, not internals (verify it works, not how).</li>
+  <li><strong>Vary real events</strong>, prioritised by impact &times; frequency.</li>
+  <li><strong>Run in production</strong> eventually (start in staging).</li>
+  <li><strong>Automate</strong> to run continuously (Chaos Monkey).</li>
+  <li><strong>Minimise blast radius</strong> + keep an <strong>abort switch</strong>.</li>
+</ul>
+
+<div class="callout warning">
+  <span class="label">Prerequisites — don&rsquo;t skip</span>
+  <p>Need <strong>observability</strong> (see impact) + <strong>SLOs</strong> (steady state) +
+     <strong>mitigation/rollback</strong> (stop it). Chaos on an un-observed, un-resilient system is just an
+     outage. Tell on-call first.</p>
+</div>
+
+<h2>GameDay run-sheet</h2>
+<pre><code>1. Steady state    1–2 SLIs, current values
+2. Failure         one realistic event (kill instance / +300ms dep / block downstream)
+3. Hypothesis      "tolerated because &lt;resilience pattern L11–12&gt;"
+4. Blast radius    smallest useful; ABORT condition = SLO breach
+5. Run (staging → prod), observe, note surprises
+6. Write up        postmortem-style; file fix action items</code></pre>
+<p style="font-size:.9rem;color:var(--muted)"><strong>Tools:</strong> Chaos Monkey · Gremlin · AWS FIS · chaos-mesh / LitmusChaos (k8s).</p>
+
+<nav class="lesson-nav">
+  <span class="group"><b>From</b><a href="../lessons/0016-chaos-engineering.html">&larr; Lesson 16 · Chaos engineering</a></span>
+  <span class="group"><b>See also</b><a href="0012-overload-resilience-patterns.html">Resilience patterns (Ref 12)</a></span>
+  <span class="group"><b>Primary source</b><a href="https://principlesofchaos.org/" target="_blank" rel="noopener">Principles of Chaos</a></span>
+</nav>
+
+</body>
+</html>

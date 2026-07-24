@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 15 · The Saga Pattern &amp; Distributed Workflows</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<script src="../assets/quiz.js" defer></script>
+<script src="../assets/stepflow.js" defer></script>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Async &amp; Messaging · Lesson 15</p>
+  <h1>The Saga Pattern &amp; Distributed Workflows</h1>
+  <div class="meta">
+    <span>◷ ~16 min read · interactive</span>
+    <span class="dot">•</span>
+    <span>Level: Staff / Design</span>
+    <span class="dot">•</span>
+    <span>Capstone of L08, L13, L14</span>
+  </div>
+</header>
+
+<p class="mission-tie">
+  This is where it all comes together. A business transaction spans several services, each with its own
+  database — so there&rsquo;s no single ACID transaction to keep them consistent. The saga is the pattern
+  that gets you consistency anyway, using the outbox to publish reliably, choreography or orchestration
+  to coordinate, and idempotency to survive retries. It&rsquo;s also the pattern most people implement
+  <em>subtly wrong</em> — so we&rsquo;ll spend real time on the traps.
+</p>
+
+<h2>1. The problem &amp; the shape of the answer</h2>
+
+<p>
+  With a database per service, &ldquo;reserve inventory, charge the card, confirm the order&rdquo; can&rsquo;t be one
+  transaction (2PC is off the table, Lesson 14). A <span class="term">saga</span> replaces it with a
+  <strong>sequence of local transactions</strong>: each service does its own local commit and publishes
+  an event/command that triggers the next. And crucially — if a step fails, the saga runs
+  <strong>compensating transactions</strong> that <em>undo</em> the earlier steps.
+</p>
+
+<div class="callout insight">
+  <span class="label">Compensation ≠ rollback</span>
+  <p>
+    You can&rsquo;t roll back a <em>committed</em> local transaction. A
+    <span class="term">compensating transaction</span> is a <em>new</em> transaction that semantically
+    reverses it: <code>ReserveCredit</code> → <code>ReleaseCredit</code>, <code>ReserveInventory</code>
+    → <code>ReleaseInventory</code>, <code>ChargePayment</code> → <code>RefundPayment</code>. Undo is a
+    real business action, and it must be reliable and idempotent like any other step.
+  </p>
+</div>
+
+<h2>2. Watch a saga fail and compensate</h2>
+<p>The happy path is just Lesson 13. The <em>distinctive</em> part is what happens on failure — step through it (← / → keys work).</p>
+
+<div class="stepflow" data-token="token">
+  <div class="sf-stage">
+    <svg viewBox="0 0 720 300" role="img" aria-label="A saga reserves inventory, fails to charge payment, then compensates by releasing inventory and cancelling the order">
+      <defs>
+        <marker id="l15c" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#2e5a7a"></path></marker>
+        <marker id="l15u" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#b5651d"></path></marker>
+      </defs>
+
+      <rect id="svc-order" class="sf-actor" x="24" y="44" width="150" height="50" rx="10" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.5"></rect>
+      <text x="99" y="64" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11.5" font-weight="600" fill="#1a1a1a">Order</text>
+      <text id="stNew" x="99" y="84" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" fill="#6b6459" style="display:none">state: NEW</text>
+      <text id="stPending" x="99" y="84" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" font-weight="700" fill="#8a4d16" style="display:none">state: PENDING</text>
+      <text id="stCancelled" x="99" y="84" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" font-weight="700" fill="#a32f2f" style="display:none">state: CANCELLED</text>
+
+      <rect id="svc-inv" class="sf-actor" x="285" y="44" width="150" height="50" rx="10" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.5"></rect>
+      <text x="360" y="64" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11.5" font-weight="600" fill="#1a1a1a">Inventory</text>
+      <text id="invNone" x="360" y="84" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" fill="#6b6459" style="display:none">—</text>
+      <text id="invReserved" x="360" y="84" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" font-weight="700" fill="#1f4a29" style="display:none">reserved ✓</text>
+      <text id="invReleased" x="360" y="84" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" font-weight="700" fill="#b5651d" style="display:none">released (undone)</text>
+
+      <rect id="svc-pay" class="sf-actor" x="546" y="44" width="150" height="50" rx="10" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.5"></rect>
+      <text x="621" y="64" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11.5" font-weight="600" fill="#1a1a1a">Payment</text>
+      <text id="payNone" x="621" y="84" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" fill="#6b6459" style="display:none">—</text>
+      <text id="payFailed" x="621" y="84" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" font-weight="700" fill="#a32f2f" style="display:none">✗ charge FAILED</text>
+
+      <rect id="saga" class="sf-actor" x="285" y="192" width="150" height="52" rx="10" fill="#eef1f6" stroke="#2e5a7a" stroke-width="1.75"></rect>
+      <text x="360" y="223" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11.5" font-weight="700" fill="#1a1a1a">Saga coordinator</text>
+
+      <g id="cmdOrder" style="display:none"><line x1="322" y1="192" x2="110" y2="98" stroke="#2e5a7a" stroke-width="1.5" marker-end="url(#l15c)"></line><text x="185" y="150" text-anchor="middle" font-family="system-ui,sans-serif" font-size="8" fill="#2e5a7a">CreateOrder</text></g>
+      <g id="cmdInv" style="display:none"><line x1="360" y1="192" x2="360" y2="98" stroke="#2e5a7a" stroke-width="1.5" marker-end="url(#l15c)"></line><text x="404" y="150" text-anchor="middle" font-family="system-ui,sans-serif" font-size="8" fill="#2e5a7a">ReserveInventory</text></g>
+      <g id="cmdPay" style="display:none"><line x1="398" y1="192" x2="610" y2="98" stroke="#2e5a7a" stroke-width="1.5" marker-end="url(#l15c)"></line><text x="540" y="150" text-anchor="middle" font-family="system-ui,sans-serif" font-size="8" fill="#2e5a7a">ChargePayment</text></g>
+      <g id="compInv" style="display:none"><line x1="360" y1="192" x2="360" y2="98" stroke="#b5651d" stroke-width="1.75" stroke-dasharray="5 3" marker-end="url(#l15u)"></line><text x="430" y="142" text-anchor="middle" font-family="system-ui,sans-serif" font-size="8" fill="#b5651d">ReleaseInventory ↩</text></g>
+      <g id="cmdReject" style="display:none"><line x1="322" y1="192" x2="110" y2="98" stroke="#b5651d" stroke-width="1.75" stroke-dasharray="5 3" marker-end="url(#l15u)"></line><text x="185" y="140" text-anchor="middle" font-family="system-ui,sans-serif" font-size="8" fill="#b5651d">RejectOrder ↩</text></g>
+
+      <text id="compBadge" x="360" y="176" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="700" fill="#b5651d" style="display:none">⟲ compensating — undo prior steps in reverse</text>
+      <text id="consistentBadge" x="360" y="284" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="700" fill="#1f4a29" style="display:none">✓ consistent end state: CANCELLED · inventory released · no charge</text>
+
+      <g id="token" style="display:none"></g>
+    </svg>
+  </div>
+
+  <div class="sf-caption"><p class="sf-title"></p><p class="sf-desc"></p></div>
+  <div class="sf-controls">
+    <button class="sf-btn sf-prev" type="button">◀ Prev</button>
+    <button class="sf-btn sf-next" type="button">Next ▶</button>
+    <button class="sf-btn sf-reset" type="button">↺ Reset</button>
+    <button class="sf-btn sf-play" type="button">▶ Play</button>
+    <span class="sf-counter"></span>
+  </div>
+
+  <script type="application/json" class="sf-steps">
+  [
+    {"title":"A saga = local transactions, coordinated","desc":"An order saga spans three services. The coordinator will drive it step by step. Order starts NEW.","token":null,"visible":["stNew","invNone","payNone"],"highlight":["saga"]},
+    {"title":"Step 1 — create the order (PENDING)","desc":"CreateOrder commits locally and moves the order to <strong>PENDING</strong> — a semantic lock telling everyone else &ldquo;in progress, handle with care.&rdquo;","token":null,"visible":["stPending","invNone","payNone","cmdOrder"],"highlight":["saga","svc-order"]},
+    {"title":"Step 2 — reserve inventory ✓","desc":"ReserveInventory succeeds. This is a <em>compensatable</em> step — we may have to undo it.","token":null,"visible":["stPending","invReserved","payNone","cmdInv"],"highlight":["saga","svc-inv"]},
+    {"title":"Step 3 — charge payment ✗","desc":"ChargePayment <strong>fails</strong> (card declined). There is no cross-service ACID rollback to save us — inventory is already committed as reserved.","token":null,"visible":["stPending","invReserved","payFailed","cmdPay"],"highlight":["saga","svc-pay"]},
+    {"title":"The saga compensates","desc":"On failure, the saga runs <strong>compensating transactions</strong> — undoing the completed steps in reverse order.","token":null,"visible":["stPending","invReserved","payFailed","compBadge"],"highlight":["saga"]},
+    {"title":"Compensate step 2 — release inventory","desc":"ReleaseInventory is a <em>new</em> local transaction that semantically undoes the reservation.","token":null,"visible":["stPending","invReleased","payFailed","compInv"],"highlight":["saga","svc-inv"]},
+    {"title":"Reject the order","desc":"Finally, move the order to <strong>CANCELLED</strong>, releasing the semantic lock.","token":null,"visible":["stCancelled","invReleased","payFailed","cmdReject"],"highlight":["saga","svc-order"]},
+    {"title":"A consistent end state — no partial mess","desc":"Order CANCELLED, inventory released, no charge. We got data consistency across services with <strong>local transactions + compensations</strong> — no distributed lock.","token":null,"visible":["stCancelled","invReleased","payFailed","consistentBadge"],"highlight":[]}
+  ]
+  </script>
+</div>
+
+<h2>3. Choreography or orchestration (Lesson 13, applied)</h2>
+<ul>
+  <li><strong>Choreography-based saga:</strong> each service listens for events and reacts, emitting the
+      next event — or a <em>failure</em> event that triggers others to compensate. Decentralized; great
+      for short sagas.</li>
+  <li><strong>Orchestration-based saga:</strong> a central orchestrator holds the saga&rsquo;s state
+      machine, sends commands, and on failure sends compensation commands. Explicit and visible — the
+      usual choice for longer, branchier flows.</li>
+</ul>
+
+<pre><code>// Orchestration saga — a state machine that drives steps and compensations
+fun on(reply: SagaReply) = when (reply) {
+    is InventoryReserved -> commands.send("payment.commands", ChargePayment(reply.sagaId))
+    is PaymentFailed     -> commands.send("inventory.commands", ReleaseInventory(reply.sagaId))  // compensate
+    is PaymentCharged    -> confirmOrder(reply.sagaId)                                            // pivot: commit the saga
+    is InventoryReleased -> rejectOrder(reply.sagaId)
+    else -> {}
+}</code></pre>
+
+<h2>4. The hard truths (what a saga gives up)</h2>
+
+<div class="callout warning">
+  <span class="label">No isolation — the subtlest trap</span>
+  <p>
+    A saga is <em>not</em> isolated (no &ldquo;I&rdquo; in ACID). microservices.io: &ldquo;the lack of isolation
+    means there&rsquo;s a risk that the concurrent execution of multiple sagas&hellip; can [cause] data
+    anomalies&rdquo; — dirty reads, lost updates. You must add <strong>countermeasures</strong>. The
+    everyday one is a <strong>semantic lock</strong>: a <code>PENDING</code>/<code>*_PENDING</code>
+    state flag (like our order) that tells concurrent work &ldquo;this isn&rsquo;t final yet.&rdquo; Others:
+    commutative updates, re-reading a value before writing, and versioning.
+  </p>
+</div>
+
+<ul>
+  <li><strong>No automatic rollback</strong> — you design every compensation by hand (and test the
+      failure paths, which is where bugs hide).</li>
+  <li><strong>Eventual consistency</strong> — the system is temporarily inconsistent mid-saga. Design
+      the UX for it (&ldquo;order processing&hellip;&rdquo;).</li>
+  <li><strong>The pivot transaction</strong> — order your steps: <em>compensatable</em> steps first
+      (can be undone), then the <strong>pivot</strong> (the commit point, e.g. confirm the order), then
+      <em>retriable</em> steps that must eventually succeed (e.g. send the receipt). You compensate
+      before the pivot; you retry-forward after it.</li>
+</ul>
+
+<h2>5. The building blocks &amp; when to reach for it</h2>
+<ul>
+  <li><strong>Each step uses the outbox (L14)</strong> to atomically commit its state and publish its
+      event/command — reliable saga steps.</li>
+  <li><strong>Every handler is idempotent (L08)</strong> — messages redeliver; compensations may
+      re-run.</li>
+  <li><strong>A correlation / saga id</strong> ties the steps together (for ordering, tracing, and
+      matching replies to state).</li>
+  <li><strong>Consider a workflow engine</strong> — <em>Temporal</em>, <em>Step Functions</em>,
+      <em>Camunda</em> — which give you saga state, retries, timers, and compensation natively, so you
+      don&rsquo;t hand-roll the state machine.</li>
+  <li><strong>When NOT to saga:</strong> if the transaction fits in <em>one</em> service, keep it a
+      local ACID transaction. Sagas are for consistency that genuinely spans services — don&rsquo;t pay
+      their complexity tax otherwise.</li>
+</ul>
+
+<div class="primary-source">
+  <span class="label">Go deeper (primary sources)</span>
+  <p>
+    <a href="https://microservices.io/patterns/data/saga.html" target="_blank" rel="noopener">microservices.io &mdash; <em>Saga</em></a>
+    (definition, choreography vs orchestration, lack of isolation &amp; countermeasures) and Chris
+    Richardson&rsquo;s <em>Microservices Patterns</em>, ch. 4–5 (compensatable/pivot/retriable, semantic
+    locks). For code-first sagas, the <a href="https://temporal.io/" target="_blank" rel="noopener">Temporal</a> docs.
+  </p>
+</div>
+
+<h2>6. Check yourself</h2>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 1 of 2</p>
+  <p class="quiz-q">Payment fails after inventory was already reserved. How does a saga restore consistency?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="A compensating transaction (ReleaseInventory) semantically undoes the committed step.">Run a compensating transaction to release it</button></li>
+    <li><button data-correct="false" data-feedback="There's no cross-service ACID transaction to roll back — that's the whole premise.">Roll back the distributed ACID transaction</button></li>
+    <li><button data-correct="false" data-feedback="Retrying a declined card doesn't fix the already-reserved inventory.">Retry the payment until it eventually works</button></li>
+    <li><button data-correct="false" data-feedback="Ignoring it leaves inventory reserved forever — an inconsistent, leaked state.">Leave inventory reserved and move on</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="No auto rollback across services — you undo committed steps with explicit compensating transactions (ReleaseInventory, then cancel the order)."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 2 of 2</p>
+  <p class="quiz-q">What does the order&rsquo;s <code>PENDING</code> state protect against?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="It's a semantic lock — the saga countermeasure for the lack of isolation.">Other work acting on a not-yet-final order</button></li>
+    <li><button data-correct="false" data-feedback="Losing messages is the outbox's job (L14), not the state flag's.">The event being lost between services</button></li>
+    <li><button data-correct="false" data-feedback="Duplicates are handled by idempotency (L08), not the PENDING flag.">Duplicate delivery of the same command</button></li>
+    <li><button data-correct="false" data-feedback="Ordering is a partition/key concern (L09), not what PENDING addresses.">Messages arriving in the wrong order</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Sagas lack isolation. A PENDING semantic lock stops concurrent sagas/reads from acting on an order that isn't final yet."></div>
+</div>
+
+<div class="callout tryit">
+  <span class="label">Try it in your own system</span>
+  <p>
+    Pick one multi-service transaction you have (or want). List its steps, and for each write its
+    <em>compensation</em> (or note &ldquo;retriable, no undo&rdquo;). Where&rsquo;s the pivot? What&rsquo;s the semantic
+    lock (a PENDING state)? Choreography or orchestration? That sketch is a real saga design.
+  </p>
+</div>
+
+<div class="followup">
+  <strong>I&rsquo;m your teacher &mdash; ask anything.</strong> Want a full Temporal workflow version, the other
+  isolation countermeasures worked through, or how to test compensation paths? Ask &mdash; or answer a quiz
+  back so I can tune Lesson 16.
+</div>
+
+<nav class="lesson-nav">
+  <span class="group">
+    <b>Previous</b>
+    <a href="0014-transactional-outbox.html">← Lesson 14 · Transactional Outbox</a>
+  </span>
+  <span class="group">
+    <b>Reference</b>
+    <a href="../reference/0015-saga-cheatsheet.html">Saga cheat sheet →</a>
+  </span>
+  <span class="group">
+    <b>Up next</b>
+    <a href="0016-schema-evolution.html">Lesson 16 · Schema evolution &amp; contracts</a>
+  </span>
+</nav>
+
+</body>
+</html>
