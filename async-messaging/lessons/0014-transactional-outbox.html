@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 14 · Transactional Outbox &amp; the Dual-Write Problem</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<script src="../assets/quiz.js" defer></script>
+<script src="../assets/stepflow.js" defer></script>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Async &amp; Messaging · Lesson 14</p>
+  <h1>The Transactional Outbox &amp; the Dual-Write Problem</h1>
+  <div class="meta">
+    <span>◷ ~15 min read · interactive</span>
+    <span class="dot">•</span>
+    <span>Level: Staff / Design</span>
+    <span class="dot">•</span>
+    <span>Fixes a bug under L05, L08, L13</span>
+  </div>
+</header>
+
+<p class="mission-tie">
+  Every &ldquo;update the database, then publish an event&rdquo; you&rsquo;ve written has a silent bug. The two
+  writes go to two systems with no shared transaction, so a crash at the wrong moment either loses the
+  event or invents one. This lesson names that bug — the <em>dual-write problem</em> — and gives you
+  the one pattern that actually fixes it. It&rsquo;s the missing reliability piece the last few lessons kept
+  pointing at.
+</p>
+
+<h2>1. The dual-write problem</h2>
+
+<p>
+  A command usually must do two things: <strong>update its database</strong> <em>and</em>
+  <strong>publish a message</strong>. microservices.io states the problem exactly: &ldquo;How to atomically
+  update the database and send messages to a message broker?&rdquo; You can&rsquo;t — not naively — because
+  they&rsquo;re separate systems:
+</p>
+
+<ul>
+  <li><strong>DB commits, then you crash before publishing</strong> → the state changed but the event
+      is <strong>lost</strong>. Downstream never learns.</li>
+  <li><strong>You publish, then the DB rolls back</strong> → a <strong>phantom event</strong> for
+      something that never happened.</li>
+</ul>
+
+<div class="callout warning">
+  <span class="label">Why the obvious fixes don&rsquo;t work</span>
+  <p>
+    Wrapping both in <code>@Transactional</code> is a mirage — the broker <code>send</code> isn&rsquo;t part
+    of the database transaction, so it can fire even when the DB rolls back (or vanish when it doesn&rsquo;t).
+    And a distributed transaction (<strong>2PC/XA</strong>) across DB + broker is, per microservices.io,
+    &ldquo;not viable&rdquo;: Kafka doesn&rsquo;t support it, it&rsquo;s slow and fragile, and it couples your service to
+    both systems. There is <em>no</em> ordering of two independent writes that is crash-safe.
+  </p>
+</div>
+
+<h2>2. The fix: write to an outbox in the same transaction</h2>
+
+<p>
+  The <span class="term">transactional outbox</span> turns two writes into one. Instead of publishing
+  to the broker, the service <strong>inserts the message into an OUTBOX table in its own database, in
+  the same local ACID transaction</strong> as the business change. Now they&rsquo;re atomic — both commit
+  or neither. A separate <span class="term">message relay</span> then reads the outbox and publishes to
+  the broker. Result (microservices.io): &ldquo;Messages are guaranteed to be sent <em>if and only if</em>
+  the database transaction commits.&rdquo;
+</p>
+
+<h3>Watch it: the bug, then the outbox fix</h3>
+<p>Step through the dual-write failure and the outbox solution (← / → keys work).</p>
+
+<div class="stepflow" data-token="token">
+  <div class="sf-stage">
+    <svg viewBox="0 0 720 300" role="img" aria-label="A dual write loses an event on crash; the transactional outbox writes the event atomically with the state and a relay publishes it reliably">
+      <defs>
+        <marker id="l14a" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#6b6459"></path></marker>
+        <marker id="l14g" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#3f7a3f"></path></marker>
+      </defs>
+
+      <rect id="svc" class="sf-actor" x="24" y="44" width="120" height="54" rx="10" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.5"></rect>
+      <text x="84" y="76" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" font-weight="600" fill="#1a1a1a">Service</text>
+      <rect id="brk" class="sf-actor" x="560" y="44" width="130" height="54" rx="10" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.5"></rect>
+      <text x="625" y="76" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" font-weight="600" fill="#1a1a1a">Broker</text>
+      <text id="brokerEvent" x="625" y="114" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="700" fill="#1f4a29" style="display:none">✓ OrderPaid</text>
+
+      <line x1="84" y1="98" x2="176" y2="150" stroke="#c9c1b1" stroke-width="1.25" marker-end="url(#l14a)"></line>
+
+      <g id="dwArrow" style="display:none">
+        <line x1="150" y1="66" x2="556" y2="66" stroke="#7a2e2e" stroke-width="1.5" stroke-dasharray="5 3" marker-end="url(#l14a)"></line>
+        <text x="350" y="56" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9" fill="#7a2e2e">publish OrderPaid (2nd write, different system)</text>
+      </g>
+      <g id="crashBadge" style="display:none">
+        <text x="470" y="72" text-anchor="middle" font-family="system-ui,sans-serif" font-size="16" font-weight="700" fill="#a32f2f">✗</text>
+        <text x="470" y="96" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9.5" fill="#a32f2f">crash before publish</text>
+      </g>
+
+      <rect id="db" class="sf-actor" x="200" y="120" width="210" height="150" rx="10" fill="#f7f4ec" stroke="#2e5a7a" stroke-width="1.5"></rect>
+      <text x="305" y="142" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11.5" font-weight="600" fill="#1a1a1a">Service DB</text>
+      <rect id="txBox" x="210" y="150" width="190" height="110" rx="8" fill="none" stroke="#7a2e2e" stroke-width="1.5" stroke-dasharray="5 3" style="display:none"></rect>
+      <rect x="216" y="156" width="178" height="40" rx="5" fill="#eef1f6" stroke="#c9c1b1" stroke-width="1"></rect>
+      <text id="bizPending" x="305" y="180" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" fill="#6b6459" style="display:none">order #42: PENDING</text>
+      <text id="bizPaid" x="305" y="180" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="700" fill="#1f4a29" style="display:none">order #42: PAID</text>
+      <rect x="216" y="210" width="178" height="40" rx="5" fill="#f3f0e8" stroke="#c9c1b1" stroke-width="1"></rect>
+      <text id="outboxEmpty" x="305" y="234" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" fill="#6b6459" style="display:none">outbox: (empty)</text>
+      <text id="outboxRow" x="305" y="234" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="600" fill="#8a4d16" style="display:none">outbox: OrderPaid · unsent</text>
+      <text id="outboxSent" x="305" y="234" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="600" fill="#1f4a29" style="display:none">outbox: OrderPaid · ✓ sent</text>
+
+      <rect id="relay" class="sf-actor" x="442" y="198" width="100" height="44" rx="8" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.5" style="display:none"></rect>
+      <text id="relayTxt" x="492" y="224" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" font-weight="700" fill="#1a1a1a" style="display:none">Relay</text>
+      <g id="readArrow" style="display:none"><line x1="410" y1="230" x2="440" y2="222" stroke="#3f7a3f" stroke-width="1.5" marker-end="url(#l14g)"></line></g>
+      <g id="pubArrow" style="display:none"><line x1="522" y1="198" x2="602" y2="102" stroke="#3f7a3f" stroke-width="1.5" marker-end="url(#l14g)"></line></g>
+
+      <text id="inconsistentBadge" x="305" y="288" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="700" fill="#a32f2f" style="display:none">DB = PAID, but the event is LOST → inconsistent</text>
+      <text id="atomicBadge" x="305" y="288" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="700" fill="#1f4a29" style="display:none">✓ atomic — one local ACID transaction</text>
+      <text id="reliableBadge" x="360" y="290" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="700" fill="#1f4a29" style="display:none">sent iff the DB commits · never lost, never phantom (at-least-once)</text>
+
+      <g id="token" style="display:none"></g>
+    </svg>
+  </div>
+
+  <div class="sf-caption"><p class="sf-title"></p><p class="sf-desc"></p></div>
+  <div class="sf-controls">
+    <button class="sf-btn sf-prev" type="button">◀ Prev</button>
+    <button class="sf-btn sf-next" type="button">Next ▶</button>
+    <button class="sf-btn sf-reset" type="button">↺ Reset</button>
+    <button class="sf-btn sf-play" type="button">▶ Play</button>
+    <span class="sf-counter"></span>
+  </div>
+
+  <script type="application/json" class="sf-steps">
+  [
+    {"title":"The goal","desc":"Set order #42 = PAID in the DB <strong>and</strong> publish <code>OrderPaid</code> to the broker — atomically. But they are two separate systems.","token":null,"visible":["bizPending","outboxEmpty"],"highlight":["svc","brk"]},
+    {"title":"Dual write: the DB commits","desc":"The service updates the DB (PAID), then tries to publish the event as a second, separate write.","token":null,"visible":["bizPaid","outboxEmpty","dwArrow"],"highlight":["svc","db"]},
+    {"title":"…crash before publish → event LOST","desc":"It crashes before the publish. The DB says PAID; downstream is never told. (The reverse order instead invents a phantom event.) This is the dual-write problem.","token":null,"visible":["bizPaid","outboxEmpty","dwArrow","crashBadge","inconsistentBadge"],"highlight":["svc"]},
+    {"title":"The fix: an outbox row in the SAME transaction","desc":"Instead of publishing directly, insert an <code>OutboxEvent</code> in the <em>same</em> local ACID transaction as the business change. Both commit, or neither.","token":null,"visible":["bizPaid","outboxRow","txBox","atomicBadge"],"highlight":["db"]},
+    {"title":"A relay reads the outbox","desc":"A separate message relay (polling, or change-data-capture) reads the unsent outbox rows.","token":null,"visible":["bizPaid","outboxRow","txBox","relay","relayTxt","readArrow"],"highlight":["relay","db"]},
+    {"title":"Relay publishes to the broker","desc":"The relay publishes <code>OrderPaid</code> to the broker — the event that was safely persisted with the state.","token":null,"visible":["bizPaid","outboxRow","txBox","relay","relayTxt","readArrow","pubArrow","brokerEvent"],"highlight":["relay","brk"]},
+    {"title":"Relay marks it sent","desc":"It records the outbox row as sent (or deletes it), so it won&rsquo;t be published again on the next poll.","token":null,"visible":["bizPaid","outboxSent","txBox","relay","relayTxt","brokerEvent"],"highlight":["db"]},
+    {"title":"Never lost, never phantom","desc":"The event is guaranteed to publish iff the DB committed. If the relay crashes after publishing but before marking sent, it republishes → at-least-once → the consumer must be <strong>idempotent</strong> (Lesson 08).","token":null,"visible":["bizPaid","outboxSent","brokerEvent","reliableBadge"],"highlight":["brk"]}
+  ]
+  </script>
+</div>
+
+<h3>In code</h3>
+<pre><code>// ✗ DUAL WRITE — broken: the send is not part of the DB transaction
+@Transactional
+fun pay(orderId: String) {
+    orders.markPaid(orderId)                                   // DB write (in the tx)
+    kafkaTemplate.send("order.events", OrderPaid(orderId))     // separate system — may send on rollback, or be lost on crash
+}</code></pre>
+
+<pre><code>// ✓ OUTBOX — the event is written atomically with the state, in ONE transaction
+@Transactional
+fun pay(orderId: String) {
+    orders.markPaid(orderId)
+    outbox.save(OutboxEvent(                                   // same DB, same tx → atomic
+        id = UUID.randomUUID().toString(),                     // stable idempotency key for consumers (L08)
+        topic = "order.events", key = orderId, payload = OrderPaid(orderId),
+    ))
+}</code></pre>
+
+<h2>3. Relaying the outbox: two ways</h2>
+<table>
+  <thead><tr><th></th><th>Polling publisher</th><th>Transaction log tailing (CDC)</th></tr></thead>
+  <tbody>
+    <tr><td><strong>How</strong></td><td>A job <code>SELECT</code>s unsent rows, publishes, marks sent</td><td>A tool (Debezium) tails the DB&rsquo;s WAL/binlog and streams outbox inserts to Kafka</td></tr>
+    <tr><td><strong>Pros</strong></td><td>Dead simple, no extra infra</td><td>Low latency, no polling load, no publish code</td></tr>
+    <tr><td><strong>Cons</strong></td><td>Polling lag + DB load; must <code>ORDER BY</code> to keep order</td><td>More infra (Debezium/Connect); log-format coupling</td></tr>
+  </tbody>
+</table>
+
+<pre><code>// Polling publisher — order preserved via ORDER BY id
+@Scheduled(fixedDelay = 500)
+@Transactional
+fun relay() {
+    outbox.findUnsentOrderById(limit = 100).forEach { e -&gt;
+        kafkaTemplate.send(e.topic, e.key, e.payload)
+        e.markSent()                                           // or delete the row
+    }
+}</code></pre>
+
+<div class="callout insight">
+  <span class="label">Why order matters here</span>
+  <p>
+    microservices.io: events must be published &ldquo;in the order they were sent by the service&rdquo; (T1→E1
+    before T2→E2). A polling relay preserves this with <code>ORDER BY</code> (per aggregate/key); CDC
+    preserves it because the transaction log <em>is</em> ordered. This is the L09 ordering guarantee,
+    upheld at the publish boundary.
+  </p>
+</div>
+
+<h2>4. What the outbox does &amp; doesn&rsquo;t give you</h2>
+<ul>
+  <li><strong>Guarantees:</strong> the event is published <em>iff</em> the state was committed — no lost
+      events, no phantom events. Reliable event publishing, at last.</li>
+  <li><strong>At-least-once, not exactly-once:</strong> the relay can publish then crash before marking
+      sent → a duplicate. So <strong>consumers must be idempotent</strong> (Lesson 08) — which they
+      already should be. Outbox (reliable produce) + idempotent consumer (reliable consume) =
+      effectively-once end to end.</li>
+  <li><strong>Not a workflow engine:</strong> the outbox reliably emits <em>one</em> event per
+      transaction. Coordinating a multi-step, compensatable flow is the <strong>saga</strong> — next
+      lesson — which uses the outbox as its reliable publish mechanism.</li>
+  <li><strong>Housekeeping:</strong> prune sent rows (delete-on-publish or a retention job) so the
+      outbox table doesn&rsquo;t grow forever.</li>
+</ul>
+
+<div class="primary-source">
+  <span class="label">Go deeper (primary sources)</span>
+  <p>
+    <a href="https://microservices.io/patterns/data/transactional-outbox.html" target="_blank" rel="noopener">microservices.io &mdash; <em>Transactional Outbox</em></a>,
+    plus the two relay patterns:
+    <a href="https://microservices.io/patterns/data/polling-publisher.html" target="_blank" rel="noopener"><em>Polling Publisher</em></a> and
+    <a href="https://microservices.io/patterns/data/transaction-log-tailing.html" target="_blank" rel="noopener"><em>Transaction Log Tailing</em></a>
+    (implemented by <a href="https://debezium.io/" target="_blank" rel="noopener">Debezium</a>).
+  </p>
+</div>
+
+<h2>5. Check yourself</h2>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 1 of 2</p>
+  <p class="quiz-q">Why is &ldquo;<code>@Transactional</code> { save(); kafkaTemplate.send(); }&rdquo; not safe?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="The broker send isn't in the DB transaction, so the two writes can't commit atomically.">The send isn&rsquo;t part of the DB transaction</button></li>
+    <li><button data-correct="false" data-feedback="It compiles and runs fine — the problem is atomicity across two systems, not syntax.">Spring forbids sending inside a transaction</button></li>
+    <li><button data-correct="false" data-feedback="Kafka is plenty fast; speed isn't the issue — crash-atomicity is.">Kafka is too slow to call in a transaction</button></li>
+    <li><button data-correct="false" data-feedback="Ordering isn't the core failure here; lost/phantom events on crash are.">The events would arrive out of order</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Two systems, no shared transaction: a crash between them loses the event or (reverse order) invents a phantom. That's the dual-write problem."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 2 of 2</p>
+  <p class="quiz-q">With the outbox, why must downstream consumers still be idempotent?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="The relay may publish then crash before marking sent, republishing on restart — a duplicate.">The relay can publish a message twice</button></li>
+    <li><button data-correct="false" data-feedback="The outbox prevents lost events; duplicates (not losses) are the residual risk.">The outbox can lose events silently</button></li>
+    <li><button data-correct="false" data-feedback="The outbox preserves order via ORDER BY / the log; that's not why.">The outbox reorders events randomly</button></li>
+    <li><button data-correct="false" data-feedback="It writes atomically with the state — that's the whole point.">It writes the event before the DB commit</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Outbox relay is at-least-once (publish-then-crash-before-marking = republish). Reliable produce (outbox) + idempotent consume = effectively-once."></div>
+</div>
+
+<div class="callout tryit">
+  <span class="label">Try it in your own system</span>
+  <p>
+    Find one place where you <code>save()</code> then <code>send()</code> (or send then save). That&rsquo;s a
+    dual write. Sketch the outbox: what table, what columns (id, topic, key, payload, sent), and would
+    you relay by polling or CDC? Bring your sketch — it&rsquo;s the backbone of the saga next.
+  </p>
+</div>
+
+<div class="followup">
+  <strong>I&rsquo;m your teacher &mdash; ask anything.</strong> Want a full Debezium outbox connector config, how
+  the outbox interacts with Kafka&rsquo;s own transactions, or the &ldquo;listen to yourself&rdquo; alternative? Ask &mdash;
+  or answer a quiz back so I can tune Lesson 15.
+</div>
+
+<nav class="lesson-nav">
+  <span class="group">
+    <b>Previous</b>
+    <a href="0013-choreography-orchestration.html">← Lesson 13 · Choreography vs Orchestration</a>
+  </span>
+  <span class="group">
+    <b>Reference</b>
+    <a href="../reference/0014-transactional-outbox-cheatsheet.html">Outbox cheat sheet →</a>
+  </span>
+  <span class="group">
+    <b>Up next</b>
+    <a href="#" title="Ask your teacher to generate it">Lesson 15 · The Saga pattern &amp; distributed workflows</a>
+  </span>
+</nav>
+
+</body>
+</html>

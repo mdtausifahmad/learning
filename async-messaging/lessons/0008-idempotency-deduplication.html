@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 08 · Idempotency &amp; Deduplication in Depth</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<script src="../assets/quiz.js" defer></script>
+<script src="../assets/stepflow.js" defer></script>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Async &amp; Messaging · Lesson 08</p>
+  <h1>Idempotency &amp; Deduplication in Depth</h1>
+  <div class="meta">
+    <span>◷ ~16 min read · interactive</span>
+    <span class="dot">•</span>
+    <span>Level: Core → Staff</span>
+    <span class="dot">•</span>
+    <span>Builds on: <a href="0005-delivery-guarantees.html">Lesson 05</a> · broker-agnostic</span>
+  </div>
+</header>
+
+<p class="mission-tie">
+  Lesson 05 landed a verdict: for anything touching an external system you run
+  <strong>at-least-once + idempotency</strong>. That was the &ldquo;what.&rdquo; This lesson is the
+  &ldquo;how&rdquo; &mdash; the patterns that make processing duplicate-proof, the keys that make them work, and
+  the windows that make them affordable. It applies to <em>every</em> broker you use: Kafka, RabbitMQ,
+  SQS, Redis, Pulsar. <strong>Idempotency is the load-bearing wall of at-least-once systems.</strong>
+</p>
+
+<h2>1. What idempotency actually means</h2>
+
+<p>
+  An operation is <span class="term">idempotent</span> if performing it many times has the same
+  effect as performing it once. A <span class="term">idempotent consumer</span> is one whose handling
+  of the <em>same message</em> repeatedly leaves the system in the same state as handling it once &mdash;
+  as microservices.io puts it, &ldquo;the outcome of processing the same message repeatedly must be the
+  same as processing the message once.&rdquo;
+</p>
+
+<p>
+  The distinction that matters: some operations are idempotent <em>by nature</em>; others you must
+  <em>make</em> idempotent. Knowing which is which is the whole skill.
+</p>
+
+<h2>2. Naturally idempotent — or not</h2>
+
+<table>
+  <thead><tr><th>Naturally idempotent (replay = no-op)</th><th>NOT idempotent (replay = bug)</th></tr></thead>
+  <tbody>
+    <tr><td><code>SET status = 'PAID'</code> (assignment)</td><td><code>balance = balance + 10</code> (increment)</td></tr>
+    <tr><td><code>UPSERT</code> keyed by a stable id</td><td><code>INSERT</code> a new row (duplicate rows)</td></tr>
+    <tr><td><code>DELETE WHERE id = x</code></td><td>Append to a log / list</td></tr>
+    <tr><td>Add to a set (<code>SADD</code>), <code>PUT</code> full document</td><td>Send an email · charge a card · emit an event</td></tr>
+  </tbody>
+</table>
+
+<div class="callout insight">
+  <span class="label">Design writes to be replay-safe by construction</span>
+  <p>
+    The cheapest idempotency is the kind you never have to enforce. Before reaching for a dedup store,
+    ask: <em>can I reshape this write to be naturally idempotent?</em> Replace &ldquo;increment balance by
+    10&rdquo; with &ldquo;set balance to the value computed from a versioned source,&rdquo; or a
+    conditional/compare-and-set update. An <code>UPSERT</code> keyed by <code>orderId</code> makes a
+    replay harmless <em>for free</em> &mdash; no extra table, no extra transaction.
+  </p>
+</div>
+
+<h2>3. Synthetic idempotency: a stable key + a dedup store</h2>
+
+<p>
+  When the side effect genuinely can&rsquo;t be natural (charge a card, increment a counter, send a
+  notification), you make the <em>consumer</em> idempotent: remember what you&rsquo;ve processed and skip
+  repeats. Two things make or break this &mdash; the <strong>key</strong>, and the <strong>atomicity</strong>.
+</p>
+
+<h3>Pick a stable idempotency key</h3>
+<ul>
+  <li><strong>Best: a producer-generated id</strong> (a V4 UUID) created <em>once</em> for the logical
+      action and carried in a message header. It stays identical across every retry.</li>
+  <li><strong>Good: a business key</strong> (<code>orderId</code>) &mdash; if there is exactly one message
+      per business action.</li>
+  <li><strong>Fragile: a payload hash</strong> &mdash; breaks when non-meaningful fields vary (timestamps,
+      field ordering).</li>
+  <li><strong>Never: the broker&rsquo;s delivery id / Kafka offset.</strong> A producer retry produces a
+      <em>new</em> offset for the same logical message (recall Lesson 06 &mdash; the app-level id is stable,
+      the broker position is not). Dedup on the app id, not the wire id.</li>
+</ul>
+
+<pre><code>// PRODUCER: generate the key ONCE for this action, reuse it on every retry
+val idemKey = UUID.randomUUID().toString()          // not regenerated per send attempt!
+val record = ProducerRecord("payments", order.id, PaymentRequested(order.id, order.total))
+record.headers().add("idempotency-key", idemKey.toByteArray())
+kafkaTemplate.send(record)</code></pre>
+
+<h3>Dedup atomically with the side effect</h3>
+<p>
+  Record the key <em>in the same transaction</em> as the side effect, guarded by a
+  <strong>unique constraint</strong> so two concurrent deliveries can&rsquo;t both slip through:
+</p>
+
+<pre><code>@KafkaListener(topics = ["payments"], groupId = "ledger")
+@Transactional                                        // dedup mark + side effect commit together
+fun on(rec: ConsumerRecord&lt;String, PaymentRequested&gt;) {
+    val key = rec.headers().lastHeader("idempotency-key")
+        ?.let { String(it.value()) } ?: error("missing idempotency key")
+
+    if (processed.existsById(key)) return             // already handled → skip (unique PK is the backstop)
+    ledger.credit(rec.value())                        // the non-idempotent side effect, now guarded
+    processed.save(ProcessedMessage(key))             // remembered, atomically with the credit
+}</code></pre>
+
+<p>
+  Prefer an insert-first form &mdash; <code>INSERT … ON CONFLICT DO NOTHING</code> and check the affected
+  row count &mdash; when you want to avoid a read-then-write race entirely. Either way, the
+  processed-key row and the side effect must land <em>together</em> (the offset commit lives outside, so
+  the dedup record is what keeps a post-commit crash from re-charging).
+</p>
+
+<h3>Watch it: a duplicate gets absorbed</h3>
+<p>Step through an idempotent consumer swallowing a redelivery (← / → keys work).</p>
+
+<div class="stepflow" data-token="token">
+  <div class="sf-stage">
+    <svg viewBox="0 0 720 320" role="img" aria-label="An idempotent consumer processes a message once, records its id, and skips the redelivered duplicate">
+      <defs>
+        <marker id="l8arw" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#c9c1b1"></path></marker>
+      </defs>
+
+      <line x1="164" y1="110" x2="288" y2="88" stroke="#c9c1b1" stroke-width="1.5" marker-end="url(#l8arw)"></line>
+      <line x1="365" y1="116" x2="365" y2="192" stroke="#c9c1b1" stroke-width="1.5" marker-end="url(#l8arw)"></line>
+      <line x1="440" y1="86" x2="544" y2="110" stroke="#c9c1b1" stroke-width="1.5" marker-end="url(#l8arw)"></line>
+
+      <rect id="actor-broker" class="sf-actor" x="24" y="84" width="140" height="62" rx="10" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.5"></rect>
+      <text x="94" y="110" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12.5" font-weight="600" fill="#1a1a1a">Broker</text>
+      <text x="94" y="128" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9.5" fill="#6b6459">at-least-once</text>
+
+      <rect id="actor-consumer" class="sf-actor" x="290" y="54" width="150" height="62" rx="10" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.5"></rect>
+      <text x="365" y="90" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12.5" font-weight="600" fill="#1a1a1a">Consumer</text>
+
+      <rect id="actor-store" class="sf-actor" x="286" y="194" width="158" height="72" rx="10" fill="#f7f4ec" stroke="#a98b3f" stroke-width="1.5"></rect>
+      <text x="365" y="216" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" font-weight="600" fill="#1a1a1a">dedup store</text>
+      <text id="storeEmpty" x="365" y="244" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" fill="#6b6459">(empty)</text>
+      <text id="storeAbc" x="365" y="244" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" font-weight="700" fill="#1f4a29" style="display:none">processed: abc</text>
+
+      <rect id="actor-payment" class="sf-actor" x="548" y="84" width="150" height="62" rx="10" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.5"></rect>
+      <text x="623" y="108" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12.5" font-weight="600" fill="#1a1a1a">Payment API</text>
+      <text id="chargeCount0" x="623" y="130" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" fill="#6b6459">charges: 0</text>
+      <text id="chargeCount1" x="623" y="130" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="700" fill="#1f4a29" style="display:none">charges: 1</text>
+
+      <text id="missBadge" x="365" y="290" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" fill="#8a4d16" style="display:none">abc not in store → process it</text>
+      <text id="hitBadge" x="365" y="290" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="600" fill="#1f4a29" style="display:none">abc already in store → skip</text>
+      <text id="redeliverBadge" x="94" y="162" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" fill="#b5651d" style="display:none">⟳ redelivered — same id</text>
+      <text id="skipBadge" x="623" y="160" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="700" fill="#a32f2f" style="display:none">charge SKIPPED</text>
+      <text id="onceBadge" x="360" y="308" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" font-weight="700" fill="#1f4a29" style="display:none">✓ effect applied exactly once</text>
+
+      <g id="token" class="sf-token" style="transform: translate(94px,112px)">
+        <circle r="15" fill="#7a2e2e" stroke="#fff" stroke-width="1.5"></circle>
+        <text class="sf-token-label" x="0" y="3" text-anchor="middle" font-family="system-ui,sans-serif" font-size="8.5" font-weight="700" fill="#fff">abc</text>
+      </g>
+    </svg>
+  </div>
+
+  <div class="sf-caption"><p class="sf-title"></p><p class="sf-desc"></p></div>
+  <div class="sf-controls">
+    <button class="sf-btn sf-prev" type="button">◀ Prev</button>
+    <button class="sf-btn sf-next" type="button">Next ▶</button>
+    <button class="sf-btn sf-reset" type="button">↺ Reset</button>
+    <button class="sf-btn sf-play" type="button">▶ Play</button>
+    <span class="sf-counter"></span>
+  </div>
+
+  <script type="application/json" class="sf-steps">
+  [
+    {"title":"A message with a stable id","desc":"An at-least-once broker holds a message carrying idempotency key <code>abc</code>. The dedup store is empty; 0 charges so far.","token":{"x":94,"y":112},"tokenLabel":"abc","visible":["storeEmpty","chargeCount0"],"highlight":["actor-broker"]},
+    {"title":"Delivered to the consumer","desc":"The broker delivers the message to the consumer.","token":{"x":365,"y":84},"tokenLabel":"abc","visible":["storeEmpty","chargeCount0"],"highlight":["actor-consumer"]},
+    {"title":"Check the dedup store","desc":"First question: have I processed <code>abc</code> before? The store says <strong>no</strong>.","token":{"x":365,"y":84},"tokenLabel":"abc","visible":["storeEmpty","chargeCount0","missBadge"],"highlight":["actor-store"]},
+    {"title":"Process + record — atomically","desc":"The consumer charges the card <strong>and</strong> writes <code>abc</code> to the store in one transaction. Charges = 1.","token":{"x":365,"y":84},"tokenLabel":"abc","visible":["storeAbc","chargeCount1"],"highlight":["actor-payment","actor-store"]},
+    {"title":"At-least-once: it is redelivered","desc":"A crash/retry redelivers the <em>same</em> message — same id <code>abc</code>.","token":{"x":94,"y":112},"tokenLabel":"abc·retry","visible":["storeAbc","chargeCount1","redeliverBadge"],"highlight":["actor-broker"]},
+    {"title":"Check the store → HIT → skip","desc":"This time <code>abc</code> is already in the store, so the consumer <strong>skips</strong> the charge entirely.","token":{"x":365,"y":84},"tokenLabel":"abc","visible":["storeAbc","chargeCount1","hitBadge","skipBadge"],"highlight":["actor-store"]},
+    {"title":"Effectively once","desc":"Charges are still <strong>1</strong>. The duplicate delivery changed nothing — that is an idempotent consumer.","token":{"x":365,"y":84},"tokenLabel":"abc","visible":["storeAbc","chargeCount1","onceBadge"],"highlight":["actor-payment"]}
+  ]
+  </script>
+</div>
+
+<h2>4. The hard case: the side effect is in another system</h2>
+
+<p>
+  Your dedup store is Postgres, but the charge is a call to Stripe. You <em>can&rsquo;t</em> put an external
+  HTTP call inside your database transaction, so the check-and-record trick doesn&rsquo;t cover it. The
+  answer: <strong>push the idempotency key through to the external API</strong> and let <em>it</em>
+  dedup.
+</p>
+
+<p>
+  This is exactly what payment APIs are built for. Stripe: &ldquo;A client generates an idempotency key
+  … the server uses [it] to recognize subsequent retries … saving the resulting status code and body
+  of the first request … Subsequent requests with the same key return the same result.&rdquo;
+</p>
+
+<pre><code>// Reuse the SAME key you carried on the message → the external system charges once
+fun charge(req: PaymentRequested, idemKey: String): ChargeResult =
+    stripeClient.post("/v1/charges", req) {
+        header("Idempotency-Key", idemKey)     // retry with the same key ⇒ Stripe returns the first result
+    }</code></pre>
+
+<div class="callout insight">
+  <span class="label">The key travels end-to-end</span>
+  <p>
+    One stable key, generated at the producer, rides the message, keys your dedup store, <em>and</em>
+    goes into the <code>Idempotency-Key</code> header of the downstream call. That single identity is
+    what makes an at-least-once chain behave as effectively-once from end to end.
+  </p>
+</div>
+
+<h2>5. Dedup windows &amp; broker-native dedup</h2>
+
+<p>
+  You can&rsquo;t remember every processed key forever, so a dedup store is <strong>bounded</strong> &mdash; by
+  time or size. That creates a rule:
+</p>
+
+<div class="callout warning">
+  <span class="label">Size the window to the worst-case redelivery</span>
+  <p>
+    If a duplicate can arrive <em>after</em> your window expires, it will be reprocessed. So the
+    retention must exceed the worst-case gap between the first delivery and the last possible
+    redelivery: retry horizon + DLQ replay + consumer lag + broker retention. Stripe prunes
+    idempotency keys after <strong>24 hours</strong>; size <em>yours</em> for how late a dup could
+    realistically show up.
+  </p>
+</div>
+
+<p>Brokers offer their own dedup &mdash; but always with a <em>narrow</em> window, so treat it as a bonus, not the plan:</p>
+<table>
+  <thead><tr><th>Broker</th><th>Native dedup</th></tr></thead>
+  <tbody>
+    <tr><td><strong>SQS FIFO</strong></td><td><code>MessageDeduplicationId</code> / content-based — only within a <strong>5-minute</strong> window</td></tr>
+    <tr><td><strong>Kafka</strong></td><td>Idempotent producer dedups <em>producer retries</em> per partition (Lesson 06) — not your app-level duplicates</td></tr>
+    <tr><td><strong>RabbitMQ</strong></td><td>No native dedup (a community plugin exists) → rely on consumer idempotency</td></tr>
+    <tr><td><strong>GCP Pub/Sub</strong></td><td>Exactly-once delivery dedups within the ack deadline; exposes a stable <code>message_id</code></td></tr>
+    <tr><td><strong>Redis</strong></td><td>Roll your own: <code>SET key val NX EX ttl</code> as a dedup store</td></tr>
+  </tbody>
+</table>
+
+<p>
+  The lesson: broker-native dedup is a short-lived safety net. <strong>Durable correctness comes from
+  an application-level idempotent consumer</strong> with a key you control &mdash; the one pattern that
+  works identically across all five.
+</p>
+
+<div class="callout warning">
+  <span class="label">Beware cascading duplicates</span>
+  <p>
+    If your consumer&rsquo;s side effect is to <em>emit another message</em>, a duplicate can cascade
+    downstream. The emission must itself be deduplicated — carry the idempotency key forward, and
+    produce through a <strong>transactional outbox</strong> (its own lesson) so the emit is tied to the
+    same transaction as the state change.
+  </p>
+</div>
+
+<div class="primary-source">
+  <span class="label">Go deeper (primary sources)</span>
+  <p>
+    <a href="https://microservices.io/patterns/communication-style/idempotent-consumer.html" target="_blank" rel="noopener">microservices.io &mdash; <em>Idempotent Consumer</em></a>,
+    <a href="https://docs.stripe.com/api/idempotent_requests" target="_blank" rel="noopener">Stripe &mdash; <em>Idempotent requests</em></a>
+    (client keys, 24h pruning), and
+    <a href="https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/using-messagededuplicationid-property.html" target="_blank" rel="noopener">AWS &mdash; <em>SQS message deduplication ID</em></a>
+    (the 5-minute window).
+  </p>
+</div>
+
+<h2>6. Check yourself</h2>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 1 of 2</p>
+  <p class="quiz-q">Which write is <em>naturally</em> idempotent — safe to replay with no dedup?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="Assignment sets an absolute value; running it again lands on the same state.">Set the order status to 'PAID'</button></li>
+    <li><button data-correct="false" data-feedback="Increment is relative — replaying it adds again, corrupting the balance.">Add ten dollars to the balance</button></li>
+    <li><button data-correct="false" data-feedback="A fresh INSERT on replay creates a duplicate row.">Insert a new payment row</button></li>
+    <li><button data-correct="false" data-feedback="A second send delivers a second email — not idempotent.">Send the confirmation email</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Absolute assignment / upsert / delete-by-id are replay-safe; increments, inserts, and sends are not."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 2 of 2</p>
+  <p class="quiz-q">Best source for a deduplication key that survives a producer retry?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="A producer-generated UUID made once and carried on the message stays identical across retries.">A producer-generated id on the message</button></li>
+    <li><button data-correct="false" data-feedback="A retry gets a new offset for the same logical message — unstable as a key.">The broker's offset for the record</button></li>
+    <li><button data-correct="false" data-feedback="Payload hashes break when timestamps or field order vary between sends.">A hash of the message payload bytes</button></li>
+    <li><button data-correct="false" data-feedback="Receive time differs on each delivery — it can't identify a duplicate.">The consumer's message receipt time</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Dedup on a stable, producer-generated id carried in the message — never on the broker's wire id/offset or receipt time."></div>
+</div>
+
+<div class="callout tryit">
+  <span class="label">Try it in your own system</span>
+  <p>
+    Take one non-idempotent consumer you own. First try to <em>reshape</em> its write to be naturally
+    idempotent. If you can&rsquo;t, decide the stable key, where you&rsquo;ll store processed keys, and how
+    long you&rsquo;ll keep them (vs your worst-case redelivery). Bring those three answers.
+  </p>
+</div>
+
+<div class="followup">
+  <strong>I&rsquo;m your teacher &mdash; ask anything.</strong> Want the RabbitMQ or SQS version of the dedup
+  store, the <code>ON CONFLICT DO NOTHING</code> race-free variant, or how the <strong>transactional
+  outbox</strong> stops the cascade at the source? Ask &mdash; or answer a quiz back so I can tune Lesson 09.
+</div>
+
+<nav class="lesson-nav">
+  <span class="group">
+    <b>Previous</b>
+    <a href="0007-operating-kafka-exactly-once.html">← Lesson 07 · Operating Kafka Exactly-Once</a>
+  </span>
+  <span class="group">
+    <b>Reference</b>
+    <a href="../reference/0008-idempotency-cheatsheet.html">Idempotency &amp; dedup cheat sheet →</a>
+  </span>
+  <span class="group">
+    <b>Up next</b>
+    <a href="0009-ordering-partitioning.html">Lesson 09 · Ordering &amp; partitioning</a>
+  </span>
+</nav>
+
+</body>
+</html>

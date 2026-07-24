@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 01 · Why SRE? Reliability as a Measured Target, Not Heroics</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<script src="../assets/quiz.js" defer></script>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Reliability &amp; SRE · Lesson 01</p>
+  <h1>Why SRE? Reliability as a Measured Target, Not Heroics</h1>
+  <div class="meta">
+    <span>◷ ~10 min read</span>
+    <span class="dot">•</span>
+    <span>Level: Foundations</span>
+    <span class="dot">•</span>
+    <span>Prereq: you ship a service to production</span>
+  </div>
+</header>
+
+<p class="mission-tie">
+  You build services well &mdash; but you rarely <em>operate</em> them: no on-call, no SLOs. This
+  lesson gives you the one mental shift the rest of your journey to staff-level reliability rests on:
+  reliability is a <strong>number you choose and measure from the user&rsquo;s side</strong>, not
+  heroics after the pager fires. Golden signals, incident response, safe rollouts &mdash; everything
+  later hangs off this single idea.
+</p>
+
+<h2>1. Start where you are: &ldquo;does it work?&rdquo;</h2>
+
+<p>
+  As a builder, your instinct is a binary question: <em>does it work?</em> You write the feature, the
+  tests go green, you deploy, it works in the demo. Reliability, if it&rsquo;s considered at all, is a
+  vague &ldquo;let&rsquo;s try not to break prod&rdquo; plus hope. And when something <em>does</em>
+  break, it&rsquo;s a scramble &mdash; someone notices, someone panics, someone heroically fixes it at
+  night. The system was &ldquo;reliable&rdquo; because a person rescued it.
+</p>
+
+<p>
+  That works for one service and one on-call hero. It does not scale, and it is not a discipline. The
+  entire field of <span class="term">SRE</span> exists to replace that hope-and-heroics loop with
+  something you can <em>measure, budget, and defend</em>.
+</p>
+
+<h2>2. Where &ldquo;does it work?&rdquo; falls apart</h2>
+
+<p>Four cracks appear the moment a service matters to real users:</p>
+
+<table>
+  <thead>
+    <tr><th>The question&hellip;</th><th>&hellip;with no measured target</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>&ldquo;Is it reliable <em>enough</em>?&rdquo;</strong></td>
+      <td>Nobody can answer. There&rsquo;s no shared definition of &ldquo;enough&rdquo;, so the debate
+          is vibes, not data.</td>
+    </tr>
+    <tr>
+      <td><strong>&ldquo;Ship the feature, or fix stability?&rdquo;</strong></td>
+      <td>Every velocity-vs-reliability call becomes political &mdash; loudest voice wins, not the
+          numbers.</td>
+    </tr>
+    <tr>
+      <td><strong>&ldquo;How good should we be?&rdquo;</strong></td>
+      <td>The unspoken answer is <em>100% &mdash; never break</em>. That&rsquo;s impossible and
+          paralysing: <em>any</em> outage feels like total failure.</td>
+    </tr>
+    <tr>
+      <td><strong>&ldquo;When do we wake someone?&rdquo;</strong></td>
+      <td>With no threshold for &ldquo;bad enough&rdquo;, you page on everything (noise) or nothing
+          (missed outages).</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>
+  The root problem is the same each time: reliability is being treated as a vague aspiration. You
+  can&rsquo;t manage what you don&rsquo;t measure &mdash; and crucially, you can&rsquo;t measure it by
+  staring at your servers. A box can be <strong>up</strong> while checkout is <strong>failing</strong>.
+  You have to measure the <em>user&rsquo;s</em> experience.
+</p>
+
+<h2>3. The move: make reliability a number, from the user&rsquo;s side</h2>
+
+<p>
+  SRE&rsquo;s structural move is to replace &ldquo;does it work?&rdquo; with a small chain of precise,
+  measurable things. Two nouns do the heavy lifting (definitions straight from the Google SRE Book,
+  Ch.&nbsp;4):
+</p>
+
+<ul>
+  <li>
+    A <span class="term">SLI</span> &mdash; <em>Service Level Indicator</em> &mdash; is a carefully
+    defined quantitative measure of one aspect of the service <em>as users experience it</em>. Almost
+    always a ratio: <code>good events &divide; valid events</code>. <br>
+    <em>Example:</em> the proportion of checkout requests served in under 300&nbsp;ms without an error.
+  </li>
+  <li>
+    A <span class="term">SLO</span> &mdash; <em>Service Level Objective</em> &mdash; is the
+    <em>target</em> for that SLI over a window. <br>
+    <em>Example:</em> 99.9% of checkout requests succeed over 30 days.
+  </li>
+</ul>
+
+<figure>
+<svg viewBox="0 0 660 150" role="img" aria-label="The SRE chain from user journey to SLI to SLO to error budget to policy">
+  <defs>
+    <marker id="arw" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#63625c"></path>
+    </marker>
+  </defs>
+
+  <!-- boxes -->
+  <rect x="6"   y="46" width="108" height="56" rx="7" fill="#f6f7f4" stroke="#2e5a7a" stroke-width="1.5"></rect>
+  <text x="60"  y="72" text-anchor="middle" font-family="system-ui, sans-serif" font-size="12.5" fill="#1a1a1a" font-weight="600">User journey</text>
+  <text x="60"  y="90" text-anchor="middle" font-family="system-ui, sans-serif" font-size="10" fill="#63625c">what users do</text>
+
+  <rect x="134" y="46" width="108" height="56" rx="7" fill="#f6f7f4" stroke="#2e5a7a" stroke-width="1.5"></rect>
+  <text x="188" y="72" text-anchor="middle" font-family="system-ui, sans-serif" font-size="13" fill="#1a1a1a" font-weight="600">SLI</text>
+  <text x="188" y="90" text-anchor="middle" font-family="system-ui, sans-serif" font-size="10" fill="#63625c">measured signal</text>
+
+  <rect x="262" y="46" width="108" height="56" rx="7" fill="#e9f2ef" stroke="#14807a" stroke-width="1.9"></rect>
+  <text x="316" y="72" text-anchor="middle" font-family="system-ui, sans-serif" font-size="13" fill="#1a1a1a" font-weight="600">SLO</text>
+  <text x="316" y="90" text-anchor="middle" font-family="system-ui, sans-serif" font-size="10" fill="#63625c">target + window</text>
+
+  <rect x="390" y="46" width="108" height="56" rx="7" fill="#fbecec" stroke="#b23b3b" stroke-width="1.7"></rect>
+  <text x="444" y="72" text-anchor="middle" font-family="system-ui, sans-serif" font-size="12.5" fill="#1a1a1a" font-weight="600">Error budget</text>
+  <text x="444" y="90" text-anchor="middle" font-family="system-ui, sans-serif" font-size="10" fill="#63625c">1 &minus; SLO</text>
+
+  <rect x="518" y="46" width="108" height="56" rx="7" fill="#eef1f6" stroke="#2e5a7a" stroke-width="1.5"></rect>
+  <text x="572" y="72" text-anchor="middle" font-family="system-ui, sans-serif" font-size="13" fill="#1a1a1a" font-weight="600">Policy</text>
+  <text x="572" y="90" text-anchor="middle" font-family="system-ui, sans-serif" font-size="10" fill="#63625c">ship or freeze</text>
+
+  <!-- arrows -->
+  <line x1="114" y1="74" x2="132" y2="74" stroke="#63625c" stroke-width="1.5" marker-end="url(#arw)"></line>
+  <line x1="242" y1="74" x2="260" y2="74" stroke="#63625c" stroke-width="1.5" marker-end="url(#arw)"></line>
+  <line x1="370" y1="74" x2="388" y2="74" stroke="#63625c" stroke-width="1.5" marker-end="url(#arw)"></line>
+  <line x1="498" y1="74" x2="516" y2="74" stroke="#63625c" stroke-width="1.5" marker-end="url(#arw)"></line>
+
+  <!-- verbs -->
+  <text x="188" y="126" text-anchor="middle" font-family="system-ui, sans-serif" font-size="10.5" font-style="italic" fill="#14615f">you measure it</text>
+  <text x="316" y="126" text-anchor="middle" font-family="system-ui, sans-serif" font-size="10.5" font-style="italic" fill="#14615f">you choose it</text>
+  <text x="444" y="126" text-anchor="middle" font-family="system-ui, sans-serif" font-size="10.5" font-style="italic" fill="#14615f">you spend it</text>
+</svg>
+<figcaption>The SRE chain: measure the user&rsquo;s experience, choose a target, and the leftover becomes a budget you spend on change.</figcaption>
+</figure>
+
+<p>
+  (One aside to keep the vocabulary clean: a <span class="term">SLA</span> &mdash; <em>Agreement</em>
+  &mdash; is an SLO with a <em>contractual consequence</em>, like a refund. The five-second test:
+  <em>&ldquo;what happens if it&rsquo;s missed?&rdquo;</em> No consequence &rArr; it&rsquo;s an SLO,
+  not an SLA. You&rsquo;ll live in SLI/SLO land; SLAs are a business layer on top.)
+</p>
+
+<h2>4. The reframe that changes everything: 100% is the wrong target</h2>
+
+<p>
+  Here is the counter-intuitive heart of SRE. You might expect the goal to be a service that
+  <em>never</em> fails. But past a point, <strong>more reliability is worse</strong>, not better. The
+  Google SRE Book puts it bluntly: each extra &ldquo;nine&rdquo; of availability can cost 10&times; more
+  than the last, while stealing the engineering time and release velocity you&rsquo;d spend on
+  features &mdash; and <em>users can&rsquo;t even tell.</em>
+</p>
+
+<div class="callout insight">
+  <span class="label">The 99% smartphone</span>
+  <p>
+    A user on a 99%-reliable phone and network literally cannot distinguish a 99.99% service from a
+    99.999% one &mdash; the weakest link in the chain to their eyeballs dominates. Chasing that last
+    nine buys nothing a user notices, at enormous cost. So you deliberately aim for
+    <em>reliable enough</em>, and treat the target as both a floor <strong>and a ceiling</strong>.
+  </p>
+</div>
+
+<p>
+  Once you accept a target below 100%, something powerful falls out for free. The gap between your SLO
+  and 100% is the <span class="term">error budget</span> &mdash; the amount of unreliability
+  you&rsquo;re <em>allowed</em>:
+</p>
+
+<div class="ebudget">
+  <div class="ebudget-track">
+    <div class="ebudget-good" style="flex:90">SLO = 99.9% &middot; &ldquo;reliable enough&rdquo;</div>
+    <div class="ebudget-err" style="flex:10">error budget = 0.1%</div>
+  </div>
+  <div class="ebudget-cap">
+    <span>0%</span>
+    <span>&larr; your chosen target &nbsp;·&nbsp; 100% (impossible) &rarr;</span>
+    <span>100%</span>
+  </div>
+</div>
+<p style="font-size:.82rem; color:var(--muted); font-style:italic; margin-top:-.6rem;">
+  Schematic &mdash; the 0.1% slice is drawn oversized so you can see it. In real numbers, a 99.9% SLO
+  over 30 days is a budget of about <strong>43 minutes</strong> of failed requests per month.
+</p>
+
+<div class="callout insight">
+  <span class="label">The core idea</span>
+  <p>
+    Reliability is a number you <strong>choose</strong>, and the leftover &mdash;
+    <code>error budget = 1 &minus; SLO</code> &mdash; is a currency you <strong>spend</strong>. Every
+    risky deploy, experiment, or bit of planned maintenance draws down the budget. Spending it
+    isn&rsquo;t failure; it&rsquo;s <em>the point</em>.
+  </p>
+</div>
+
+<h2>5. Why this is the whole game (error budget as policy)</h2>
+
+<p>
+  This is the staff-level payoff, and the reason SRE is a discipline rather than a vibe. The error
+  budget converts &ldquo;feature vs. stability&rdquo; from a political argument into a
+  <strong>shared policy</strong> both sides read off one number:
+</p>
+
+<ul>
+  <li><strong>Budget healthy?</strong> Ship fast, take risks, launch the thing. You&rsquo;ve earned it.</li>
+  <li><strong>Budget spent?</strong> Freeze risky launches and pay down reliability until you&rsquo;re
+      back in the black.</li>
+</ul>
+
+<p>
+  Product and engineering stop fighting because the budget arbitrates. As the SRE Workbook puts it,
+  an SLO is what makes reliability a data-driven decision &mdash; so much so that
+  <em>&ldquo;without SLOs, there is no need for SREs.&rdquo;</em> The SLO <em>is</em> the thing that
+  turns heroics into engineering.
+</p>
+
+<h2>6. Where you actually are right now</h2>
+
+<p>
+  The Workbook describes a maturity ladder. Find yourself on it &mdash; honestly:
+</p>
+
+<table>
+  <thead><tr><th>Rung</th><th>What it looks like</th></tr></thead>
+  <tbody>
+    <tr><td><strong>0 · Greenfield</strong></td><td>Nothing deployed yet; no monitoring.</td></tr>
+    <tr><td><strong>1 · Monitoring, no SLO</strong></td><td>You have dashboards and alerts, but no formal
+        objective and an unspoken goal of 100% uptime. <em>&larr; most teams (and probably you) are here.</em></td></tr>
+    <tr><td><strong>2 · SLO without teeth</strong></td><td>An SLO exists, but nobody uses it to make
+        decisions &mdash; it&rsquo;s a dashboard number, not a policy.</td></tr>
+    <tr><td><strong>3 · SLO with an error-budget policy</strong></td><td>The budget actually drives
+        ship/freeze decisions. This is the goal.</td></tr>
+  </tbody>
+</table>
+
+<p>
+  Your journey through this course is the climb from rung&nbsp;1 to rung&nbsp;3. This lesson just moved
+  you off the &ldquo;100% or bust&rdquo; mindset that keeps teams stuck &mdash; that&rsquo;s the real
+  win today.
+</p>
+
+<h2>7. The nuance: don&rsquo;t SLO everything</h2>
+
+<p>
+  A trap for the newly-converted: measuring <em>everything</em>. Resist it. Pick the handful of
+  <strong>user journeys that matter</strong> &mdash; checkout, login, search &mdash; and write a few
+  good SLOs for those. An SLO on host CPU or raw uptime is a <em>bad</em> SLO: it can be green while
+  users suffer, and red while they&rsquo;re fine. Few, user-centred, understandable. That&rsquo;s the
+  bar.
+</p>
+
+<div class="primary-source">
+  <span class="label">Read this next (primary source)</span>
+  <p>
+    <a href="https://sre.google/sre-book/service-level-objectives/" target="_blank" rel="noopener">
+    Google SRE Book &mdash; <em>Ch.&nbsp;4: Service Level Objectives</em></a>. Short, canonical, and the
+    origin of the SLI/SLO/SLA vocabulary you just met. Then skim
+    <a href="https://sre.google/sre-book/embracing-risk/" target="_blank" rel="noopener">Ch.&nbsp;3:
+    Embracing Risk</a> for the error-budget argument in full. When you&rsquo;re ready to <em>do</em> it,
+    the <a href="https://sre.google/workbook/implementing-slos/" target="_blank" rel="noopener">SRE
+    Workbook &mdash; Implementing SLOs</a> is the step-by-step recipe.
+  </p>
+</div>
+
+<h2>8. Check yourself</h2>
+<p>Don&rsquo;t just nod &mdash; retrieve. Answer before revealing; effortful recall is what makes it stick.</p>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 1 of 2</p>
+  <p class="quiz-q">Why is 100% reliability the <em>wrong</em> target to aim for?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="Cloud platforms fail too; nothing gives you free perfect uptime.">Cloud platforms already provide full uptime for free</button></li>
+    <li><button data-correct="true" data-feedback="Exactly &mdash; steep cost per nine, and the weakest link to the user hides it.">Each extra nine costs far more than users can notice</button></li>
+    <li><button data-correct="false" data-feedback="Users value reliability too; the point is cost, not that features always win.">Users always prefer new features over any reliability</button></li>
+    <li><button data-correct="false" data-feedback="Reliability is very measurable &mdash; that&rsquo;s the whole SLI idea.">Reliability simply cannot be measured accurately enough</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Past a point, reliability costs ~10&times; per nine while users &mdash; on their own flaky devices and networks &mdash; can&rsquo;t tell the difference. So you choose &lsquo;reliable enough&rsquo; and spend the rest as budget."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 2 of 2</p>
+  <p class="quiz-q">You set &ldquo;99.9% of logins succeed monthly&rdquo;, with no refund if missed. That target is a&hellip;</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="Right &mdash; a target with no consequence attached is an SLO.">SLO &mdash; an internal target, no external penalty</button></li>
+    <li><button data-correct="false" data-feedback="An SLA needs a consequence; there&rsquo;s none here, so it isn&rsquo;t one.">SLA &mdash; a promise that pays out when it&rsquo;s missed</button></li>
+    <li><button data-correct="false" data-feedback="The SLI is the raw signal (login success rate); 99.9% is the objective.">SLI &mdash; the raw measured signal being tracked here</button></li>
+    <li><button data-correct="false" data-feedback="Naming a number doesn&rsquo;t make an SLA; the missing penalty does.">SLA &mdash; because it states a precise numeric goal</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="The five-second test: &lsquo;what happens if it&rsquo;s missed?&rsquo; No consequence &rArr; SLO. Add a contractual penalty and it becomes an SLA."></div>
+</div>
+
+<div class="callout tryit">
+  <span class="label">Try it in your own system</span>
+  <p>
+    Pick one service you ship. Name a single <strong>user journey</strong> it serves (e.g. &ldquo;log
+    in&rdquo;, &ldquo;load the dashboard&rdquo;). Draft <em>one</em> SLI as
+    <code>good &divide; valid</code> events, and a first-guess SLO for it. Don&rsquo;t polish it &mdash;
+    just get a number on paper. Bring it to our next chat and we&rsquo;ll sharpen it together in
+    Lesson&nbsp;02.
+  </p>
+</div>
+
+<div class="followup">
+  <strong>I&rsquo;m your teacher &mdash; ask me anything.</strong> Want the &ldquo;nines&rdquo; as real
+  minutes for <em>your</em> traffic? Curious how an SLI looks as a PromQL query, or how to measure
+  &ldquo;good events&rdquo; with OpenTelemetry? Unsure how error-budget policy plays out in a real
+  sprint? Just ask &mdash; the follow-ups are where the learning compounds.
+</div>
+
+<nav class="lesson-nav">
+  <span class="group">
+    <b>Reference</b>
+    <a href="../reference/0001-sli-slo-error-budget-cheatsheet.html">SLI · SLO · Error-budget cheat sheet &rarr;</a>
+  </span>
+  <span class="group">
+    <b>Canonical terms</b>
+    <a href="../GLOSSARY.md">GLOSSARY.md</a>
+  </span>
+  <span class="group">
+    <b>Up next</b>
+    <a href="0002-choosing-good-slis.html">Lesson 02 · Choosing good SLIs &rarr;</a>
+  </span>
+</nav>
+
+</body>
+</html>

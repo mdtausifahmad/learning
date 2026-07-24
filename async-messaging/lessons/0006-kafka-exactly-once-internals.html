@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 06 · Deep Dive — Inside Kafka Exactly-Once</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<script src="../assets/quiz.js" defer></script>
+<script src="../assets/stepflow.js" defer></script>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Async &amp; Messaging · Lesson 06 · Deep Dive</p>
+  <h1>Inside Kafka Exactly-Once — Sequence Numbers &amp; <code>read_committed</code></h1>
+  <div class="meta">
+    <span>◷ ~17 min read · interactive</span>
+    <span class="dot">•</span>
+    <span>Level: Depth / Staff</span>
+    <span class="dot">•</span>
+    <span>Deepens: <a href="0005-delivery-guarantees.html">Lesson 05</a> (Route B)</span>
+  </div>
+</header>
+
+<p class="mission-tie">
+  In Lesson 05 you turned on Kafka EOS with three configs and trusted it. This deep dive opens the
+  hood on the two questions you asked: <em>how does the idempotent producer actually stop
+  duplicates,</em> and <em>why does <code>read_committed</code> matter?</em> Knowing the mechanism is
+  what lets you reason about its <strong>costs and failure modes</strong> &mdash; the staff difference
+  between &ldquo;we enabled exactly-once&rdquo; and &ldquo;here&rsquo;s exactly what it does and doesn&rsquo;t buy us.&rdquo;
+</p>
+
+<h2>1. The idempotent producer: TCP for your writes</h2>
+
+<p>
+  The problem (from Lesson 05): a producer that loses an ack must retry, and if the broker had
+  actually written the message, the retry duplicates it. Kafka&rsquo;s fix, in Confluent&rsquo;s own words,
+  &ldquo;works in a way similar to TCP: each batch of messages sent to Kafka will contain a
+  <strong>sequence number</strong> that the broker will use to dedupe any duplicate send.&rdquo;
+</p>
+
+<p>Concretely, under the hood:</p>
+<ul>
+  <li>The broker assigns each producer a <span class="term">Producer ID (PID)</span> on start-up.</li>
+  <li>Every batch carries the PID and a <strong>monotonically increasing sequence number, maintained
+      per partition</strong>.</li>
+  <li>The partition leader remembers the <strong>highest sequence number it has accepted</strong> for
+      each <code>(PID, partition)</code>.</li>
+  <li>A resend arrives with the <em>same</em> sequence number → the broker sees it&rsquo;s a duplicate,
+      <strong>drops it, and still returns success</strong>. A number with a <em>gap</em> → it rejects
+      with <code>OutOfOrderSequenceException</code>.</li>
+</ul>
+
+<figure>
+<svg viewBox="0 0 640 240" role="img" aria-label="A retried batch with the same sequence number is recognized as a duplicate by the broker and dropped">
+  <defs>
+    <marker id="arw" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#6b6459"></path></marker>
+    <marker id="arwg" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#3f7a3f"></path></marker>
+    <marker id="arwa" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#b5651d"></path></marker>
+  </defs>
+
+  <rect x="24" y="92" width="130" height="60" rx="8" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.5"></rect>
+  <text x="89" y="118" text-anchor="middle" font-family="system-ui, sans-serif" font-size="13" fill="#1a1a1a">Producer</text>
+  <text x="89" y="136" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" fill="#6b6459">PID = 7</text>
+
+  <rect x="398" y="30" width="216" height="180" rx="8" fill="#f7f4ec" stroke="#6b6459" stroke-width="1.25"></rect>
+  <text x="506" y="52" text-anchor="middle" font-family="system-ui, sans-serif" font-size="12" fill="#1a1a1a" font-weight="600">Broker — leader of P0</text>
+  <rect x="416" y="66" width="180" height="44" rx="6" fill="#f3f0e8" stroke="#a98b3f" stroke-width="1.25"></rect>
+  <text x="506" y="85" text-anchor="middle" font-family="system-ui, sans-serif" font-size="10.5" fill="#6b6459">highest seq accepted</text>
+  <text x="506" y="101" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11.5" fill="#1a1a1a" font-weight="600">(PID 7, P0) → 5</text>
+  <text x="506" y="136" text-anchor="middle" font-family="system-ui, sans-serif" font-size="10.5" fill="#6b6459">partition log (one copy):</text>
+  <rect x="446" y="146" width="120" height="30" rx="5" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.25"></rect>
+  <text x="506" y="166" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" fill="#1f4a29">… msg @ seq 5</text>
+
+  <line x1="154" y1="112" x2="394" y2="92" stroke="#3f7a3f" stroke-width="1.75" marker-end="url(#arwg)"></line>
+  <text x="270" y="98" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" fill="#3f7a3f" font-weight="600">① batch seq=5 → appended</text>
+
+  <text x="196" y="140" text-anchor="middle" font-family="system-ui, sans-serif" font-size="10.5" fill="#a32f2f">✗ ack lost</text>
+
+  <line x1="154" y1="150" x2="394" y2="150" stroke="#b5651d" stroke-width="1.75" marker-end="url(#arwa)"></line>
+  <text x="274" y="168" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" fill="#b5651d" font-weight="600">② retry seq=5 → recognized dup, dropped (ack OK)</text>
+</svg>
+<figcaption>The sequence number is persisted to the replicated log, so even after a leader failover the new leader still recognizes the retry as a duplicate.</figcaption>
+</figure>
+
+<div class="callout insight">
+  <span class="label">What this does &mdash; and doesn&rsquo;t &mdash; buy you</span>
+  <p>
+    Idempotence gives <strong>&ldquo;exactly-once, in order, per partition&rdquo;</strong> for <em>one
+    producer&rsquo;s retries</em>, at the cost of &ldquo;just a few extra numeric fields per batch.&rdquo; It does
+    <strong>not</strong> dedupe application-level duplicates (you sent the same order twice on purpose),
+    nor duplicates across a full producer restart unless you also use a <code>transactional.id</code>.
+    It&rsquo;s the <em>first</em> layer, not the whole story. (Default-on since Kafka 3.0; needs
+    <code>acks=all</code> and <code>max.in.flight.requests.per.connection ≤ 5</code>.)
+  </p>
+</div>
+
+<h2>2. Transactions: making the read-process-write atomic</h2>
+
+<p>
+  Idempotence stops producer-retry duplicates on one partition. But a stream processor that reads
+  <em>A</em>, computes <em>B = F(A)</em>, and writes <em>B</em> can still double-produce if it crashes
+  <em>after</em> writing <em>B</em> but <em>before</em> marking <em>A</em> consumed. Transactions close
+  that gap with one elegant realization:
+</p>
+
+<div class="callout insight">
+  <span class="label">The key trick</span>
+  <p>
+    In Kafka, <strong>committing a consumer offset is just another write to a topic</strong> (the
+    internal offsets topic). So the write of <em>B</em> and the commit of <em>A</em>&rsquo;s offset can be
+    placed in the <strong>same transaction</strong> &mdash; and Kafka&rsquo;s atomic multi-partition write makes
+    them all-or-nothing. <em>A</em> is consumed if and only if <em>B</em> is produced.
+  </p>
+</div>
+
+<p>Two supporting mechanisms make it safe:</p>
+<ul>
+  <li><strong>Zombie fencing.</strong> A transactional producer registers a
+      <span class="term">transactional.id</span>; registering it bumps an
+      <span class="term">producer epoch</span>. Any older-epoch producer with the same id is a
+      &ldquo;zombie&rdquo; and its writes are rejected. This kills the duplicate-instance problem.</li>
+  <li><strong>Control markers.</strong> A <span class="term">transaction coordinator</span> tracks
+      state in an internal log and writes a <strong>commit or abort marker</strong> (a control
+      message) into each partition the transaction touched. Those markers are how consumers later know
+      the transaction&rsquo;s fate.</li>
+</ul>
+
+<h2>3. Why <code>read_committed</code> matters</h2>
+
+<p>
+  Here is the subtlety that makes the isolation level essential: a transaction&rsquo;s messages are
+  <strong>appended to the partition log as they are produced</strong> &mdash; <em>before</em> the commit or
+  abort decision exists. So the log physically contains messages that may belong to a transaction
+  that ends up <strong>aborted</strong>.
+</p>
+
+<figure>
+<svg viewBox="0 0 640 210" role="img" aria-label="read_committed reads only up to the Last Stable Offset, withholding open-transaction messages and filtering aborted ones">
+  <defs>
+    <marker id="b2" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#6b6459"></path></marker>
+  </defs>
+  <text x="20" y="26" font-family="system-ui, sans-serif" font-size="11.5" fill="#6b6459" font-weight="600">partition log (offset order →)</text>
+
+  <rect x="30" y="42" width="90" height="42" rx="5" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.5"></rect>
+  <text x="75" y="67" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11.5" fill="#1f4a29">m1 ✓</text>
+  <rect x="124" y="42" width="90" height="42" rx="5" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.5"></rect>
+  <text x="169" y="67" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11.5" fill="#1f4a29">m2 ✓</text>
+  <rect x="230" y="42" width="96" height="42" rx="5" fill="#fbf1e7" stroke="#b5651d" stroke-width="1.5" stroke-dasharray="4 3"></rect>
+  <text x="278" y="61" text-anchor="middle" font-family="system-ui, sans-serif" font-size="10.5" fill="#8a4d16">m3 · open</text>
+  <text x="278" y="76" text-anchor="middle" font-family="system-ui, sans-serif" font-size="10.5" fill="#8a4d16">txn</text>
+  <rect x="330" y="42" width="96" height="42" rx="5" fill="#fbf1e7" stroke="#b5651d" stroke-width="1.5" stroke-dasharray="4 3"></rect>
+  <text x="378" y="61" text-anchor="middle" font-family="system-ui, sans-serif" font-size="10.5" fill="#8a4d16">m4 · open</text>
+  <text x="378" y="76" text-anchor="middle" font-family="system-ui, sans-serif" font-size="10.5" fill="#8a4d16">txn</text>
+  <rect x="436" y="42" width="96" height="42" rx="5" fill="#f3f0e8" stroke="#c9c1b1" stroke-width="1.25"></rect>
+  <text x="484" y="67" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" fill="#8a8577">m5 …</text>
+
+  <line x1="228" y1="30" x2="228" y2="150" stroke="#a32f2f" stroke-width="1.5" stroke-dasharray="5 3"></line>
+  <text x="228" y="24" text-anchor="middle" font-family="system-ui, sans-serif" font-size="10.5" fill="#a32f2f" font-weight="700">LSO</text>
+
+  <line x1="30" y1="104" x2="214" y2="104" stroke="#3f7a3f" stroke-width="2" marker-end="url(#b2)"></line>
+  <text x="120" y="122" text-anchor="middle" font-family="system-ui, sans-serif" font-size="10.5" fill="#3f7a3f" font-weight="600">read_committed delivers up to the LSO</text>
+
+  <text x="384" y="122" text-anchor="middle" font-family="system-ui, sans-serif" font-size="10.5" fill="#b5651d">withheld until the txn resolves — if aborted, filtered out</text>
+  <text x="320" y="168" text-anchor="middle" font-family="system-ui, sans-serif" font-size="10.5" fill="#a32f2f" font-style="italic">read_uncommitted would deliver m3/m4 immediately — even if the txn later aborts (dirty read)</text>
+</svg>
+<figcaption>The <em>Last Stable Offset</em> is the read horizon for <code>read_committed</code>: it never reads past an open transaction.</figcaption>
+</figure>
+
+<ul>
+  <li><strong><code>read_uncommitted</code> (the default!)</strong> reads everything in offset order,
+      immediately &mdash; including messages from transactions that later <strong>abort</strong>. Your
+      downstream sees data that &ldquo;never happened.&rdquo;</li>
+  <li><strong><code>read_committed</code></strong> only delivers <em>committed</em> transactional
+      messages. It reads up to the <span class="term">Last Stable Offset (LSO)</span> &mdash; the offset
+      just before the first still-open transaction &mdash; <strong>withholding</strong> anything beyond it,
+      and uses the commit/abort markers to <strong>filter out aborted</strong> messages entirely.</li>
+</ul>
+
+<div class="callout warning">
+  <span class="label">The cost, and the gotcha</span>
+  <p>
+    <code>read_committed</code> buys correctness but adds <strong>read latency</strong>: a consumer
+    cannot advance past an open transaction, so a <strong>long-running or hung transaction stalls all
+    <code>read_committed</code> consumers</strong> at the LSO until it commits, aborts, or times out
+    (<code>transaction.timeout.ms</code>). And note the default is <code>read_uncommitted</code> &mdash; if
+    you built a transactional pipeline but forgot to set the consumer&rsquo;s isolation level, you silently
+    get dirty reads and <em>no</em> exactly-once. This one line is easy to miss.
+  </p>
+</div>
+
+<h2>4. Watch it happen — exactly-once, step by step</h2>
+<p>
+  Step through the whole journey with the controls below (or focus it and use the ← / → keys). One
+  message travels producer → broker → consumer, <em>survives a lost ack and a retry</em>, and still
+  lands <strong>exactly once</strong>. Each step maps back to a mechanism from §1&ndash;§3.
+</p>
+
+<div class="stepflow" data-token="token">
+  <div class="sf-stage">
+    <svg viewBox="0 0 720 300" role="img" aria-label="Step-by-step exactly-once delivery from producer through broker to consumer">
+      <defs>
+        <marker id="sfarw" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#c9c1b1"></path></marker>
+      </defs>
+
+      <line x1="176" y1="150" x2="281" y2="150" stroke="#c9c1b1" stroke-width="1.5" marker-end="url(#sfarw)"></line>
+      <line x1="459" y1="150" x2="542" y2="150" stroke="#c9c1b1" stroke-width="1.5" marker-end="url(#sfarw)"></line>
+
+      <rect id="actor-producer" class="sf-actor" x="26" y="104" width="150" height="92" rx="10" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.5"></rect>
+      <text x="101" y="140" text-anchor="middle" font-family="system-ui,sans-serif" font-size="13" font-weight="600" fill="#1a1a1a">Producer</text>
+      <text x="101" y="161" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" fill="#6b6459">PID = 7</text>
+
+      <rect id="actor-broker" class="sf-actor" x="283" y="44" width="174" height="212" rx="10" fill="#f7f4ec" stroke="#2e5a7a" stroke-width="1.5"></rect>
+      <text x="370" y="66" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11.5" font-weight="600" fill="#1a1a1a">Broker — leader P0</text>
+      <rect x="299" y="80" width="142" height="38" rx="6" fill="#f3f0e8" stroke="#e4ded2" stroke-width="1"></rect>
+      <text id="seqNone" x="370" y="104" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" fill="#6b6459">last seq (PID7,P0): —</text>
+      <text id="seq5" x="370" y="104" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" font-weight="600" fill="#1f4a29" style="display:none">last seq (PID7,P0): 5</text>
+      <text x="370" y="133" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9.5" fill="#6b6459">partition log</text>
+      <rect x="299" y="138" width="142" height="44" rx="6" fill="#fdfcf9" stroke="#e4ded2" stroke-width="1"></rect>
+      <g id="logmsg" style="display:none">
+        <rect x="311" y="146" width="118" height="28" rx="5" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.25"></rect>
+        <text x="370" y="164" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" fill="#1f4a29">msg · seq 5</text>
+      </g>
+      <g id="marker" style="display:none">
+        <rect x="299" y="196" width="142" height="30" rx="6" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.25"></rect>
+        <text x="370" y="215" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9.5" fill="#1f4a29">✔ commit marker · below LSO</text>
+      </g>
+
+      <rect id="actor-consumer" class="sf-actor" x="544" y="104" width="150" height="92" rx="10" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.5"></rect>
+      <text x="619" y="140" text-anchor="middle" font-family="system-ui,sans-serif" font-size="13" font-weight="600" fill="#1a1a1a">Consumer</text>
+      <text x="619" y="161" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" fill="#6b6459">read_committed</text>
+
+      <g id="acklost" style="display:none">
+        <line x1="281" y1="182" x2="178" y2="182" stroke="#a32f2f" stroke-width="1.5" stroke-dasharray="5 3"></line>
+        <text x="229" y="199" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" fill="#a32f2f">✗ ack lost</text>
+      </g>
+      <g id="dupbadge" style="display:none">
+        <rect x="176" y="104" width="110" height="26" rx="5" fill="#fbf1e7" stroke="#b5651d" stroke-width="1.25"></rect>
+        <text x="231" y="121" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" fill="#8a4d16">seq 5 seen → dropped</text>
+      </g>
+      <g id="donebadge" style="display:none">
+        <rect x="556" y="76" width="126" height="24" rx="5" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.25"></rect>
+        <text x="619" y="92" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9.5" fill="#1f4a29">✔ delivered exactly once</text>
+      </g>
+
+      <g id="token" class="sf-token" style="transform: translate(101px,150px)">
+        <circle r="17" fill="#7a2e2e" stroke="#fff" stroke-width="1.5"></circle>
+        <text class="sf-token-label" x="0" y="4" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9.5" font-weight="700" fill="#fff">seq 5</text>
+      </g>
+    </svg>
+  </div>
+
+  <div class="sf-caption">
+    <p class="sf-title"></p>
+    <p class="sf-desc"></p>
+  </div>
+
+  <div class="sf-controls">
+    <button class="sf-btn sf-prev" type="button">◀ Prev</button>
+    <button class="sf-btn sf-next" type="button">Next ▶</button>
+    <button class="sf-btn sf-reset" type="button">↺ Reset</button>
+    <button class="sf-btn sf-play" type="button">▶ Play</button>
+    <span class="sf-counter"></span>
+  </div>
+
+  <script type="application/json" class="sf-steps">
+  [
+    {"title":"A message to deliver once","desc":"The producer has one message to deliver <strong>exactly once</strong>. Its idempotent producer stamps it with <code>PID 7</code> and per-partition <strong>sequence number 5</strong>.","token":{"x":101,"y":150},"tokenLabel":"seq 5","visible":["seqNone"],"highlight":["actor-producer"]},
+    {"title":"Producer sends the batch","desc":"The producer sends the batch (PID 7, seq 5) across to the partition leader.","token":{"x":370,"y":160},"tokenLabel":"seq 5","visible":["seqNone"],"highlight":["actor-producer","actor-broker"]},
+    {"title":"Broker appends and records the sequence","desc":"The broker appends the message to the log and records the highest accepted sequence for (PID 7, P0) = <strong>5</strong>, then sends an ack.","token":{"x":370,"y":160},"tokenLabel":"seq 5","visible":["seq5","logmsg"],"highlight":["actor-broker"]},
+    {"title":"…but the ack is lost","desc":"The ack never reaches the producer. The producer <em>cannot tell</em> whether the write succeeded — so it must assume it failed.","token":{"x":370,"y":160},"tokenLabel":"seq 5","visible":["seq5","logmsg","acklost"],"highlight":["actor-producer"]},
+    {"title":"Producer retries the same batch","desc":"Not knowing, the producer resends the <em>same</em> batch — still <strong>seq 5</strong>. This is exactly what a lost ack forces (Lesson 05).","token":{"x":215,"y":150},"tokenLabel":"seq 5 · retry","visible":["seq5","logmsg"],"highlight":["actor-producer","actor-broker"]},
+    {"title":"Broker recognises the duplicate","desc":"The broker sees seq 5 is not greater than the 5 it already accepted → <strong>duplicate</strong>. It drops the resend and re-acks. The log still holds <strong>one</strong> copy.","token":{"x":370,"y":160},"tokenLabel":"seq 5 · retry","visible":["seq5","logmsg","dupbadge"],"highlight":["actor-broker"]},
+    {"title":"Producer commits the transaction","desc":"The producer commits; the coordinator writes a <strong>commit marker</strong> into the partition. The message is now below the <strong>LSO</strong> — stable and visible to read_committed.","token":{"x":370,"y":160},"tokenLabel":"seq 5","visible":["seq5","logmsg","marker"],"highlight":["actor-broker"]},
+    {"title":"Consumer reads (read_committed)","desc":"A <code>read_committed</code> consumer reads up to the LSO and receives the committed message — and only this one copy.","token":{"x":619,"y":150},"tokenLabel":"seq 5","visible":["seq5","logmsg","marker"],"highlight":["actor-broker","actor-consumer"]},
+    {"title":"Processed exactly once","desc":"The consumer processes the message and commits its offset. Despite a lost ack <em>and</em> a retry, the effect happened <strong>exactly once</strong>. ✔","token":{"x":619,"y":150},"tokenLabel":"seq 5","visible":["seq5","logmsg","marker","donebadge"],"highlight":["actor-consumer"]}
+  ]
+  </script>
+</div>
+
+<h2>5. Putting the layers together</h2>
+<table>
+  <thead><tr><th>Layer</th><th>Stops which duplicate</th><th>Mechanism</th></tr></thead>
+  <tbody>
+    <tr><td>Idempotent producer</td><td>Producer-retry dup on a partition</td><td>PID + per-partition sequence numbers; broker dedup</td></tr>
+    <tr><td>Transactions</td><td>Reprocess &amp; zombie-instance dup</td><td>Atomic write of output + offset commit; epoch fencing</td></tr>
+    <tr><td><code>read_committed</code></td><td>Reading aborted / uncommitted data</td><td>LSO read horizon + commit/abort markers</td></tr>
+  </tbody>
+</table>
+
+<p>
+  All three together give exactly-once <em>inside Kafka</em>. None of them help the moment you write to
+  an external system &mdash; that&rsquo;s still Route A (at-least-once + idempotent consumer) from Lesson 05.
+</p>
+
+<div class="primary-source">
+  <span class="label">Go deeper (primary sources)</span>
+  <p>
+    <a href="https://www.confluent.io/blog/transactions-apache-kafka/" target="_blank" rel="noopener">Confluent &mdash; <em>Transactions in Apache Kafka</em></a>
+    (atomic read-process-write, zombie fencing, <code>read_committed</code>) and
+    <a href="https://www.confluent.io/blog/exactly-once-semantics-are-possible-heres-how-apache-kafka-does-it/" target="_blank" rel="noopener">Confluent &mdash; <em>Exactly-Once Semantics Are Possible</em></a>
+    (the TCP-like sequence-number idempotence). The authoritative design is <em>KIP-98</em>.
+  </p>
+</div>
+
+<h2>6. Check yourself</h2>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 1 of 2</p>
+  <p class="quiz-q">How does the broker recognize a duplicate from an idempotent producer&rsquo;s retry?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="Same PID + same per-partition sequence number as one already accepted → dropped.">Same PID and sequence number already seen</button></li>
+    <li><button data-correct="false" data-feedback="Payload hashing isn&rsquo;t used; it tracks PID + sequence numbers per partition.">It hashes the payload and compares bytes</button></li>
+    <li><button data-correct="false" data-feedback="Timestamps don&rsquo;t identify duplicates; sequence numbers do.">It compares the message timestamps closely</button></li>
+    <li><button data-correct="false" data-feedback="The consumer isn&rsquo;t involved; dedup happens at the broker on write.">The consumer detects and skips the dup</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Per (PID, partition) the leader tracks the highest accepted sequence number; a repeat is dropped and still acked. Persisted to the log, so failover keeps working."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 2 of 2</p>
+  <p class="quiz-q">With <code>read_committed</code>, why can&rsquo;t a consumer read past an open transaction?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="The LSO is the read horizon; messages past an open txn may yet abort, so they&rsquo;re withheld.">Those messages might still be aborted</button></li>
+    <li><button data-correct="false" data-feedback="It&rsquo;s not about replication lag; it&rsquo;s the unresolved transaction outcome.">The replicas have not caught up yet</button></li>
+    <li><button data-correct="false" data-feedback="Ordering within a partition already holds; the block is about commit status.">The messages arrived out of order</button></li>
+    <li><button data-correct="false" data-feedback="Consumer lag is a symptom here, not the cause of the withholding.">The consumer group is lagging behind</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="read_committed stops at the Last Stable Offset — the point before the first open transaction — so it never delivers data that could still be rolled back."></div>
+</div>
+
+<div class="followup">
+  <strong>I&rsquo;m your teacher &mdash; keep pulling threads.</strong> Want to see how a hung transaction shows up
+  as consumer lag in metrics, or how <code>transactional.id</code> should be assigned across
+  partitions/instances, or the throughput cost of small transaction commit intervals? Ask away.
+</div>
+
+<nav class="lesson-nav">
+  <span class="group">
+    <b>Previous</b>
+    <a href="0005-delivery-guarantees.html">← Lesson 05 · Delivery Guarantees</a>
+  </span>
+  <span class="group">
+    <b>Reference</b>
+    <a href="../reference/0006-kafka-exactly-once-internals-cheatsheet.html">EOS internals cheat sheet →</a>
+  </span>
+  <span class="group">
+    <b>Up next</b>
+    <a href="0007-operating-kafka-exactly-once.html">Lesson 07 · Deep Dive: operating Kafka exactly-once (lag, transactional.id, commit interval)</a>
+  </span>
+</nav>
+
+</body>
+</html>

@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 02 · Queues vs Topics — One Consumer or Many?</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<script src="../assets/quiz.js" defer></script>
+<script src="../assets/stepflow.js" defer></script>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Async &amp; Messaging · Lesson 02</p>
+  <h1>Queues vs Topics — One Consumer, or Many?</h1>
+  <div class="meta">
+    <span>◷ ~12 min read</span>
+    <span class="dot">•</span>
+    <span>Level: Foundations</span>
+    <span class="dot">•</span>
+    <span>Builds on: <a href="0001-why-async.html">Lesson 01</a></span>
+  </div>
+</header>
+
+<p class="mission-tie">
+  In Lesson 01 you put a durable broker between producer and consumer. The very next question a
+  designer must answer &mdash; and the one interviewers and design reviews probe first &mdash; is:
+  when a message lands in the broker, does it go to <em>exactly one</em> consumer, or to
+  <em>everyone</em> who cares? That single choice has its own name, its own tooling, and its own
+  failure modes.
+</p>
+
+<h2>1. Two channels, two intentions</h2>
+
+<p>
+  Messaging systems give you two fundamental kinds of channel. The
+  <a href="https://www.enterpriseintegrationpatterns.com/patterns/messaging/PointToPointChannel.html" target="_blank" rel="noopener">Enterprise Integration Patterns</a>
+  catalog names them precisely:
+</p>
+
+<ul>
+  <li><strong><span class="term">Point-to-point channel</span> (a <em>queue</em>).</strong> Guarantees
+      that <strong>exactly one</strong> receiver consumes each message. Use it when a piece of
+      <em>work</em> must be done once: charge this payment, ship this order.</li>
+  <li><strong><span class="term">Publish-subscribe channel</span> (a <em>topic</em>).</strong>
+      Delivers <strong>a copy of each message to every</strong> subscriber. Use it to
+      <em>announce</em> that something happened, so any number of interested parties can react
+      independently.</li>
+</ul>
+
+<figure>
+<svg viewBox="0 0 640 380" role="img" aria-label="Queue delivers each message to one consumer; topic delivers a copy to every consumer">
+  <defs>
+    <marker id="arw" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#6b6459"></path>
+    </marker>
+    <marker id="arwl" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#c9c1b1"></path>
+    </marker>
+  </defs>
+
+  <!-- Panel A: QUEUE -->
+  <text x="16" y="24" font-family="system-ui, sans-serif" font-size="12" letter-spacing="1.5" fill="#7a2e2e" font-weight="700">QUEUE · POINT-TO-POINT</text>
+
+  <rect x="16" y="72" width="108" height="44" rx="7" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.5"></rect>
+  <text x="70" y="99" text-anchor="middle" font-family="system-ui, sans-serif" font-size="12.5" fill="#1a1a1a">Producer</text>
+
+  <rect x="176" y="72" width="112" height="44" rx="7" fill="#f3f0e8" stroke="#6b6459" stroke-width="1.5"></rect>
+  <text x="232" y="99" text-anchor="middle" font-family="system-ui, sans-serif" font-size="12.5" fill="#1a1a1a" font-weight="600">Queue</text>
+
+  <rect x="384" y="44" width="120" height="32" rx="6" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.25"></rect>
+  <text x="444" y="64" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11.5" fill="#6b6459">Consumer A</text>
+  <rect x="384" y="90" width="120" height="32" rx="6" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.75"></rect>
+  <text x="444" y="110" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11.5" fill="#1a1a1a" font-weight="600">Consumer B</text>
+  <rect x="384" y="136" width="120" height="32" rx="6" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.25"></rect>
+  <text x="444" y="156" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11.5" fill="#6b6459">Consumer C</text>
+
+  <line x1="124" y1="94" x2="172" y2="94" stroke="#6b6459" stroke-width="1.5" marker-end="url(#arw)"></line>
+  <line x1="288" y1="94" x2="380" y2="106" stroke="#3f7a3f" stroke-width="2" marker-end="url(#arw)"></line>
+  <line x1="288" y1="90" x2="380" y2="60" stroke="#c9c1b1" stroke-width="1.25" stroke-dasharray="3 3" marker-end="url(#arwl)"></line>
+  <line x1="288" y1="98" x2="380" y2="152" stroke="#c9c1b1" stroke-width="1.25" stroke-dasharray="3 3" marker-end="url(#arwl)"></line>
+  <text x="232" y="170" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" font-style="italic" fill="#7a2e2e">one consumer wins &mdash; they compete for each message</text>
+
+  <line x1="16" y1="188" x2="624" y2="188" stroke="#e4ded2" stroke-width="1"></line>
+
+  <!-- Panel B: TOPIC -->
+  <text x="16" y="214" font-family="system-ui, sans-serif" font-size="12" letter-spacing="1.5" fill="#3f7a3f" font-weight="700">TOPIC · PUBLISH&ndash;SUBSCRIBE</text>
+
+  <rect x="16" y="262" width="108" height="44" rx="7" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.5"></rect>
+  <text x="70" y="289" text-anchor="middle" font-family="system-ui, sans-serif" font-size="12.5" fill="#1a1a1a">Producer</text>
+
+  <rect x="176" y="262" width="112" height="44" rx="7" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.75"></rect>
+  <text x="232" y="289" text-anchor="middle" font-family="system-ui, sans-serif" font-size="12.5" fill="#1a1a1a" font-weight="600">Topic</text>
+
+  <rect x="384" y="234" width="120" height="32" rx="6" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.5"></rect>
+  <text x="444" y="254" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11.5" fill="#1a1a1a">Consumer A</text>
+  <rect x="384" y="280" width="120" height="32" rx="6" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.5"></rect>
+  <text x="444" y="300" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11.5" fill="#1a1a1a">Consumer B</text>
+  <rect x="384" y="326" width="120" height="32" rx="6" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.5"></rect>
+  <text x="444" y="346" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11.5" fill="#1a1a1a">Consumer C</text>
+
+  <line x1="124" y1="284" x2="172" y2="284" stroke="#6b6459" stroke-width="1.5" marker-end="url(#arw)"></line>
+  <line x1="288" y1="282" x2="380" y2="250" stroke="#3f7a3f" stroke-width="2" marker-end="url(#arw)"></line>
+  <line x1="288" y1="284" x2="380" y2="296" stroke="#3f7a3f" stroke-width="2" marker-end="url(#arw)"></line>
+  <line x1="288" y1="286" x2="380" y2="342" stroke="#3f7a3f" stroke-width="2" marker-end="url(#arw)"></line>
+  <text x="232" y="372" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" font-style="italic" fill="#3f7a3f">every subscriber gets its own copy &mdash; fan-out</text>
+</svg>
+<figcaption>Queue: each message to <em>exactly one</em> consumer. Topic: a <em>copy to every</em> subscriber.</figcaption>
+</figure>
+
+<h2>2. Scaling a queue: competing consumers</h2>
+
+<p>
+  A queue is not limited to one consumer <em>process</em>. Put several consumers on the same queue
+  and they become <span class="term">competing consumers</span> &mdash; they race for messages, and the
+  broker hands each message to exactly one winner. This is how you scale throughput horizontally:
+  add more consumers, drain the queue faster, still process each message once.
+</p>
+
+<div class="callout warning">
+  <span class="label">The trap that catches everyone</span>
+  <p>
+    Competing consumers only works on a <strong>queue</strong>. As EIP puts it bluntly: putting
+    multiple consumers on a <strong>publish-subscribe channel just creates more copies of every
+    message</strong>. Ten subscribers on a topic = ten full copies, not shared work. Mixing these
+    up is the classic &ldquo;why is every email being sent ten times?&rdquo; incident.
+  </p>
+</div>
+
+<h2>3. The unifier: how Kafka gives you both</h2>
+
+<p>
+  Here is the model that makes Kafka click. A Kafka <em>topic</em> is consumed by
+  <span class="term">consumer groups</span>:
+</p>
+
+<ul>
+  <li><strong>Within one group</strong> &mdash; the group&rsquo;s members are <em>competing consumers</em>.
+      Kafka splits the topic&rsquo;s <span class="term">partitions</span> across them, so each message is
+      handled by exactly one member. That is point-to-point.</li>
+  <li><strong>Across many groups</strong> &mdash; each group independently receives <em>every</em>
+      message. That is publish-subscribe fan-out.</li>
+</ul>
+
+<p>
+  So &ldquo;one consumer or many?&rdquo; in Kafka becomes &ldquo;same group, or different groups?&rdquo;
+  &mdash; the single most useful lever in <code>spring-kafka</code>:
+</p>
+
+<pre><code>// SAME groupId on every instance &rarr; competing consumers.
+// Run 3 pods; Kafka shares the partitions; each order handled once.
+@Component
+class FulfillmentListener(private val fulfillment: FulfillmentService) {
+    @KafkaListener(topics = ["order.placed"], groupId = "fulfillment")
+    fun handle(event: OrderPlaced) = fulfillment.reserveStock(event)
+}</code></pre>
+
+<pre><code>// DIFFERENT groupIds &rarr; publish-subscribe fan-out.
+// Email and Analytics each receive their OWN copy of every order.
+@Component
+class EmailListener(private val email: EmailService) {
+    @KafkaListener(topics = ["order.placed"], groupId = "email")
+    fun handle(event: OrderPlaced) = email.sendConfirmation(event)
+}
+
+@Component
+class AnalyticsListener(private val analytics: AnalyticsService) {
+    @KafkaListener(topics = ["order.placed"], groupId = "analytics")
+    fun handle(event: OrderPlaced) = analytics.record(event)
+}</code></pre>
+
+<div class="callout insight">
+  <span class="label">Staff-level nuance</span>
+  <p>
+    Partitions <strong>cap</strong> your competing-consumer parallelism: a group can have at most as
+    many active consumers as the topic has partitions &mdash; extra consumers sit idle. And ordering
+    is only guaranteed <em>within</em> a partition, which is chosen by the message
+    <strong>key</strong>. Pick <code>customerId</code> as the key and all of one customer&rsquo;s events
+    stay ordered on one partition. We&rsquo;ll go deep on this in the ordering lesson &mdash; just plant
+    the flag now: <em>partitions = the unit of both parallelism and ordering.</em>
+  </p>
+</div>
+
+<h2>4. Same idea, every broker in your stack</h2>
+
+<table>
+  <thead>
+    <tr><th>Broker</th><th>Point-to-point (handled once)</th><th>Pub/sub fan-out (all get a copy)</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><strong>Kafka</strong></td><td>One consumer group on a topic</td><td>Multiple consumer groups on a topic</td></tr>
+    <tr><td><strong>RabbitMQ</strong></td><td>Consumers on one queue</td><td>Fanout/topic <em>exchange</em> → many queues</td></tr>
+    <tr><td><strong>AWS</strong></td><td>An <strong>SQS</strong> queue</td><td>An <strong>SNS</strong> topic → many SQS/HTTP</td></tr>
+    <tr><td><strong>Redis</strong></td><td>Stream + consumer group (<code>XREADGROUP</code>)</td><td>Pub/Sub, or multiple stream groups</td></tr>
+    <tr><td><strong>Pulsar</strong></td><td><code>Shared</code> / <code>Key_Shared</code> subscription</td><td>Multiple subscriptions on a topic</td></tr>
+  </tbody>
+</table>
+
+<p>
+  Notice the recurring shape: a <em>queue-like</em> thing for shared work, a <em>topic-like</em>
+  thing that fans out, and a &ldquo;group/subscription&rdquo; concept that lets you get one from the
+  other. Learn the shape once; the product names are just dialects.
+</p>
+
+<div class="primary-source">
+  <span class="label">Read this next (primary source)</span>
+  <p>
+    The two canonical pattern pages &mdash; they are short and definitive:
+    <a href="https://www.enterpriseintegrationpatterns.com/patterns/messaging/PublishSubscribeChannel.html" target="_blank" rel="noopener"><em>Publish-Subscribe Channel</em></a>
+    and
+    <a href="https://www.enterpriseintegrationpatterns.com/patterns/messaging/CompetingConsumers.html" target="_blank" rel="noopener"><em>Competing Consumers</em></a>
+    (Hohpe &amp; Woolf). The Competing Consumers page even walks through the exact Kafka
+    partition model from &sect;3.
+  </p>
+</div>
+
+<h2>5. See it: one message, two outcomes</h2>
+<p>
+  Step the same message through a <strong>queue</strong> and then a <strong>topic</strong> (← / →
+  keys work too). Watch <em>who receives it</em> &mdash; that single difference is the whole lesson.
+</p>
+
+<div class="stepflow" data-token="token">
+  <div class="sf-stage">
+    <svg viewBox="0 0 720 320" role="img" aria-label="A message delivered to one consumer via a queue, then a copy to all consumers via a topic">
+      <defs>
+        <marker id="l2arw" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#c9c1b1"></path></marker>
+      </defs>
+
+      <line x1="168" y1="164" x2="298" y2="164" stroke="#c9c1b1" stroke-width="1.5" marker-end="url(#l2arw)"></line>
+      <line x1="452" y1="150" x2="556" y2="92" stroke="#e4ded2" stroke-width="1.25"></line>
+      <line x1="452" y1="164" x2="556" y2="164" stroke="#e4ded2" stroke-width="1.25"></line>
+      <line x1="452" y1="178" x2="556" y2="236" stroke="#e4ded2" stroke-width="1.25"></line>
+
+      <rect id="actor-producer" class="sf-actor" x="26" y="132" width="140" height="64" rx="10" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.5"></rect>
+      <text x="96" y="169" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12.5" font-weight="600" fill="#1a1a1a">Producer</text>
+
+      <rect id="actor-channel" class="sf-actor" x="300" y="120" width="150" height="88" rx="10" fill="#f7f4ec" stroke="#2e5a7a" stroke-width="1.5"></rect>
+      <g id="label-queue">
+        <text x="375" y="158" text-anchor="middle" font-family="system-ui,sans-serif" font-size="13" font-weight="700" fill="#7a2e2e">QUEUE</text>
+        <text x="375" y="176" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" fill="#6b6459">point-to-point</text>
+      </g>
+      <g id="label-topic" style="display:none">
+        <text x="375" y="158" text-anchor="middle" font-family="system-ui,sans-serif" font-size="13" font-weight="700" fill="#3f7a3f">TOPIC</text>
+        <text x="375" y="176" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" fill="#6b6459">publish–subscribe</text>
+      </g>
+
+      <text id="glabel-group" x="630" y="40" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="600" fill="#6b6459">consumer group</text>
+      <text id="glabel-subs" x="630" y="40" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="600" fill="#6b6459" style="display:none">independent subscribers</text>
+      <rect id="cons-A" class="sf-actor" x="560" y="64" width="140" height="52" rx="9" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.5"></rect>
+      <text x="630" y="94" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" fill="#1a1a1a">Consumer A</text>
+      <rect id="cons-B" class="sf-actor" x="560" y="138" width="140" height="52" rx="9" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.5"></rect>
+      <text x="630" y="168" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" fill="#1a1a1a">Consumer B</text>
+      <rect id="cons-C" class="sf-actor" x="560" y="212" width="140" height="52" rx="9" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.5"></rect>
+      <text x="630" y="242" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" fill="#1a1a1a">Consumer C</text>
+
+      <text id="missA" x="527" y="96" text-anchor="middle" font-family="system-ui,sans-serif" font-size="15" fill="#b9b1a1" style="display:none">—</text>
+      <text id="missC" x="527" y="244" text-anchor="middle" font-family="system-ui,sans-serif" font-size="15" fill="#b9b1a1" style="display:none">—</text>
+
+      <g id="copyA" style="display:none"><circle cx="527" cy="90" r="10" fill="#3f7a3f"></circle><text x="527" y="94" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9" fill="#fff">✓</text></g>
+      <g id="copyB" style="display:none"><circle cx="527" cy="164" r="10" fill="#3f7a3f"></circle><text x="527" y="168" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9" fill="#fff">✓</text></g>
+      <g id="copyC" style="display:none"><circle cx="527" cy="238" r="10" fill="#3f7a3f"></circle><text x="527" y="242" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9" fill="#fff">✓</text></g>
+
+      <g id="badge-once" style="display:none"><rect x="248" y="272" width="224" height="26" rx="6" fill="#fbf1e7" stroke="#b5651d" stroke-width="1.25"></rect><text x="360" y="289" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" fill="#8a4d16">handled once · competing consumers</text></g>
+      <g id="badge-fanout" style="display:none"><rect x="248" y="272" width="224" height="26" rx="6" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.25"></rect><text x="360" y="289" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" fill="#1f4a29">a copy to every subscriber · fan-out</text></g>
+
+      <g id="token" class="sf-token" style="transform: translate(96px,164px)">
+        <circle r="15" fill="#7a2e2e" stroke="#fff" stroke-width="1.5"></circle>
+        <text class="sf-token-label" x="0" y="3" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9" font-weight="700" fill="#fff">msg</text>
+      </g>
+    </svg>
+  </div>
+
+  <div class="sf-caption"><p class="sf-title"></p><p class="sf-desc"></p></div>
+  <div class="sf-controls">
+    <button class="sf-btn sf-prev" type="button">◀ Prev</button>
+    <button class="sf-btn sf-next" type="button">Next ▶</button>
+    <button class="sf-btn sf-reset" type="button">↺ Reset</button>
+    <button class="sf-btn sf-play" type="button">▶ Play</button>
+    <span class="sf-counter"></span>
+  </div>
+
+  <script type="application/json" class="sf-steps">
+  [
+    {"title":"A producer and a group of three consumers","desc":"Same setup, two delivery modes. We start with a <strong>queue</strong> (point-to-point).","token":{"x":96,"y":164},"tokenLabel":"msg","visible":["label-queue","glabel-group"],"highlight":["actor-producer"]},
+    {"title":"Publish to the queue","desc":"The producer sends one message to the queue.","token":{"x":375,"y":162},"tokenLabel":"msg","visible":["label-queue","glabel-group"],"highlight":["actor-producer","actor-channel"]},
+    {"title":"Delivered to exactly ONE consumer","desc":"The queue hands the message to a single consumer (B). A and C get <strong>nothing</strong> — the consumers <em>compete</em> for each message.","token":{"x":630,"y":164},"tokenLabel":"msg","visible":["label-queue","glabel-group","missA","missC","badge-once"],"highlight":["cons-B"]},
+    {"title":"Add consumers → more throughput","desc":"Put more consumers on the queue and they share the load — but each message is still handled <strong>once</strong>.","token":{"x":630,"y":164},"tokenLabel":"msg","visible":["label-queue","glabel-group","missA","missC","badge-once"],"highlight":["cons-A","cons-B","cons-C"]},
+    {"title":"Now switch to a topic","desc":"Same producer, same three consumers — but publish to a <strong>topic</strong> (publish–subscribe) instead.","token":{"x":375,"y":162},"tokenLabel":"msg","visible":["label-topic","glabel-subs"],"highlight":["actor-producer","actor-channel"]},
+    {"title":"A copy to EVERY subscriber","desc":"The topic delivers an independent <strong>copy</strong> to each subscriber — A, B, and C all receive it. This is <em>fan-out</em>.","token":null,"tokenLabel":"msg","visible":["label-topic","glabel-subs","copyA","copyB","copyC","badge-fanout"],"highlight":["cons-A","cons-B","cons-C"]},
+    {"title":"Same message, opposite outcome","desc":"<strong>Queue</strong> → exactly one consumer (share work). <strong>Topic</strong> → every subscriber (announce). That single choice is the heart of this lesson.","token":null,"tokenLabel":"msg","visible":["label-topic","glabel-subs","copyA","copyB","copyC","badge-fanout"],"highlight":["cons-A","cons-B","cons-C"]}
+  ]
+  </script>
+</div>
+
+<h2>6. Check yourself</h2>
+<p>Answer before revealing &mdash; the effort is what builds retention.</p>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 1 of 2</p>
+  <p class="quiz-q">An <code>OrderPlaced</code> event must trigger email, analytics, <em>and</em> inventory, each independently. Which channel?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="A single queue hands each message to only one of the three &mdash; two teams would silently miss events.">A queue shared by the three consumer apps</button></li>
+    <li><button data-correct="true" data-feedback="Right &mdash; fan-out delivers an independent copy to each interested subscriber.">A topic that each app subscribes to</button></li>
+    <li><button data-correct="false" data-feedback="Competing consumers share work; here the three do different jobs and all need the event.">Competing consumers on one channel</button></li>
+    <li><button data-correct="false" data-feedback="Point-to-point guarantees exactly one receiver &mdash; the opposite of what fan-out needs.">A point-to-point channel to each app</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Different jobs, all needing the same event &rarr; publish-subscribe (in Kafka: three different consumer groups on the topic)."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 2 of 2</p>
+  <p class="quiz-q">A Kafka topic has 4 partitions. You run 6 consumers in one group. What happens?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="Each partition is owned by one consumer at a time; you can&rsquo;t split a partition across two.">All 6 share every partition evenly</button></li>
+    <li><button data-correct="true" data-feedback="Exactly &mdash; partitions cap parallelism, so 2 consumers sit idle as hot standbys.">4 consumers work; 2 sit idle</button></li>
+    <li><button data-correct="false" data-feedback="More consumers than partitions doesn&rsquo;t create partitions; the topic&rsquo;s count is fixed.">Kafka adds partitions to reach 6</button></li>
+    <li><button data-correct="false" data-feedback="Within a single group each message is still handled once, not six times.">Each message is processed 6 times</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="A group&rsquo;s active parallelism is capped at the partition count. To use 6 consumers, give the topic &ge; 6 partitions."></div>
+</div>
+
+<div class="callout tryit">
+  <span class="label">Try it in your own system</span>
+  <p>
+    Take the async candidate you found after Lesson 01. Ask: is it <em>work to do once</em>
+    (&rarr; queue / one consumer group) or an <em>announcement others react to</em> (&rarr; topic /
+    fan-out)? Write one sentence justifying the choice. Bring it &mdash; we&rsquo;ll pressure-test it.
+  </p>
+</div>
+
+<div class="followup">
+  <strong>I&rsquo;m your teacher &mdash; ask me anything.</strong> Want to see the RabbitMQ
+  exchange/binding version in Spring? Curious how SNS&rarr;SQS fan-out is wired with
+  <code>spring-cloud-aws</code>? Unsure how keys pick partitions? Ask &mdash; that&rsquo;s the real work.
+</div>
+
+<nav class="lesson-nav">
+  <span class="group">
+    <b>Previous</b>
+    <a href="0001-why-async.html">← Lesson 01 · Why Async?</a>
+  </span>
+  <span class="group">
+    <b>Reference</b>
+    <a href="../reference/0002-queue-vs-topic-cheatsheet.html">Queue ↔ Topic cheat sheet →</a>
+  </span>
+  <span class="group">
+    <b>Up next</b>
+    <a href="0003-kafka-consumer-groups-deep-dive.html">Lesson 03 · Deep Dive: Kafka consumer groups</a>
+  </span>
+</nav>
+
+</body>
+</html>

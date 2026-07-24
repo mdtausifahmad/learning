@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 04 · Event vs Command vs Query</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<script src="../assets/quiz.js" defer></script>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Async &amp; Messaging · Lesson 04</p>
+  <h1>Event vs Command vs Query — Naming What Flows</h1>
+  <div class="meta">
+    <span>◷ ~13 min read</span>
+    <span class="dot">•</span>
+    <span>Level: Foundations → Design</span>
+    <span class="dot">•</span>
+    <span>Builds on: <a href="0002-queue-vs-topic.html">Lesson 02</a></span>
+  </div>
+</header>
+
+<p class="mission-tie">
+  Lesson 01 gave you the broker; Lesson 02 gave you the topology. But two messages with identical
+  bytes can mean completely different things. This lesson is about <em>intent</em> &mdash; and why
+  naming a message honestly is one of the highest-leverage design decisions you&rsquo;ll make. Get it
+  wrong and you build hidden coupling while congratulating yourself on being decoupled.
+</p>
+
+<h2>1. Three intents, one envelope</h2>
+
+<p>Every message you send carries one of three intentions:</p>
+
+<ul>
+  <li><strong><span class="term">Command</span> &mdash; &ldquo;do this.&rdquo;</strong> A directed request to
+      perform an action. EIP frames it as using a message to <em>invoke a procedure in another
+      application</em>. Named imperatively: <code>ShipOrder</code>. One logical owner. The sender
+      expects it to be carried out.</li>
+  <li><strong><span class="term">Event</span> &mdash; &ldquo;this happened.&rdquo;</strong> A notification
+      of a fact that already occurred. Named in the past tense: <code>OrderPlaced</code>. The
+      publisher, in Fowler&rsquo;s words, <em>&ldquo;doesn&rsquo;t really care much about the response.&rdquo;</em>
+      Zero, one, or many consumers may react.</li>
+  <li><strong><span class="term">Query</span> &mdash; &ldquo;tell me this.&rdquo;</strong> A request for
+      information that expects a reply. Named interrogatively: <code>GetOrderStatus</code>. Almost
+      always <em>synchronous</em> request/reply &mdash; fire-and-forget messaging is the wrong tool
+      when you need the answer to continue (recall the Lesson 01 test).</li>
+</ul>
+
+<h2>2. The crux: who owns the decision?</h2>
+
+<p>
+  The intents differ in <strong>which side decides what happens</strong> &mdash; and that decides which
+  way the coupling points.
+</p>
+
+<figure>
+<svg viewBox="0 0 640 370" role="img" aria-label="Commands: the sender decides. Events: each consumer decides its own reaction.">
+  <defs>
+    <marker id="arw" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#6b6459"></path>
+    </marker>
+  </defs>
+
+  <!-- Command -->
+  <text x="16" y="24" font-family="system-ui, sans-serif" font-size="12" letter-spacing="1.5" fill="#7a2e2e" font-weight="700">COMMAND · &ldquo;do this&rdquo;</text>
+  <rect x="16" y="66" width="150" height="48" rx="7" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.5"></rect>
+  <text x="91" y="95" text-anchor="middle" font-family="system-ui, sans-serif" font-size="12.5" fill="#1a1a1a">Order Service</text>
+  <rect x="440" y="66" width="150" height="48" rx="7" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.5"></rect>
+  <text x="515" y="95" text-anchor="middle" font-family="system-ui, sans-serif" font-size="12.5" fill="#1a1a1a">Shipping Service</text>
+  <line x1="166" y1="90" x2="436" y2="90" stroke="#6b6459" stroke-width="1.75" marker-end="url(#arw)"></line>
+  <text x="300" y="80" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11.5" fill="#7a2e2e" font-weight="600">ShipOrder</text>
+  <text x="300" y="107" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" fill="#6b6459">the SENDER decides what happens</text>
+  <text x="300" y="140" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" font-style="italic" fill="#7a2e2e">sender is coupled to the receiver&rsquo;s capability</text>
+
+  <line x1="16" y1="160" x2="624" y2="160" stroke="#e4ded2" stroke-width="1"></line>
+
+  <!-- Event -->
+  <text x="16" y="190" font-family="system-ui, sans-serif" font-size="12" letter-spacing="1.5" fill="#3f7a3f" font-weight="700">EVENT · &ldquo;this happened&rdquo;</text>
+  <rect x="16" y="250" width="150" height="48" rx="7" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.75"></rect>
+  <text x="91" y="279" text-anchor="middle" font-family="system-ui, sans-serif" font-size="12.5" fill="#1a1a1a">Order Service</text>
+
+  <rect x="440" y="196" width="150" height="32" rx="6" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.25"></rect>
+  <text x="515" y="216" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11.5" fill="#1a1a1a">Email &nbsp;<tspan fill="#3f7a3f">decides</tspan></text>
+  <rect x="440" y="244" width="150" height="32" rx="6" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.25"></rect>
+  <text x="515" y="264" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11.5" fill="#1a1a1a">Analytics &nbsp;<tspan fill="#3f7a3f">decides</tspan></text>
+  <rect x="440" y="292" width="150" height="32" rx="6" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.25"></rect>
+  <text x="515" y="312" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11.5" fill="#1a1a1a">Loyalty &nbsp;<tspan fill="#3f7a3f">decides</tspan></text>
+
+  <line x1="166" y1="272" x2="436" y2="212" stroke="#3f7a3f" stroke-width="1.5" marker-end="url(#arw)"></line>
+  <line x1="166" y1="274" x2="436" y2="260" stroke="#3f7a3f" stroke-width="1.5" marker-end="url(#arw)"></line>
+  <line x1="166" y1="276" x2="436" y2="308" stroke="#3f7a3f" stroke-width="1.5" marker-end="url(#arw)"></line>
+  <text x="292" y="238" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11.5" fill="#3f7a3f" font-weight="600">OrderPlaced</text>
+  <text x="300" y="348" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" font-style="italic" fill="#3f7a3f">each CONSUMER decides its reaction &mdash; producer doesn&rsquo;t know them</text>
+</svg>
+<figcaption>Command: the sender owns the decision. Event: the coupling <em>inverts</em> &mdash; each consumer decides, and the producer is ignorant of them.</figcaption>
+</figure>
+
+<div class="callout insight">
+  <span class="label">Why this is the whole game</span>
+  <p>
+    That inversion is the engine of extensibility. To add a loyalty-points reaction to a
+    <em>command</em> system, someone must change the sender to also command Loyalty. To add it to an
+    <em>event</em> system, Loyalty just subscribes &mdash; <strong>the producer never changes.</strong>
+    Events let you grow behavior at the edges without editing the center.
+  </p>
+</div>
+
+<h2>3. Naming is design</h2>
+
+<p>
+  The tense of a name encodes its intent. Enforce this and half your design arguments evaporate,
+  because everyone can see what a message <em>is</em> just by reading it. In Kotlin, model each as a
+  small immutable <code>data class</code>:
+</p>
+
+<pre><code>// COMMAND — imperative; one owner; expresses intent to act
+data class ShipOrder(val orderId: String, val address: Address)
+
+// EVENT — past tense; a fact that already happened; publisher indifferent to reactors
+data class OrderPlaced(val orderId: String, val customerId: String, val total: Money)
+
+// QUERY — interrogative; asks for data and expects a reply
+data class GetOrderStatus(val orderId: String)</code></pre>
+
+<h3>Command: sent to one owner, expected to act</h3>
+<pre><code>kafkaTemplate.send("shipping.commands", order.id, ShipOrder(order.id, order.address))
+
+@Component
+class ShippingCommandListener(private val shipping: ShippingService) {
+    @KafkaListener(topics = ["shipping.commands"], groupId = "shipping")
+    fun handle(cmd: ShipOrder) = shipping.dispatch(cmd)   // the one owner carries it out
+}</code></pre>
+
+<h3>Event: announced; each consumer chooses its own reaction</h3>
+<pre><code>kafkaTemplate.send("order.events", order.id, OrderPlaced(order.id, order.customerId, order.total))
+
+@KafkaListener(topics = ["order.events"], groupId = "email")
+fun confirm(e: OrderPlaced) = email.sendConfirmation(e)
+
+// Added months later. The Order Service was never touched. (Different groupId = fan-out, Lesson 02.)
+@KafkaListener(topics = ["order.events"], groupId = "loyalty")
+fun award(e: OrderPlaced) = loyalty.awardPoints(e.customerId, e.total)</code></pre>
+
+<h3>Query: usually synchronous — the caller needs the answer</h3>
+<pre><code>@GetMapping("/orders/{id}/status")
+fun status(@PathVariable id: String): OrderStatus =
+    orderQueryService.status(id)   // fire-and-forget messaging is the wrong tool here</code></pre>
+
+<h2>4. The trap that fakes decoupling</h2>
+
+<div class="callout warning">
+  <span class="label">Fowler: the &ldquo;passive-aggressive command&rdquo;</span>
+  <p>
+    &ldquo;<em>An event used as a passive-aggressive command … the source system expects the recipient
+    to carry out an action, and ought to use a command message to show that intention, but styles
+    the message as an event instead.</em>&rdquo;
+  </p>
+  <p>
+    If <code>OrderPlaced</code> exists <em>only</em> so that Shipping ships &mdash; and the Order team gets
+    paged when shipping breaks &mdash; then it is a command wearing an event costume. You&rsquo;ve coupled
+    the two services while pretending you haven&rsquo;t, and made ownership ambiguous. <strong>Name the
+    intent honestly:</strong> if you depend on a specific thing being done, send a command.
+  </p>
+</div>
+
+<div class="callout insight">
+  <span class="label">The opposite trap (flag for later)</span>
+  <p>
+    Pure event notification hides the end-to-end business flow: as Fowler warns, &ldquo;the only way to
+    figure out this flow is from monitoring a live system.&rdquo; Lots of tiny events can be
+    <em>too</em> decoupled to reason about. That tension &mdash; <em>choreography vs orchestration</em> &mdash;
+    gets its own lesson. And &ldquo;how much data an event carries&rdquo; (notification vs
+    <em>event-carried state transfer</em>) is a second axis we&rsquo;ll return to.
+  </p>
+</div>
+
+<h2>5. The cheat table</h2>
+<table>
+  <thead><tr><th></th><th>Command</th><th>Event</th><th>Query</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Says</strong></td><td>&ldquo;Do this&rdquo;</td><td>&ldquo;This happened&rdquo;</td><td>&ldquo;Tell me this&rdquo;</td></tr>
+    <tr><td><strong>Name</strong></td><td>Imperative: <code>ShipOrder</code></td><td>Past tense: <code>OrderShipped</code></td><td>Interrogative: <code>GetStatus</code></td></tr>
+    <tr><td><strong>Handlers</strong></td><td>One logical owner</td><td>Zero to many</td><td>One responder</td></tr>
+    <tr><td><strong>Reply?</strong></td><td>Maybe an ack/result</td><td>No</td><td>Yes — the data</td></tr>
+    <tr><td><strong>Channel</strong></td><td>Queue (point-to-point)</td><td>Topic (pub/sub)</td><td>Sync request/reply</td></tr>
+    <tr><td><strong>Who decides</strong></td><td>The sender</td><td>Each consumer</td><td>The responder</td></tr>
+  </tbody>
+</table>
+
+<div class="primary-source">
+  <span class="label">Read this next (primary source)</span>
+  <p>
+    <a href="https://martinfowler.com/articles/201701-event-driven.html" target="_blank" rel="noopener">Martin Fowler &mdash; <em>What do you mean by &ldquo;Event-Driven&rdquo;?</em></a>
+    Short and precise on how &ldquo;event&rdquo; hides several distinct patterns, and the passive-aggressive
+    command trap. For the source definitions, see EIP&rsquo;s
+    <a href="https://www.enterpriseintegrationpatterns.com/patterns/messaging/CommandMessage.html" target="_blank" rel="noopener">Command Message</a> and
+    <a href="https://www.enterpriseintegrationpatterns.com/patterns/messaging/EventMessage.html" target="_blank" rel="noopener">Event Message</a>.
+  </p>
+</div>
+
+<h2>6. Check yourself</h2>
+<p>Retrieve before revealing.</p>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 1 of 2</p>
+  <p class="quiz-q">Which name correctly signals an <em>event</em> — a fact that already happened?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="Past tense = a fact that occurred; the publisher isn&rsquo;t telling anyone what to do about it.">Order Shipped</button></li>
+    <li><button data-correct="false" data-feedback="Imperative = a command; it tells a specific owner to act.">Ship Order</button></li>
+    <li><button data-correct="false" data-feedback="Also imperative &mdash; a command instructing an action, not reporting one.">Cancel Order</button></li>
+    <li><button data-correct="false" data-feedback="Interrogative = a query; it asks for data and expects a reply.">Fetch Status</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Events are named in the past tense because they report something that has already occurred."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 2 of 2</p>
+  <p class="quiz-q">You must add a loyalty-points reaction to new orders <em>without</em> changing the order service. Orders should emit…</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="Events invert coupling: Loyalty subscribes, and the producer stays untouched.">An event that loyalty subscribes to</button></li>
+    <li><button data-correct="false" data-feedback="A command forces the order service to know about and address Loyalty &mdash; that&rsquo;s a change.">A command addressed to the loyalty</button></li>
+    <li><button data-correct="false" data-feedback="A direct call couples order to loyalty at runtime &mdash; the opposite of what&rsquo;s asked.">A direct synchronous call to loyalty</button></li>
+    <li><button data-correct="false" data-feedback="A query pulls data back; it doesn&rsquo;t let Loyalty react to new orders on its own.">A query asking loyalty for points</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Announce the fact as an event; let each interested consumer decide its reaction. The center never changes."></div>
+</div>
+
+<div class="callout tryit">
+  <span class="label">Try it in your own system</span>
+  <p>
+    Take the message you sketched after Lesson 02. Name it out loud. Is it imperative (command),
+    past tense (event), or interrogative (query)? Then ask the honesty test: <em>do I depend on a
+    specific thing being done?</em> If yes, it&rsquo;s a command &mdash; even if you were about to call it
+    an event. Bring your verdict.
+  </p>
+</div>
+
+<div class="followup">
+  <strong>I&rsquo;m your teacher &mdash; ask me anything.</strong> Want the RabbitMQ or SNS/SQS version of a
+  command channel? Curious where request/reply <em>over</em> messaging fits? Wondering how much data
+  to put in an event? Ask &mdash; those questions are exactly the next depth.
+</div>
+
+<nav class="lesson-nav">
+  <span class="group">
+    <b>Previous</b>
+    <a href="0003-kafka-consumer-groups-deep-dive.html">← Lesson 03 · Kafka Consumer Groups</a>
+  </span>
+  <span class="group">
+    <b>Reference</b>
+    <a href="../reference/0004-event-command-query-cheatsheet.html">Event/Command/Query cheat sheet →</a>
+  </span>
+  <span class="group">
+    <b>Up next</b>
+    <a href="0005-delivery-guarantees.html">Lesson 05 · Delivery guarantees: at-most / at-least / exactly-once</a>
+  </span>
+</nav>
+
+</body>
+</html>

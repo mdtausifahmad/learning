@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 01 · Why Async? The Problem Messaging Solves</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<script src="../assets/quiz.js" defer></script>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Async &amp; Messaging · Lesson 01</p>
+  <h1>Why Async? The Problem Messaging Solves</h1>
+  <div class="meta">
+    <span>◷ ~10 min read</span>
+    <span class="dot">•</span>
+    <span>Level: Foundations</span>
+    <span class="dot">•</span>
+    <span>Prereq: you can build a synchronous service</span>
+  </div>
+</header>
+
+<p class="mission-tie">
+  You&rsquo;ve lived in synchronous request/response land. This lesson gives you the one mental
+  shift the rest of your journey to staff-level rests on: <em>why</em> we put a message between
+  two components in the first place. Everything later &mdash; delivery guarantees, ordering,
+  sagas &mdash; is a consequence of this single move.
+</p>
+
+<h2>1. Start where you are: the synchronous baseline</h2>
+
+<p>
+  Here is a shape you know well. An order service, when it takes an order, also needs to send a
+  confirmation email. The obvious way &mdash; the way you&rsquo;ve probably always written it &mdash;
+  is a direct call:
+</p>
+
+<pre><code>@Service
+class OrderService(
+    private val orderRepository: OrderRepository,
+    private val emailClient: EmailClient,          // e.g. a Feign / RestClient call
+) {
+    fun placeOrder(order: Order): String {
+        orderRepository.save(order)
+        emailClient.sendConfirmation(order)        // &larr; blocks until Email replies
+        return "OK"
+    }
+}</code></pre>
+
+<p>
+  This is <span class="term">synchronous</span> communication: the caller sends a request and
+  <em>waits</em>, holding its thread, until the callee answers. Simple, direct, easy to reason
+  about. And for a lot of code, exactly right.
+</p>
+
+<p>
+  But notice what you&rsquo;ve quietly assumed: that the Email service is <strong>up right now</strong>,
+  <strong>fast enough right now</strong>, and <strong>able to keep up right now</strong>. That
+  assumption is called <span class="term">temporal coupling</span> &mdash; the two services must be
+  healthy at the very same instant for the request to succeed.
+</p>
+
+<h2>2. Where the synchronous model hurts</h2>
+
+<p>Temporal coupling is fine until it isn&rsquo;t. Four cracks appear as systems grow:</p>
+
+<table>
+  <thead>
+    <tr><th>When&hellip;</th><th>&hellip;the synchronous call</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Email is down</strong></td>
+      <td>Your order fails too &mdash; even though the order itself was fine. Failure
+          <em>cascades</em> from a non-critical dependency into a critical path.</td>
+    </tr>
+    <tr>
+      <td><strong>Email is slow</strong></td>
+      <td>Your caller&rsquo;s latency = its own work <em>plus</em> the slowest thing it calls. Waits
+          stack up and threads pile on.</td>
+    </tr>
+    <tr>
+      <td><strong>Traffic spikes</strong></td>
+      <td>A burst of orders becomes an identical burst hammering Email in real time. There is no
+          shock absorber; the weakest downstream buckles.</td>
+    </tr>
+    <tr>
+      <td><strong>You add a 3rd, 4th consumer</strong></td>
+      <td>Analytics, inventory, loyalty&hellip; the order service must now know about, call, and wait
+          for every one of them. Coupling grows with each addition.</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>
+  The root issue isn&rsquo;t any single failure &mdash; it&rsquo;s that <strong>the sender&rsquo;s
+  fate is tied to the receiver&rsquo;s, in real time.</strong>
+</p>
+
+<h2>3. The move: put a durable buffer in between</h2>
+
+<p>
+  Asynchronous messaging makes one structural change. Instead of calling the consumer directly,
+  the producer hands a <span class="term">message</span> to a
+  <span class="term">message broker</span> &mdash; a piece of infrastructure whose whole job is to
+  <em>durably hold</em> that message and deliver it to a consumer <em>when the consumer is ready</em>.
+</p>
+
+<figure>
+<svg viewBox="0 0 640 350" role="img" aria-label="Diagram comparing synchronous direct calls with asynchronous messaging through a broker">
+  <defs>
+    <marker id="arw" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#6b6459"></path>
+    </marker>
+  </defs>
+
+  <!-- Panel A: synchronous -->
+  <text x="20" y="24" font-family="system-ui, sans-serif" font-size="12"
+        letter-spacing="2" fill="#7a2e2e" font-weight="700">SYNCHRONOUS</text>
+
+  <rect x="20" y="40" width="140" height="52" rx="7" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.5"></rect>
+  <text x="90" y="71" text-anchor="middle" font-family="system-ui, sans-serif" font-size="13" fill="#1a1a1a">Order Service</text>
+
+  <rect x="480" y="40" width="140" height="52" rx="7" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.5"></rect>
+  <text x="550" y="71" text-anchor="middle" font-family="system-ui, sans-serif" font-size="13" fill="#1a1a1a">Email Service</text>
+
+  <line x1="160" y1="58" x2="476" y2="58" stroke="#6b6459" stroke-width="1.5" marker-end="url(#arw)"></line>
+  <text x="318" y="51" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" fill="#6b6459">request &mdash; caller blocks</text>
+  <line x1="480" y1="78" x2="164" y2="78" stroke="#6b6459" stroke-width="1.5" marker-end="url(#arw)"></line>
+  <text x="318" y="92" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" fill="#6b6459">response</text>
+
+  <text x="320" y="116" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11.5"
+        font-style="italic" fill="#a32f2f">Both must be up at the same instant. If Email stalls, the order stalls.</text>
+
+  <line x1="20" y1="140" x2="620" y2="140" stroke="#e4ded2" stroke-width="1"></line>
+
+  <!-- Panel B: asynchronous -->
+  <text x="20" y="170" font-family="system-ui, sans-serif" font-size="12"
+        letter-spacing="2" fill="#3f7a3f" font-weight="700">ASYNCHRONOUS</text>
+
+  <rect x="20" y="188" width="130" height="52" rx="7" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.5"></rect>
+  <text x="85" y="219" text-anchor="middle" font-family="system-ui, sans-serif" font-size="13" fill="#1a1a1a">Order Service</text>
+
+  <rect x="255" y="188" width="130" height="52" rx="7" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.75"></rect>
+  <text x="320" y="211" text-anchor="middle" font-family="system-ui, sans-serif" font-size="12.5" fill="#1a1a1a" font-weight="600">Broker</text>
+  <text x="320" y="228" text-anchor="middle" font-family="system-ui, sans-serif" font-size="10.5" fill="#6b6459">durable buffer</text>
+
+  <rect x="490" y="188" width="130" height="52" rx="7" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.5"></rect>
+  <text x="555" y="219" text-anchor="middle" font-family="system-ui, sans-serif" font-size="13" fill="#1a1a1a">Email Service</text>
+
+  <line x1="150" y1="214" x2="251" y2="214" stroke="#6b6459" stroke-width="1.5" marker-end="url(#arw)"></line>
+  <text x="200" y="205" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" fill="#6b6459">publish</text>
+  <line x1="385" y1="214" x2="486" y2="214" stroke="#6b6459" stroke-width="1.5" marker-end="url(#arw)"></line>
+  <text x="437" y="205" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" fill="#6b6459">deliver</text>
+
+  <text x="320" y="268" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11.5"
+        font-style="italic" fill="#3f7a3f">Producer returns immediately. The broker holds the message until Email is ready.</text>
+  <text x="320" y="292" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11.5"
+        font-style="italic" fill="#6b6459">Email can be down for an hour &mdash; the order still succeeds; the email waits in line.</text>
+</svg>
+<figcaption>The single structural move: a durable broker between producer and consumer, decoupling them <em>in time</em>.</figcaption>
+</figure>
+
+<p>The code barely changes shape, but its meaning changes completely:</p>
+
+<pre><code>@Service
+class OrderService(
+    private val orderRepository: OrderRepository,
+    private val kafkaTemplate: KafkaTemplate&lt;String, OrderPlaced&gt;,
+) {
+    fun placeOrder(order: Order): String {
+        orderRepository.save(order)
+        kafkaTemplate.send("order.placed", OrderPlaced.from(order))  // &larr; returns at once; no waiting on Email
+        return "OK"
+    }
+}</code></pre>
+
+<div class="callout insight">
+  <span class="label">The core idea</span>
+  <p>
+    Async isn&rsquo;t primarily about being <em>faster</em>. It&rsquo;s about
+    <strong>decoupling in time</strong>: the producer no longer waits for &mdash; or depends on the
+    liveness of &mdash; the consumer. A durable message, held by a broker, is the primitive that
+    buys you that decoupling.
+  </p>
+</div>
+
+<h2>4. What that one move buys you</h2>
+
+<p>Chris Richardson&rsquo;s catalog frames the payoff crisply. Async messaging gives you:</p>
+
+<ul>
+  <li><strong>Loose runtime coupling.</strong> Sender and consumer don&rsquo;t need to know each other
+      or be alive together. Add a fifth consumer without touching the producer.</li>
+  <li><strong>Improved availability.</strong> The broker buffers messages until the consumer can
+      handle them, so a downstream outage degrades gracefully instead of cascading.</li>
+  <li><strong>Load leveling.</strong> A spike becomes a <em>queue depth</em>, not a stampede. The
+      consumer drains at its own sustainable pace &mdash; the buffer absorbs the shock.</li>
+  <li><strong>Many communication styles.</strong> One published message can fan out to
+      notifications, pub/sub subscribers, and async request/reply &mdash; not just one caller.</li>
+</ul>
+
+<div class="callout warning">
+  <span class="label">There is no free lunch</span>
+  <p>
+    A staff engineer names the cost in the same breath as the benefit. Introducing a broker means:
+    a new piece of <strong>critical infrastructure</strong> to run and keep highly available;
+    <strong>eventual</strong> rather than immediate results; <strong>no easy return value</strong>
+    (request/reply gets harder); and brand-new failure modes you&rsquo;ll spend the next lessons
+    taming &mdash; <strong>duplicates, reordering, and delay</strong>. You are trading simplicity for
+    decoupling. Sometimes that trade is wrong.
+  </p>
+</div>
+
+<h2>5. So when do you <em>not</em> reach for it?</h2>
+
+<p>
+  The honest heuristic, and the start of real design judgment: use synchronous when the caller
+  <strong>genuinely needs the answer to continue</strong> &mdash; &ldquo;is this card valid so I can show
+  the next screen?&rdquo; Use asynchronous when the work must happen <strong>soon, but not
+  necessarily now</strong>, and the caller shouldn&rsquo;t be held hostage to it &mdash; sending email,
+  updating analytics, rebuilding a search index, notifying other services.
+</p>
+
+<p>
+  &ldquo;Now vs. soon&rdquo; is a first cut, not the final word &mdash; we&rsquo;ll sharpen it as you learn
+  about delivery guarantees and consistency. But it will already make you sound more deliberate in
+  a design review than &ldquo;let&rsquo;s just put a queue in front of it.&rdquo;
+</p>
+
+<div class="primary-source">
+  <span class="label">Read this next (primary source)</span>
+  <p>
+    <a href="https://microservices.io/patterns/communication-style/messaging.html" target="_blank" rel="noopener">
+    microservices.io &mdash; <em>Messaging pattern</em></a> (Chris Richardson). Short and sharp: it
+    lays out the forces, the solution, and &mdash; crucially &mdash; the benefits <em>and</em> drawbacks
+    you just met. For a broader map, skim the
+    <a href="https://github.com/donnemartin/system-design-primer#asynchronism" target="_blank" rel="noopener">System Design Primer &mdash; Asynchronism</a> section.
+  </p>
+</div>
+
+<h2>6. Check yourself</h2>
+<p>Don&rsquo;t just nod &mdash; retrieve. Answer before revealing; effortful recall is what makes it stick.</p>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 1 of 2</p>
+  <p class="quiz-q">What is the <em>primary</em> thing asynchronous messaging gives you over a direct call?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="Async can even add latency to a single request; the buffer is the point, not raw speed.">It always makes each request faster to complete</button></li>
+    <li><button data-correct="true" data-feedback="Exactly &mdash; producer and consumer no longer need to be healthy at the same instant.">It decouples producer and consumer in time</button></li>
+    <li><button data-correct="false" data-feedback="A broker is new critical infrastructure &mdash; it adds moving parts, not fewer.">It removes infrastructure you must operate</button></li>
+    <li><button data-correct="false" data-feedback="It tends to weaken immediate consistency; results become eventual, not stronger.">It gives you stronger immediate consistency</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="The broker durably holds the message, so the sender&rsquo;s success no longer depends on the receiver being up and fast right now."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 2 of 2</p>
+  <p class="quiz-q">A checkout must verify a credit card before showing the next screen. Best fit?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="The caller literally cannot continue without the answer &mdash; that&rsquo;s the signature of a synchronous need.">Synchronous &mdash; the caller needs the answer now</button></li>
+    <li><button data-correct="false" data-feedback="Buffering the check means the user waits on an answer that may arrive late; wrong tool for a blocking decision.">Asynchronous &mdash; publish it and buffer the check</button></li>
+    <li><button data-correct="false" data-feedback="Fire-and-forget drops the very result the flow depends on to proceed.">Asynchronous &mdash; fire the event and move on</button></li>
+    <li><button data-correct="false" data-feedback="This dodges the decision; the &lsquo;now vs soon&rsquo; test resolves it cleanly to sync.">Either one &mdash; it truly makes no difference</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Rule of thumb: need the answer to continue &rarr; sync. Work that can happen soon, not now &rarr; async."></div>
+</div>
+
+<div class="callout tryit">
+  <span class="label">Try it in your own system</span>
+  <p>
+    Think of one synchronous call in code you own that <em>doesn&rsquo;t</em> feed the caller&rsquo;s next
+    step (an email, a log-to-analytics, a cache warm). That is a candidate to make asynchronous.
+    Bring it to our next chat and we&rsquo;ll design the message for it together.
+  </p>
+</div>
+
+<div class="followup">
+  <strong>I&rsquo;m your teacher &mdash; ask me anything.</strong> Fuzzy on temporal coupling? Want a
+  concrete Kafka vs. SQS vs. RabbitMQ picture of &ldquo;the broker&rdquo;? Curious why exactly-once is
+  hard? Just ask. Follow-up questions are where the real learning happens.
+</div>
+
+<nav class="lesson-nav">
+  <span class="group">
+    <b>Reference</b>
+    <a href="../reference/0001-sync-vs-async-cheatsheet.html">Sync ↔ Async decision cheat sheet →</a>
+  </span>
+  <span class="group">
+    <b>Up next</b>
+    <a href="0002-queue-vs-topic.html">Lesson 02 · Queues vs Topics: one consumer or many?</a>
+  </span>
+</nav>
+
+</body>
+</html>

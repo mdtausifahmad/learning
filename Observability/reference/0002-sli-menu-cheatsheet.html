@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cheat Sheet · Choosing SLIs</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<style>
+  body { max-width: 52rem; }
+  .cheat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem 1.5rem; }
+  .cheat-grid h3 { margin-top: .4rem; }
+  @media print { body { margin: 0; } h2 { margin-top: 1.1rem; } }
+  @media (max-width: 620px) { .cheat-grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Reliability &amp; SRE · Reference 02</p>
+  <h1>Choosing SLIs &mdash; Menu &amp; Method</h1>
+  <div class="meta"><span>Compressed from Lesson 02</span><span class="dot">•</span><span>Print-friendly</span></div>
+</header>
+
+<h2>The shape (use it for every SLI)</h2>
+<pre><code>        good events
+SLI = ─────────────── &times; 100%      valid = events you're accountable for
+        valid events               good  = valid events that met the bar</code></pre>
+<div class="callout insight">
+  <span class="label">Why this shape</span>
+  <p>Ranges 0&ndash;100% · composes with error budget (100% &minus; SLO) · uniform
+     <em>numerator/denominator/threshold</em> so one set of tooling serves all SLIs.</p>
+</div>
+
+<h2>The SLI menu &mdash; pick the type by component</h2>
+<table>
+  <thead><tr><th>Component</th><th>SLI type</th><th>Measures</th></tr></thead>
+  <tbody>
+    <tr><td rowspan="3"><strong>Request-driven</strong><br>(API, web)</td><td>Availability</td><td>Proportion of requests that succeed.</td></tr>
+    <tr><td>Latency</td><td>Proportion faster than a threshold.</td></tr>
+    <tr><td>Quality</td><td>Proportion served <em>un</em>-degraded under stress.</td></tr>
+    <tr><td rowspan="3"><strong>Pipeline</strong><br>(batch, stream)</td><td>Freshness</td><td>Proportion of data newer than a threshold.</td></tr>
+    <tr><td>Correctness</td><td>Proportion of records that produce the right output.</td></tr>
+    <tr><td>Coverage</td><td>Proportion of valid input actually processed.</td></tr>
+    <tr><td><strong>Storage</strong></td><td>Durability</td><td>Proportion of data that survives / is retrievable.</td></tr>
+  </tbody>
+</table>
+<p style="font-size:.86rem;color:var(--muted);font-style:italic;">
+  Request-driven services (most of yours): <strong>start with Availability + Latency</strong>. Keep to
+  &le;5 SLI types total.
+</p>
+
+<div class="cheat-grid">
+  <div>
+    <h3>Specification vs. implementation</h3>
+    <ul>
+      <li><strong>Specification</strong> = the user outcome that matters, no method.
+          <em>&ldquo;ratio of loads &lt; 100 ms&rdquo;.</em></li>
+      <li><strong>Implementation</strong> = spec + how you measure it.</li>
+      <li>One spec &rarr; many implementations, judged on
+          <strong>quality · coverage · cost</strong>.</li>
+    </ul>
+  </div>
+  <div>
+    <h3>Where to measure (closest wins)</h3>
+    <ul>
+      <li><strong>Client telemetry</strong> — most truthful, costliest.</li>
+      <li><strong>Load balancer</strong> — sees requests the server never did.</li>
+      <li><strong>Server logs</strong> — cheap; misses requests that never arrived.</li>
+      <li><em>Rule: measure as close to the user as you can afford.</em></li>
+    </ul>
+  </div>
+</div>
+
+<div class="callout warning">
+  <span class="label">Two traps</span>
+  <p>
+    <strong>1. Infra proxies.</strong> CPU, memory, uptime, pod counts can be green while users fail.
+    Measure the <em>experience</em>. &nbsp;
+    <strong>2. Averages.</strong> The mean hides the tail. Use ratios past a threshold, and
+    <strong>two thresholds</strong> for typical + tail (e.g. 90% &lt; 100 ms and 99% &lt; 400 ms).
+  </p>
+</div>
+
+<h2>Starter recipe</h2>
+<ol>
+  <li>Pick <strong>one application</strong>.</li>
+  <li>Define <strong>who the users are</strong>.</li>
+  <li>List their <strong>critical journeys</strong>.</li>
+  <li>Sketch architecture; <strong>classify components</strong> (request / pipeline / storage).</li>
+  <li>Choose <strong>&le;5 SLI types</strong> for the most critical functionality; ship one, iterate.</li>
+</ol>
+
+<h2>Prometheus shapes</h2>
+<pre><code># Availability — successful ÷ all valid requests
+sum(rate(http_requests_total{code!~"5.."}[28d]))
+  / sum(rate(http_requests_total[28d]))
+
+# Latency — proportion faster than 300 ms (histogram)
+sum(rate(http_request_duration_seconds_bucket{le="0.3"}[28d]))
+  / sum(rate(http_request_duration_seconds_count[28d]))</code></pre>
+
+<nav class="lesson-nav">
+  <span class="group"><b>From</b><a href="../lessons/0002-choosing-good-slis.html">&larr; Lesson 02 · Choosing good SLIs</a></span>
+  <span class="group"><b>Canonical terms</b><a href="../GLOSSARY.md">GLOSSARY.md</a></span>
+  <span class="group"><b>Primary source</b><a href="https://sre.google/workbook/implementing-slos/" target="_blank" rel="noopener">SRE Workbook · Implementing SLOs</a></span>
+</nav>
+
+</body>
+</html>

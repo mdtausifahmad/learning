@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 03 · Deep Dive — Kafka Consumer Groups &amp; Partition Assignment</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<script src="../assets/quiz.js" defer></script>
+<script src="../assets/stepflow.js" defer></script>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Async &amp; Messaging · Lesson 03 · Deep Dive</p>
+  <h1>Why Consumers ≤ Partitions — Kafka&rsquo;s Consumer Group Machinery</h1>
+  <div class="meta">
+    <span>◷ ~16 min read</span>
+    <span class="dot">•</span>
+    <span>Level: Depth / Staff</span>
+    <span class="dot">•</span>
+    <span>Deepens: <a href="0002-queue-vs-topic.html">Lesson 02 §3</a></span>
+  </div>
+</header>
+
+<p class="mission-tie">
+  You asked exactly the right question: in Lesson 02 we said a group can&rsquo;t have more active
+  consumers than the topic has partitions, and extras go idle. <em>Why?</em> This deep dive answers
+  it three ways &mdash; the rule, the mechanism that enforces it, and the design trade-off behind it &mdash;
+  so you can defend Kafka&rsquo;s model in a staff design review, not just recite it.
+</p>
+
+<h2>1. The rule, stated precisely</h2>
+
+<p>
+  The <a href="https://developer.confluent.io/courses/architecture/consumer-group-protocol/" target="_blank" rel="noopener">Confluent architecture course</a>
+  puts it in one sentence:
+</p>
+
+<div class="callout insight">
+  <span class="label">The invariant</span>
+  <p>
+    &ldquo;The unit of parallelism is the partition. For a given consumer group, consumers can process
+    more than one partition but <strong>a partition can only be processed by one consumer</strong>&hellip;
+    We could add a fifth but it would <strong>sit idle since partitions cannot be shared.</strong>&rdquo;
+  </p>
+</div>
+
+<p>
+  So the maximum <em>useful</em> parallelism of a group equals the topic&rsquo;s partition count. A
+  consumer may own several partitions; a partition is never split across consumers of the same
+  group. Four partitions, six consumers → four work, two stand by:
+</p>
+
+<figure>
+<svg viewBox="0 0 640 350" role="img" aria-label="A topic with four partitions assigned to four consumers; two extra consumers in the group sit idle">
+  <defs>
+    <marker id="arw" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#3f7a3f"></path>
+    </marker>
+  </defs>
+
+  <text x="105" y="44" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11.5" fill="#6b6459" font-weight="600">topic: order.events</text>
+  <rect x="30" y="54" width="150" height="228" rx="8" fill="none" stroke="#c9c1b1" stroke-width="1.25"></rect>
+  <rect x="45" y="66"  width="120" height="44" rx="6" fill="#f3f0e8" stroke="#6b6459" stroke-width="1.25"></rect>
+  <text x="105" y="93"  text-anchor="middle" font-family="system-ui, sans-serif" font-size="12.5" fill="#1a1a1a">Partition 0</text>
+  <rect x="45" y="118" width="120" height="44" rx="6" fill="#f3f0e8" stroke="#6b6459" stroke-width="1.25"></rect>
+  <text x="105" y="145" text-anchor="middle" font-family="system-ui, sans-serif" font-size="12.5" fill="#1a1a1a">Partition 1</text>
+  <rect x="45" y="170" width="120" height="44" rx="6" fill="#f3f0e8" stroke="#6b6459" stroke-width="1.25"></rect>
+  <text x="105" y="197" text-anchor="middle" font-family="system-ui, sans-serif" font-size="12.5" fill="#1a1a1a">Partition 2</text>
+  <rect x="45" y="222" width="120" height="44" rx="6" fill="#f3f0e8" stroke="#6b6459" stroke-width="1.25"></rect>
+  <text x="105" y="249" text-anchor="middle" font-family="system-ui, sans-serif" font-size="12.5" fill="#1a1a1a">Partition 3</text>
+
+  <text x="515" y="44" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11.5" fill="#6b6459" font-weight="600">group: fulfillment</text>
+  <rect x="440" y="66"  width="150" height="34" rx="6" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.5"></rect>
+  <text x="515" y="87"  text-anchor="middle" font-family="system-ui, sans-serif" font-size="11.5" fill="#1a1a1a">Consumer 1</text>
+  <rect x="440" y="112" width="150" height="34" rx="6" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.5"></rect>
+  <text x="515" y="133" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11.5" fill="#1a1a1a">Consumer 2</text>
+  <rect x="440" y="158" width="150" height="34" rx="6" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.5"></rect>
+  <text x="515" y="179" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11.5" fill="#1a1a1a">Consumer 3</text>
+  <rect x="440" y="204" width="150" height="34" rx="6" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.5"></rect>
+  <text x="515" y="225" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11.5" fill="#1a1a1a">Consumer 4</text>
+  <rect x="440" y="250" width="150" height="34" rx="6" fill="#f6f1e7" stroke="#c9c1b1" stroke-width="1.25" stroke-dasharray="4 3"></rect>
+  <text x="515" y="271" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11.5" fill="#a98b3f">Consumer 5 · idle</text>
+  <rect x="440" y="296" width="150" height="34" rx="6" fill="#f6f1e7" stroke="#c9c1b1" stroke-width="1.25" stroke-dasharray="4 3"></rect>
+  <text x="515" y="317" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11.5" fill="#a98b3f">Consumer 6 · idle</text>
+
+  <line x1="165" y1="88"  x2="436" y2="83"  stroke="#3f7a3f" stroke-width="1.75" marker-end="url(#arw)"></line>
+  <line x1="165" y1="140" x2="436" y2="129" stroke="#3f7a3f" stroke-width="1.75" marker-end="url(#arw)"></line>
+  <line x1="165" y1="192" x2="436" y2="175" stroke="#3f7a3f" stroke-width="1.75" marker-end="url(#arw)"></line>
+  <line x1="165" y1="244" x2="436" y2="221" stroke="#3f7a3f" stroke-width="1.75" marker-end="url(#arw)"></line>
+</svg>
+<figcaption>Extra consumers aren&rsquo;t &ldquo;load-balanced in&rdquo; &mdash; the assignor has no unowned partition left to give them, so they wait as hot standbys.</figcaption>
+</figure>
+
+<h2>2. Why one consumer per partition? (the design reason)</h2>
+
+<p>The single-owner rule is not arbitrary. It buys two guarantees that Kafka&rsquo;s whole model rests on:</p>
+
+<ul>
+  <li><strong>Ordering.</strong> Kafka only promises order <em>within</em> a partition. A partition is
+      an append-only log read sequentially by <em>one</em> cursor. Allow two consumers to read the same
+      partition and &ldquo;in order&rdquo; becomes meaningless &mdash; they&rsquo;d interleave unpredictably.</li>
+  <li><strong>Offset ownership.</strong> Progress is tracked as a single committed <em>offset</em> per
+      <code>(group, partition)</code>, stored in the internal <code>__consumer_offsets</code> topic. One
+      owner ⇒ one writer ⇒ one unambiguous &ldquo;we&rsquo;ve processed up to here.&rdquo; Two owners would race
+      on that commit and cause reprocessing or skips.</li>
+</ul>
+
+<div class="callout insight">
+  <span class="label">The mental model</span>
+  <p>
+    A partition behaves like a <em>queue with a single bookmark</em>. Sharing the bookmark between two
+    readers is incoherent, so Kafka assigns each partition to one reader per group. Parallelism then
+    <em>has</em> to be capped at the number of partitions &mdash; the idle consumer is a direct, honest
+    consequence of the ordering + offset guarantees, not a limitation someone forgot to fix.
+  </p>
+</div>
+
+<h2>3. How it&rsquo;s enforced under the hood</h2>
+
+<p>
+  No broker &ldquo;load-balances&rdquo; partitions onto consumers. Instead, the group runs a little protocol.
+  Crucially, per the <a href="https://www.confluent.io/blog/incremental-cooperative-rebalancing-in-kafka/" target="_blank" rel="noopener">Confluent rebalancing paper</a>,
+  &ldquo;group membership is <em>all</em> the broker/coordinator knows about the group&rdquo; &mdash; the actual
+  assignment is computed by the clients themselves (an <em>embedded protocol</em>):
+</p>
+
+<ol>
+  <li><strong>Find the coordinator.</strong> A consumer sends <code>FindCoordinator(group.id)</code>. The
+      broker hashes the <code>group.id</code> modulo the <code>__consumer_offsets</code> partition count; the
+      broker leading that partition becomes this group&rsquo;s <span class="term">group coordinator</span>.</li>
+  <li><strong>Join &amp; elect a leader.</strong> Consumers send <code>JoinGroup</code> with their
+      subscriptions. The coordinator picks one (usually the first) as the
+      <span class="term">group leader</span>, hands every consumer a <code>memberId</code>, and hands the
+      <em>leader</em> the full member + subscription list.</li>
+  <li><strong>Assign, client-side.</strong> The <em>leader</em> runs the configured
+      <span class="term">partition assignment strategy</span> to map partitions → members, then sends the
+      plan to the coordinator via <code>SyncGroup</code>. Everyone else sends an empty
+      <code>SyncGroup</code> and receives their slice back. <em>This is the step where the 5th and 6th
+      consumers get nothing.</em></li>
+  <li><strong>Heartbeat &amp; consume.</strong> Members send periodic heartbeats. Miss
+      <code>session.timeout.ms</code> and the coordinator declares you dead and triggers a
+      <span class="term">rebalance</span> &mdash; your partitions are reassigned to a survivor. That is also
+      how an idle standby gets promoted the instant an active consumer dies.</li>
+</ol>
+
+<div class="callout warning">
+  <span class="label">Rebalances: the hidden cost</span>
+  <p>
+    The classic (&ldquo;eager&rdquo;) protocol is <strong>stop-the-world</strong>: on any membership change
+    <em>every</em> consumer revokes <em>all</em> partitions, then everyone gets a fresh assignment &mdash;
+    a processing pause proportional to the load. That&rsquo;s why a rolling deploy of 10 pods can cause 10
+    disruptive rebalances. The modern fix is <strong>Incremental Cooperative Rebalancing</strong>
+    (<code>CooperativeStickyAssignor</code>): only the partitions that must move are revoked; everything
+    else keeps processing. Pair it with <strong>static membership</strong>
+    (<code>group.instance.id</code>) so a quick pod restart doesn&rsquo;t trigger a rebalance at all.
+  </p>
+</div>
+
+<h3>Watch it: assignment, idle standbys, and a rebalance</h3>
+<p>
+  Step through the group&rsquo;s whole life (← / → keys work). Consumers join and split the 4 partitions,
+  the extras go <strong>idle</strong>, then a crash triggers a <strong>rebalance</strong> that promotes
+  a standby.
+</p>
+
+<div class="stepflow" data-token="token">
+  <div class="sf-stage">
+    <svg viewBox="0 0 720 344" role="img" aria-label="Four partitions assigned across a growing consumer group; extra consumers idle; a crash triggers a rebalance">
+      <defs>
+        <marker id="l3arw" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#3f7a3f"></path></marker>
+      </defs>
+
+      <text x="110" y="24" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="600" fill="#6b6459">topic · 4 partitions</text>
+      <rect x="40" y="40" width="140" height="54" rx="8" fill="#f3f0e8" stroke="#6b6459" stroke-width="1.25"></rect>
+      <text x="110" y="71" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" fill="#1a1a1a">Partition 0</text>
+      <g id="p1" class="sf-actor"><rect x="40" y="102" width="140" height="54" rx="8" fill="#f3f0e8" stroke="#6b6459" stroke-width="1.25"></rect><text x="110" y="133" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" fill="#1a1a1a">Partition 1</text></g>
+      <rect x="40" y="164" width="140" height="54" rx="8" fill="#f3f0e8" stroke="#6b6459" stroke-width="1.25"></rect>
+      <text x="110" y="195" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" fill="#1a1a1a">Partition 2</text>
+      <rect x="40" y="226" width="140" height="54" rx="8" fill="#f3f0e8" stroke="#6b6459" stroke-width="1.25"></rect>
+      <text x="110" y="257" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" fill="#1a1a1a">Partition 3</text>
+
+      <text x="570" y="24" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="600" fill="#6b6459">consumer group: fulfillment</text>
+
+      <line id="aP0C1" x1="180" y1="67" x2="466" y2="59" stroke="#3f7a3f" stroke-width="1.75" marker-end="url(#l3arw)" style="display:none"></line>
+      <line id="aP1C1" x1="180" y1="129" x2="466" y2="59" stroke="#3f7a3f" stroke-width="1.75" marker-end="url(#l3arw)" style="display:none"></line>
+      <line id="aP2C1" x1="180" y1="191" x2="466" y2="59" stroke="#3f7a3f" stroke-width="1.75" marker-end="url(#l3arw)" style="display:none"></line>
+      <line id="aP3C1" x1="180" y1="253" x2="466" y2="59" stroke="#3f7a3f" stroke-width="1.75" marker-end="url(#l3arw)" style="display:none"></line>
+      <line id="aP2C2" x1="180" y1="191" x2="466" y2="103" stroke="#3f7a3f" stroke-width="1.75" marker-end="url(#l3arw)" style="display:none"></line>
+      <line id="aP3C2" x1="180" y1="253" x2="466" y2="103" stroke="#3f7a3f" stroke-width="1.75" marker-end="url(#l3arw)" style="display:none"></line>
+      <line id="aP1C2" x1="180" y1="129" x2="466" y2="103" stroke="#3f7a3f" stroke-width="1.75" marker-end="url(#l3arw)" style="display:none"></line>
+      <line id="aP2C3" x1="180" y1="191" x2="466" y2="147" stroke="#3f7a3f" stroke-width="1.75" marker-end="url(#l3arw)" style="display:none"></line>
+      <line id="aP3C4" x1="180" y1="253" x2="466" y2="191" stroke="#3f7a3f" stroke-width="1.75" marker-end="url(#l3arw)" style="display:none"></line>
+      <line id="aP1C5" x1="180" y1="129" x2="466" y2="235" stroke="#b5651d" stroke-width="1.9" marker-end="url(#l3arw)" style="display:none"></line>
+
+      <g id="consC1" class="sf-actor" style="display:none"><rect x="470" y="40" width="200" height="38" rx="8" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.5"></rect><text x="570" y="64" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" fill="#1a1a1a">Consumer 1</text></g>
+      <g id="consC2" class="sf-actor" style="display:none"><rect x="470" y="84" width="200" height="38" rx="8" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.5"></rect><text x="570" y="108" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" fill="#1a1a1a">Consumer 2</text></g>
+      <g id="consC3" class="sf-actor" style="display:none"><rect x="470" y="128" width="200" height="38" rx="8" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.5"></rect><text x="570" y="152" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" fill="#1a1a1a">Consumer 3</text></g>
+      <g id="consC4" class="sf-actor" style="display:none"><rect x="470" y="172" width="200" height="38" rx="8" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.5"></rect><text x="570" y="196" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" fill="#1a1a1a">Consumer 4</text></g>
+      <g id="consC5" class="sf-actor" style="display:none"><rect x="470" y="216" width="200" height="38" rx="8" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.5"></rect><text x="540" y="240" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" fill="#1a1a1a">Consumer 5</text></g>
+      <g id="consC6" class="sf-actor" style="display:none"><rect x="470" y="260" width="200" height="38" rx="8" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.5"></rect><text x="540" y="284" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" fill="#1a1a1a">Consumer 6</text></g>
+
+      <g id="idleC5" style="display:none"><rect x="612" y="227" width="48" height="22" rx="5" fill="#f6f1e7" stroke="#c9c1b1" stroke-width="1"></rect><text x="636" y="242" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" fill="#8a4d16">idle</text></g>
+      <g id="idleC6" style="display:none"><rect x="612" y="271" width="48" height="22" rx="5" fill="#f6f1e7" stroke="#c9c1b1" stroke-width="1"></rect><text x="636" y="286" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" fill="#8a4d16">idle</text></g>
+
+      <g id="deadC2" style="display:none"><rect x="470" y="84" width="200" height="38" rx="8" fill="#f8eaea" fill-opacity="0.92" stroke="#a32f2f" stroke-width="1.5"></rect><text x="570" y="108" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" font-weight="700" fill="#a32f2f">✗ Consumer 2 crashed</text></g>
+
+      <g id="rebal" style="display:none"><rect x="248" y="312" width="224" height="24" rx="6" fill="#eef1f6" stroke="#2e5a7a" stroke-width="1.1"></rect><text x="360" y="328" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="600" fill="#2e5a7a">⟳ rebalance — partitions reassigned</text></g>
+    </svg>
+  </div>
+
+  <div class="sf-caption"><p class="sf-title"></p><p class="sf-desc"></p></div>
+  <div class="sf-controls">
+    <button class="sf-btn sf-prev" type="button">◀ Prev</button>
+    <button class="sf-btn sf-next" type="button">Next ▶</button>
+    <button class="sf-btn sf-reset" type="button">↺ Reset</button>
+    <button class="sf-btn sf-play" type="button">▶ Play</button>
+    <span class="sf-counter"></span>
+  </div>
+
+  <script type="application/json" class="sf-steps">
+  [
+    {"title":"A topic and an empty group","desc":"The topic has 4 partitions; the consumer group is empty. Watch how partitions get shared — and what happens with too many consumers.","token":null,"visible":[],"highlight":[]},
+    {"title":"Consumer 1 joins","desc":"With one member, Consumer 1 is assigned <strong>all 4 partitions</strong> — one consumer can own many.","token":null,"visible":["consC1","aP0C1","aP1C1","aP2C1","aP3C1"],"highlight":["consC1"]},
+    {"title":"Consumer 2 joins → rebalance","desc":"A second member triggers a rebalance; the partitions split <strong>2 and 2</strong>.","token":null,"visible":["consC1","consC2","aP0C1","aP1C1","aP2C2","aP3C2","rebal"],"highlight":["consC1","consC2"]},
+    {"title":"Consumers 3 and 4 join","desc":"Now each consumer owns exactly one partition — <strong>full parallelism</strong>: 4 partitions, 4 workers.","token":null,"visible":["consC1","consC2","consC3","consC4","aP0C1","aP1C2","aP2C3","aP3C4","rebal"],"highlight":["consC1","consC2","consC3","consC4"]},
+    {"title":"Consumers 5 and 6 join → IDLE","desc":"There are no partitions left, so Consumers 5 and 6 sit <strong>idle</strong>. Max useful consumers = partition count.","token":null,"visible":["consC1","consC2","consC3","consC4","consC5","consC6","aP0C1","aP1C2","aP2C3","aP3C4","idleC5","idleC6"],"highlight":["consC1","consC2","consC3","consC4"]},
+    {"title":"Consumer 2 crashes","desc":"Consumer 2 dies. Its partition — <strong>P1</strong> — is momentarily orphaned; no one is reading it.","token":null,"visible":["consC1","consC2","consC3","consC4","consC5","consC6","aP0C1","aP2C3","aP3C4","idleC5","idleC6","deadC2"],"highlight":["consC1","consC3","consC4","p1"]},
+    {"title":"Rebalance promotes a standby","desc":"A rebalance reassigns <strong>P1 to Consumer 5</strong> — the idle standby becomes useful instantly. Consumer 6 stays idle.","token":null,"visible":["consC1","consC2","consC3","consC4","consC5","consC6","aP0C1","aP1C5","aP2C3","aP3C4","idleC6","deadC2","rebal"],"highlight":["consC1","consC3","consC4","consC5","p1"]},
+    {"title":"What you just saw","desc":"Parallelism is <strong>capped by partitions</strong>, extras are <strong>hot standbys</strong>, and any membership change triggers a <strong>rebalance</strong> that moves partitions.","token":null,"visible":["consC1","consC2","consC3","consC4","consC5","consC6","aP0C1","aP1C5","aP2C3","aP3C4","idleC6","deadC2"],"highlight":["consC1","consC3","consC4","consC5"]}
+  ]
+  </script>
+</div>
+
+<h2>4. Assignment strategies (the pluggable part)</h2>
+<table>
+  <thead><tr><th>Strategy</th><th>Behaviour &amp; when to pick it</th></tr></thead>
+  <tbody>
+    <tr><td><code>RangeAssignor</code> (default)</td><td>Per-topic ranges. Enables <em>co-partitioned joins</em>: same key lands on the same-indexed partition across topics → same consumer. Can skew load with few partitions.</td></tr>
+    <tr><td><code>RoundRobinAssignor</code></td><td>Spreads all partitions evenly across members. Better balance; loses the co-partition-join property.</td></tr>
+    <tr><td><code>StickyAssignor</code></td><td>Even <em>and</em> tries to preserve prior assignment across rebalances (less churn).</td></tr>
+    <tr><td><code>CooperativeStickyAssignor</code></td><td>Sticky + incremental/cooperative rebalancing. The modern default choice for large or frequently-scaled groups.</td></tr>
+  </tbody>
+</table>
+
+<h2>5. Pros &amp; cons of the whole design</h2>
+
+<div class="callout insight">
+  <span class="label">Why Kafka chose this — the wins</span>
+  <p>
+    <strong>Brokers stay dumb and scale.</strong> They only store the log and track group membership +
+    offsets; all coordination is client-side. This is a big reason a Kafka cluster can host tens of
+    thousands of consumer groups. <strong>Strong per-partition ordering</strong> and <strong>clean,
+    single-writer offsets</strong> fall out for free. <strong>Automatic failover</strong>: a dead
+    consumer&rsquo;s partitions are reassigned to survivors (idle standbys become useful instantly).
+    <strong>Elastic scaling</strong> up to the partition count with no code change &mdash; just add instances.
+  </p>
+</div>
+
+<div class="callout warning">
+  <span class="label">What you pay — the trade-offs</span>
+  <p>
+    <strong>Parallelism is capped by partition count</strong>, decided largely up front &mdash; under-partition
+    and you can&rsquo;t scale out later without pain. <strong>Idle consumers waste money</strong> if you
+    over-provision instances. But <strong>over-partitioning isn&rsquo;t free either</strong>: more partitions
+    mean more open file handles and memory on brokers, longer leader elections and failover, higher
+    end-to-end latency, and slower rebalances. <strong>Changing partition count reshuffles
+    key→partition mapping</strong>, breaking historical per-key ordering and co-partitioning.
+    <strong>Hot partitions</strong> (key skew) overload one consumer while others idle. And
+    <strong>rebalances pause processing</strong> unless you adopt cooperative rebalancing + static
+    membership.
+  </p>
+</div>
+
+<div class="callout tryit">
+  <span class="label">Rule of thumb for partition count</span>
+  <p>
+    Pick partitions for your <em>target peak</em> throughput and parallelism, with headroom &mdash; it&rsquo;s
+    far easier to run fewer consumers than partitions than to add partitions later. A common heuristic:
+    <code>partitions = max(target_throughput / per-consumer_throughput, desired_max_consumers)</code>,
+    then round up for growth. Avoid the reflex to set it to thousands &ldquo;just in case.&rdquo;
+  </p>
+</div>
+
+<h2>6. In your stack: Spring Kafka knobs</h2>
+
+<p>
+  In <code>spring-kafka</code>, the <code>concurrency</code> on a listener container is how many
+  consumer threads that app instance runs in the group. Total consumers =
+  (instances × concurrency) &mdash; and anything beyond the partition count sits idle.
+</p>
+
+<pre><code>@Bean
+fun kafkaListenerContainerFactory(
+    cf: ConsumerFactory&lt;String, OrderPlaced&gt;,
+): ConcurrentKafkaListenerContainerFactory&lt;String, OrderPlaced&gt; =
+    ConcurrentKafkaListenerContainerFactory&lt;String, OrderPlaced&gt;().apply {
+        consumerFactory = cf
+        setConcurrency(4)   // 4 consumer threads; give the topic &ge; 4 partitions or some idle
+    }</code></pre>
+
+<pre><code># application.yml — the levers this lesson explained
+spring:
+  kafka:
+    consumer:
+      group-id: fulfillment
+      properties:
+        partition.assignment.strategy: org.apache.kafka.clients.consumer.CooperativeStickyAssignor
+        session.timeout.ms: 45000          # miss heartbeats this long -> declared dead -> rebalance
+        max.poll.interval.ms: 300000       # too-slow processing also triggers a rebalance
+        group.instance.id: ${HOSTNAME}     # static membership: skip rebalance on quick restarts</code></pre>
+
+<div class="callout warning">
+  <span class="label">The most common real-world bug this explains</span>
+  <p>
+    &ldquo;We scaled to 20 pods but throughput flatlined.&rdquo; The topic had 8 partitions &mdash; so 12 pods
+    were idle. The fix is <em>more partitions</em>, not more pods. Now you know exactly why.
+  </p>
+</div>
+
+<div class="primary-source">
+  <span class="label">Go deeper (primary sources)</span>
+  <p>
+    <a href="https://developer.confluent.io/courses/architecture/consumer-group-protocol/" target="_blank" rel="noopener">Confluent &mdash; <em>Consumer Group Protocol</em></a>
+    (coordinator, leader, Join/Sync/Heartbeat, assignment strategies) and
+    <a href="https://www.confluent.io/blog/incremental-cooperative-rebalancing-in-kafka/" target="_blank" rel="noopener">Confluent &mdash; <em>Incremental Cooperative Rebalancing</em></a>
+    (eager vs cooperative, why the broker stays generic).
+  </p>
+</div>
+
+<h2>7. Check yourself</h2>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 1 of 2</p>
+  <p class="quiz-q">Deepest reason Kafka forbids two consumers of one group from sharing a partition?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="A single owner gives one ordered cursor and one offset writer per (group, partition).">It preserves ordering and a single offset</button></li>
+    <li><button data-correct="false" data-feedback="Brokers are deliberately generic; they don&rsquo;t lack the power, the model chooses single-owner.">Brokers are too weak to coordinate two</button></li>
+    <li><button data-correct="false" data-feedback="Network cost isn&rsquo;t the reason; correctness of order and offsets is.">It would use too much network bandwidth</button></li>
+    <li><button data-correct="false" data-feedback="Replication is a separate mechanism; this rule is about consumption semantics.">It is required to replicate the partition</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="One owner per partition per group = coherent per-partition order + one unambiguous committed offset in __consumer_offsets."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 2 of 2</p>
+  <p class="quiz-q">Who actually computes which consumer gets which partition?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="The coordinator only tracks membership and relays the plan; it doesn&rsquo;t compute it.">The group coordinator broker computes it</button></li>
+    <li><button data-correct="true" data-feedback="Right &mdash; the elected leader runs the assignor client-side, then shares it via SyncGroup.">The elected group leader computes it</button></li>
+    <li><button data-correct="false" data-feedback="ZooKeeper/controller isn&rsquo;t involved in per-group partition assignment.">The cluster controller assigns them all</button></li>
+    <li><button data-correct="false" data-feedback="There is a single leader per group doing assignment, not every consumer independently.">Each consumer picks its own partitions</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Assignment is an embedded, client-side protocol: the leader runs the strategy; the broker only knows membership."></div>
+</div>
+
+<div class="followup">
+  <strong>I&rsquo;m your teacher &mdash; keep going.</strong> Want to see how a <em>bad</em> partition key creates a
+  hot partition, or how offset commit + processing interleave to produce duplicates? Those are the
+  doorways into <em>delivery guarantees</em> and <em>ordering</em> &mdash; just ask.
+</div>
+
+<nav class="lesson-nav">
+  <span class="group">
+    <b>Previous</b>
+    <a href="0002-queue-vs-topic.html">← Lesson 02 · Queues vs Topics</a>
+  </span>
+  <span class="group">
+    <b>Reference</b>
+    <a href="../reference/0003-kafka-consumer-groups-cheatsheet.html">Consumer group internals cheat sheet →</a>
+  </span>
+  <span class="group">
+    <b>Up next</b>
+    <a href="0004-event-command-query.html">Lesson 04 · Event vs Command vs Query</a>
+  </span>
+</nav>
+
+</body>
+</html>

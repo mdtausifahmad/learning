@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cheat Sheet · Kafka Consumer Group Internals</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<style>
+  body { max-width: 52rem; }
+  @media print { body { margin: 0; } h2 { margin-top: 1.1rem; } }
+</style>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Async &amp; Messaging · Reference 03</p>
+  <h1>Kafka Consumer Group Internals — Cheat Sheet</h1>
+  <div class="meta"><span>Compressed from Lesson 03</span><span class="dot">•</span><span>Print-friendly</span></div>
+</header>
+
+<h2>The one invariant</h2>
+<div class="callout insight">
+  <span class="label">Memorize this</span>
+  <p><strong>Within a group, one partition → exactly one consumer.</strong> Max useful consumers =
+     partition count. Extras sit idle (as hot standbys).</p>
+</div>
+
+<h2>Why (the design reason)</h2>
+<ul>
+  <li><strong>Ordering</strong> — a partition is one append-only log read by one cursor; order holds only within a partition.</li>
+  <li><strong>Offsets</strong> — one committed offset per <code>(group, partition)</code> in <code>__consumer_offsets</code>; one owner = one writer, no races.</li>
+</ul>
+
+<h2>The protocol (how it's enforced)</h2>
+<ol>
+  <li><strong>FindCoordinator</strong> — <code>hash(group.id) % __consumer_offsets partitions</code> → a broker becomes <strong>group coordinator</strong>.</li>
+  <li><strong>JoinGroup</strong> — coordinator elects a <strong>group leader</strong> (first to join); gives it the member + subscription list.</li>
+  <li><strong>SyncGroup</strong> — the <em>leader</em> computes the assignment <em>client-side</em>; coordinator relays each member's slice. (Idle consumers get nothing here.)</li>
+  <li><strong>Heartbeat</strong> — miss <code>session.timeout.ms</code> → declared dead → <strong>rebalance</strong> → partitions move to survivors.</li>
+</ol>
+<p><em>The broker only knows membership; assignment is an embedded, client-side protocol.</em></p>
+
+<h2>Rebalancing</h2>
+<ul>
+  <li><strong>Eager (stop-the-world):</strong> all consumers revoke all partitions, then reassign. Disruptive.</li>
+  <li><strong>Incremental Cooperative</strong> (<code>CooperativeStickyAssignor</code>): only moving partitions are revoked; the rest keep processing.</li>
+  <li><strong>Static membership</strong> (<code>group.instance.id</code>): quick restarts skip the rebalance entirely.</li>
+</ul>
+
+<h2>Assignment strategies</h2>
+<table>
+  <thead><tr><th>Strategy</th><th>Pick when</th></tr></thead>
+  <tbody>
+    <tr><td><code>RangeAssignor</code> (default)</td><td>You need co-partitioned joins across topics.</td></tr>
+    <tr><td><code>RoundRobinAssignor</code></td><td>You want the most even spread.</td></tr>
+    <tr><td><code>StickyAssignor</code></td><td>Even + minimal churn across rebalances.</td></tr>
+    <tr><td><code>CooperativeStickyAssignor</code></td><td>Large / frequently-scaled groups (modern default).</td></tr>
+  </tbody>
+</table>
+
+<h2>Pros ↔ Cons</h2>
+<table>
+  <thead><tr><th>Wins</th><th>Costs</th></tr></thead>
+  <tbody>
+    <tr><td>Brokers stay dumb → scale to many groups</td><td>Parallelism capped by partition count (set up front)</td></tr>
+    <tr><td>Per-partition ordering, single-writer offsets</td><td>Over-partitioning: more files/memory, slower failover &amp; rebalance</td></tr>
+    <tr><td>Automatic failover to survivors/standbys</td><td>Changing partitions reshuffles key→partition mapping</td></tr>
+    <tr><td>Elastic scaling up to partitions, no code change</td><td>Hot partitions (key skew) overload one consumer; rebalances pause work</td></tr>
+  </tbody>
+</table>
+
+<h2>Spring Kafka levers</h2>
+<pre><code>setConcurrency(4)                  // consumer threads in this instance (total = instances × concurrency)
+partition.assignment.strategy = CooperativeStickyAssignor
+session.timeout.ms = 45000         // heartbeat miss window -> rebalance
+max.poll.interval.ms = 300000      // slow processing also triggers rebalance
+group.instance.id = ${HOSTNAME}    // static membership</code></pre>
+
+<div class="callout warning">
+  <span class="label">Field diagnosis</span>
+  <p>"Scaled pods, throughput flat" → consumers &gt; partitions → extras idle. Fix = more partitions, not more pods.</p>
+</div>
+
+<nav class="lesson-nav">
+  <span class="group"><b>From</b><a href="../lessons/0003-kafka-consumer-groups-deep-dive.html">← Lesson 03 · Kafka Consumer Groups Deep Dive</a></span>
+  <span class="group"><b>Canonical terms</b><a href="../GLOSSARY.md">GLOSSARY.md</a></span>
+</nav>
+
+</body>
+</html>

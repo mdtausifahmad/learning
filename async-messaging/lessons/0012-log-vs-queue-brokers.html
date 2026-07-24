@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 12 · Log vs Queue Brokers — Internals</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<script src="../assets/quiz.js" defer></script>
+<script src="../assets/stepflow.js" defer></script>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Async &amp; Messaging · Lesson 12</p>
+  <h1>Log vs Queue Brokers — the One Difference That Explains Everything</h1>
+  <div class="meta">
+    <span>◷ ~16 min read · interactive</span>
+    <span class="dot">•</span>
+    <span>Level: Staff / Synthesis</span>
+    <span class="dot">•</span>
+    <span>Ties together: L02, L03, L05–L11</span>
+  </div>
+</header>
+
+<p class="mission-tie">
+  You&rsquo;ve met Kafka, RabbitMQ, and SQS behaving differently at every turn — fan-out, ordering, replay,
+  offsets, DLQs. This lesson reveals the <em>single</em> structural choice underneath all of it. Once
+  you see it, you can predict how <em>any</em> broker behaves and pick the right one without memorizing
+  a feature matrix. This is the mental model a staff engineer reaches for first.
+</p>
+
+<h2>1. The one difference: delete-on-read vs retain</h2>
+
+<p>
+  Confluent says it bluntly: &ldquo;Kafka does not have queues. A topic is not a queue, it&rsquo;s a log. The
+  difference is: when I read from a <strong>queue</strong>, I&rsquo;ve taken that item out — nobody else can
+  read it, it&rsquo;s gone. In a <strong>log</strong>, when I read a message it&rsquo;s still there. I can read
+  it again. Someone else can read it.&rdquo;
+</p>
+
+<ul>
+  <li><strong>Queue-based</strong> (RabbitMQ, SQS, JMS/AMQP): a message is delivered, acknowledged, and
+      <strong>deleted</strong>. The broker tracks per-message state (unacked / acked). The queue holds
+      <em>pending work</em>.</li>
+  <li><strong>Log-based</strong> (Kafka, Pulsar): messages are <strong>appended to an immutable,
+      ordered log</strong> and <strong>retained</strong> (by time/size), independent of who read them.
+      Each consumer tracks its own <span class="term">offset</span>. Reading never deletes.</li>
+</ul>
+
+<h3>Watch it: the queue deletes, the log retains</h3>
+<p>Step through the same three messages in each model (← / → keys work).</p>
+
+<div class="stepflow" data-token="token">
+  <div class="sf-stage">
+    <svg viewBox="0 0 720 340" role="img" aria-label="In a queue, consumed messages are deleted; in a log, messages are retained so consumers read independently and can replay">
+      <defs>
+        <marker id="l12arw" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#c9c1b1"></path></marker>
+      </defs>
+
+      <text x="150" y="26" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" font-weight="700" fill="#7a2e2e">QUEUE — consume &amp; delete</text>
+      <line x1="292" y1="64" x2="356" y2="64" stroke="#c9c1b1" stroke-width="1.5" marker-end="url(#l12arw)"></line>
+      <g id="qm1"><rect x="56" y="42" width="72" height="44" rx="6" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.25"></rect><text x="92" y="70" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" font-weight="600" fill="#1f4a29">m1</text></g>
+      <g id="qm2"><rect x="136" y="42" width="72" height="44" rx="6" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.25"></rect><text x="172" y="70" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" font-weight="600" fill="#1f4a29">m2</text></g>
+      <g id="qm3"><rect x="216" y="42" width="72" height="44" rx="6" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.25"></rect><text x="252" y="70" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" font-weight="600" fill="#1f4a29">m3</text></g>
+      <rect id="actor-qcons" class="sf-actor" x="360" y="42" width="150" height="44" rx="10" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.5"></rect>
+      <text x="435" y="70" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" font-weight="600" fill="#1a1a1a">Consumer</text>
+      <text id="goneNote" x="180" y="112" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="600" fill="#a32f2f" style="display:none">acked → deleted · no replay · one reader</text>
+
+      <line x1="20" y1="150" x2="700" y2="150" stroke="#e4ded2" stroke-width="1"></line>
+
+      <text x="150" y="176" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" font-weight="700" fill="#3f7a3f">LOG — append &amp; retain (offsets)</text>
+      <line x1="292" y1="200" x2="356" y2="205" stroke="#c9c1b1" stroke-width="1.5" marker-end="url(#l12arw)"></line>
+      <line x1="292" y1="214" x2="356" y2="266" stroke="#c9c1b1" stroke-width="1.5" marker-end="url(#l12arw)"></line>
+      <rect x="56" y="184" width="72" height="44" rx="6" fill="#d9e2ec" stroke="#2e5a7a" stroke-width="1.25"></rect>
+      <text x="92" y="212" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="600" fill="#1a1a1a">m · 0</text>
+      <rect x="136" y="184" width="72" height="44" rx="6" fill="#d9e2ec" stroke="#2e5a7a" stroke-width="1.25"></rect>
+      <text x="172" y="212" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="600" fill="#1a1a1a">m · 1</text>
+      <rect x="216" y="184" width="72" height="44" rx="6" fill="#d9e2ec" stroke="#2e5a7a" stroke-width="1.25"></rect>
+      <text x="252" y="212" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="600" fill="#1a1a1a">m · 2</text>
+
+      <rect id="actor-lcA" class="sf-actor" x="360" y="186" width="150" height="40" rx="10" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.5"></rect>
+      <text x="435" y="211" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11.5" font-weight="600" fill="#1a1a1a">Consumer A</text>
+      <rect id="actor-lcB" class="sf-actor" x="360" y="250" width="150" height="40" rx="10" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.5"></rect>
+      <text x="435" y="275" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" font-weight="600" fill="#1a1a1a">Consumer B (group 2)</text>
+
+      <text id="offA0" x="150" y="250" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" fill="#2e5a7a" style="display:none">A: offset 0</text>
+      <text id="offA2" x="150" y="250" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" fill="#2e5a7a" font-weight="600" style="display:none">A: offset 2 (read m0, m1)</text>
+      <text id="offB0" x="150" y="272" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" fill="#7a2e2e" style="display:none">B: offset 0 (independent)</text>
+
+      <text id="retainNote" x="360" y="316" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="600" fill="#1f4a29" style="display:none">✓ log retains the data — reading does not delete it</text>
+      <text id="fanoutNote" x="360" y="316" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="600" fill="#1f4a29" style="display:none">✓ B reads the same data, its own offset — fan-out for free</text>
+      <text id="replayNote" x="360" y="316" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="600" fill="#2e5a7a" style="display:none">↺ rewind A&rsquo;s offset to 0 → replay everything (impossible for a queue)</text>
+      <text id="summaryNote" x="360" y="316" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="700" fill="#1a1a1a" style="display:none">QUEUE = tasks (delete) · LOG = events (retain &amp; replay)</text>
+
+      <g id="token" style="display:none"></g>
+    </svg>
+  </div>
+
+  <div class="sf-caption"><p class="sf-title"></p><p class="sf-desc"></p></div>
+  <div class="sf-controls">
+    <button class="sf-btn sf-prev" type="button">◀ Prev</button>
+    <button class="sf-btn sf-next" type="button">Next ▶</button>
+    <button class="sf-btn sf-reset" type="button">↺ Reset</button>
+    <button class="sf-btn sf-play" type="button">▶ Play</button>
+    <span class="sf-counter"></span>
+  </div>
+
+  <script type="application/json" class="sf-steps">
+  [
+    {"title":"Three messages in a queue","desc":"Two designs, the same three messages. First the <strong>queue</strong>: it holds pending work.","token":null,"visible":["qm1","qm2","qm3"],"highlight":["actor-qcons"]},
+    {"title":"Consume m1 → deleted","desc":"The consumer reads m1 and acks it. The broker <strong>deletes</strong> it — it&rsquo;s gone.","token":null,"visible":["qm2","qm3"],"highlight":["actor-qcons"]},
+    {"title":"Consume m2 → deleted","desc":"Same for m2. The queue shrinks as work is completed.","token":null,"visible":["qm3"],"highlight":["actor-qcons"]},
+    {"title":"Queue: once acked, it&rsquo;s gone","desc":"m3 too. There is no history to re-read, and each message had exactly one logical reader.","token":null,"visible":["goneNote"],"highlight":["actor-qcons"]},
+    {"title":"The same messages in a log","desc":"Now the <strong>log</strong>: the messages are appended at offsets 0, 1, 2 and <strong>retained</strong>. Reading will not delete them.","token":null,"visible":["goneNote","offA0"],"highlight":["actor-lcA"]},
+    {"title":"Consumer A reads — data stays","desc":"A reads m0 and m1; its <strong>offset</strong> advances to 2. The messages remain in the log, untouched.","token":null,"visible":["goneNote","offA2","retainNote"],"highlight":["actor-lcA"]},
+    {"title":"Consumer B reads the SAME data","desc":"A second consumer group reads from offset 0 — the identical data, with its own offset. Fan-out costs nothing (Lesson 02).","token":null,"visible":["goneNote","offA2","offB0","fanoutNote"],"highlight":["actor-lcB"]},
+    {"title":"Rewind &amp; replay","desc":"Reset A&rsquo;s offset to 0 and reprocess everything — event sourcing, backfills, bug re-runs. A queue simply cannot do this; the data was deleted.","token":null,"visible":["goneNote","offA0","offB0","replayNote"],"highlight":["actor-lcA"]},
+    {"title":"One choice explains it all","desc":"Queue = consume-and-delete (a stream of tasks). Log = append-and-retain (a replayable stream of events). Almost every difference you&rsquo;ve learned follows from this.","token":null,"visible":["goneNote","offA0","offB0","summaryNote"],"highlight":["actor-lcA","actor-lcB"]}
+  ]
+  </script>
+</div>
+
+<h2>2. How this one choice explains everything you learned</h2>
+
+<table>
+  <thead><tr><th>Behaviour</th><th>Log-based (Kafka/Pulsar)</th><th>Queue-based (RabbitMQ/SQS)</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Replay / rewind</strong></td><td>Yes — seek to any offset</td><td>No — acked = deleted</td></tr>
+    <tr><td><strong>Fan-out</strong> (L02)</td><td>Free — each group has its own offset on shared data</td><td>Needs a copy per consumer (exchange→N queues, SNS→N SQS)</td></tr>
+    <tr><td><strong>Ordering</strong> (L09)</td><td>Intrinsic per partition (it&rsquo;s an ordered log)</td><td>Fragile — competing consumers &amp; requeue reorder</td></tr>
+    <tr><td><strong>Consumer tracking</strong> (L03/L06)</td><td>One <em>offset</em> per group/partition</td><td>Per-message ack state; redelivery on nack/timeout</td></tr>
+    <tr><td><strong>Parallelism</strong> (L03)</td><td>Capped by partition count</td><td>Add competing consumers freely (no partition cap)</td></tr>
+    <tr><td><strong>DLQ</strong> (L11)</td><td>Built by you (no native)</td><td>Native (SQS redrive, RabbitMQ DLX)</td></tr>
+    <tr><td><strong>Per-message TTL / priority</strong></td><td>No (whole-topic retention)</td><td>Yes — per-message</td></tr>
+  </tbody>
+</table>
+
+<div class="callout insight">
+  <span class="label">The predictive power</span>
+  <p>
+    You never need to memorize these rows. Ask one question &mdash; <em>does reading delete the message?</em>
+    &mdash; and every row follows. Retained data ⇒ replay, free fan-out, offsets, intrinsic order.
+    Deleted-on-ack ⇒ per-message state, native DLQ/priority, easy scaling, no replay.
+  </p>
+</div>
+
+<h2>3. Inside each model</h2>
+
+<h3>The log (Kafka)</h3>
+<ul>
+  <li><strong>Append-only, immutable segments</strong> on disk (data + an offset index). Confluent:
+      messages are &ldquo;immutable — once written, you can&rsquo;t change them… you don&rsquo;t get to rewrite
+      history.&rdquo; That immutability <em>is</em> what makes replay possible.</li>
+  <li><strong>Sequential I/O</strong> + OS page cache + zero-copy → very high throughput.</li>
+  <li><strong>Retention</strong> by time or size; or <strong>log compaction</strong>
+      (<code>cleanup.policy=compact</code>) which keeps only the latest value per key — a durable
+      &ldquo;current state&rdquo; changelog.</li>
+</ul>
+
+<pre><code>// A log lets you replay — reset a group to the beginning and reprocess history
+spring.kafka.consumer.auto-offset-reset: earliest      // new group reads from offset 0
+# or seek at runtime:  consumer.seekToBeginning(partitions)
+
+// Compacted topic = keep latest value per key (a state changelog)
+# cleanup.policy = compact</code></pre>
+
+<h3>The queue (RabbitMQ / SQS)</h3>
+<ul>
+  <li>The broker tracks <strong>per-message delivery state</strong>: delivered-but-unacked messages are
+      redelivered after a <code>nack</code> or a timeout (RabbitMQ requeue; SQS <em>visibility
+      timeout</em>). On ack, the message is <strong>removed</strong>.</li>
+  <li>Because it owns each message individually, a queue can offer <strong>per-message priority, TTL,
+      selective consumption, and native DLQs</strong> — things a whole-topic log can&rsquo;t.</li>
+  <li>HA via replicated/quorum queues (RabbitMQ) or a managed distributed store (SQS).</li>
+</ul>
+
+<h2>4. Choosing — the staff heuristic</h2>
+
+<div class="callout insight">
+  <span class="label">The one-line test</span>
+  <p>
+    <strong>A stream of events others may want to replay → log.</strong>
+    <strong>A queue of tasks to be done once and discarded → queue.</strong>
+    (It rhymes with Lesson 04: <em>events</em> lean log, <em>commands/tasks</em> lean queue.)
+  </p>
+</div>
+
+<table>
+  <thead><tr><th>Reach for a LOG when…</th><th>Reach for a QUEUE when…</th></tr></thead>
+  <tbody>
+    <tr><td>Multiple independent consumers of the same data</td><td>Distributing tasks to competing workers</td></tr>
+    <tr><td>Replay / reprocessing / event sourcing / stream processing</td><td>Per-message workflows, priority, TTL, request/reply</td></tr>
+    <tr><td>Very high throughput, ordered per key</td><td>Flexible consumer scaling beyond a partition count</td></tr>
+    <tr><td>An audit trail / source of truth of events</td><td>Complex routing (RabbitMQ exchanges) &amp; native DLQs</td></tr>
+  </tbody>
+</table>
+
+<p>
+  <strong>Hybrids blur the line:</strong> Pulsar stores a log (Apache BookKeeper) but offers
+  queue-like subscription modes; AWS pairs Kinesis (log) with SQS (queue); Redis Streams is
+  log-shaped. Knowing the underlying model tells you what each can and can&rsquo;t do — regardless of the
+  marketing.
+</p>
+
+<div class="primary-source">
+  <span class="label">Go deeper (primary sources)</span>
+  <p>
+    <a href="https://developer.confluent.io/courses/apache-kafka/topics/" target="_blank" rel="noopener">Confluent &mdash; <em>Topics</em></a>
+    (a topic is a log, not a queue; immutability) and Martin Kleppmann&rsquo;s <em>Designing
+    Data-Intensive Applications</em>, ch. 11 — the definitive contrast of <em>log-based</em> vs
+    <em>AMQP/JMS-style</em> message brokers.
+  </p>
+</div>
+
+<h2>5. Check yourself</h2>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 1 of 2</p>
+  <p class="quiz-q">Why can Kafka add a brand-new consumer group that reprocesses all history, but RabbitMQ can&rsquo;t?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="A log retains messages after reading; a queue deletes them on ack, so there's no history to replay.">A log retains messages; a queue deletes them</button></li>
+    <li><button data-correct="false" data-feedback="Partition count governs parallelism, not whether history is retained.">Kafka simply has more partitions to use</button></li>
+    <li><button data-correct="false" data-feedback="Both are typically at-least-once; that's unrelated to replay.">Kafka guarantees exactly-once and Rabbit doesn't</button></li>
+    <li><button data-correct="false" data-feedback="Push vs pull affects flow control, not the ability to retain and replay.">RabbitMQ pushes while Kafka pulls messages</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Log = append &amp; retain (read doesn't delete) → replay &amp; free fan-out. Queue = consume &amp; delete → no history to re-read."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 2 of 2</p>
+  <p class="quiz-q">You need per-message priority and a native dead-letter queue for a job pipeline. Which model fits?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="Queues own each message individually, enabling priority, TTL, and native DLQs.">Queue-based — it tracks each message</button></li>
+    <li><button data-correct="false" data-feedback="A log has whole-topic retention and no per-message priority or native DLQ.">Log-based — retention covers per-message needs</button></li>
+    <li><button data-correct="false" data-feedback="Priority isn't a function of partition count in a log.">Log-based — add partitions for priority</button></li>
+    <li><button data-correct="false" data-feedback="Both can, but only the queue offers per-message priority natively.">Either one handles priority equally well</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Per-message priority/TTL/selective ack and native DLQs come from the queue's per-message state model — a whole-topic log doesn't offer them."></div>
+</div>
+
+<div class="callout tryit">
+  <span class="label">Try it in your own system</span>
+  <p>
+    For each broker you use, answer one question: <em>does reading delete the message?</em> Then predict
+    — without looking it up — whether it supports replay, free fan-out, and native DLQs. Check yourself
+    against the docs. If you were right, you&rsquo;ve internalized the model.
+  </p>
+</div>
+
+<div class="followup">
+  <strong>I&rsquo;m your teacher &mdash; ask anything.</strong> Want to go deep on log compaction (how a changelog
+  becomes a table), zero-copy and the page cache, or how Pulsar splits serving from storage? Ask &mdash; or
+  answer a quiz back so I can tune Lesson 13.
+</div>
+
+<nav class="lesson-nav">
+  <span class="group">
+    <b>Previous</b>
+    <a href="0011-retries-dlq-poison-messages.html">← Lesson 11 · Retries &amp; DLQ</a>
+  </span>
+  <span class="group">
+    <b>Reference</b>
+    <a href="../reference/0012-log-vs-queue-cheatsheet.html">Log vs Queue cheat sheet →</a>
+  </span>
+  <span class="group">
+    <b>Up next</b>
+    <a href="0013-choreography-orchestration.html">Lesson 13 · Event-driven architecture: choreography vs orchestration</a>
+  </span>
+</nav>
+
+</body>
+</html>

@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 09 · Ordering &amp; Partitioning</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<script src="../assets/quiz.js" defer></script>
+<script src="../assets/stepflow.js" defer></script>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Async &amp; Messaging · Lesson 09</p>
+  <h1>Ordering &amp; Partitioning</h1>
+  <div class="meta">
+    <span>◷ ~15 min read · interactive</span>
+    <span class="dot">•</span>
+    <span>Level: Core → Staff</span>
+    <span class="dot">•</span>
+    <span>Builds on: <a href="0002-queue-vs-topic.html">L02</a>, <a href="0003-kafka-consumer-groups-deep-dive.html">L03</a></span>
+  </div>
+</header>
+
+<p class="mission-tie">
+  &ldquo;Messages arrive in order&rdquo; is the assumption that quietly wrecks the most systems. This lesson
+  makes ordering <em>precise</em>: what a broker actually guarantees, how message keys give you the
+  order you need, and why ordering and parallelism pull in opposite directions. It deepens the
+  key→partition thread from Lessons 02&ndash;03 into a staff-level design lever.
+</p>
+
+<h2>1. There is no global order — only per-partition order</h2>
+
+<p>
+  The instinct is to imagine one ordered stream. But partitioning splits a topic&rsquo;s log into pieces,
+  and as Confluent states plainly: &ldquo;we don&rsquo;t have global ordering, at least not a strict guarantee
+  of global order within a partitioned topic. We only have that <strong>within each partition</strong>.&rdquo;
+</p>
+
+<div class="callout insight">
+  <span class="label">Reframe the requirement</span>
+  <p>
+    You almost never actually need <em>global</em> order — you need <strong>per-entity</strong> order:
+    a single account&rsquo;s transactions in order, a single order&rsquo;s state changes in order. Global order
+    forces a single partition (no parallelism) and is rarely worth it. Per-entity order is cheap &mdash;
+    <em>if</em> you pick the right key.
+  </p>
+</div>
+
+<h2>2. How a key creates per-key order</h2>
+
+<p>
+  Kafka decides a message&rsquo;s partition from its <strong>key</strong>:
+</p>
+<ul>
+  <li><strong>No key</strong> → messages are spread <em>round-robin</em> across partitions. Confluent&rsquo;s
+      example: readings from &ldquo;thermostat 42&rdquo; land on different partitions — &ldquo;they&rsquo;re not in
+      order… I don&rsquo;t have a guarantee of order.&rdquo;</li>
+  <li><strong>With a key</strong> → the key is run through <code>hash(key) % partitionCount</code> to
+      pick the partition. The <em>same</em> key always lands on the <em>same</em> partition, giving
+      &ldquo;<strong>strict ordering for any messages of the same partition key</strong>.&rdquo; Different keys
+      go wherever the hash sends them — independently.</li>
+</ul>
+
+<pre><code>// The key IS the ordering boundary. All of one customer's events share a
+// partition and stay strictly ordered; different customers run in parallel.
+kafkaTemplate.send("order.events", order.customerId, OrderPlaced(order.id, order.customerId))</code></pre>
+
+<h3>Watch it: keyed routing keeps a key ordered</h3>
+<p>Step through five keyed messages being routed to partitions (← / → keys work).</p>
+
+<div class="stepflow" data-token="token">
+  <div class="sf-stage">
+    <svg viewBox="0 0 720 320" role="img" aria-label="Messages keyed A, B, A, C, A are routed by hash so all A messages land on one partition in order">
+      <defs>
+        <marker id="l9arw" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#c9c1b1"></path></marker>
+      </defs>
+
+      <line x1="140" y1="152" x2="228" y2="152" stroke="#c9c1b1" stroke-width="1.5" marker-end="url(#l9arw)"></line>
+      <line x1="370" y1="150" x2="476" y2="86" stroke="#e4ded2" stroke-width="1.25"></line>
+      <line x1="370" y1="152" x2="476" y2="150" stroke="#e4ded2" stroke-width="1.25"></line>
+      <line x1="370" y1="154" x2="476" y2="214" stroke="#e4ded2" stroke-width="1.25"></line>
+
+      <rect x="20" y="120" width="120" height="64" rx="10" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.5"></rect>
+      <text x="80" y="149" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" font-weight="600" fill="#1a1a1a">Producer</text>
+      <text x="80" y="167" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9.5" fill="#6b6459">keys: A B A C A</text>
+
+      <rect x="230" y="120" width="140" height="64" rx="10" fill="#f7f4ec" stroke="#2e5a7a" stroke-width="1.5"></rect>
+      <text x="300" y="148" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" font-weight="600" fill="#1a1a1a">Partitioner</text>
+      <text x="300" y="166" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9.5" fill="#6b6459">hash(key) % 3</text>
+
+      <g id="lane-P0" class="sf-actor"><rect x="478" y="64" width="232" height="44" rx="8" fill="#fdfcf9" stroke="#c9c1b1" stroke-width="1.25"></rect></g>
+      <text x="470" y="90" text-anchor="end" font-family="system-ui,sans-serif" font-size="10" fill="#6b6459" font-weight="600">P0</text>
+      <g id="lane-P1" class="sf-actor"><rect x="478" y="128" width="232" height="44" rx="8" fill="#fdfcf9" stroke="#c9c1b1" stroke-width="1.25"></rect></g>
+      <text x="470" y="154" text-anchor="end" font-family="system-ui,sans-serif" font-size="10" fill="#6b6459" font-weight="600">P1</text>
+      <g id="lane-P2" class="sf-actor"><rect x="478" y="192" width="232" height="44" rx="8" fill="#fdfcf9" stroke="#c9c1b1" stroke-width="1.25"></rect></g>
+      <text x="470" y="218" text-anchor="end" font-family="system-ui,sans-serif" font-size="10" fill="#6b6459" font-weight="600">P2</text>
+
+      <g id="b1" style="display:none"><rect x="490" y="72" width="48" height="28" rx="6" fill="#fbf1e7" stroke="#b5651d" stroke-width="1.25"></rect><text x="514" y="90" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" font-weight="600" fill="#8a4d16">B1</text></g>
+      <g id="c1" style="display:none"><rect x="490" y="136" width="48" height="28" rx="6" fill="#eef1f6" stroke="#2e5a7a" stroke-width="1.25"></rect><text x="514" y="154" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" font-weight="600" fill="#2e5a7a">C1</text></g>
+      <g id="a1" style="display:none"><rect x="490" y="200" width="48" height="28" rx="6" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.25"></rect><text x="514" y="218" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" font-weight="600" fill="#1f4a29">A1</text></g>
+      <g id="a2" style="display:none"><rect x="544" y="200" width="48" height="28" rx="6" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.25"></rect><text x="568" y="218" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" font-weight="600" fill="#1f4a29">A2</text></g>
+      <g id="a3" style="display:none"><rect x="598" y="200" width="48" height="28" rx="6" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.25"></rect><text x="622" y="218" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" font-weight="600" fill="#1f4a29">A3</text></g>
+
+      <text id="orderBadge" x="360" y="292" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" font-weight="700" fill="#1f4a29" style="display:none">✓ key A stays strictly ordered on P2: A1 → A2 → A3</text>
+      <text id="noKeyBadge" x="360" y="292" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" font-weight="700" fill="#b5651d" style="display:none">no key → round-robin → A1/A2/A3 scatter → order lost</text>
+
+      <g id="token" class="sf-token" style="transform: translate(80px,152px)">
+        <rect x="-20" y="-13" width="40" height="26" rx="6" fill="#7a2e2e" stroke="#fff" stroke-width="1.5"></rect>
+        <text class="sf-token-label" x="0" y="4" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9.5" font-weight="700" fill="#fff">A1</text>
+      </g>
+    </svg>
+  </div>
+
+  <div class="sf-caption"><p class="sf-title"></p><p class="sf-desc"></p></div>
+  <div class="sf-controls">
+    <button class="sf-btn sf-prev" type="button">◀ Prev</button>
+    <button class="sf-btn sf-next" type="button">Next ▶</button>
+    <button class="sf-btn sf-reset" type="button">↺ Reset</button>
+    <button class="sf-btn sf-play" type="button">▶ Play</button>
+    <span class="sf-counter"></span>
+  </div>
+
+  <script type="application/json" class="sf-steps">
+  [
+    {"title":"Five messages, keyed A B A C A","desc":"The producer will send five messages. The partitioner routes each by <code>hash(key) % 3</code>.","token":{"x":80,"y":152},"tokenLabel":"A1","visible":[],"highlight":[]},
+    {"title":"A1 → hash(A)=2 → Partition 2","desc":"Key A hashes to partition 2. A1 lands on P2.","token":{"x":514,"y":214},"tokenLabel":"A1","visible":["a1"],"highlight":["lane-P2"]},
+    {"title":"B1 → hash(B)=0 → Partition 0","desc":"A different key, a different partition — chosen independently.","token":{"x":514,"y":86},"tokenLabel":"B1","visible":["a1","b1"],"highlight":["lane-P0"]},
+    {"title":"A2 → same key A → same Partition 2","desc":"Because it shares key A, A2 lands on P2 <strong>right after A1</strong>.","token":{"x":568,"y":214},"tokenLabel":"A2","visible":["a1","b1","a2"],"highlight":["lane-P2"]},
+    {"title":"C1 → hash(C)=1 → Partition 1","desc":"Key C routes to P1.","token":{"x":514,"y":150},"tokenLabel":"C1","visible":["a1","b1","a2","c1"],"highlight":["lane-P1"]},
+    {"title":"A3 → Partition 2 again","desc":"A3 joins A1 and A2 on P2 — all of key A on one partition, in send order.","token":{"x":622,"y":214},"tokenLabel":"A3","visible":["a1","b1","a2","c1","a3"],"highlight":["lane-P2"]},
+    {"title":"Per-key order holds","desc":"Within P2, A1 → A2 → A3 is guaranteed. Across partitions there is <em>no</em> global order — B and C interleave however the hash landed them.","token":null,"tokenLabel":"A3","visible":["a1","b1","a2","c1","a3","orderBadge"],"highlight":["lane-P2"]},
+    {"title":"Without a key, order is lost","desc":"With a null key the same three A messages would round-robin across P0/P1/P2 — and you could read them out of order. The key you choose <em>is</em> your ordering boundary.","token":null,"tokenLabel":"A3","visible":["a1","b1","a2","c1","a3","noKeyBadge"],"highlight":[]}
+  ]
+  </script>
+</div>
+
+<h2>3. The tension: ordering vs parallelism</h2>
+
+<p>
+  Here is the trade-off that makes this a staff-level lever. Per-partition order plus the rule from
+  Lesson 03 — <em>one consumer per partition per group</em> — means a key&rsquo;s events are processed by
+  exactly <strong>one</strong> consumer, sequentially. You <em>cannot</em> parallelize within a key&rsquo;s
+  order.
+</p>
+
+<div class="callout warning">
+  <span class="label">The dial</span>
+  <p>
+    <strong>Your parallelism ceiling is the number of partitions; your ordering unit is the key.</strong>
+    Tight ordering (few keys, or a coarse key like <code>region</code>) throttles parallelism and
+    invites hot partitions. Fine-grained keys (<code>customerId</code>) give lots of parallelism but
+    only guarantee order <em>per customer</em>. Choose the key as the smallest entity whose events must
+    stay ordered — no coarser.
+  </p>
+</div>
+
+<h2>4. How &ldquo;we have a key&rdquo; still loses order</h2>
+
+<ul>
+  <li><strong>Producer retries.</strong> With <code>max.in.flight.requests.per.connection &gt; 1</code>
+      and no idempotence, a later batch can be written <em>before</em> an earlier one that is being
+      retried → reordering on the partition. Fix: <code>enable.idempotence=true</code> (its sequence
+      numbers preserve order even with in-flight up to 5), or set
+      <code>max.in.flight…=1</code>.</li>
+  <li><strong>Repartitioning.</strong> Change the partition count and <code>hash(key) % N</code>
+      changes — a key&rsquo;s future messages may land on a <em>different</em> partition than its history,
+      breaking order across the change. Provision partitions up front.</li>
+  <li><strong>Hot keys.</strong> One dominant key (a whale account) overloads its partition — a
+      hotspot and a single slow consumer (Lesson 03).</li>
+  <li><strong>Consumer-side.</strong> Hand a partition&rsquo;s records to a parallel thread pool and you
+      reorder them yourself. Retrying a failed message by re-queueing lets newer messages pass it.
+      Process a partition sequentially; for in-order retries, pause the partition.</li>
+</ul>
+
+<pre><code># Keep per-partition order under producer retries
+spring:
+  kafka:
+    producer:
+      acks: all
+      properties:
+        enable.idempotence: true          # preserves order with retries (in-flight ≤ 5)
+        # without idempotence, use: max.in.flight.requests.per.connection: 1</code></pre>
+
+<h2>5. The same idea in other brokers</h2>
+<table>
+  <thead><tr><th>Broker</th><th>Ordering model</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Kafka</strong></td><td>Strict within a partition; key → partition. Order unit = key.</td></tr>
+    <tr><td><strong>SQS FIFO</strong></td><td>Strict within a <code>MessageGroupId</code> — &ldquo;processed one at a time, in strict order.&rdquo; Order unit = message group (the key analog); parallelism across groups.</td></tr>
+    <tr><td><strong>SQS Standard</strong></td><td>Best-effort only — no ordering guarantee.</td></tr>
+    <tr><td><strong>RabbitMQ</strong></td><td>One queue + one consumer = order; competing consumers or requeue-on-nack can reorder. Consistent-hash exchange for per-key routing.</td></tr>
+    <tr><td><strong>Pulsar</strong></td><td><code>Key_Shared</code> subscription keeps per-key order <em>with</em> multiple consumers.</td></tr>
+  </tbody>
+</table>
+
+<p>
+  The recurring shape: order is guaranteed only within an <em>ordering unit</em> — a partition, a
+  message group, a key — and you trade parallelism for how coarse that unit is. Learn it once.
+</p>
+
+<div class="primary-source">
+  <span class="label">Go deeper (primary sources)</span>
+  <p>
+    <a href="https://developer.confluent.io/courses/apache-kafka/partitions/" target="_blank" rel="noopener">Confluent &mdash; <em>Partitions</em></a>
+    (no global order; keys → <code>hash % partitions</code>) and
+    <a href="https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/using-messagegroupid-property.html" target="_blank" rel="noopener">AWS &mdash; <em>SQS message group ID</em></a>.
+    For ordering under producer retries, revisit <a href="0006-kafka-exactly-once-internals.html">Lesson 06</a> (idempotent producer).
+  </p>
+</div>
+
+<h2>6. Check yourself</h2>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 1 of 2</p>
+  <p class="quiz-q">A Kafka topic has 3 partitions. What ordering does it guarantee?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="Order holds within a partition; same-key messages share one, so per-key order is guaranteed.">Order within each partition, per key</button></li>
+    <li><button data-correct="false" data-feedback="Global order across a partitioned topic is exactly what Kafka does NOT guarantee.">Total global order across the topic</button></li>
+    <li><button data-correct="false" data-feedback="Time of arrival doesn't define cross-partition order; there is none.">Order by wall-clock arrival time</button></li>
+    <li><button data-correct="false" data-feedback="With no key, round-robin spreads a key's messages and loses their order.">No ordering under any circumstances</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Kafka guarantees order only within a partition. Same key → same partition → per-key order; across partitions there is none."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 2 of 2</p>
+  <p class="quiz-q">You must keep each account&rsquo;s events ordered while maximizing parallelism. Best key?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="Keying by account gives per-account order and spreads different accounts across partitions.">The account id as the message key</button></li>
+    <li><button data-correct="false" data-feedback="A coarse region key funnels many accounts to one partition — a hotspot and low parallelism.">The region, to group nearby accounts</button></li>
+    <li><button data-correct="false" data-feedback="No key round-robins an account's events across partitions, destroying its order.">No key, to spread load evenly</button></li>
+    <li><button data-correct="false" data-feedback="A random key per message scatters an account's events — order lost.">A random UUID for each message</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Key by the smallest entity whose events must stay ordered — the account. Fine-grained keys give order per entity AND high parallelism."></div>
+</div>
+
+<div class="callout tryit">
+  <span class="label">Try it in your own system</span>
+  <p>
+    Pick one event stream you own. What is the entity whose events must stay in order? That&rsquo;s your
+    key. Now check: is <code>enable.idempotence</code> on (order under retries)? Could one key be
+    &ldquo;hot&rdquo;? Have you ever changed a topic&rsquo;s partition count? Bring what you find.
+  </p>
+</div>
+
+<div class="followup">
+  <strong>I&rsquo;m your teacher &mdash; ask anything.</strong> Want the in-order retry strategy (pause the
+  partition), how consumer-side parallelism can be added <em>without</em> breaking order (per-key
+  executors), or the SQS FIFO throughput implications of message groups? Ask &mdash; or answer a quiz back.
+</div>
+
+<nav class="lesson-nav">
+  <span class="group">
+    <b>Previous</b>
+    <a href="0008-idempotency-deduplication.html">← Lesson 08 · Idempotency &amp; Deduplication</a>
+  </span>
+  <span class="group">
+    <b>Reference</b>
+    <a href="../reference/0009-ordering-partitioning-cheatsheet.html">Ordering cheat sheet →</a>
+  </span>
+  <span class="group">
+    <b>Up next</b>
+    <a href="0010-backpressure-load-leveling.html">Lesson 10 · Backpressure &amp; load leveling</a>
+  </span>
+</nav>
+
+</body>
+</html>

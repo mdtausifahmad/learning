@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cheat Sheet · SLI, SLO &amp; Error Budget</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<style>
+  /* Reference-only tightening: denser than a lesson, built to print on one page. */
+  body { max-width: 52rem; }
+  .cheat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem 1.5rem; }
+  .cheat-grid h3 { margin-top: .4rem; }
+  .nines td:first-child { font-weight: 600; white-space: nowrap; }
+  @media print { body { margin: 0; } h2 { margin-top: 1.1rem; } }
+  @media (max-width: 620px) { .cheat-grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Reliability &amp; SRE · Reference 01</p>
+  <h1>SLI · SLO · Error Budget &mdash; Cheat Sheet</h1>
+  <div class="meta"><span>Compressed from Lesson 01</span><span class="dot">•</span><span>Print-friendly</span></div>
+</header>
+
+<h2>The four words, tight</h2>
+<ul>
+  <li><span class="term">SLI</span> &mdash; a measured signal of user experience, as a ratio:
+      <code>good events &divide; valid events</code>. <em>(e.g. requests &lt; 300&nbsp;ms without error.)</em></li>
+  <li><span class="term">SLO</span> &mdash; the <em>target</em> for an SLI over a window.
+      <em>(e.g. 99.9% over 30 days.)</em></li>
+  <li><span class="term">SLA</span> &mdash; an SLO with a <em>contractual consequence</em> (refund, penalty).</li>
+  <li><span class="term">Error budget</span> &mdash; the allowed unreliability: <code>1 &minus; SLO</code>.
+      A currency you spend on change.</li>
+</ul>
+
+<div class="callout insight">
+  <span class="label">The five-second SLA test</span>
+  <p><strong>&ldquo;What happens if it&rsquo;s missed?&rdquo;</strong> &nbsp; No consequence &rArr; it&rsquo;s an
+     <strong>SLO</strong>. &nbsp; A refund/penalty &rArr; it&rsquo;s an <strong>SLA</strong>.</p>
+</div>
+
+<h2>The one reframe</h2>
+<p>
+  <strong>100% is the wrong target.</strong> Each extra nine costs ~10&times; more while users
+  &mdash; on their own flaky devices &mdash; can&rsquo;t tell. Aim for <em>reliable enough</em>; treat the
+  SLO as floor <em>and</em> ceiling. The gap to 100% is your <strong>error budget</strong> &mdash; spend it.
+</p>
+
+<h2>&ldquo;Nines&rdquo; &rarr; real allowed failure (per 30-day window)</h2>
+<table class="nines">
+  <thead><tr><th>SLO</th><th>Nines</th><th>Error budget</th><th>Downtime / 30 days</th><th>Downtime / year</th></tr></thead>
+  <tbody>
+    <tr><td>99%</td><td>two</td><td>1%</td><td>7.2 hours</td><td>3.65 days</td></tr>
+    <tr><td>99.9%</td><td>three</td><td>0.1%</td><td>43.2 minutes</td><td>8.77 hours</td></tr>
+    <tr><td>99.95%</td><td>&mdash;</td><td>0.05%</td><td>21.6 minutes</td><td>4.38 hours</td></tr>
+    <tr><td>99.99%</td><td>four</td><td>0.01%</td><td>4.32 minutes</td><td>52.6 minutes</td></tr>
+    <tr><td>99.999%</td><td>five</td><td>0.001%</td><td>25.9 seconds</td><td>5.26 minutes</td></tr>
+  </tbody>
+</table>
+<p style="font-size:.85rem; color:var(--muted); font-style:italic;">
+  &ldquo;Downtime&rdquo; here means the equivalent budget of failed requests, not necessarily a full
+  outage. For a request-based SLI, spend it however it accrues.
+</p>
+
+<div class="cheat-grid">
+  <div>
+    <h3>A good SLO is&hellip;</h3>
+    <ul>
+      <li>Tied to a <strong>user journey</strong> (checkout, login, search).</li>
+      <li><strong>Few</strong> in number and understandable by non-experts.</li>
+      <li>A ratio of good/valid <em>events</em>, from the user&rsquo;s side.</li>
+      <li>Achievable under normal conditions, agreed by stakeholders.</li>
+    </ul>
+  </div>
+  <div>
+    <h3>A bad SLO is&hellip;</h3>
+    <ul>
+      <li>On host <strong>CPU / uptime</strong> &mdash; green while users suffer.</li>
+      <li>So strict teams ignore it, or so loose users feel pain first.</li>
+      <li>One of fifty &mdash; nobody knows which one matters.</li>
+      <li>A dashboard number with <strong>no policy</strong> attached.</li>
+    </ul>
+  </div>
+</div>
+
+<h2>Error budget as policy</h2>
+<div class="ebudget">
+  <div class="ebudget-track">
+    <div class="ebudget-good" style="flex:70">Budget healthy &rarr; ship fast, take risks</div>
+    <div class="ebudget-err" style="flex:30">Budget spent &rarr; freeze &amp; stabilise</div>
+  </div>
+</div>
+<p>
+  The budget arbitrates <em>&ldquo;feature vs. stability&rdquo;</em> so it stops being political. Both
+  product and engineering read the same number. <strong>Without an SLO, there is no SRE</strong> &mdash;
+  just heroics.
+</p>
+
+<h2>Maturity ladder &mdash; find yourself</h2>
+<table>
+  <tbody>
+    <tr><td><strong>0</strong></td><td>Greenfield &mdash; nothing deployed.</td></tr>
+    <tr><td><strong>1</strong></td><td>Monitoring, but no SLO; unspoken 100% goal. <em>&larr; most teams start here.</em></td></tr>
+    <tr><td><strong>2</strong></td><td>An SLO exists, but with no teeth.</td></tr>
+    <tr><td><strong>3</strong></td><td>SLO + error-budget <strong>policy</strong> drives decisions. <em>&larr; the goal.</em></td></tr>
+  </tbody>
+</table>
+
+<div class="callout warning">
+  <span class="label">Anti-pattern</span>
+  <p>&ldquo;Let&rsquo;s aim for 100% uptime.&rdquo; It&rsquo;s impossible, unaffordable, and invisible to
+     users. It also kills velocity and makes every blip feel like failure. Choose a target
+     <em>below</em> 100% on purpose &mdash; and spend the budget.</p>
+</div>
+
+<nav class="lesson-nav">
+  <span class="group"><b>From</b><a href="../lessons/0001-why-sre-reliability-as-a-target.html">&larr; Lesson 01 · Why SRE?</a></span>
+  <span class="group"><b>Canonical terms</b><a href="../GLOSSARY.md">GLOSSARY.md</a></span>
+  <span class="group"><b>Primary source</b><a href="https://sre.google/sre-book/service-level-objectives/" target="_blank" rel="noopener">SRE Book · Ch 4 SLOs</a></span>
+</nav>
+
+</body>
+</html>

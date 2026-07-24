@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 13 · Event-Driven Architecture — Choreography vs Orchestration</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<script src="../assets/quiz.js" defer></script>
+<script src="../assets/stepflow.js" defer></script>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Async &amp; Messaging · Lesson 13</p>
+  <h1>Event-Driven Architecture — Choreography vs Orchestration</h1>
+  <div class="meta">
+    <span>◷ ~15 min read · interactive</span>
+    <span class="dot">•</span>
+    <span>Level: Staff / Design</span>
+    <span class="dot">•</span>
+    <span>Builds on: <a href="0004-event-command-query.html">L04</a> (event vs command)</span>
+  </div>
+</header>
+
+<p class="mission-tie">
+  A single business process — place an order, reserve stock, charge the card, arrange shipping — spans
+  many services, each with its own database. <em>Who decides what happens next?</em> There are exactly
+  two answers, and choosing between them is one of the most consequential architecture decisions
+  you&rsquo;ll make. This is where &ldquo;I use events&rdquo; matures into &ldquo;I designed the coordination.&rdquo;
+</p>
+
+<h2>1. The coordination problem</h2>
+
+<p>
+  When each service owns its own data (no shared database), a multi-step business flow can&rsquo;t be one
+  ACID transaction. You must coordinate a <em>sequence</em> of local steps across services. Chris
+  Richardson names the two ways to coordinate them:
+</p>
+
+<ul>
+  <li><strong><span class="term">Choreography</span></strong> — &ldquo;each local transaction publishes
+      domain <em>events</em> that trigger local transactions in other services.&rdquo; No conductor; the
+      flow emerges from services reacting to each other&rsquo;s events.</li>
+  <li><strong><span class="term">Orchestration</span></strong> — &ldquo;an orchestrator tells the
+      participants what local transactions to execute.&rdquo; A central coordinator sends <em>commands</em>
+      and awaits replies, deciding each next step.</li>
+</ul>
+
+<p>
+  It maps cleanly onto Lesson 04: <strong>choreography runs on events</strong> (&ldquo;this happened, react
+  if you care&rdquo;); <strong>orchestration runs on commands</strong> (&ldquo;do this&rdquo;, directed, with a reply).
+</p>
+
+<h2>2. See both styles drive the same flow</h2>
+<p>Step through one order flow, first choreographed, then orchestrated (← / → keys work).</p>
+
+<div class="stepflow" data-token="token">
+  <div class="sf-stage">
+    <svg viewBox="0 0 720 320" role="img" aria-label="The same order flow coordinated by choreography (a chain of events) and then by orchestration (a central coordinator sending commands)">
+      <defs>
+        <marker id="l13ev" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#3f7a3f"></path></marker>
+        <marker id="l13cmd" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#2e5a7a"></path></marker>
+      </defs>
+
+      <text id="choreoLabel" x="360" y="26" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" font-weight="700" fill="#3f7a3f" style="display:none">CHOREOGRAPHY — services react to events · no coordinator</text>
+      <text id="orchLabel" x="360" y="26" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" font-weight="700" fill="#2e5a7a" style="display:none">ORCHESTRATION — a coordinator directs the flow with commands</text>
+
+      <rect id="svc-order" class="sf-actor" x="24" y="54" width="120" height="52" rx="10" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.5"></rect>
+      <text x="84" y="84" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11.5" font-weight="600" fill="#1a1a1a">Order</text>
+      <rect id="svc-inv" class="sf-actor" x="204" y="54" width="120" height="52" rx="10" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.5"></rect>
+      <text x="264" y="84" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11.5" font-weight="600" fill="#1a1a1a">Inventory</text>
+      <rect id="svc-pay" class="sf-actor" x="384" y="54" width="120" height="52" rx="10" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.5"></rect>
+      <text x="444" y="84" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11.5" font-weight="600" fill="#1a1a1a">Payment</text>
+      <rect id="svc-ship" class="sf-actor" x="564" y="54" width="120" height="52" rx="10" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.5"></rect>
+      <text x="624" y="84" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11.5" font-weight="600" fill="#1a1a1a">Shipping</text>
+
+      <g id="chOrderInv" style="display:none">
+        <line x1="144" y1="80" x2="202" y2="80" stroke="#3f7a3f" stroke-width="1.75" marker-end="url(#l13ev)"></line>
+        <text x="173" y="70" text-anchor="middle" font-family="system-ui,sans-serif" font-size="7.5" fill="#3f7a3f">OrderPlaced</text>
+      </g>
+      <g id="chInvPay" style="display:none">
+        <line x1="324" y1="80" x2="382" y2="80" stroke="#3f7a3f" stroke-width="1.75" marker-end="url(#l13ev)"></line>
+        <text x="353" y="70" text-anchor="middle" font-family="system-ui,sans-serif" font-size="7.5" fill="#3f7a3f">InvReserved</text>
+      </g>
+      <g id="chPayShip" style="display:none">
+        <line x1="504" y1="80" x2="562" y2="80" stroke="#3f7a3f" stroke-width="1.75" marker-end="url(#l13ev)"></line>
+        <text x="533" y="70" text-anchor="middle" font-family="system-ui,sans-serif" font-size="7.5" fill="#3f7a3f">PayCharged</text>
+      </g>
+      <text id="choreoNote" x="360" y="150" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="600" fill="#b5651d" style="display:none">the flow is an implicit chain of reactions — no single place shows it</text>
+
+      <rect id="orch" class="sf-actor" x="282" y="196" width="160" height="54" rx="10" fill="#eef1f6" stroke="#2e5a7a" stroke-width="1.75" style="display:none"></rect>
+      <text id="orchTxt" x="362" y="228" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" font-weight="700" fill="#1a1a1a" style="display:none">Orchestrator</text>
+
+      <g id="orInv" style="display:none">
+        <line x1="332" y1="196" x2="270" y2="108" stroke="#2e5a7a" stroke-width="1.5" marker-end="url(#l13cmd)"></line>
+        <text x="278" y="150" text-anchor="middle" font-family="system-ui,sans-serif" font-size="7.5" fill="#2e5a7a">ReserveInv</text>
+      </g>
+      <g id="orPay" style="display:none">
+        <line x1="362" y1="196" x2="444" y2="108" stroke="#2e5a7a" stroke-width="1.5" marker-end="url(#l13cmd)"></line>
+        <text x="420" y="150" text-anchor="middle" font-family="system-ui,sans-serif" font-size="7.5" fill="#2e5a7a">ChargePay</text>
+      </g>
+      <g id="orShip" style="display:none">
+        <line x1="400" y1="200" x2="616" y2="108" stroke="#2e5a7a" stroke-width="1.5" marker-end="url(#l13cmd)"></line>
+        <text x="540" y="160" text-anchor="middle" font-family="system-ui,sans-serif" font-size="7.5" fill="#2e5a7a">ArrangeShip</text>
+      </g>
+      <text id="orchNote" x="362" y="288" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="600" fill="#1f4a29" style="display:none">the flow lives in one place — explicit &amp; easy to see/change</text>
+      <text id="recapNote" x="362" y="288" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="700" fill="#1a1a1a" style="display:none">events + decentralized (implicit) vs commands + centralized (explicit)</text>
+
+      <g id="token" style="display:none"></g>
+    </svg>
+  </div>
+
+  <div class="sf-caption"><p class="sf-title"></p><p class="sf-desc"></p></div>
+  <div class="sf-controls">
+    <button class="sf-btn sf-prev" type="button">◀ Prev</button>
+    <button class="sf-btn sf-next" type="button">Next ▶</button>
+    <button class="sf-btn sf-reset" type="button">↺ Reset</button>
+    <button class="sf-btn sf-play" type="button">▶ Play</button>
+    <span class="sf-counter"></span>
+  </div>
+
+  <script type="application/json" class="sf-steps">
+  [
+    {"title":"One flow, four services","desc":"An order must reserve stock, charge payment, and arrange shipping across four services. First: <strong>choreography</strong>.","token":null,"visible":["choreoLabel"],"highlight":["svc-order","svc-inv","svc-pay","svc-ship"]},
+    {"title":"Order emits an event","desc":"Order creates a PENDING order and emits <code>OrderPlaced</code>. Inventory <em>reacts</em> and reserves stock.","token":null,"visible":["choreoLabel","chOrderInv"],"highlight":["svc-order","svc-inv"]},
+    {"title":"Inventory emits the next event","desc":"Inventory emits <code>InventoryReserved</code>; Payment reacts and charges the card. No one told it to — it subscribed.","token":null,"visible":["choreoLabel","chOrderInv","chInvPay"],"highlight":["svc-inv","svc-pay"]},
+    {"title":"…and the chain completes","desc":"Payment emits <code>PaymentCharged</code>; Shipping reacts. It works — but the end-to-end flow is an <strong>implicit chain</strong>; no single place shows it (Fowler&rsquo;s trap).","token":null,"visible":["choreoLabel","chOrderInv","chInvPay","chPayShip","choreoNote"],"highlight":["svc-pay","svc-ship"]},
+    {"title":"Same flow, orchestrated","desc":"Now <strong>orchestration</strong>. A central coordinator will drive each step explicitly with commands and replies.","token":null,"visible":["orchLabel","orch","orchTxt"],"highlight":["orch"]},
+    {"title":"Orchestrator commands step 1","desc":"The orchestrator sends a <code>ReserveInventory</code> <em>command</em> and awaits the reply.","token":null,"visible":["orchLabel","orch","orchTxt","orInv"],"highlight":["orch","svc-inv"]},
+    {"title":"…then step 2","desc":"On success it sends <code>ChargePayment</code>. The orchestrator holds the flow&rsquo;s state and decides what&rsquo;s next.","token":null,"visible":["orchLabel","orch","orchTxt","orInv","orPay"],"highlight":["orch","svc-pay"]},
+    {"title":"…then step 3","desc":"Finally <code>ArrangeShipping</code>. The whole flow lives in one place — explicit, visible, and easy to change or add error handling to.","token":null,"visible":["orchLabel","orch","orchTxt","orInv","orPay","orShip","orchNote"],"highlight":["orch","svc-ship"]},
+    {"title":"The trade-off in one line","desc":"Choreography: events, decentralized, loosely coupled — but the flow is implicit and hard to see. Orchestration: commands, centralized, explicit and visible — but the coordinator knows everyone.","token":null,"visible":["orchLabel","orch","orchTxt","orInv","orPay","orShip","recapNote"],"highlight":["orch"]}
+  ]
+  </script>
+</div>
+
+<h3>In code</h3>
+<pre><code>// CHOREOGRAPHY — each service reacts to an event and emits the next one
+@KafkaListener(topics = ["order.events"], groupId = "inventory")
+fun onOrderPlaced(e: OrderPlaced) {
+    inventory.reserve(e.orderId, e.items)
+    kafkaTemplate.send("inventory.events", e.orderId, InventoryReserved(e.orderId))   // no idea who's next
+}</code></pre>
+
+<pre><code>// ORCHESTRATION — the coordinator sends commands and reacts to replies, holding the flow's state
+@KafkaListener(topics = ["order.events"], groupId = "orchestrator")
+fun onOrderPlaced(e: OrderPlaced) =
+    commands.send("inventory.commands", ReserveInventory(e.orderId, e.items))
+
+@KafkaListener(topics = ["inventory.replies"], groupId = "orchestrator")
+fun onInventoryReserved(r: InventoryReserved) =
+    commands.send("payment.commands", ChargePayment(r.orderId))          // the orchestrator decides step 2</code></pre>
+
+<h2>3. The trade-offs that decide it</h2>
+
+<table>
+  <thead><tr><th></th><th>Choreography</th><th>Orchestration</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Coordination</strong></td><td>Events; each service decides its reaction</td><td>Commands; a coordinator decides</td></tr>
+    <tr><td><strong>Coupling</strong></td><td>Loose runtime coupling; process knowledge is diffuse</td><td>Services stay simple; coordinator couples to all of them</td></tr>
+    <tr><td><strong>Flow visibility</strong></td><td>Implicit — reconstruct from traces/logs</td><td>Explicit — one place holds the flow</td></tr>
+    <tr><td><strong>Add a step / reaction</strong></td><td>Just subscribe a new consumer</td><td>Edit the orchestrator</td></tr>
+    <tr><td><strong>Error handling / compensation</strong></td><td>Scattered across services</td><td>Centralized (natural home for sagas)</td></tr>
+    <tr><td><strong>Main risk</strong></td><td>Nobody understands the whole flow</td><td>A god-orchestrator bottleneck</td></tr>
+  </tbody>
+</table>
+
+<div class="callout warning">
+  <span class="label">Fowler&rsquo;s flow-visibility trap</span>
+  <p>
+    Choreography&rsquo;s danger, in Fowler&rsquo;s words: &ldquo;it can be hard to see such a flow as it&rsquo;s not
+    explicit in any program text. Often the only way to figure out this flow is from monitoring a live
+    system.&rdquo; It&rsquo;s easy to build nicely decoupled systems &ldquo;without realizing that you&rsquo;re losing
+    sight of that larger-scale flow&rdquo; — and set up trouble in future years. If you choreograph, invest
+    in <strong>distributed tracing (correlation IDs)</strong> and a documented event catalog.
+  </p>
+</div>
+
+<h2>4. Choosing — the staff heuristic</h2>
+
+<div class="callout insight">
+  <span class="label">Rule of thumb</span>
+  <p>
+    <strong>Simple flows, few steps, autonomous teams reacting to events → choreography.</strong>
+    <strong>Complex, multi-step flows with ordering, conditionals, and compensation that you must see
+    and control → orchestration.</strong> Many systems do both: orchestrate the critical transaction,
+    choreograph the peripheral reactions (email, analytics, search indexing).
+  </p>
+</div>
+
+<ul>
+  <li><strong>Choreography tooling:</strong> just your broker + solid event contracts/schemas.</li>
+  <li><strong>Orchestration tooling:</strong> a workflow engine — <em>Temporal</em>, <em>AWS Step
+      Functions</em>, <em>Camunda/Zeebe</em>, <em>Netflix Conductor</em> — or a hand-written stateful
+      orchestrator service.</li>
+  <li>Either way, the next lesson&rsquo;s problem bites: a step must <em>atomically</em> update its DB and
+      publish its event/command — the <strong>transactional outbox</strong>. And multi-step flows with
+      rollback are <strong>sagas</strong>. Both are coming up.</li>
+</ul>
+
+<div class="primary-source">
+  <span class="label">Go deeper (primary sources)</span>
+  <p>
+    <a href="https://microservices.io/patterns/data/saga.html" target="_blank" rel="noopener">microservices.io &mdash; <em>Saga</em></a>
+    (the two coordination styles, side by side) and
+    <a href="https://martinfowler.com/articles/201701-event-driven.html" target="_blank" rel="noopener">Martin Fowler &mdash; <em>What do you mean by &ldquo;Event-Driven&rdquo;?</em></a>
+    (the flow-visibility trap).
+  </p>
+</div>
+
+<h2>5. Check yourself</h2>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 1 of 2</p>
+  <p class="quiz-q">In a <em>choreographed</em> flow, how does the payment step get triggered?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="Choreography = services subscribe to events and react; Payment reacts to InventoryReserved.">It reacts to an event another service emitted</button></li>
+    <li><button data-correct="false" data-feedback="A central coordinator sending commands is orchestration, not choreography.">A coordinator sends it a command to charge</button></li>
+    <li><button data-correct="false" data-feedback="Choreography avoids direct calls; services communicate via events.">The order service calls it synchronously</button></li>
+    <li><button data-correct="false" data-feedback="Queries fetch data; they don't drive a business step.">A query pulls the next step from a table</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Choreography: each service publishes events that trigger reactions in others. No coordinator — the flow emerges from subscriptions."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 2 of 2</p>
+  <p class="quiz-q">Biggest downside of pure choreography for a complex, 8-step business flow?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="With no central flow, the end-to-end process is implicit and hard to see, debug, or change.">No single place shows the whole flow</button></li>
+    <li><button data-correct="false" data-feedback="Choreography is typically more loosely coupled at runtime, not less.">It couples every service tightly together</button></li>
+    <li><button data-correct="false" data-feedback="Adding a reaction is easy in choreography — just subscribe a consumer.">You can't add new reactions to events</button></li>
+    <li><button data-correct="false" data-feedback="Events work fine over a broker; that's not the core problem.">Events can't be delivered between services</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Choreography's flow is implicit (Fowler's trap) — hard to understand/debug/change. Complex flows with compensation usually favor orchestration."></div>
+</div>
+
+<div class="callout tryit">
+  <span class="label">Try it in your own system</span>
+  <p>
+    Pick one multi-service flow you have. Is it choreographed or orchestrated (or accidental)? Could
+    you draw the whole flow from the code, or only from traces? If only from traces, that&rsquo;s Fowler&rsquo;s
+    trap — decide whether tracing is enough or the flow deserves an orchestrator. Bring your call.
+  </p>
+</div>
+
+<div class="followup">
+  <strong>I&rsquo;m your teacher &mdash; ask anything.</strong> Want to see a Temporal/Step Functions orchestrator
+  sketch, how correlation IDs make a choreography traceable, or why the &ldquo;dual write&rdquo; problem forces
+  the outbox pattern? Ask &mdash; or answer a quiz back so I can tune Lesson 14.
+</div>
+
+<nav class="lesson-nav">
+  <span class="group">
+    <b>Previous</b>
+    <a href="0012-log-vs-queue-brokers.html">← Lesson 12 · Log vs Queue Brokers</a>
+  </span>
+  <span class="group">
+    <b>Reference</b>
+    <a href="../reference/0013-choreography-orchestration-cheatsheet.html">EDA coordination cheat sheet →</a>
+  </span>
+  <span class="group">
+    <b>Up next</b>
+    <a href="0014-transactional-outbox.html">Lesson 14 · Transactional outbox &amp; the dual-write problem</a>
+  </span>
+</nav>
+
+</body>
+</html>

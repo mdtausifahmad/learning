@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cheat Sheet · Latency &amp; Availability SLIs in Prometheus</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<style>
+  body { max-width: 52rem; }
+  @media print { body { margin: 0; } h2 { margin-top: 1.1rem; } }
+</style>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Reliability &amp; SRE · Reference 03</p>
+  <h1>Latency &amp; Availability SLIs in Prometheus</h1>
+  <div class="meta"><span>Worked recipe · supports Lesson 02</span><span class="dot">•</span><span>Print-friendly</span></div>
+</header>
+
+<h2>Two ways to use a histogram &mdash; pick the right one</h2>
+<p>
+  A classic Prometheus histogram <code>foo</code> exposes three series: cumulative buckets
+  <code>foo_bucket{le="&hellip;"}</code> (each counts observations &le; that bound), plus
+  <code>foo_count</code> and <code>foo_sum</code>. The <code>le="+Inf"</code> bucket equals
+  <code>foo_count</code>. Two very different questions:
+</p>
+<table>
+  <thead><tr><th>You want&hellip;</th><th>Use</th><th>Shape</th></tr></thead>
+  <tbody>
+    <tr><td><strong>The SLI</strong> — &ldquo;what % were fast enough?&rdquo;</td><td><strong>Bucket ratio</strong></td><td>0&ndash;100% · composes with error budget</td></tr>
+    <tr><td>A dashboard line — &ldquo;what is my p99?&rdquo;</td><td><code>histogram_quantile()</code></td><td>a latency value (seconds), estimated</td></tr>
+  </tbody>
+</table>
+<div class="callout insight">
+  <span class="label">The rule</span>
+  <p>For an <strong>SLO</strong>, use the <strong>bucket-ratio</strong> form &mdash; it&rsquo;s a
+     good&divide;valid ratio. Reserve <code>histogram_quantile()</code> for graphs; it interpolates a
+     value <em>inside</em> a bucket and isn&rsquo;t a 0&ndash;100% ratio.</p>
+</div>
+
+<h2>The latency SLI (ratio form)</h2>
+<pre><code># Proportion of requests served faster than 300 ms, over 28 days
+sum(rate(http_request_duration_seconds_bucket{job="checkout", le="0.3"}[28d]))
+  /
+sum(rate(http_request_duration_seconds_count{job="checkout"}[28d]))</code></pre>
+<div class="callout warning">
+  <span class="label">The bucket gotcha</span>
+  <p>
+    The ratio form can only test thresholds that <strong>exist as a bucket boundary</strong>
+    (<code>le</code>). If your SLO is &ldquo;99% &lt; 400&nbsp;ms&rdquo;, you must have an
+    <code>le="0.4"</code> bucket. <strong>Define custom buckets around your target thresholds</strong>
+    at instrumentation time &mdash; the defaults rarely line up.
+  </p>
+</div>
+
+<h3>Don&rsquo;t measure the latency of errors</h3>
+<p>
+  A 500 that fails in 5&nbsp;ms is <em>fast</em> but not <em>good</em>. Ideally the latency SLI counts
+  <strong>successful requests only</strong>. But a histogram usually has <em>no status label</em>
+  (adding <code>code</code> would explode cardinality). Options, cheapest first:
+</p>
+<ul>
+  <li>Instrument the histogram to <strong>observe only successful</strong> requests; or</li>
+  <li>Add a <strong>low-cardinality</strong> label like <code>outcome="success|error"</code>; or</li>
+  <li>Measure latency across all requests and let the <em>availability</em> SLI catch the errors.</li>
+</ul>
+<pre><code># With a low-cardinality outcome label — successful AND fast:
+sum(rate(http_request_duration_seconds_bucket{job="checkout", outcome="success", le="0.3"}[28d]))
+  /
+sum(rate(http_request_duration_seconds_count{job="checkout", outcome="success"}[28d]))</code></pre>
+
+<h3>p99 for a dashboard (aggregate buckets first!)</h3>
+<pre><code>histogram_quantile(0.99,
+  sum by (le) (rate(http_request_duration_seconds_bucket{job="checkout"}[5m])))</code></pre>
+<p style="font-size:.86rem;color:var(--muted);font-style:italic;">
+  Always <code>sum by (le)</code> to aggregate replicas <em>before</em> the quantile. Never average
+  pre-computed p99s &mdash; percentiles don&rsquo;t average. (Histograms aggregate; summaries can&rsquo;t,
+  which is why histograms win for multi-replica services.)
+</p>
+
+<h2>The availability SLI &mdash; what counts as &ldquo;valid&rdquo;?</h2>
+<p><strong>Principle:</strong> <em>valid</em> = events your service is accountable for; <em>good</em> =
+   valid events that did their job. Map status codes to that intent &mdash; don&rsquo;t just bucket them.</p>
+<table>
+  <thead><tr><th>Status</th><th>Verdict</th><th>Why</th></tr></thead>
+  <tbody>
+    <tr><td><strong>2xx, 3xx</strong></td><td>good (valid)</td><td>Service did its job.</td></tr>
+    <tr><td><strong>5xx</strong></td><td>bad (valid)</td><td>Server failure &mdash; your fault.</td></tr>
+    <tr><td><strong>429</strong></td><td>bad (valid)</td><td>You shed load; the user was refused.</td></tr>
+    <tr><td><strong>Other 4xx</strong><br>400/401/403/404/422</td><td><em>excluded</em></td><td>Client&rsquo;s bad request &mdash; not your reliability.</td></tr>
+    <tr><td>Health checks, bots, synthetics</td><td><em>excluded</em></td><td>Not real user events.</td></tr>
+  </tbody>
+</table>
+<pre><code># Refined availability: good = 2xx/3xx ; valid = good + server-side failures (5xx, 429)
+sum(rate(http_requests_total{job="checkout", code=~"2..|3.."}[28d]))
+  /
+sum(rate(http_requests_total{job="checkout", code=~"2..|3..|5..|429"}[28d]))
+
+# Simpler default (good = anything but 5xx). Beware: this scores 429 as "good".
+sum(rate(http_requests_total{job="checkout", code!~"5.."}[28d]))
+  / sum(rate(http_requests_total{job="checkout"}[28d]))</code></pre>
+<div class="callout warning">
+  <span class="label">Status codes are a proxy</span>
+  <p>
+    If <em>your</em> bug makes valid requests return 400 or 404, a code-based SLI hides it. Exclude 4xx
+    by default, but watch for 4xx spikes that are really your fault (routing bugs, auth outages). The
+    truest SLI is <em>semantic</em> (&ldquo;did the user get what they came for?&rdquo;) &mdash; codes are
+    the pragmatic 80/20.
+  </p>
+</div>
+
+<h2>Recording rules &mdash; precompute the SLI</h2>
+<p>
+  28-day queries over raw buckets are expensive, and you&rsquo;ll reuse the SLI for dashboards, budgets,
+  and burn-rate alerts (Lesson&nbsp;04). Precompute short-window good/valid rates, then divide. Follow the
+  <code>level:metric:operation</code> naming convention.
+</p>
+<pre><code>groups:
+- name: checkout_slo
+  interval: 30s
+  rules:
+  - record: job:http_req_duration:good_le300ms:rate5m
+    expr: sum(rate(http_request_duration_seconds_bucket{job="checkout", outcome="success", le="0.3"}[5m]))
+  - record: job:http_req_duration:valid:rate5m
+    expr: sum(rate(http_request_duration_seconds_count{job="checkout", outcome="success"}[5m]))
+  - record: job:slo_latency_300ms:ratio_rate5m
+    expr: |
+      job:http_req_duration:good_le300ms:rate5m
+      /
+      job:http_req_duration:valid:rate5m</code></pre>
+<ul>
+  <li>Record the same ratio at <strong>several windows</strong> (5m, 30m, 1h, 6h) &mdash; multi-window
+      burn-rate alerting needs them (Lesson&nbsp;04).</li>
+  <li>For the 28-day <strong>error budget</strong>, compute over the window with <code>increase()</code>
+      on the good and valid <em>counters</em> (not a 28d <code>rate</code>).</li>
+  <li>Validate rule files with <code>promtool check rules file.yml</code>.</li>
+  <li>Generators like <strong>Sloth</strong> can emit these recording + alerting rules from a short SLO
+      spec &mdash; worth adopting once you&rsquo;ve done it by hand once.</li>
+</ul>
+
+<h2>Modern direction</h2>
+<p>
+  <strong>Native histograms</strong> (and OpenTelemetry <em>exponential</em> histograms, which map to
+  them) remove the fixed-bucket problem &mdash; dynamic resolution, any threshold. Support is still
+  rolling out; classic <code>le</code> buckets remain the mainstream today. If you control
+  instrumentation, keep an eye on native histograms.
+</p>
+
+<div class="callout insight">
+  <span class="label">One-line takeaways</span>
+  <p>
+    SLI &rarr; bucket ratio, not <code>histogram_quantile</code>. · Threshold must be a bucket boundary. ·
+    Don&rsquo;t time your errors. · <em>valid</em> = your fault to serve; exclude client 4xx, keep 429/5xx. ·
+    Precompute with recording rules.
+  </p>
+</div>
+
+<nav class="lesson-nav">
+  <span class="group"><b>From</b><a href="../lessons/0002-choosing-good-slis.html">&larr; Lesson 02 · Choosing good SLIs</a></span>
+  <span class="group"><b>See also</b><a href="0002-sli-menu-cheatsheet.html">SLI menu cheat sheet</a></span>
+  <span class="group"><b>Primary source</b><a href="https://prometheus.io/docs/practices/histograms/" target="_blank" rel="noopener">Prometheus · Histograms &amp; summaries</a></span>
+</nav>
+
+</body>
+</html>

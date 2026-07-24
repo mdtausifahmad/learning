@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 05 · Delivery Guarantees — At-Most / At-Least / Exactly-Once</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<script src="../assets/quiz.js" defer></script>
+<script src="../assets/stepflow.js" defer></script>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Async &amp; Messaging · Lesson 05</p>
+  <h1>Delivery Guarantees — At-Most, At-Least, Exactly-Once</h1>
+  <div class="meta">
+    <span>◷ ~16 min read</span>
+    <span class="dot">•</span>
+    <span>Level: Core → Staff</span>
+    <span class="dot">•</span>
+    <span>Builds on: <a href="0003-kafka-consumer-groups-deep-dive.html">Lesson 03</a> (offsets)</span>
+  </div>
+</header>
+
+<p class="mission-tie">
+  This is the lesson that earns you credibility in a design review. In Lesson 03 you learned that a
+  consumer records progress by committing an <em>offset</em>. Delivery guarantees are entirely about
+  <strong>one question</strong>: do you commit that offset <em>before</em> or <em>after</em> you do the
+  work? Get precise here and you&rsquo;ll stop saying &ldquo;we use a queue&rdquo; and start saying &ldquo;this
+  path is at-least-once with an idempotent consumer.&rdquo;
+</p>
+
+<h2>1. The root cause: the acknowledgement can be lost</h2>
+
+<p>
+  Every message flow has two separate actions: <strong>(A) do the work</strong> (process the message /
+  write the side effect) and <strong>(B) record that it&rsquo;s done</strong> (commit the offset, or ack).
+  In a distributed system these touch two different systems &mdash; your app and the broker&rsquo;s offset
+  store &mdash; and <strong>you cannot make them atomic for free.</strong> A crash can land between them.
+</p>
+
+<p>
+  As Confluent&rsquo;s Neha Narkhede puts it: a producer that gets no ack &ldquo;is forced to assume that the
+  message was not written successfully and to retry it&rdquo; &mdash; and if the broker had actually written
+  it, that retry duplicates the message. The ack&rsquo;s ambiguity is unavoidable. So you must choose
+  <em>which</em> failure you tolerate. <strong>That choice is the delivery guarantee.</strong>
+</p>
+
+<h2>2. The two ordinary options (and their crash windows)</h2>
+
+<figure>
+<svg viewBox="0 0 640 260" role="img" aria-label="At-most-once commits before processing and can lose messages; at-least-once processes before committing and can duplicate">
+  <defs>
+    <marker id="arw" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#6b6459"></path>
+    </marker>
+  </defs>
+
+  <!-- At-most-once -->
+  <text x="16" y="24" font-family="system-ui, sans-serif" font-size="12" letter-spacing="1" fill="#7a2e2e" font-weight="700">AT-MOST-ONCE · commit, then process</text>
+  <rect x="16" y="52" width="80" height="34" rx="6" fill="#faf8f2" stroke="#6b6459" stroke-width="1.25"></rect>
+  <text x="56" y="74" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11.5" fill="#1a1a1a">receive</text>
+  <line x1="96" y1="69" x2="124" y2="69" stroke="#6b6459" stroke-width="1.5" marker-end="url(#arw)"></line>
+  <rect x="126" y="52" width="104" height="34" rx="6" fill="#f3f0e8" stroke="#7a2e2e" stroke-width="1.5"></rect>
+  <text x="178" y="74" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11.5" fill="#1a1a1a">commit offset</text>
+  <line x1="230" y1="69" x2="258" y2="69" stroke="#6b6459" stroke-width="1.5" marker-end="url(#arw)"></line>
+  <text x="276" y="75" text-anchor="middle" font-family="system-ui, sans-serif" font-size="17" fill="#a32f2f">✗</text>
+  <text x="276" y="46" text-anchor="middle" font-family="system-ui, sans-serif" font-size="9" fill="#a32f2f">crash</text>
+  <rect x="300" y="52" width="182" height="34" rx="6" fill="#f8eaea" stroke="#a32f2f" stroke-width="1.25" stroke-dasharray="4 3"></rect>
+  <text x="391" y="74" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11.5" fill="#6f2020">the work never happens</text>
+  <text x="249" y="106" text-anchor="middle" font-family="system-ui, sans-serif" font-size="10.5" font-style="italic" fill="#a32f2f">no duplicates — but the message is LOST</text>
+
+  <!-- At-least-once -->
+  <text x="16" y="150" font-family="system-ui, sans-serif" font-size="12" letter-spacing="1" fill="#3f7a3f" font-weight="700">AT-LEAST-ONCE · process, then commit</text>
+  <rect x="16" y="178" width="80" height="34" rx="6" fill="#faf8f2" stroke="#6b6459" stroke-width="1.25"></rect>
+  <text x="56" y="200" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11.5" fill="#1a1a1a">receive</text>
+  <line x1="96" y1="195" x2="124" y2="195" stroke="#6b6459" stroke-width="1.5" marker-end="url(#arw)"></line>
+  <rect x="126" y="178" width="126" height="34" rx="6" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.5"></rect>
+  <text x="189" y="200" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11.5" fill="#1a1a1a">process + effect</text>
+  <line x1="252" y1="195" x2="280" y2="195" stroke="#6b6459" stroke-width="1.5" marker-end="url(#arw)"></line>
+  <text x="296" y="201" text-anchor="middle" font-family="system-ui, sans-serif" font-size="17" fill="#a32f2f">✗</text>
+  <text x="296" y="172" text-anchor="middle" font-family="system-ui, sans-serif" font-size="9" fill="#a32f2f">crash before commit</text>
+  <rect x="322" y="178" width="184" height="34" rx="6" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.25" stroke-dasharray="4 3"></rect>
+  <text x="414" y="200" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11.5" fill="#1f4a29">redelivered &amp; reprocessed</text>
+  <text x="261" y="232" text-anchor="middle" font-family="system-ui, sans-serif" font-size="10.5" font-style="italic" fill="#3f7a3f">never lost — but the effect can DUPLICATE</text>
+</svg>
+<figcaption>The whole game in one picture: the guarantee is decided by whether <em>commit</em> sits before or after <em>process</em>.</figcaption>
+</figure>
+
+<ul>
+  <li><strong><span class="term">At-most-once</span></strong> &mdash; commit/ack <em>first</em>, then process (or
+      fire-and-forget). A crash in the gap means the work is skipped. <strong>No duplicates, possible
+      loss.</strong></li>
+  <li><strong><span class="term">At-least-once</span></strong> &mdash; process <em>first</em>, then commit.
+      A crash in the gap means redelivery. <strong>No loss, possible duplicates.</strong> This is the
+      sane default and what most systems run.</li>
+</ul>
+
+<div class="callout insight">
+  <span class="label">This applies on both sides</span>
+  <p>
+    The same fork exists <strong>producer→broker</strong> (retry after a lost ack → duplicate write; or
+    don&rsquo;t retry → possible loss) <em>and</em> <strong>broker→consumer</strong> (commit ordering, as
+    above). A robust design reasons about <em>both</em> hops, not just the consumer.
+  </p>
+</div>
+
+<h2>3. Watch the crash windows</h2>
+<p>
+  Step through the <em>same</em> message under each semantic (← / → keys work). The only difference is
+  the <strong>order</strong> of two actions &mdash; commit the offset, and do the work &mdash; yet the outcomes
+  are opposite.
+</p>
+
+<div class="stepflow" data-token="token">
+  <div class="sf-stage">
+    <svg viewBox="0 0 720 300" role="img" aria-label="At-most-once commits before processing and loses the message; at-least-once processes before committing and duplicates it">
+      <defs>
+        <marker id="l5arw" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#c9c1b1"></path></marker>
+        <marker id="l5arwo" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#b5651d"></path></marker>
+      </defs>
+
+      <text id="modeAMO" x="360" y="30" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" letter-spacing="1" font-weight="700" fill="#7a2e2e">AT-MOST-ONCE · commit, then process</text>
+      <text id="modeALO" x="360" y="30" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" letter-spacing="1" font-weight="700" fill="#3f7a3f" style="display:none">AT-LEAST-ONCE · process, then commit</text>
+
+      <line x1="188" y1="150" x2="536" y2="150" stroke="#c9c1b1" stroke-width="1.5" marker-end="url(#l5arw)"></line>
+      <g id="redeliver" style="display:none">
+        <line x1="536" y1="176" x2="190" y2="176" stroke="#b5651d" stroke-width="1.5" stroke-dasharray="5 3" marker-end="url(#l5arwo)"></line>
+        <text x="362" y="194" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" fill="#b5651d">42 redelivered — its offset was never advanced</text>
+      </g>
+
+      <rect id="actor-broker" class="sf-actor" x="26" y="96" width="160" height="110" rx="10" fill="#f7f4ec" stroke="#2e5a7a" stroke-width="1.5"></rect>
+      <text x="106" y="122" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12.5" font-weight="600" fill="#1a1a1a">Broker</text>
+      <rect x="42" y="134" width="128" height="30" rx="5" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.1"></rect>
+      <text x="106" y="153" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" fill="#1f4a29">msg m · offset 42</text>
+      <text id="offBefore" x="106" y="189" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" fill="#6b6459">committed offset: 41</text>
+      <text id="offAfter" x="106" y="189" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="700" fill="#7a2e2e" style="display:none">committed offset: 42</text>
+
+      <rect id="actor-consumer" class="sf-actor" x="540" y="96" width="160" height="110" rx="10" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.5"></rect>
+      <text x="620" y="122" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12.5" font-weight="600" fill="#1a1a1a">Consumer</text>
+      <text id="sidefx" x="620" y="160" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="600" fill="#1f4a29" style="display:none">✓ side effect done</text>
+      <text id="crash" x="620" y="188" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" font-weight="700" fill="#a32f2f" style="display:none">✗ CRASH</text>
+
+      <g id="lost" style="display:none"><rect x="250" y="242" width="220" height="28" rx="6" fill="#f8eaea" stroke="#a32f2f" stroke-width="1.25"></rect><text x="360" y="260" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" fill="#6f2020">message LOST — the work never ran</text></g>
+      <g id="dup" style="display:none"><rect x="250" y="242" width="220" height="28" rx="6" fill="#fbf1e7" stroke="#b5651d" stroke-width="1.25"></rect><text x="360" y="260" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" fill="#8a4d16">DUPLICATE — the effect ran twice</text></g>
+
+      <g id="token" class="sf-token" style="transform: translate(106px,150px)">
+        <circle r="15" fill="#7a2e2e" stroke="#fff" stroke-width="1.5"></circle>
+        <text class="sf-token-label" x="0" y="3" text-anchor="middle" font-family="system-ui,sans-serif" font-size="8.5" font-weight="700" fill="#fff">m@42</text>
+      </g>
+    </svg>
+  </div>
+
+  <div class="sf-caption"><p class="sf-title"></p><p class="sf-desc"></p></div>
+  <div class="sf-controls">
+    <button class="sf-btn sf-prev" type="button">◀ Prev</button>
+    <button class="sf-btn sf-next" type="button">Next ▶</button>
+    <button class="sf-btn sf-reset" type="button">↺ Reset</button>
+    <button class="sf-btn sf-play" type="button">▶ Play</button>
+    <span class="sf-counter"></span>
+  </div>
+
+  <script type="application/json" class="sf-steps">
+  [
+    {"title":"At-most-once: the setup","desc":"Message <code>m</code> sits at <strong>offset 42</strong>; the committed offset is 41 (42 not done yet). In this mode the consumer <strong>commits before processing</strong>.","token":{"x":106,"y":150},"tokenLabel":"m@42","visible":["modeAMO","offBefore"],"highlight":["actor-broker"]},
+    {"title":"Broker delivers the message","desc":"The broker delivers <code>m</code> to the consumer.","token":{"x":620,"y":150},"tokenLabel":"m@42","visible":["modeAMO","offBefore"],"highlight":["actor-consumer"]},
+    {"title":"Consumer commits the offset FIRST","desc":"The consumer advances the committed offset to <strong>42</strong> — marking <code>m</code> done <em>before</em> doing the work.","token":{"x":620,"y":150},"tokenLabel":"m@42","visible":["modeAMO","offAfter"],"highlight":["actor-consumer"]},
+    {"title":"…then it crashes","desc":"The consumer crashes <em>before</em> it processes <code>m</code>.","token":{"x":620,"y":150},"tokenLabel":"m@42","visible":["modeAMO","offAfter","crash"],"highlight":["actor-consumer"]},
+    {"title":"Outcome: the message is LOST","desc":"The offset already says 42, so <code>m</code> is <strong>never redelivered</strong> — and it was never processed. No duplicate, but a lost message.","token":{"x":620,"y":150},"tokenLabel":"m@42","visible":["modeAMO","offAfter","crash","lost"],"highlight":["actor-consumer"]},
+    {"title":"At-least-once: the setup","desc":"Same message at offset 42, committed offset back at 41. Now the consumer <strong>processes before committing</strong>.","token":{"x":106,"y":150},"tokenLabel":"m@42","visible":["modeALO","offBefore"],"highlight":["actor-broker"]},
+    {"title":"Consumer processes the work FIRST","desc":"The broker delivers <code>m</code>; the consumer does the <strong>side effect first</strong> (e.g. charges the card). The offset is still 41.","token":{"x":620,"y":150},"tokenLabel":"m@42","visible":["modeALO","offBefore","sidefx"],"highlight":["actor-consumer"]},
+    {"title":"…then it crashes before committing","desc":"The consumer crashes <em>before</em> committing — so the offset stays at <strong>41</strong>.","token":{"x":620,"y":150},"tokenLabel":"m@42","visible":["modeALO","offBefore","sidefx","crash"],"highlight":["actor-consumer"]},
+    {"title":"Outcome: a DUPLICATE","desc":"Because 42 was never committed, the broker <strong>redelivers</strong> it; the side effect runs a second time → duplicate. <strong>The order of commit vs process decided the guarantee.</strong>","token":{"x":620,"y":150},"tokenLabel":"m@42","visible":["modeALO","offBefore","sidefx","redeliver","dup"],"highlight":["actor-broker","actor-consumer"]}
+  ]
+  </script>
+</div>
+
+<h2>4. Exactly-once, honestly</h2>
+
+<p>
+  Everyone wants a third option: process each message <em>exactly once</em>. The uncomfortable truth,
+  which you should be able to state plainly at staff level:
+</p>
+
+<div class="callout warning">
+  <span class="label">The staff one-liner</span>
+  <p>
+    <strong>Exactly-once <em>delivery</em> is essentially impossible; exactly-once <em>processing</em>
+    (&ldquo;effectively-once&rdquo;) is achievable &mdash; but only with cooperation between the messaging system
+    and your application.</strong> As Narkhede notes, it &ldquo;requires a cooperation between the
+    messaging system itself and the application producing and consuming the messages.&rdquo; You never get
+    it for free; you pay in idempotency logic or transactional coordination.
+  </p>
+</div>
+
+<p>There are exactly two legitimate routes to effectively-once:</p>
+
+<h3>Route A — At-least-once + idempotent consumer (the general answer)</h3>
+<p>
+  Whenever your side effect touches an <em>external</em> system (a database, an email provider, a
+  payment API), this is the route. Accept that delivery duplicates, and make <em>processing</em>
+  duplicate-proof. Richardson&rsquo;s <a href="https://microservices.io/patterns/communication-style/idempotent-consumer.html" target="_blank" rel="noopener">Idempotent Consumer</a>
+  pattern: record processed message IDs, and skip anything you&rsquo;ve seen.
+</p>
+
+<pre><code>@Component
+class PaymentListener(
+    private val processed: ProcessedMessageRepository,   // PK = (groupId, messageId)
+    private val payments: PaymentService,
+) {
+    // Manual ack = at-least-once: advance the offset only AFTER the work succeeds.
+    @KafkaListener(topics = ["order.events"], groupId = "payments")
+    @Transactional                                       // ONE db tx: dedup mark + side effect
+    fun on(rec: ConsumerRecord&lt;String, OrderPlaced&gt;, ack: Acknowledgment) {
+        val id = ProcessedId("payments", rec.key())      // a stable, unique message id
+        if (processed.existsById(id)) { ack.acknowledge(); return }   // duplicate -&gt; skip
+
+        payments.charge(rec.value())                     // the real, non-idempotent side effect
+        processed.save(ProcessedMessage(id))             // mark done, atomically with the charge
+        ack.acknowledge()                                // now safe to advance the offset
+    }
+}</code></pre>
+
+<div class="callout insight">
+  <span class="label">Why this actually works (the subtlety)</span>
+  <p>
+    The <em>charge</em> and the <em>mark-done</em> commit together in one <strong>database</strong>
+    transaction. The Kafka offset commit (<code>ack</code>) is separate. If you crash <em>after</em> the
+    DB commit but <em>before</em> the ack, the message is redelivered &mdash; but now <code>existsById</code>
+    finds the id and you skip. The <strong>unique primary key</strong> on the processed-messages table
+    is the backstop against two concurrent deliveries racing the check. The dedup record exists
+    precisely because you <em>can&rsquo;t</em> put the side effect and the offset in one atomic step.
+  </p>
+</div>
+
+<p>
+  Often you don&rsquo;t even need a separate table: a <strong>naturally idempotent</strong> side effect
+  &mdash; an <code>UPSERT</code> keyed by order id, or <code>SET status = 'PAID'</code> &mdash; is duplicate-proof
+  by construction. Prefer that when you can.
+</p>
+
+<h3>Route B — Kafka EOS (only for read-process-write <em>inside</em> Kafka)</h3>
+<p>
+  When your input <em>and</em> output are both Kafka, Kafka&rsquo;s own exactly-once semantics (added in
+  0.11) do the cooperation for you, via two mechanisms:
+</p>
+<ul>
+  <li><strong>Idempotent producer</strong> &mdash; each producer gets a PID + per-partition sequence
+      numbers, so the broker silently drops retried duplicates. Turn on with
+      <code>enable.idempotence=true</code>, <code>acks=all</code>.</li>
+  <li><strong>Transactions</strong> &mdash; the produced output <em>and</em> the consumed input&rsquo;s offset
+      commit are written in one atomic transaction; consumers with
+      <code>isolation.level=read_committed</code> never see aborted output. This is what keeps
+      &ldquo;consumed offsets in sync with produced output.&rdquo;</li>
+</ul>
+
+<pre><code># application.yml — Kafka EOS for a read-process-write stage
+spring:
+  kafka:
+    producer:
+      acks: all
+      transaction-id-prefix: tx-enrich-     # enables Kafka transactions
+      properties: { enable.idempotence: true }
+    consumer:
+      isolation-level: read_committed        # ignore uncommitted/aborted records</code></pre>
+
+<pre><code>// With a KafkaTransactionManager, the send + offset commit are atomic.
+@KafkaListener(topics = ["orders"], groupId = "enrich")
+@Transactional
+fun enrich(order: Order) {
+    kafkaTemplate.send("orders.enriched", order.id, enrich(order))  // atomic with the input offset
+}</code></pre>
+
+<div class="callout warning">
+  <span class="label">The boundary that trips people up</span>
+  <p>
+    Kafka EOS is exactly-once <em>within Kafka</em>. The moment your consumer calls an external API
+    (charge a card, send an email), you are <strong>back to at-least-once + idempotency</strong> &mdash; a
+    Kafka transaction cannot roll back a real-world credit-card charge. Don&rsquo;t let &ldquo;we enabled
+    exactly-once&rdquo; lull you into skipping idempotency at external boundaries.
+  </p>
+</div>
+
+<h2>5. Pros, cons, and when to pick each</h2>
+<table>
+  <thead><tr><th>Semantic</th><th>Fails by</th><th>Cost you pay</th><th>Choose when</th></tr></thead>
+  <tbody>
+    <tr><td><strong>At-most-once</strong></td><td>Losing messages</td><td>Cheapest, simplest</td><td>Loss is acceptable: metrics, logs, live telemetry</td></tr>
+    <tr><td><strong>At-least-once</strong></td><td>Duplicates</td><td>You must make processing idempotent</td><td>The default for almost everything</td></tr>
+    <tr><td><strong>Exactly-once</strong><br>(effectively)</td><td>Complexity / throughput</td><td>Dedup logic (Route A) or tx coordination + latency (Route B)</td><td>Money, inventory, anything where a dup is a real bug</td></tr>
+  </tbody>
+</table>
+
+<div class="callout tryit">
+  <span class="label">The heuristic to carry</span>
+  <p>
+    <strong>External side effects → at-least-once + idempotency, always.</strong>
+    <strong>Kafka→Kafka stream processing → EOS.</strong>
+    <strong>At-most-once → only when a dropped message is cheaper than a duplicate.</strong>
+    There is no free exactly-once &mdash; you pay in dedup logic or in transactional throughput.
+  </p>
+</div>
+
+<div class="primary-source">
+  <span class="label">Go deeper (primary sources)</span>
+  <p>
+    <a href="https://www.confluent.io/blog/exactly-once-semantics-are-possible-heres-how-apache-kafka-does-it/" target="_blank" rel="noopener">Confluent &mdash; <em>Exactly-Once Semantics Are Possible</em></a>
+    (Narkhede: why it&rsquo;s hard, idempotent producer + transactions) and
+    <a href="https://microservices.io/patterns/communication-style/idempotent-consumer.html" target="_blank" rel="noopener">microservices.io &mdash; <em>Idempotent Consumer</em></a>.
+    For the definitive treatment, Kleppmann&rsquo;s <em>DDIA</em> ch. 11 (&ldquo;exactly-once&rdquo; via idempotence).
+  </p>
+</div>
+
+<h2>6. Check yourself</h2>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 1 of 2</p>
+  <p class="quiz-q">A consumer commits the offset <em>before</em> doing the work, then crashes. You get…</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="Offset advanced, work skipped: the message is gone. That is at-most-once.">At-most-once — the message can be lost</button></li>
+    <li><button data-correct="false" data-feedback="Duplicates come from committing AFTER the work, not before.">At-least-once — the message is duplicated</button></li>
+    <li><button data-correct="false" data-feedback="Committing first is the opposite of an exactly-once design.">Exactly-once — the message is processed</button></li>
+    <li><button data-correct="false" data-feedback="Order isn&rsquo;t the issue here; the commit-before-work ordering causes loss.">Out-of-order — the message is delayed</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Commit-then-process = at-most-once: a crash in the gap skips the work with no redelivery."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 2 of 2</p>
+  <p class="quiz-q">Your consumer charges a credit card via an external API. How do you get effectively-once?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="External side effects can&rsquo;t join a Kafka tx — dedup on a stable id makes reprocessing safe.">At-least-once plus an idempotent consumer</button></li>
+    <li><button data-correct="false" data-feedback="Kafka transactions are exactly-once only within Kafka; they can&rsquo;t undo a real charge.">Kafka transactions across the payment API</button></li>
+    <li><button data-correct="false" data-feedback="At-most-once risks silently dropping a charge — worse, not better, here.">At-most-once so it can never duplicate</button></li>
+    <li><button data-correct="false" data-feedback="More retries without dedup just means more duplicate charges.">Increase producer retries until it works</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="External boundary → at-least-once + idempotency (dedup table or a naturally idempotent upsert). Kafka EOS stops at Kafka&rsquo;s edge."></div>
+</div>
+
+<div class="callout tryit">
+  <span class="label">Try it in your own system</span>
+  <p>
+    Take the consumer you sketched earlier. Ask: is its side effect <em>naturally idempotent</em>
+    (an upsert / status set) or not (send-email, charge-card, increment-counter)? If not, design its
+    dedup key &mdash; what stable id makes a replay a no-op? Bring that key; it&rsquo;s the seed of Lesson 06.
+  </p>
+</div>
+
+<div class="followup">
+  <strong>I&rsquo;m your teacher &mdash; ask me anything.</strong> Want to see the RabbitMQ ack/nack version, or
+  SQS visibility-timeout &amp; redelivery? Curious how Kafka&rsquo;s idempotent producer numbers messages, or
+  why <code>read_committed</code> matters? Ask &mdash; and if you want, answer a quiz back to me so I can
+  gauge the depth and tailor Lesson 06.
+</div>
+
+<nav class="lesson-nav">
+  <span class="group">
+    <b>Previous</b>
+    <a href="0004-event-command-query.html">← Lesson 04 · Event vs Command vs Query</a>
+  </span>
+  <span class="group">
+    <b>Reference</b>
+    <a href="../reference/0005-delivery-guarantees-cheatsheet.html">Delivery guarantees cheat sheet →</a>
+  </span>
+  <span class="group">
+    <b>Up next</b>
+    <a href="0006-kafka-exactly-once-internals.html">Lesson 06 · Deep Dive: inside Kafka exactly-once (sequence numbers &amp; read_committed)</a>
+  </span>
+</nav>
+
+</body>
+</html>

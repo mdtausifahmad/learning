@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 03 · Setting the SLO &amp; the Error Budget</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<script src="../assets/quiz.js" defer></script>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Reliability &amp; SRE · Lesson 03</p>
+  <h1>Setting the SLO &amp; the Error Budget</h1>
+  <div class="meta">
+    <span>◷ ~11 min read</span>
+    <span class="dot">•</span>
+    <span>Level: Foundations</span>
+    <span class="dot">•</span>
+    <span>Prereq: <a href="0002-choosing-good-slis.html">Lesson 02</a> — you have an SLI</span>
+  </div>
+</header>
+
+<p class="mission-tie">
+  You can choose a good <span class="term">SLI</span>. Now you put a <em>number</em> and a
+  <em>window</em> on it &mdash; and that turns reliability into a bank account you can spend. This
+  lesson is where the abstract &ldquo;error budget&rdquo; becomes a concrete count of failures you&rsquo;re
+  allowed, and a document your team signs.
+</p>
+
+<h2>1. Pick the target: from data first, judgment second</h2>
+
+<p>
+  Don&rsquo;t invent the number in a meeting. Measure your SLI over a few weeks, then round to a clean,
+  <em>achievable</em> starting point. The Workbook&rsquo;s rule of thumb: round availability
+  <strong>down</strong> to two significant figures, and round latency thresholds <strong>up</strong> to
+  the nearest ~50&nbsp;ms.
+</p>
+
+<p>A real worked example (from the SRE Workbook), measured over four weeks on an API:</p>
+
+<table>
+  <thead><tr><th>Measured</th><th>&rarr; Starter SLO</th></tr></thead>
+  <tbody>
+    <tr><td>3,663,253 requests; 97.123% succeeded</td><td><strong>97%</strong> availability</td></tr>
+    <tr><td>90th-percentile latency = 432&nbsp;ms</td><td><strong>90%</strong> of requests &lt; 450&nbsp;ms</td></tr>
+    <tr><td>99th-percentile latency = 891&nbsp;ms</td><td><strong>99%</strong> of requests &lt; 900&nbsp;ms</td></tr>
+  </tbody>
+</table>
+
+<p>
+  Notice the <strong>two latency thresholds</strong> &mdash; one pins the typical experience, one pins
+  the tail (Lesson&nbsp;02). And notice you use <code>histogram_quantile</code> here to <em>read</em>
+  the p90/p99 and pick the threshold &mdash; then you express the SLO itself as a
+  <em>proportion-under-threshold</em> ratio (Reference&nbsp;03).
+</p>
+
+<div class="callout warning">
+  <span class="label">The current-performance trap</span>
+  <p>
+    Starting from measured performance is fine &mdash; <em>if</em> you iterate. But don&rsquo;t
+    permanently enshrine current numbers: users come to <strong>expect</strong> whatever you deliver, so
+    an over-tight SLO commits you to defending speed you never promised. Set the bar at
+    &ldquo;<em>above this, almost all users are happy</em>&rdquo;, then refine.
+  </p>
+</div>
+
+<h2>2. Pick the window: rolling, in whole weeks</h2>
+
+<p>An SLO needs a window. Two families, and they&rsquo;re for different jobs:</p>
+
+<table>
+  <thead><tr><th></th><th>Rolling window</th><th>Calendar window</th></tr></thead>
+  <tbody>
+    <tr><td><strong>e.g.</strong></td><td>trailing 4 weeks</td><td>this month / quarter</td></tr>
+    <tr><td><strong>Best for</strong></td><td>the SLO that drives engineering decisions</td><td>business reporting &amp; SLAs</td></tr>
+    <tr><td><strong>Why</strong></td><td>tracks recent user experience; no artificial reset</td><td>aligns with planning cycles</td></tr>
+    <tr><td><strong>Watch out</strong></td><td>&mdash;</td><td>&ldquo;budget resets Jan&nbsp;1&rdquo; gaming; mid-quarter you can&rsquo;t know future traffic</td></tr>
+  </tbody>
+</table>
+
+<div class="callout insight">
+  <span class="label">Google&rsquo;s default</span>
+  <p>
+    A <strong>four-week rolling window</strong> is the good general-purpose choice. Use whole weeks so
+    every window has the same number of weekends &mdash; a 30-day window swings between four and five
+    weekends, making your SLI wobble for boring reasons. Complement it with <em>weekly</em> summaries
+    (course-correction) and <em>quarterly</em> reports (project planning).
+  </p>
+</div>
+
+<h2>3. Compute the error budget</h2>
+
+<p>Now the budget stops being a percentage and becomes a <em>count you can spend</em>:</p>
+
+<pre><code>error budget (events)  =  (1 &minus; SLO) &times; valid events in the window</code></pre>
+
+<p>Applying it to the worked example&rsquo;s four weeks (Table&nbsp;2-4 in the Workbook):</p>
+
+<table>
+  <thead><tr><th>SLO</th><th>Allowed failures / 4 weeks</th></tr></thead>
+  <tbody>
+    <tr><td>97% availability</td><td>109,897 failed requests</td></tr>
+    <tr><td>90% faster than 450&nbsp;ms</td><td>366,325 slow requests</td></tr>
+    <tr><td>99% faster than 900&nbsp;ms</td><td>36,632 slow requests</td></tr>
+  </tbody>
+</table>
+
+<p>
+  This is the number that makes reliability <em>operable</em>. Say a 99.9% SLO on 3,000,000 requests
+  gives a budget of <strong>3,000</strong> failures. A single outage that burns 1,500 errors just spent
+  <strong>half your budget for the whole window</strong>:
+</p>
+
+<div class="ebudget">
+  <div class="ebudget-track">
+    <div class="ebudget-good" style="flex:50">budget remaining · 1,500</div>
+    <div class="ebudget-err" style="flex:50">spent by one outage · 1,500</div>
+  </div>
+  <div class="ebudget-cap"><span>0</span><span>error budget = 3,000 failures / 4 weeks</span><span>3,000</span></div>
+</div>
+
+<p>
+  Suddenly &ldquo;was that outage a big deal?&rdquo; has a crisp answer: <em>it cost 50% of our
+  month.</em> As a time intuition, 99.9% over four weeks (40,320&nbsp;min) is a budget of about
+  <strong>40 minutes</strong> of full failure. (Reference&nbsp;01&rsquo;s table used a 30-day window &mdash;
+  43&nbsp;min &mdash; so always state the window with the budget.)
+</p>
+
+<h2>4. Reading the budget: spent, remaining, burn</h2>
+
+<p>Three quantities you&rsquo;ll watch:</p>
+<ul>
+  <li><strong>Spent</strong> = failures so far this window.</li>
+  <li><strong>Remaining</strong> = budget &minus; spent. When it hits zero, you&rsquo;re out.</li>
+  <li><strong>Burn rate</strong> = how fast you&rsquo;re spending, relative to &ldquo;even&rdquo; pace. Burn
+      exactly <strong>1&times;</strong> would empty the budget precisely at window&rsquo;s end;
+      <strong>10&times;</strong> empties it in a tenth of the window.</li>
+</ul>
+<p>
+  Burn rate is what you actually <em>alert</em> on &mdash; a page should fire when you&rsquo;re burning
+  fast enough to threaten the budget, not on every blip. We build that alerting in
+  <strong>Lesson&nbsp;04</strong>.
+</p>
+
+<h2>5. Make it real: the SLO document &amp; sign-off</h2>
+
+<p>
+  An SLO isn&rsquo;t real until it&rsquo;s written down and agreed. A minimal SLO document records: the
+  SLI (specification <em>and</em> implementation), the target, the window, the rationale, and the
+  <em>error-budget policy</em> (what happens when it&rsquo;s exhausted &mdash; Lesson&nbsp;04). Then get
+  three parties to sign:
+</p>
+
+<ul>
+  <li><strong>Product</strong> agrees the target is &ldquo;good enough&rdquo; for users &mdash; below it is
+      worth spending engineering time to fix.</li>
+  <li><strong>Developers</strong> agree that when the budget is spent, they&rsquo;ll shift to reducing
+      risk until it recovers.</li>
+  <li><strong>Ops/SRE</strong> agree the SLO is defensible <em>without</em> heroics, toil, or burnout.</li>
+</ul>
+
+<div class="callout insight">
+  <span class="label">Sign-off is the real test</span>
+  <p>
+    If the SRE can&rsquo;t defend the target without burning out, it&rsquo;s too strict. If product
+    can&rsquo;t stomach the velocity hit of defending it, it&rsquo;s too strict too. The negotiation
+    <em>is</em> the value &mdash; it forces an explicit, shared decision about how reliable to be.
+  </p>
+</div>
+
+<div class="primary-source">
+  <span class="label">Read this next (primary source)</span>
+  <p>
+    <a href="https://sre.google/workbook/implementing-slos/" target="_blank" rel="noopener">SRE
+    Workbook &mdash; <em>Implementing SLOs</em></a>: work through &ldquo;Choosing an Appropriate Time
+    Window&rdquo; and the worked example above. Then skim the
+    <a href="https://sre.google/workbook/slo-document/" target="_blank" rel="noopener">Example SLO
+    Document</a> to see exactly what a finished one looks like.
+  </p>
+</div>
+
+<h2>6. Check yourself</h2>
+<p>Retrieve before revealing.</p>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 1 of 2</p>
+  <p class="quiz-q">Why prefer a four-week rolling window over a calendar month for the decision-driving SLO?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="Right — users don&rsquo;t forget last week&rsquo;s outage, and whole weeks keep weekends equal.">It tracks recent pain and keeps the weekend count constant</button></li>
+    <li><button data-correct="false" data-feedback="That monthly reset is the calendar-window problem — users don&rsquo;t forget on the 1st.">It resets the error budget cleanly on the first each month</button></li>
+    <li><button data-correct="false" data-feedback="Request volume depends on traffic, not the window type; not the reason.">It always contains more total requests than a calendar month</button></li>
+    <li><button data-correct="false" data-feedback="Calendar windows suit reporting and SLAs — but not the decision-driving SLO.">It matches finance reporting so executives can read it easily</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Rolling windows reflect recent experience; integral weeks avoid weekend-count noise. Google&rsquo;s default is a four-week rolling window."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 2 of 2</p>
+  <p class="quiz-q">SLO is 99.9% over the window; you serve 2,000,000 valid requests in it. The error budget is&hellip;</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="That&rsquo;s 0.01% — an extra nine, i.e. a 99.99% SLO.">200 failed requests allowed over the window</button></li>
+    <li><button data-correct="true" data-feedback="Right — (1 − 0.999) × 2,000,000 = 0.1% × 2,000,000 = 2,000.">2,000 failed requests allowed over the window</button></li>
+    <li><button data-correct="false" data-feedback="That&rsquo;s 1% — a 99% SLO, one nine too loose.">20,000 failed requests allowed over the window</button></li>
+    <li><button data-correct="false" data-feedback="That&rsquo;s how many must succeed, not the budget of failures.">1,998,000 failed requests allowed over window</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Budget (events) = (1 − SLO) × valid events. 0.1% of 2,000,000 = 2,000 failures allowed per window."></div>
+</div>
+
+<div class="callout tryit">
+  <span class="label">Try it in your own system</span>
+  <ul class="checklist">
+    <li>Measure (or estimate) your SLI over ~4 weeks; round <em>down</em> to a starter availability SLO.</li>
+    <li>Pick <strong>two</strong> latency thresholds from your p90 / p99 (round up to ~50&nbsp;ms).</li>
+    <li>Choose a window &mdash; default to <strong>4-week rolling</strong>.</li>
+    <li>Compute the error budget in <em>requests</em>: <code>(1 &minus; SLO) &times; valid events</code>.</li>
+    <li>Ask: what % of that budget would a single <strong>30-minute full outage</strong> spend?</li>
+  </ul>
+  <p>Bring these numbers &mdash; in Lesson&nbsp;04 we turn the budget into a ship/freeze <em>policy</em> and a burn-rate alert.</p>
+</div>
+
+<div class="followup">
+  <strong>I&rsquo;m your teacher &mdash; ask me anything.</strong> Want help turning your measured p99 into
+  a defensible target? Unsure whether to use a 4-week or quarterly window for a specific service? Want
+  to see the error budget as a live Grafana panel? Ask away.
+</div>
+
+<nav class="lesson-nav">
+  <span class="group">
+    <b>Reference</b>
+    <a href="../reference/0004-setting-slo-budget-math.html">Setting an SLO &amp; budget math &rarr;</a>
+  </span>
+  <span class="group">
+    <b>Previous</b>
+    <a href="0002-choosing-good-slis.html">&larr; Lesson 02 · Choosing good SLIs</a>
+  </span>
+  <span class="group">
+    <b>Up next</b>
+    <a href="#" title="Ask your teacher to generate it">Lesson 04 · Error-budget policy &amp; burn-rate alerts &rarr;</a>
+  </span>
+</nav>
+
+</body>
+</html>

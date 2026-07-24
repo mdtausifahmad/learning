@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 11 · Retries, Dead-Letter Queues &amp; Poison Messages</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<script src="../assets/quiz.js" defer></script>
+<script src="../assets/stepflow.js" defer></script>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Async &amp; Messaging · Lesson 11</p>
+  <h1>Retries, Dead-Letter Queues &amp; Poison Messages</h1>
+  <div class="meta">
+    <span>◷ ~16 min read · interactive</span>
+    <span class="dot">•</span>
+    <span>Level: Core → Staff</span>
+    <span class="dot">•</span>
+    <span>Uses: <a href="0008-idempotency-deduplication.html">L08</a>, <a href="0009-ordering-partitioning.html">L09</a></span>
+  </div>
+</header>
+
+<p class="mission-tie">
+  Messages fail. The staff-level question isn&rsquo;t <em>whether</em> to retry &mdash; it&rsquo;s <em>which</em>
+  failures to retry, how, and where the ones you can&rsquo;t handle go so they don&rsquo;t take the whole
+  pipeline down with them. Get this wrong and a single bad message becomes a 3 a.m. outage. Get it
+  right and failures become a tidy queue you triage on Monday.
+</p>
+
+<h2>1. Two kinds of failure — classify first</h2>
+
+<table>
+  <thead><tr><th>Transient (retry it)</th><th>Permanent (don&rsquo;t retry — DLQ it)</th></tr></thead>
+  <tbody>
+    <tr><td>Network blip, timeout</td><td>Malformed / unparseable message</td></tr>
+    <tr><td>Downstream <code>503</code> / rate limit</td><td>Business-rule violation (will never pass)</td></tr>
+    <tr><td>DB deadlock, brief lock contention</td><td>A bug in the handler</td></tr>
+  </tbody>
+</table>
+
+<p>
+  Retrying a <em>transient</em> failure usually succeeds. Retrying a <em>permanent</em> one just burns
+  CPU forever and blocks everything behind it. So the first move is always: <strong>classify the
+  exception</strong>, and treat the two paths differently.
+</p>
+
+<h2>2. The poison message &amp; head-of-line blocking</h2>
+
+<p>
+  A <span class="term">poison message</span> is one that <em>consistently</em> fails. If you retry it
+  in place forever, it becomes a plug: nothing behind it in the partition/queue can be processed &mdash;
+  <span class="term">head-of-line blocking</span>. One bad message stalls the whole consumer. The cure
+  is a bounded retry, then move it aside to a <strong>dead-letter queue</strong>.
+</p>
+
+<h3>Watch it: a poison message blocks the queue, then the DLQ frees it</h3>
+<p>Step through the incident and its resolution (← / → keys work).</p>
+
+<div class="stepflow" data-token="token">
+  <div class="sf-stage">
+    <svg viewBox="0 0 720 320" role="img" aria-label="A poison message fails repeatedly and blocks the queue until it is routed to a dead-letter queue, unblocking the flow">
+      <defs>
+        <marker id="l11arw" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#c9c1b1"></path></marker>
+      </defs>
+
+      <text x="185" y="42" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="600" fill="#6b6459">main queue →</text>
+      <line x1="392" y1="82" x2="498" y2="94" stroke="#c9c1b1" stroke-width="1.5" marker-end="url(#l11arw)"></line>
+      <line x1="585" y1="126" x2="585" y2="198" stroke="#c9c1b1" stroke-width="1.5" marker-end="url(#l11arw)"></line>
+
+      <g id="qm1"><rect x="40" y="58" width="64" height="40" rx="6" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.25"></rect><text x="72" y="83" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" font-weight="600" fill="#1f4a29">m1</text></g>
+      <g id="qm2"><rect x="112" y="58" width="64" height="40" rx="6" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.25"></rect><text x="144" y="83" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" font-weight="600" fill="#1f4a29">m2</text></g>
+      <g id="qp"><rect x="184" y="58" width="64" height="40" rx="6" fill="#f8eaea" stroke="#a32f2f" stroke-width="1.5"></rect><text x="216" y="83" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" font-weight="700" fill="#a32f2f">P!</text></g>
+      <g id="qm3"><rect x="256" y="58" width="64" height="40" rx="6" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.25"></rect><text x="288" y="83" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" font-weight="600" fill="#1f4a29">m3</text></g>
+      <g id="qm4"><rect x="328" y="58" width="64" height="40" rx="6" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.25"></rect><text x="360" y="83" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" font-weight="600" fill="#1f4a29">m4</text></g>
+
+      <text id="blockedBadge" x="216" y="120" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="700" fill="#a32f2f" style="display:none">⛔ blocked behind poison (head-of-line)</text>
+      <text id="unblockedBadge" x="216" y="120" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="700" fill="#1f4a29" style="display:none">✓ main queue unblocked</text>
+
+      <rect id="actor-consumer" class="sf-actor" x="500" y="66" width="170" height="58" rx="10" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.5"></rect>
+      <text x="585" y="90" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12.5" font-weight="600" fill="#1a1a1a">Consumer</text>
+      <text id="okBadge" x="585" y="112" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" fill="#3f7a3f" style="display:none">✓ processed</text>
+      <text id="att1" x="585" y="112" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" fill="#8a4d16" style="display:none">attempt 1/3 ✗</text>
+      <text id="att2" x="585" y="112" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" fill="#8a4d16" style="display:none">attempt 2/3 ✗ (backoff)</text>
+      <text id="att3max" x="585" y="112" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" font-weight="700" fill="#a32f2f" style="display:none">attempt 3/3 ✗ → give up</text>
+
+      <text id="routedBadge" x="585" y="166" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" fill="#b5651d" style="display:none">poison → DLQ</text>
+
+      <rect id="actor-dlq" class="sf-actor" x="500" y="200" width="170" height="64" rx="10" fill="#f7f4ec" stroke="#a98b3f" stroke-width="1.5"></rect>
+      <text x="585" y="222" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11.5" font-weight="600" fill="#1a1a1a">Dead-letter queue</text>
+      <g id="dlqP" style="display:none"><rect x="530" y="234" width="110" height="24" rx="5" fill="#f8eaea" stroke="#a32f2f" stroke-width="1.25"></rect><text x="585" y="250" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9.5" fill="#6f2020">P! + error + attempts</text></g>
+
+      <text id="triageBadge" x="585" y="290" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" font-weight="600" fill="#2e5a7a" style="display:none">inspect · fix · replay (redrive)</text>
+
+      <g id="token" class="sf-token" style="transform: translate(470px,94px); display:none">
+        <rect x="-18" y="-13" width="36" height="26" rx="6" fill="#7a2e2e" stroke="#fff" stroke-width="1.5"></rect>
+        <text class="sf-token-label" x="0" y="4" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9" font-weight="700" fill="#fff">m1</text>
+      </g>
+    </svg>
+  </div>
+
+  <div class="sf-caption"><p class="sf-title"></p><p class="sf-desc"></p></div>
+  <div class="sf-controls">
+    <button class="sf-btn sf-prev" type="button">◀ Prev</button>
+    <button class="sf-btn sf-next" type="button">Next ▶</button>
+    <button class="sf-btn sf-reset" type="button">↺ Reset</button>
+    <button class="sf-btn sf-play" type="button">▶ Play</button>
+    <span class="sf-counter"></span>
+  </div>
+
+  <script type="application/json" class="sf-steps">
+  [
+    {"title":"A queue with a poison message","desc":"A normal queue — except one message is a <strong>poison message</strong> (P!) that will consistently fail: bad data, or a bug.","token":null,"tokenLabel":"m1","visible":["qm1","qm2","qp","qm3","qm4"],"highlight":[]},
+    {"title":"m1 processed","desc":"The consumer handles m1 successfully.","token":{"x":470,"y":94},"tokenLabel":"m1","visible":["qm2","qp","qm3","qm4","okBadge"],"highlight":["actor-consumer"]},
+    {"title":"m2 processed","desc":"m2 succeeds too — the queue drains normally.","token":{"x":470,"y":94},"tokenLabel":"m2","visible":["qp","qm3","qm4","okBadge"],"highlight":["actor-consumer"]},
+    {"title":"Poison: attempt 1 fails","desc":"The poison message reaches the consumer and <strong>fails</strong>. Everything behind it — m3, m4 — is now <strong>blocked</strong> (head-of-line blocking).","token":{"x":470,"y":94},"tokenLabel":"P!","visible":["qm3","qm4","att1","blockedBadge"],"highlight":["actor-consumer"]},
+    {"title":"Attempt 2 fails (after backoff)","desc":"A retry with backoff — still fails. Nothing behind it moves; the whole consumer is stuck on one message.","token":{"x":470,"y":94},"tokenLabel":"P!","visible":["qm3","qm4","att2","blockedBadge"],"highlight":["actor-consumer"]},
+    {"title":"Attempt 3 = max","desc":"The final attempt fails. Retrying forever would block the pipeline indefinitely — so we stop.","token":{"x":470,"y":94},"tokenLabel":"P!","visible":["qm3","qm4","att3max","blockedBadge"],"highlight":["actor-consumer"]},
+    {"title":"Route it to the dead-letter queue","desc":"The poison message is moved to the <strong>DLQ</strong>, with its error and attempt count recorded. The main flow is freed.","token":{"x":585,"y":232},"tokenLabel":"P!","visible":["qm3","qm4","routedBadge","dlqP"],"highlight":["actor-dlq"]},
+    {"title":"Unblocked — and the DLQ is a workflow","desc":"m3 and m4 flow through at once. The poison sits in the DLQ for you to <strong>inspect, fix, and replay (redrive)</strong> — a workflow, not a graveyard.","token":null,"tokenLabel":"P!","visible":["okBadge","unblockedBadge","dlqP","triageBadge"],"highlight":["actor-consumer","actor-dlq"]}
+  ]
+  </script>
+</div>
+
+<h2>3. Retry strategies that don&rsquo;t make it worse</h2>
+
+<ul>
+  <li><strong>Bounded attempts.</strong> Always cap retries (e.g. 3&ndash;5), then dead-letter. Infinite
+      retry = an infinite outage.</li>
+  <li><strong>Exponential backoff.</strong> 0.5s, 1s, 2s, 4s… — don&rsquo;t hammer a struggling downstream.</li>
+  <li><strong>Add jitter.</strong> Randomize the delay so many failed consumers don&rsquo;t retry in
+      lockstep (a thundering herd that re-kills the recovering dependency).</li>
+  <li><strong>Blocking vs non-blocking.</strong> <em>Blocking</em> retry (retry in place, pausing the
+      partition) preserves order but risks head-of-line blocking. <em>Non-blocking</em> retry ships the
+      failed message to a separate <strong>retry topic/queue</strong> so the main flow keeps moving &mdash;
+      at the cost of that message&rsquo;s order.</li>
+</ul>
+
+<pre><code>// Spring Kafka — blocking retry with backoff, then publish to &lt;topic&gt;.DLT
+@Bean
+fun errorHandler(template: KafkaTemplate&lt;Any, Any&gt;): DefaultErrorHandler {
+    val recoverer = DeadLetterPublishingRecoverer(template)          // routes exhausted records to the DLT
+    val backOff = ExponentialBackOffWithMaxRetries(3).apply { initialInterval = 500; multiplier = 2.0 }
+    return DefaultErrorHandler(recoverer, backOff).apply {
+        addNotRetryableExceptions(IllegalArgumentException::class.java)   // permanent → straight to DLT
+    }
+}</code></pre>
+
+<pre><code>// Non-blocking retries: separate retry topics + a DLT, so the main topic never stalls
+@RetryableTopic(attempts = "4", backoff = Backoff(delay = 1000, multiplier = 2.0))
+@KafkaListener(topics = ["orders"], groupId = "fulfillment")
+fun handle(order: Order) { /* ... */ }
+
+@DltHandler
+fun dead(order: Order) { /* park, alert, await triage */ }</code></pre>
+
+<h2>4. Dead-letter queues, per broker</h2>
+
+<p>
+  The <a href="https://www.enterpriseintegrationpatterns.com/patterns/messaging/DeadLetterChannel.html" target="_blank" rel="noopener">Dead Letter Channel</a>
+  is a canonical pattern: &ldquo;When a messaging system determines that it cannot or should not deliver a
+  message, it may … move the message to a Dead Letter Channel,&rdquo; recording where it died and its
+  original destination. Each broker gives you this differently:
+</p>
+
+<table>
+  <thead><tr><th>Broker</th><th>DLQ mechanism</th></tr></thead>
+  <tbody>
+    <tr><td><strong>SQS</strong></td><td>Native <strong>redrive policy</strong>: after <code>maxReceiveCount</code> failed receives (visibility timeout = the retry delay), the message moves to the DLQ. Redrive back out to reprocess.</td></tr>
+    <tr><td><strong>RabbitMQ</strong></td><td>Native <strong>dead-letter exchange</strong> (<code>x-dead-letter-exchange</code>): messages rejected (<code>nack</code>, requeue=false), TTL-expired, or over a length limit route to the DLX → a DLQ. TTL+DLX gives delayed retry.</td></tr>
+    <tr><td><strong>Kafka</strong></td><td>No native DLQ — build it: Spring&rsquo;s <code>DeadLetterPublishingRecoverer</code> / <code>@RetryableTopic</code>, or Kafka Connect&rsquo;s <code>errors.deadletterqueue.topic.name</code>.</td></tr>
+    <tr><td><strong>Pulsar</strong></td><td>Native retry-letter topic + dead-letter topic per subscription.</td></tr>
+  </tbody>
+</table>
+
+<h2>5. Three things staff engineers never forget</h2>
+
+<div class="callout warning">
+  <span class="label">A DLQ is a workflow, not a graveyard</span>
+  <p>
+    Messages in a DLQ need <strong>monitoring, alarms, triage, and replay</strong> (AWS: alarm on any
+    message entering the DLQ; use <em>redrive</em> to move them back). Store the failure reason,
+    stack trace, and attempt count with each one. A silently-filling DLQ is data loss with extra steps
+    &mdash; and beware replay loops (a message that fails, dead-letters, is replayed, and fails again).
+  </p>
+</div>
+
+<div class="callout insight">
+  <span class="label">Retries demand idempotency (Lesson 08)</span>
+  <p>
+    A retry may re-run a side effect that <em>partially</em> succeeded — so a retried consumer will
+    process some messages more than once. Retries and at-least-once are the same coin: your consumer
+    <strong>must be idempotent</strong>, or retries manufacture duplicates.
+  </p>
+</div>
+
+<div class="callout warning">
+  <span class="label">Retries and DLQs disturb order (Lesson 09)</span>
+  <p>
+    Non-blocking retry topics and DLQs pull a message out of line and reinsert it later — breaking
+    per-key order. AWS explicitly warns: don&rsquo;t use a DLQ with a FIFO queue if you need strict order.
+    If order is sacred, prefer <em>blocking</em> retry (pause the partition) and accept the head-of-line
+    risk, or design so a parked message doesn&rsquo;t invalidate later ones.
+  </p>
+</div>
+
+<div class="primary-source">
+  <span class="label">Go deeper (primary sources)</span>
+  <p>
+    <a href="https://www.enterpriseintegrationpatterns.com/patterns/messaging/DeadLetterChannel.html" target="_blank" rel="noopener">EIP &mdash; <em>Dead Letter Channel</em></a>,
+    <a href="https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-dead-letter-queues.html" target="_blank" rel="noopener">AWS &mdash; <em>SQS dead-letter queues</em></a>
+    (redrive, <code>maxReceiveCount</code>), and
+    <a href="https://docs.spring.io/spring-kafka/reference/retrytopic.html" target="_blank" rel="noopener">Spring &mdash; <em>Non-Blocking Retries</em></a>.
+  </p>
+</div>
+
+<h2>6. Check yourself</h2>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 1 of 2</p>
+  <p class="quiz-q">A consumer retries a malformed message forever. What happens to the rest of the partition?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="In-place infinite retry plugs the partition — nothing behind the poison message is processed.">Nothing behind it is processed (blocked)</button></li>
+    <li><button data-correct="false" data-feedback="Kafka won't skip a stuck record on its own; you must bound retries and dead-letter it.">Kafka auto-skips it after a timeout</button></li>
+    <li><button data-correct="false" data-feedback="Other messages are stuck behind it, not sped up.">The others are processed faster meanwhile</button></li>
+    <li><button data-correct="false" data-feedback="The poison message is the cause; deleting the topic is not the fix.">The topic is deleted to clear the jam</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="A poison message retried in place causes head-of-line blocking. Bound the retries, then route it to a DLQ to unblock the flow."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 2 of 2</p>
+  <p class="quiz-q">Which failure should skip retries and go straight to the DLQ?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="A schema/parse error is permanent — retrying can never make it valid.">A message that fails to parse (bad schema)</button></li>
+    <li><button data-correct="false" data-feedback="A 503 is transient — backoff-and-retry usually succeeds.">A downstream service returning a 503</button></li>
+    <li><button data-correct="false" data-feedback="Deadlocks are transient; a retry typically clears them.">A transient database deadlock</button></li>
+    <li><button data-correct="false" data-feedback="A network timeout is the textbook retriable failure.">A one-off network timeout</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Classify: transient (503, deadlock, timeout) → retry with backoff; permanent (bad schema, business-rule violation, bug) → DLQ immediately."></div>
+</div>
+
+<div class="callout tryit">
+  <span class="label">Try it in your own system</span>
+  <p>
+    For one consumer: which exceptions are transient vs permanent? Is there a retry cap and backoff?
+    Where do exhausted messages go — a real DLQ, or nowhere? And is anyone <em>alerted</em> when the DLQ
+    gets a message? Bring the gaps.
+  </p>
+</div>
+
+<div class="followup">
+  <strong>I&rsquo;m your teacher &mdash; ask anything.</strong> Want the RabbitMQ TTL+DLX delayed-retry wiring,
+  the in-order retry strategy (pause/seek), or how to build a safe DLQ replay tool? Ask &mdash; or answer a
+  quiz back so I can tune Lesson 12.
+</div>
+
+<nav class="lesson-nav">
+  <span class="group">
+    <b>Previous</b>
+    <a href="0010-backpressure-load-leveling.html">← Lesson 10 · Backpressure &amp; Load Leveling</a>
+  </span>
+  <span class="group">
+    <b>Reference</b>
+    <a href="../reference/0011-retries-dlq-cheatsheet.html">Retries &amp; DLQ cheat sheet →</a>
+  </span>
+  <span class="group">
+    <b>Up next</b>
+    <a href="0012-log-vs-queue-brokers.html">Lesson 12 · Log vs queue brokers: internals</a>
+  </span>
+</nav>
+
+</body>
+</html>

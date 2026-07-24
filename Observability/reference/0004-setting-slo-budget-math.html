@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cheat Sheet · Setting an SLO &amp; Budget Math</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<style>
+  body { max-width: 52rem; }
+  .cheat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem 1.5rem; }
+  .cheat-grid h3 { margin-top: .4rem; }
+  @media print { body { margin: 0; } h2 { margin-top: 1.1rem; } }
+  @media (max-width: 620px) { .cheat-grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Reliability &amp; SRE · Reference 04</p>
+  <h1>Setting an SLO &amp; Budget Math</h1>
+  <div class="meta"><span>Compressed from Lesson 03</span><span class="dot">•</span><span>Print-friendly</span></div>
+</header>
+
+<h2>The method</h2>
+<ol>
+  <li><strong>Measure</strong> your SLI over ~4 weeks.</li>
+  <li><strong>Round to a starter target</strong>: availability <em>down</em> to 2 significant figures;
+      latency thresholds <em>up</em> to the nearest ~50&nbsp;ms.</li>
+  <li><strong>Pick the window</strong> &mdash; default to a <strong>4-week rolling</strong> window.</li>
+  <li><strong>Compute the error budget</strong> in events.</li>
+  <li><strong>Write the SLO doc &amp; get sign-off</strong> from product, devs, and ops/SRE.</li>
+</ol>
+<div class="callout warning">
+  <span class="label">Current-performance trap</span>
+  <p>Measured performance is a fine <em>start</em> if you iterate &mdash; but users come to expect
+     whatever you deliver, so don&rsquo;t enshrine a too-tight number you&rsquo;ll have to defend forever.
+     Aim at &ldquo;above this, almost all users are happy.&rdquo;</p>
+</div>
+
+<h2>Choosing the window</h2>
+<table>
+  <thead><tr><th></th><th>Rolling (e.g. 4 weeks)</th><th>Calendar (month / quarter)</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Best for</strong></td><td>the decision-driving SLO</td><td>business reporting &amp; SLAs</td></tr>
+    <tr><td><strong>Why</strong></td><td>tracks recent experience; no reset</td><td>aligns with planning cycles</td></tr>
+    <tr><td><strong>Watch out</strong></td><td>&mdash;</td><td>Jan-1 reset gaming; mid-period traffic unknown</td></tr>
+  </tbody>
+</table>
+<p style="font-size:.86rem;color:var(--muted);font-style:italic;">
+  Use <strong>whole weeks</strong> so weekend counts match. Complement with weekly (course-correct) and
+  quarterly (planning) summaries.
+</p>
+
+<h2>Budget math</h2>
+<pre><code>error budget (events) = (1 &minus; SLO) &times; valid events in the window
+budget remaining      = budget &minus; failures so far
+an outage costs        (its failed events) / (budget)  of your window</code></pre>
+
+<div class="cheat-grid">
+  <div>
+    <h3>99.9% SLO &rarr; budget by volume</h3>
+    <table>
+      <tbody>
+        <tr><td>100k req</td><td>100 failures</td></tr>
+        <tr><td>1M req</td><td>1,000 failures</td></tr>
+        <tr><td>3M req</td><td>3,000 failures</td></tr>
+        <tr><td>10M req</td><td>10,000 failures</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div>
+    <h3>Budget as time (4-week window)</h3>
+    <table>
+      <tbody>
+        <tr><td>99%</td><td>6.7 hours</td></tr>
+        <tr><td>99.9%</td><td>40 minutes</td></tr>
+        <tr><td>99.95%</td><td>20 minutes</td></tr>
+        <tr><td>99.99%</td><td>4 minutes</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+<p style="font-size:.86rem;color:var(--muted);font-style:italic;">
+  Always state the window with the budget: 99.9% is ~40 min over 4 weeks, ~43 min over 30 days.
+</p>
+
+<h2>Spent · remaining · burn</h2>
+<ul>
+  <li><strong>Spent</strong> = failures so far. <strong>Remaining</strong> = budget &minus; spent.</li>
+  <li><strong>Burn rate</strong> = spend speed vs even pace. <strong>1&times;</strong> empties the budget
+      exactly at window end; <strong>10&times;</strong> empties it in a tenth of the window.</li>
+  <li>You <em>alert</em> on burn rate, not on every blip (Lesson&nbsp;04).</li>
+</ul>
+
+<h2>SLO document &amp; sign-off</h2>
+<ul class="checklist">
+  <li>SLI specification <em>and</em> implementation</li>
+  <li>Target + window + rationale</li>
+  <li>Error-budget policy (what happens at zero — Lesson&nbsp;04)</li>
+</ul>
+<p><strong>Three signatures:</strong> Product (target good enough for users) · Developers (will reduce
+   risk when budget is spent) · Ops/SRE (defensible without heroics or burnout). The negotiation
+   <em>is</em> the value.</p>
+
+<nav class="lesson-nav">
+  <span class="group"><b>From</b><a href="../lessons/0003-setting-slo-and-error-budget.html">&larr; Lesson 03 · Setting the SLO</a></span>
+  <span class="group"><b>See also</b><a href="0001-sli-slo-error-budget-cheatsheet.html">Nines &rarr; minutes table</a></span>
+  <span class="group"><b>Primary source</b><a href="https://sre.google/workbook/implementing-slos/" target="_blank" rel="noopener">SRE Workbook · Implementing SLOs</a></span>
+</nav>
+
+</body>
+</html>

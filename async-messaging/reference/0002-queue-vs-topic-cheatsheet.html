@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cheat Sheet · Queue ↔ Topic</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<style>
+  body { max-width: 52rem; }
+  @media print { body { margin: 0; } h2 { margin-top: 1.1rem; } }
+</style>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Async &amp; Messaging · Reference 02</p>
+  <h1>Queue ↔ Topic — Delivery Topology Cheat Sheet</h1>
+  <div class="meta"><span>Compressed from Lesson 02</span><span class="dot">•</span><span>Print-friendly</span></div>
+</header>
+
+<h2>The one-line test</h2>
+<div class="callout insight">
+  <span class="label">Decide in five seconds</span>
+  <p>
+    <strong>Work to be done once?</strong> → <strong>Queue</strong> (point-to-point).<br>
+    <strong>Announcement others react to?</strong> → <strong>Topic</strong> (publish-subscribe / fan-out).
+  </p>
+</div>
+
+<h2>Core distinctions</h2>
+<table>
+  <thead><tr><th></th><th>Queue · point-to-point</th><th>Topic · publish-subscribe</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Each message goes to</strong></td><td>Exactly one consumer</td><td>A copy to every subscriber</td></tr>
+    <tr><td><strong>Add more consumers →</strong></td><td>Shared work (competing consumers, faster)</td><td>More copies (each gets everything)</td></tr>
+    <tr><td><strong>Intent</strong></td><td>Do this task</td><td>This happened; react if you care</td></tr>
+    <tr><td><strong>Scaling lever</strong></td><td>More consumers on the queue</td><td>Independent subscribers, scaled separately</td></tr>
+  </tbody>
+</table>
+
+<div class="callout warning">
+  <span class="label">Never forget</span>
+  <p>Competing consumers work <strong>only on a queue</strong>. Extra consumers on a topic =
+     duplicate processing, not shared load. ("Why did we send 10 emails?")</p>
+</div>
+
+<h2>Kafka: get both from one topic</h2>
+<ul>
+  <li><strong>One consumer group</strong> = competing consumers (point-to-point). Partitions split across members.</li>
+  <li><strong>Many consumer groups</strong> = fan-out (publish-subscribe). Each group sees every message.</li>
+  <li><strong>Spring lever:</strong> same <code>groupId</code> → shared work; different <code>groupId</code> → each gets a copy.</li>
+  <li><strong>Cap:</strong> active consumers per group ≤ partition count. Extra consumers idle.</li>
+  <li><strong>Order &amp; key:</strong> order holds only <em>within</em> a partition; the message <strong>key</strong> picks the partition.</li>
+</ul>
+
+<h2>Same shape, every broker</h2>
+<table>
+  <thead><tr><th>Broker</th><th>Handled once</th><th>Fan-out</th></tr></thead>
+  <tbody>
+    <tr><td>Kafka</td><td>One consumer group</td><td>Many consumer groups</td></tr>
+    <tr><td>RabbitMQ</td><td>Consumers on one queue</td><td>Fanout/topic exchange → many queues</td></tr>
+    <tr><td>AWS</td><td>SQS queue</td><td>SNS topic → many SQS/HTTP</td></tr>
+    <tr><td>Redis</td><td>Stream + consumer group</td><td>Pub/Sub, or multiple stream groups</td></tr>
+    <tr><td>Pulsar</td><td>Shared / Key_Shared subscription</td><td>Multiple subscriptions on a topic</td></tr>
+  </tbody>
+</table>
+
+<h2>Spring Kafka snippets</h2>
+<pre><code>// Competing consumers — scale by running more instances
+@KafkaListener(topics = ["order.placed"], groupId = "fulfillment")
+fun handle(e: OrderPlaced) = fulfillment.reserveStock(e)
+
+// Fan-out — a different groupId gets its own full copy
+@KafkaListener(topics = ["order.placed"], groupId = "analytics")
+fun record(e: OrderPlaced) = analytics.record(e)</code></pre>
+
+<nav class="lesson-nav">
+  <span class="group"><b>From</b><a href="../lessons/0002-queue-vs-topic.html">← Lesson 02 · Queues vs Topics</a></span>
+  <span class="group"><b>Canonical terms</b><a href="../GLOSSARY.md">GLOSSARY.md</a></span>
+</nav>
+
+</body>
+</html>

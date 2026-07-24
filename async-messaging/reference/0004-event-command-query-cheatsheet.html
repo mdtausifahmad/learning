@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cheat Sheet · Event / Command / Query</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<style>
+  body { max-width: 52rem; }
+  @media print { body { margin: 0; } h2 { margin-top: 1.1rem; } }
+</style>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Async &amp; Messaging · Reference 04</p>
+  <h1>Event / Command / Query — Intent Cheat Sheet</h1>
+  <div class="meta"><span>Compressed from Lesson 04</span><span class="dot">•</span><span>Print-friendly</span></div>
+</header>
+
+<h2>The one-line test</h2>
+<div class="callout insight">
+  <span class="label">Read the name; know the intent</span>
+  <p>
+    <strong>Imperative</strong> (<code>ShipOrder</code>) → <strong>Command</strong>.<br>
+    <strong>Past tense</strong> (<code>OrderShipped</code>) → <strong>Event</strong>.<br>
+    <strong>Interrogative</strong> (<code>GetOrderStatus</code>) → <strong>Query</strong>.
+  </p>
+</div>
+
+<h2>Side-by-side</h2>
+<table>
+  <thead><tr><th></th><th>Command</th><th>Event</th><th>Query</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Says</strong></td><td>"Do this"</td><td>"This happened"</td><td>"Tell me this"</td></tr>
+    <tr><td><strong>Name</strong></td><td>Imperative</td><td>Past tense</td><td>Interrogative</td></tr>
+    <tr><td><strong>Handlers</strong></td><td>One owner</td><td>Zero to many</td><td>One responder</td></tr>
+    <tr><td><strong>Reply?</strong></td><td>Maybe ack/result</td><td>No</td><td>Yes — the data</td></tr>
+    <tr><td><strong>Channel</strong></td><td>Queue (p2p)</td><td>Topic (pub/sub)</td><td>Sync request/reply</td></tr>
+    <tr><td><strong>Who decides the reaction</strong></td><td>The sender</td><td>Each consumer</td><td>The responder</td></tr>
+    <tr><td><strong>Coupling points…</strong></td><td>Sender → receiver's capability</td><td>Consumer → producer's fact</td><td>Caller ↔ responder contract</td></tr>
+  </tbody>
+</table>
+
+<h2>Why it matters</h2>
+<ul>
+  <li><strong>Events invert coupling → extensibility.</strong> Add a reaction by subscribing; the producer never changes.</li>
+  <li><strong>Commands centralize the decision.</strong> Use when you genuinely depend on a specific action being done.</li>
+  <li><strong>Queries need answers.</strong> Keep them synchronous; async is the wrong tool.</li>
+</ul>
+
+<div class="callout warning">
+  <span class="label">The honesty test (Fowler)</span>
+  <p>An event that exists only to make one specific consumer act is a <strong>passive-aggressive
+     command</strong> — hidden coupling + ambiguous ownership. If you depend on the action, send a
+     command and name it as one.</p>
+</div>
+
+<h2>Kotlin conventions</h2>
+<pre><code>data class ShipOrder(val orderId: String, val address: Address)         // command
+data class OrderPlaced(val orderId: String, val total: Money)           // event
+data class GetOrderStatus(val orderId: String)                          // query
+
+// same groupId shares a command queue; different groupIds fan an event out
+@KafkaListener(topics = ["shipping.commands"], groupId = "shipping")    // one owner acts
+@KafkaListener(topics = ["order.events"],      groupId = "loyalty")     // one of many reactors</code></pre>
+
+<nav class="lesson-nav">
+  <span class="group"><b>From</b><a href="../lessons/0004-event-command-query.html">← Lesson 04 · Event vs Command vs Query</a></span>
+  <span class="group"><b>Canonical terms</b><a href="../GLOSSARY.md">GLOSSARY.md</a></span>
+</nav>
+
+</body>
+</html>

@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 10 · Backpressure &amp; Load Leveling</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<script src="../assets/quiz.js" defer></script>
+<script src="../assets/stepflow.js" defer></script>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Async &amp; Messaging · Lesson 10</p>
+  <h1>Backpressure &amp; Load Leveling</h1>
+  <div class="meta">
+    <span>◷ ~15 min read · interactive</span>
+    <span class="dot">•</span>
+    <span>Level: Core → Staff</span>
+    <span class="dot">•</span>
+    <span>Cashes the promise of <a href="0001-why-async.html">Lesson 01</a></span>
+  </div>
+</header>
+
+<p class="mission-tie">
+  Lesson 01 sold you a benefit: &ldquo;a spike becomes <em>queue depth</em>, not a stampede.&rdquo; This lesson
+  cashes that check. You&rsquo;ll see how a buffer absorbs bursts, what <em>backpressure</em> really is and
+  where it comes from, the levers to control flow &mdash; and the one hard truth that separates a resilient
+  design from a delayed outage: <strong>buffering is not capacity.</strong>
+</p>
+
+<h2>1. Load leveling: the buffer as a shock absorber</h2>
+
+<p>
+  <span class="term">Load leveling</span> is the core move: put a durable queue/log between producer
+  and consumer, and the producer&rsquo;s <em>arrival</em> rate is decoupled from the consumer&rsquo;s
+  <em>processing</em> rate. A burst doesn&rsquo;t hammer the downstream in real time; it piles up as depth
+  and the consumer drains it at its own sustainable pace. You size consumers for the
+  <strong>sustained</strong> load, and let the buffer eat the peaks.
+</p>
+
+<h3>Watch it: a spike gets absorbed (and what over-provisioning can&rsquo;t fix)</h3>
+<p>Step through a traffic spike, then a sustained overload (← / → keys work).</p>
+
+<div class="stepflow" data-token="token">
+  <div class="sf-stage">
+    <svg viewBox="0 0 720 320" role="img" aria-label="A buffer absorbs a traffic spike as queue depth, but a sustained overload overflows it">
+      <defs>
+        <marker id="l10arw" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#c9c1b1"></path></marker>
+      </defs>
+
+      <line x1="158" y1="154" x2="298" y2="158" stroke="#c9c1b1" stroke-width="1.5" marker-end="url(#l10arw)"></line>
+      <line x1="422" y1="158" x2="562" y2="154" stroke="#c9c1b1" stroke-width="1.5" marker-end="url(#l10arw)"></line>
+
+      <rect id="actor-producer" class="sf-actor" x="24" y="118" width="132" height="72" rx="10" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.5"></rect>
+      <text x="90" y="148" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12.5" font-weight="600" fill="#1a1a1a">Producer</text>
+      <text id="prodSteady" x="90" y="172" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" fill="#3f7a3f" style="display:none">rate: steady</text>
+      <text id="prodBurst" x="90" y="172" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" font-weight="700" fill="#a32f2f" style="display:none">rate: BURST ⚡</text>
+      <text id="prodOff" x="90" y="172" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" fill="#6b6459" style="display:none">rate: slowing</text>
+      <text id="prodSustained" x="90" y="172" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" font-weight="700" fill="#a32f2f" style="display:none">rate: fast (sustained)</text>
+
+      <text x="360" y="50" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="600" fill="#6b6459">queue / log (buffer)</text>
+      <g id="actor-buffer" class="sf-actor"><rect x="300" y="58" width="120" height="204" rx="10" fill="#fdfcf9" stroke="#2e5a7a" stroke-width="1.5"></rect></g>
+      <rect id="overflowCap" x="312" y="62" width="96" height="12" rx="3" fill="#a32f2f" style="display:none"></rect>
+      <rect id="buf8" x="312" y="77" width="96" height="22" rx="3" fill="#d9e2ec" stroke="#2e5a7a" stroke-width="1" style="display:none"></rect>
+      <rect id="buf7" x="312" y="100" width="96" height="22" rx="3" fill="#d9e2ec" stroke="#2e5a7a" stroke-width="1" style="display:none"></rect>
+      <rect id="buf6" x="312" y="123" width="96" height="22" rx="3" fill="#d9e2ec" stroke="#2e5a7a" stroke-width="1" style="display:none"></rect>
+      <rect id="buf5" x="312" y="146" width="96" height="22" rx="3" fill="#d9e2ec" stroke="#2e5a7a" stroke-width="1" style="display:none"></rect>
+      <rect id="buf4" x="312" y="169" width="96" height="22" rx="3" fill="#d9e2ec" stroke="#2e5a7a" stroke-width="1" style="display:none"></rect>
+      <rect id="buf3" x="312" y="192" width="96" height="22" rx="3" fill="#d9e2ec" stroke="#2e5a7a" stroke-width="1" style="display:none"></rect>
+      <rect id="buf2" x="312" y="215" width="96" height="22" rx="3" fill="#d9e2ec" stroke="#2e5a7a" stroke-width="1" style="display:none"></rect>
+      <rect id="buf1" x="312" y="238" width="96" height="22" rx="3" fill="#d9e2ec" stroke="#2e5a7a" stroke-width="1" style="display:none"></rect>
+
+      <text id="depthLow" x="360" y="282" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" fill="#3f7a3f" style="display:none">depth: low ✓</text>
+      <text id="depthMed" x="360" y="282" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" fill="#8a4d16" style="display:none">depth: rising</text>
+      <text id="depthHigh" x="360" y="282" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" fill="#8a4d16" font-weight="600" style="display:none">depth: high — absorbing</text>
+      <text id="depthDrain" x="360" y="282" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" fill="#3f7a3f" style="display:none">depth: draining ↓</text>
+      <text id="depthOverflow" x="360" y="282" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" fill="#a32f2f" font-weight="700" style="display:none">depth: OVERFLOW · lag ↑↑</text>
+
+      <rect id="actor-consumer" class="sf-actor" x="564" y="118" width="132" height="72" rx="10" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.5"></rect>
+      <text x="630" y="148" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12.5" font-weight="600" fill="#1a1a1a">Consumer</text>
+      <text x="630" y="172" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" fill="#6b6459">steady drain →</text>
+
+      <text id="absorbedBadge" x="360" y="306" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="700" fill="#1f4a29" style="display:none">✓ spike absorbed — it became depth, not a stampede</text>
+      <text id="overflowBadge" x="360" y="306" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="700" fill="#a32f2f" style="display:none">✗ sustained overload — buffering ≠ capacity</text>
+      <text id="fixBadge" x="360" y="306" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="700" fill="#2e5a7a" style="display:none">→ scale consumers, or bound the buffer &amp; shed load (503)</text>
+
+      <g id="token" style="display:none"></g>
+    </svg>
+  </div>
+
+  <div class="sf-caption"><p class="sf-title"></p><p class="sf-desc"></p></div>
+  <div class="sf-controls">
+    <button class="sf-btn sf-prev" type="button">◀ Prev</button>
+    <button class="sf-btn sf-next" type="button">Next ▶</button>
+    <button class="sf-btn sf-reset" type="button">↺ Reset</button>
+    <button class="sf-btn sf-play" type="button">▶ Play</button>
+    <span class="sf-counter"></span>
+  </div>
+
+  <script type="application/json" class="sf-steps">
+  [
+    {"title":"Steady state","desc":"Producer and consumer run at similar rates; the buffer stays shallow.","token":null,"visible":["buf1","buf2","prodSteady","depthLow"],"highlight":["actor-consumer"]},
+    {"title":"A traffic spike hits","desc":"The producer suddenly bursts far above the consumer's rate.","token":null,"visible":["buf1","buf2","buf3","buf4","prodBurst","depthMed"],"highlight":["actor-producer"]},
+    {"title":"The buffer absorbs it","desc":"Instead of crushing the consumer, the spike piles up as <strong>queue depth</strong>. The consumer keeps its steady pace, untouched.","token":null,"visible":["buf1","buf2","buf3","buf4","buf5","buf6","buf7","prodBurst","depthHigh"],"highlight":["actor-buffer","actor-producer"]},
+    {"title":"Spike ends; consumer catches up","desc":"The burst passes; the consumer drains the backlog at its sustainable rate.","token":null,"visible":["buf1","buf2","buf3","buf4","buf5","prodOff","depthDrain"],"highlight":["actor-consumer"]},
+    {"title":"Recovered — load leveling worked","desc":"The spike cost only bounded extra latency — not dropped work or a crashed downstream.","token":null,"visible":["buf1","buf2","prodSteady","depthLow","absorbedBadge"],"highlight":["actor-consumer"]},
+    {"title":"But buffering is not capacity","desc":"If the producer stays above the consumer's rate for good, the queue grows <strong>without bound</strong> — lag climbs forever toward OOM or dropped retention.","token":null,"visible":["buf1","buf2","buf3","buf4","buf5","buf6","buf7","buf8","overflowCap","prodSustained","depthOverflow","overflowBadge"],"highlight":["actor-producer"]},
+    {"title":"The fix","desc":"A buffer absorbs <em>bursts</em>, not sustained overload. Scale consumers to the sustained rate, or bound the buffer and <strong>shed load</strong> (reject with 503 + backoff).","token":null,"visible":["buf1","buf2","buf3","buf4","buf5","buf6","buf7","buf8","overflowCap","prodSustained","depthOverflow","fixBadge"],"highlight":[]}
+  ]
+  </script>
+</div>
+
+<h2>2. Pull vs push — where backpressure comes from</h2>
+
+<p>
+  <span class="term">Backpressure</span> is how a slow consumer avoids being overwhelmed. Where it
+  comes from depends on whether the consumer <em>pulls</em> or the broker <em>pushes</em>.
+</p>
+
+<ul>
+  <li><strong>Pull (Kafka, SQS).</strong> The consumer sends <em>fetch</em> requests at its own pace
+      (Confluent: a broker handles &ldquo;produce requests from the producer&rdquo; and &ldquo;fetch requests from
+      the consumer&rdquo;). A slow consumer simply falls behind &mdash; <strong>lag</strong> grows &mdash; but is never
+      flooded, because the durable log <em>is</em> the buffer. Backpressure is automatic.</li>
+  <li><strong>Push (RabbitMQ).</strong> The broker pushes deliveries to the consumer. Without a limit
+      it will flood the consumer&rsquo;s buffer. The lever is <strong>prefetch</strong>
+      (<code>basic.qos</code>): it caps the number of <em>unacknowledged</em> messages a consumer may
+      hold, so the broker stops sending until the consumer acks. A prefetch of <code>0</code> means
+      <em>infinite</em> &mdash; the classic way to melt a consumer.</li>
+</ul>
+
+<pre><code># RabbitMQ (push): bound in-flight work per consumer — the backpressure knob
+spring:
+  rabbitmq:
+    listener:
+      simple:
+        prefetch: 20          # at most 20 unacked messages per consumer (NOT 0 = infinite)
+
+# Kafka (pull): the consumer already self-paces; tune the batch it pulls
+    kafka:
+      consumer:
+        max-poll-records: 200            # records per poll
+        properties: { max.poll.interval.ms: 300000 }   # process a batch within this or you're kicked</code></pre>
+
+<h2>3. The hard truth: buffering ≠ capacity</h2>
+
+<div class="callout warning">
+  <span class="label">A buffer absorbs bursts, not sustained overload</span>
+  <p>
+    Load leveling smooths <em>temporary</em> spikes. If producers persistently outpace consumers, no
+    amount of buffering saves you: the queue grows unbounded, lag climbs forever, and you eventually
+    hit memory/disk limits, dropped retention (data loss), or an OOM. <strong>Rising lag with no
+    spike means you are under-provisioned</strong> — the answer is more consumers (up to the partition
+    count, Lesson 03), not a bigger buffer.
+  </p>
+</div>
+
+<p>
+  This makes <strong>lag / queue depth your primary health metric</strong>: Kafka consumer lag, SQS
+  <code>ApproximateNumberOfMessagesVisible</code>, RabbitMQ queue depth. Alert on it, and
+  <strong>autoscale on it</strong> (e.g. KEDA scales consumers by lag) rather than on CPU.
+</p>
+
+<h2>4. Bounded buffers &amp; load shedding</h2>
+
+<p>
+  An unbounded buffer <em>hides</em> overload until it&rsquo;s catastrophic. Bounding it surfaces the
+  problem early. When the buffer is full, the honest move is often to <strong>shed load</strong> — as
+  the System Design Primer advises, a bounded queue can return an error (HTTP <code>503</code>) so
+  clients back off and retry with exponential backoff, instead of the system collapsing under an
+  ever-growing backlog. Dropping or slowing work you can&rsquo;t handle beats pretending you can.
+</p>
+
+<div class="callout insight">
+  <span class="label">Backpressure should propagate</span>
+  <p>
+    Good backpressure travels <em>upstream</em>: a full downstream buffer slows or rejects the
+    upstream producer, which slows <em>its</em> caller, all the way back to a user who sees a polite
+    &ldquo;try again.&rdquo; The failure mode to avoid is a middle tier that swallows overload into an
+    unbounded queue and turns a visible slowdown into an invisible, delayed detonation.
+  </p>
+</div>
+
+<h2>5. The levers, by system</h2>
+<table>
+  <thead><tr><th>System</th><th>Flow-control levers</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Kafka</strong> (pull)</td><td><code>max.poll.records</code>, fetch sizes, <code>pause()</code>/<code>resume()</code>, scale consumers ≤ partitions</td></tr>
+    <tr><td><strong>RabbitMQ</strong> (push)</td><td><code>basic.qos</code> prefetch (per consumer); publisher <code>connection.blocked</code> under memory pressure</td></tr>
+    <tr><td><strong>SQS</strong> (pull)</td><td>Long polling, batch size, visibility timeout; scale consumers on queue depth</td></tr>
+    <tr><td><strong>App / Reactive</strong></td><td>Reactor/Flow <code>request(n)</code> demand; bounded queues + 503 load shedding</td></tr>
+  </tbody>
+</table>
+
+<div class="primary-source">
+  <span class="label">Go deeper (primary sources)</span>
+  <p>
+    <a href="https://www.rabbitmq.com/docs/consumer-prefetch" target="_blank" rel="noopener">RabbitMQ &mdash; <em>Consumer Prefetch</em></a>
+    (<code>basic.qos</code>, per-consumer limits),
+    <a href="https://developer.confluent.io/courses/architecture/broker/" target="_blank" rel="noopener">Confluent &mdash; <em>Inside the Broker</em></a>
+    (produce vs fetch requests), and the
+    <a href="https://github.com/donnemartin/system-design-primer#back-pressure" target="_blank" rel="noopener">System Design Primer &mdash; <em>Back pressure</em></a>.
+  </p>
+</div>
+
+<h2>6. Check yourself</h2>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 1 of 2</p>
+  <p class="quiz-q">Your Kafka consumer lag rises steadily for hours with <em>no</em> traffic spike. What does it mean?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="Sustained lag with no spike = producers outpace consumers; you're under-provisioned.">Consumers can't keep up — add capacity</button></li>
+    <li><button data-correct="false" data-feedback="A bigger buffer just delays the wall; it doesn't add processing capacity.">The buffer is too small — enlarge it</button></li>
+    <li><button data-correct="false" data-feedback="Healthy load leveling shows a spike then recovery, not an endless climb.">Everything is fine — leveling is working</button></li>
+    <li><button data-correct="false" data-feedback="Duplicates are a delivery-semantics issue, unrelated to a steady lag climb.">Messages are being duplicated somewhere</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Buffering absorbs bursts, not sustained overload. Endless lag growth = under-capacity → scale consumers (≤ partitions) or shed load."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 2 of 2</p>
+  <p class="quiz-q">In push-based RabbitMQ, what stops the broker from flooding a slow consumer?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="Prefetch caps unacknowledged messages per consumer — the broker waits for acks.">A prefetch limit on unacked messages</button></li>
+    <li><button data-correct="false" data-feedback="Kafka-style offsets aren't RabbitMQ's mechanism; prefetch/acks are.">The consumer committing its offsets</button></li>
+    <li><button data-correct="false" data-feedback="Partition count is a Kafka concept; it doesn't bound RabbitMQ delivery.">Increasing the number of partitions</button></li>
+    <li><button data-correct="false" data-feedback="A prefetch of 0 means infinite — the opposite of protection.">Setting the prefetch count to zero</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="basic.qos prefetch bounds in-flight (unacked) messages per consumer. 0 = infinite = the way to melt a consumer."></div>
+</div>
+
+<div class="callout tryit">
+  <span class="label">Try it in your own system</span>
+  <p>
+    For one consumer you own: is it pull or push? If push, what&rsquo;s its prefetch (is it accidentally
+    0/unbounded)? What&rsquo;s your primary lag/queue-depth alert, and does anything <em>autoscale</em> on
+    it? And if the backlog grew forever, would you rather shed load or fall over? Bring your answers.
+  </p>
+</div>
+
+<div class="followup">
+  <strong>I&rsquo;m your teacher &mdash; ask anything.</strong> Want the KEDA lag-based autoscaling setup, how
+  <code>pause()</code>/<code>resume()</code> gives app-level backpressure in Spring Kafka, or the
+  reactive <code>request(n)</code> model? Ask &mdash; or answer a quiz back so I can tune Lesson 11.
+</div>
+
+<nav class="lesson-nav">
+  <span class="group">
+    <b>Previous</b>
+    <a href="0009-ordering-partitioning.html">← Lesson 09 · Ordering &amp; Partitioning</a>
+  </span>
+  <span class="group">
+    <b>Reference</b>
+    <a href="../reference/0010-backpressure-load-leveling-cheatsheet.html">Backpressure cheat sheet →</a>
+  </span>
+  <span class="group">
+    <b>Up next</b>
+    <a href="0011-retries-dlq-poison-messages.html">Lesson 11 · Retries, dead-letter queues &amp; poison messages</a>
+  </span>
+</nav>
+
+</body>
+</html>

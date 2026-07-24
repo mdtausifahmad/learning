@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cheat Sheet · Transactional Outbox</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<style>
+  body { max-width: 52rem; }
+  @media print { body { margin: 0; } h2 { margin-top: 1.1rem; } }
+</style>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Async &amp; Messaging · Reference 14</p>
+  <h1>Transactional Outbox — Cheat Sheet</h1>
+  <div class="meta"><span>Compressed from Lesson 14</span><span class="dot">•</span><span>Print-friendly</span></div>
+</header>
+
+<h2>The problem</h2>
+<div class="callout warning">
+  <span class="label">Dual write</span>
+  <p>Update the DB <strong>and</strong> publish a message = two systems, no shared transaction.
+     DB-then-crash = <strong>lost event</strong>. Publish-then-rollback = <strong>phantom event</strong>.
+     <code>@Transactional</code> doesn't span the broker; 2PC/XA isn't viable.</p>
+</div>
+
+<h2>The fix</h2>
+<div class="callout insight">
+  <span class="label">Outbox</span>
+  <p>Insert the message into an <strong>OUTBOX table in the same local ACID transaction</strong> as the
+     business change → atomic. A separate <strong>relay</strong> publishes it. Sent <em>iff</em> the DB commits.</p>
+</div>
+
+<pre><code>@Transactional
+fun pay(orderId: String) {
+    orders.markPaid(orderId)                       // business change
+    outbox.save(OutboxEvent(id=UUID(), "order.events", orderId, OrderPaid(orderId)))  // same tx
+}</code></pre>
+
+<h2>Relay: two ways</h2>
+<table>
+  <thead><tr><th></th><th>Polling</th><th>CDC (log tailing)</th></tr></thead>
+  <tbody>
+    <tr><td>How</td><td>SELECT unsent → publish → mark sent</td><td>Debezium tails WAL/binlog → Kafka</td></tr>
+    <tr><td>Pros</td><td>Simple, no extra infra</td><td>Low latency, no polling load</td></tr>
+    <tr><td>Cons</td><td>Poll lag + DB load; ORDER BY for order</td><td>More infra; log coupling</td></tr>
+  </tbody>
+</table>
+
+<h2>Guarantees</h2>
+<ul>
+  <li>✓ Event published <strong>iff</strong> DB committed — no lost / phantom events.</li>
+  <li>✓ Order preserved (ORDER BY per key / the log is ordered) — L09.</li>
+  <li>⚠ <strong>At-least-once</strong> (relay may republish) → consumers must be <strong>idempotent</strong> (L08).</li>
+  <li>Outbox (reliable produce) + idempotent consumer (reliable consume) = effectively-once.</li>
+  <li>Prune sent rows so the table doesn't grow forever.</li>
+</ul>
+
+<p>Next: multi-step, compensatable flows = <strong>saga</strong> (uses the outbox to publish reliably).</p>
+
+<nav class="lesson-nav">
+  <span class="group"><b>From</b><a href="../lessons/0014-transactional-outbox.html">← Lesson 14 · Transactional Outbox</a></span>
+  <span class="group"><b>Canonical terms</b><a href="../GLOSSARY.md">GLOSSARY.md</a></span>
+</nav>
+
+</body>
+</html>

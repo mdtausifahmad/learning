@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 07 · Deep Dive — Operating Kafka Exactly-Once</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<script src="../assets/quiz.js" defer></script>
+<script src="../assets/stepflow.js" defer></script>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Async &amp; Messaging · Lesson 07 · Deep Dive</p>
+  <h1>Operating Kafka Exactly-Once — Lag, <code>transactional.id</code> &amp; the Commit Dial</h1>
+  <div class="meta">
+    <span>◷ ~15 min read</span>
+    <span class="dot">•</span>
+    <span>Level: Staff / Operations</span>
+    <span class="dot">•</span>
+    <span>Deepens: <a href="0006-kafka-exactly-once-internals.html">Lesson 06</a></span>
+  </div>
+</header>
+
+<p class="mission-tie">
+  Lesson 06 explained how EOS works. This one is about <em>running</em> it at 3&nbsp;a.m. when
+  something&rsquo;s wrong &mdash; the three things that actually bite teams in production: a stuck
+  transaction masquerading as consumer lag, getting <code>transactional.id</code> wrong, and the
+  throughput hit from committing too often. This is the difference between enabling exactly-once and
+  <em>owning</em> it.
+</p>
+
+<h2>1. Why a hung transaction looks like consumer lag</h2>
+
+<p>
+  Recall from Lesson 06: a <code>read_committed</code> consumer may not advance past an open
+  transaction &mdash; the broker holds its read position at the <span class="term">Last Stable Offset
+  (LSO)</span>. So if a producer opens a transaction and then <strong>hangs</strong> (GC pause, stuck
+  RPC, a bug between <code>beginTransaction</code> and <code>commitTransaction</code>), the LSO freezes
+  while new records pile up behind it.
+</p>
+
+<figure>
+<svg viewBox="0 0 640 240" role="img" aria-label="Consumer lag climbs steadily while a transaction hangs, then drops in one step when it times out">
+  <defs>
+    <marker id="a" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#6b6459"></path></marker>
+  </defs>
+  <line x1="62" y1="184" x2="606" y2="184" stroke="#6b6459" stroke-width="1.25" marker-end="url(#a)"></line>
+  <line x1="62" y1="184" x2="62" y2="34" stroke="#6b6459" stroke-width="1.25" marker-end="url(#a)"></line>
+  <text x="46" y="40" text-anchor="end" font-family="system-ui, sans-serif" font-size="10.5" fill="#6b6459" transform="rotate(-90 20 110)"></text>
+  <text x="58" y="28" text-anchor="start" font-family="system-ui, sans-serif" font-size="10.5" fill="#6b6459">consumer lag</text>
+  <text x="600" y="200" text-anchor="end" font-family="system-ui, sans-serif" font-size="10.5" fill="#6b6459">time →</text>
+
+  <polyline points="62,176 410,58" fill="none" stroke="#b5651d" stroke-width="2.5"></polyline>
+  <line x1="410" y1="58" x2="410" y2="176" stroke="#3f7a3f" stroke-width="2.5" stroke-dasharray="5 3"></line>
+  <polyline points="410,176 606,176" fill="none" stroke="#3f7a3f" stroke-width="2.5"></polyline>
+  <line x1="410" y1="34" x2="410" y2="184" stroke="#c9c1b1" stroke-width="1" stroke-dasharray="3 3"></line>
+
+  <text x="120" y="150" font-family="system-ui, sans-serif" font-size="10.5" fill="#8a4d16">◀ producer transaction hangs</text>
+  <text x="215" y="96" text-anchor="middle" font-family="system-ui, sans-serif" font-size="10.5" fill="#b5651d" font-weight="600">records-lag climbs steadily</text>
+  <text x="215" y="112" text-anchor="middle" font-family="system-ui, sans-serif" font-size="9.5" fill="#6b6459">(consumer healthy · 0 errors · ~0 real backlog)</text>
+  <text x="508" y="86" text-anchor="middle" font-family="system-ui, sans-serif" font-size="10" fill="#3f7a3f" font-weight="600">transaction.timeout.ms</text>
+  <text x="508" y="101" text-anchor="middle" font-family="system-ui, sans-serif" font-size="9.5" fill="#3f7a3f">→ abort → LSO jumps → lag clears</text>
+</svg>
+<figcaption>The signature of a stuck transaction: linear lag growth with no errors, then a one-step recovery when the transaction resolves.</figcaption>
+</figure>
+
+<div class="callout insight">
+  <span class="label">How to read the metrics</span>
+  <p>
+    The consumer&rsquo;s <code>records-lag-max</code> rises steadily, yet <strong>there are no processing
+    errors and throughput is near zero</strong> &mdash; the consumer isn&rsquo;t slow, it&rsquo;s <em>blocked</em>.
+    Confirm by comparing the partition&rsquo;s <strong>log-end-offset to its LSO</strong>: a wide, growing
+    gap means an open transaction, not a backlog. Real lag (slow consumer / high produce rate) looks
+    different: throughput is high and lag tracks load. A stuck-transaction lag <strong>clears in a
+    single step</strong> when the producer commits/aborts or the transaction times out.
+  </p>
+</div>
+
+<p>
+  The safety net is <code>transaction.timeout.ms</code> (producer-side; the coordinator aborts a
+  transaction open longer than this), capped by the broker&rsquo;s
+  <code>transaction.max.timeout.ms</code>. Set it tight enough that a wedged producer self-heals
+  quickly, but longer than your worst legitimate transaction &mdash; or you&rsquo;ll abort healthy work.
+</p>
+
+<h3>Watch it: the phantom lag of a hung transaction</h3>
+<p>
+  Step through it (← / → keys work). The consumer&rsquo;s read cursor stays pinned at the LSO while the
+  log keeps growing &mdash; so lag climbs with the consumer perfectly healthy &mdash; until the timeout
+  clears it in one jump.
+</p>
+
+<div class="stepflow" data-token="token">
+  <div class="sf-stage">
+    <svg viewBox="0 0 720 300" role="img" aria-label="A read_committed consumer cursor pinned at a frozen LSO while the log grows, causing lag that clears when the transaction times out">
+      <text id="txnopen" x="360" y="26" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11.5" font-weight="700" fill="#a32f2f" style="display:none">producer: transaction OPEN — hung</text>
+      <text id="txnaborted" x="360" y="26" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11.5" font-weight="700" fill="#3f7a3f" style="display:none">coordinator aborts it at transaction.timeout.ms</text>
+
+      <!-- committed cells (always visible) -->
+      <rect x="96" y="90" width="46" height="44" rx="4" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.25"></rect>
+      <text x="119" y="150" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" fill="#6b6459">40</text>
+      <rect x="144" y="90" width="46" height="44" rx="4" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.25"></rect>
+      <text x="167" y="150" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" fill="#6b6459">41</text>
+      <rect x="192" y="90" width="46" height="44" rx="4" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.25"></rect>
+      <text x="215" y="150" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" fill="#6b6459">42</text>
+
+      <!-- open-transaction cells (revealed progressively) -->
+      <g id="c43" style="display:none"><rect x="240" y="90" width="46" height="44" rx="4" fill="#fbf1e7" stroke="#b5651d" stroke-width="1.25" stroke-dasharray="4 3"></rect><text x="263" y="150" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" fill="#8a4d16">43</text></g>
+      <g id="c44" style="display:none"><rect x="288" y="90" width="46" height="44" rx="4" fill="#fbf1e7" stroke="#b5651d" stroke-width="1.25" stroke-dasharray="4 3"></rect><text x="311" y="150" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" fill="#8a4d16">44</text></g>
+      <g id="c45" style="display:none"><rect x="336" y="90" width="46" height="44" rx="4" fill="#fbf1e7" stroke="#b5651d" stroke-width="1.25" stroke-dasharray="4 3"></rect><text x="359" y="150" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" fill="#8a4d16">45</text></g>
+
+      <!-- LSO / LEO markers -->
+      <g id="leo0" style="display:none"><line x1="238" y1="82" x2="238" y2="140" stroke="#2e5a7a" stroke-width="1.5"></line><text x="238" y="166" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" fill="#2e5a7a" font-weight="600">LEO</text></g>
+      <g id="lsoFrozen" style="display:none"><line x1="239" y1="82" x2="239" y2="140" stroke="#a32f2f" stroke-width="1.5" stroke-dasharray="4 3"></line><text x="239" y="166" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" fill="#a32f2f" font-weight="600">LSO (frozen)</text></g>
+      <g id="leo43" style="display:none"><line x1="286" y1="82" x2="286" y2="140" stroke="#2e5a7a" stroke-width="1.5"></line><text x="286" y="166" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" fill="#2e5a7a" font-weight="600">LEO</text></g>
+      <g id="leo44" style="display:none"><line x1="334" y1="82" x2="334" y2="140" stroke="#2e5a7a" stroke-width="1.5"></line><text x="334" y="166" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" fill="#2e5a7a" font-weight="600">LEO</text></g>
+      <g id="leo45" style="display:none"><line x1="382" y1="82" x2="382" y2="140" stroke="#2e5a7a" stroke-width="1.5"></line><text x="382" y="166" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" fill="#2e5a7a" font-weight="600">LEO</text></g>
+      <g id="lsoMoved" style="display:none"><line x1="382" y1="82" x2="382" y2="140" stroke="#a32f2f" stroke-width="1.5" stroke-dasharray="4 3"></line><text x="382" y="166" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" fill="#a32f2f" font-weight="600">LSO = LEO</text></g>
+
+      <!-- lag indicators -->
+      <text id="lagInit" x="238" y="202" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" fill="#6b6459" style="display:none">lag: 0</text>
+      <g id="lag1" style="display:none"><line x1="239" y1="188" x2="286" y2="188" stroke="#b5651d" stroke-width="1.5"></line><text x="262" y="202" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" fill="#8a4d16" font-weight="600">lag: 1</text></g>
+      <g id="lag2" style="display:none"><line x1="239" y1="188" x2="334" y2="188" stroke="#b5651d" stroke-width="1.5"></line><text x="286" y="202" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" fill="#8a4d16" font-weight="600">lag: 2</text></g>
+      <g id="lag3" style="display:none"><line x1="239" y1="188" x2="382" y2="188" stroke="#b5651d" stroke-width="1.75"></line><text x="310" y="202" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" fill="#8a4d16" font-weight="700">lag: 3</text></g>
+      <text id="lag0" x="382" y="202" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" fill="#1f4a29" font-weight="700" style="display:none">lag: 0 ✓ caught up</text>
+
+      <g id="abortbadge" style="display:none"><rect x="248" y="238" width="224" height="26" rx="6" fill="#fbf1e7" stroke="#b5651d" stroke-width="1.25"></rect><text x="360" y="255" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" fill="#8a4d16">aborted records → filtered from read_committed</text></g>
+
+      <!-- consumer read cursor (the moving token) -->
+      <g id="token" class="sf-token" style="transform: translate(238px,78px)">
+        <path d="M -8,-5 L 8,-5 L 0,9 Z" fill="#7a2e2e"></path>
+        <text class="sf-token-label" x="0" y="-9" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9" font-weight="700" fill="#7a2e2e">consumer</text>
+      </g>
+    </svg>
+  </div>
+
+  <div class="sf-caption"><p class="sf-title"></p><p class="sf-desc"></p></div>
+  <div class="sf-controls">
+    <button class="sf-btn sf-prev" type="button">◀ Prev</button>
+    <button class="sf-btn sf-next" type="button">Next ▶</button>
+    <button class="sf-btn sf-reset" type="button">↺ Reset</button>
+    <button class="sf-btn sf-play" type="button">▶ Play</button>
+    <span class="sf-counter"></span>
+  </div>
+
+  <script type="application/json" class="sf-steps">
+  [
+    {"title":"Consumer is caught up","desc":"A <code>read_committed</code> consumer has read the whole partition. Its cursor sits at the log-end-offset (LEO) — lag is 0.","token":{"x":238,"y":78},"tokenLabel":"consumer","visible":["leo0","lagInit"],"highlight":[]},
+    {"title":"Producer opens a transaction","desc":"The producer begins a transaction (and then hangs). The <strong>LSO freezes</strong> here — <code>read_committed</code> may not advance past an open transaction.","token":{"x":238,"y":78},"tokenLabel":"consumer","visible":["lsoFrozen","txnopen"],"highlight":[]},
+    {"title":"Records append; LEO climbs","desc":"The transaction writes record 43. It is in the log but withheld. The cursor is <strong>stuck at the LSO</strong> → lag = 1.","token":{"x":238,"y":78},"tokenLabel":"consumer","visible":["lsoFrozen","txnopen","c43","leo43","lag1"],"highlight":[]},
+    {"title":"…and keeps climbing","desc":"Record 44 appends. LEO advances again; the cursor still cannot move. Lag = 2 — with the consumer healthy and near-zero throughput.","token":{"x":238,"y":78},"tokenLabel":"consumer","visible":["lsoFrozen","txnopen","c43","c44","leo44","lag2"],"highlight":[]},
+    {"title":"Phantom lag grows","desc":"Record 45. Lag = 3 and rising <em>linearly</em> — no processing errors, no real backlog. This is the tell-tale signature.","token":{"x":238,"y":78},"tokenLabel":"consumer","visible":["lsoFrozen","txnopen","c43","c44","c45","leo45","lag3"],"highlight":[]},
+    {"title":"transaction.timeout.ms fires","desc":"The hung transaction exceeds its timeout, so the coordinator <strong>aborts</strong> it.","token":{"x":238,"y":78},"tokenLabel":"consumer","visible":["lsoFrozen","txnaborted","c43","c44","c45","leo45","lag3"],"highlight":[]},
+    {"title":"LSO jumps; cursor catches up","desc":"The aborted records are filtered out; the <strong>LSO leaps to the LEO</strong> and the consumer advances in a single step → lag drops to 0.","token":{"x":382,"y":78},"tokenLabel":"consumer","visible":["lsoMoved","txnaborted","c43","c44","c45","abortbadge","lag0"],"highlight":[]},
+    {"title":"The signature","desc":"Lag that climbs <em>linearly</em> with zero errors, then <strong>drops in one step</strong> = a stuck transaction, not a slow consumer. Confirm with the LEO − LSO gap.","token":{"x":382,"y":78},"tokenLabel":"consumer","visible":["lsoMoved","txnaborted","c43","c44","c45","abortbadge","lag0"],"highlight":[]}
+  ]
+  </script>
+</div>
+
+<h2>2. Choosing <code>transactional.id</code> correctly</h2>
+
+<p>The id has two hard requirements, both rooted in zombie fencing (Lesson 06):</p>
+<ul>
+  <li><strong>Stable across restarts</strong> &mdash; a restarted instance must re-register the
+      <em>same</em> id so it bumps the epoch and fences its own zombie predecessor. A random id per
+      start defeats fencing (the old zombie is never fenced).</li>
+  <li><strong>Not shared by two concurrently-active producers</strong> &mdash; same id means one fences
+      the other, so they&rsquo;d repeatedly kill each other.</li>
+</ul>
+
+<p>
+  Historically that forced a subtle rule: Confluent&rsquo;s guidance was that &ldquo;the input topics and
+  partitions in the read-process-write cycle is always the same for a given
+  <code>transactional.id</code>&rdquo; &mdash; i.e. <strong>one id per input partition</strong>, statically
+  encoded (which is exactly what Kafka Streams does with <code>applicationId + task</code>). Otherwise
+  a partition could move from id <em>T0</em> to <em>T1</em> with no fencing between them, and messages
+  leak through.
+</p>
+
+<div class="callout insight">
+  <span class="label">The modern rule (EOSMode.V2 / Spring 3.0+)</span>
+  <p>
+    Since Kafka 2.5 (KIP-447), fencing uses <strong>consumer-group metadata</strong> instead of the
+    id-per-partition trick. Spring for Apache Kafka states it plainly: the per-partition id is &ldquo;not
+    necessary anymore, with <code>EOSMode.V2</code> being the only option starting with 3.0&rdquo; &mdash; you
+    just need a <strong><code>transactionIdPrefix</code> that is unique per application instance</strong>.
+    Spring appends a counter to build each producer&rsquo;s <code>transactional.id</code>.
+  </p>
+</div>
+
+<pre><code>spring:
+  kafka:
+    producer:
+      transaction-id-prefix: ${HOSTNAME}-tx-   # MUST be unique per instance (EOSMode.V2)
+      properties:
+        transaction.timeout.ms: 60000          # coordinator aborts a txn open longer than this
+    consumer:
+      isolation-level: read_committed           # or you silently lose exactly-once (Lesson 06)</code></pre>
+
+<div class="callout warning">
+  <span class="label">Two operational gotchas</span>
+  <p>
+    <strong>(a) Idle producer fencing.</strong> A transactional producer that sits idle past the
+    broker&rsquo;s <code>transactional.id.expiration.ms</code> (default 7 days) can get a
+    <code>ProducerFencedException</code> with no rebalance. Spring&rsquo;s fix: set the producer factory&rsquo;s
+    <code>maxAge</code> below that expiration so it refreshes the producer.
+    <strong>(b) Coordinator mapping.</strong> Every <code>transactional.id</code> hashes to one
+    <code>__transaction_state</code> partition, so exactly one broker (coordinator) owns it &mdash; a
+    non-unique prefix quietly serializes or fences instances you meant to run in parallel.
+  </p>
+</div>
+
+<h2>3. The commit-interval dial: throughput vs latency</h2>
+
+<p>
+  The single most important tuning insight for transactional throughput: <strong>transaction overhead
+  is per-commit, not per-record.</strong> Each commit pays for registering partitions with the
+  coordinator, writing a commit <strong>marker to every partition</strong> in the transaction, and 2&ndash;3
+  writes to the transaction log. That cost is fixed regardless of how many records the transaction
+  carried. Therefore:
+</p>
+
+<div class="callout insight">
+  <span class="label">Confluent&rsquo;s benchmark</span>
+  <p>
+    &ldquo;The overhead is independent of the number of messages written as part of a transaction. So the
+    key to having higher throughput is to include a larger number of messages per transaction.&rdquo; In
+    practice, for 1&nbsp;KB records at max throughput, committing every <strong>100&nbsp;ms yields only a
+    ~3% throughput hit</strong>. Smaller messages or shorter commit intervals degrade more.
+  </p>
+</div>
+
+<table>
+  <thead><tr><th>Commit interval</th><th>Throughput</th><th>End-to-end latency</th><th>Reprocessed on crash</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Short</strong> (few records/txn)</td><td>Low — per-commit overhead dominates</td><td>Low — consumers see data sooner</td><td>Little — small unit of work</td></tr>
+    <tr><td><strong>Long</strong> (many records/txn)</td><td>High — overhead amortized</td><td>High — <code>read_committed</code> waits for the commit</td><td>More — a whole transaction re-done</td></tr>
+  </tbody>
+</table>
+
+<p>
+  Note the asymmetry from Lesson 06: the <strong>consumer</strong> side has essentially <em>no</em>
+  throughput penalty for <code>read_committed</code> (zero-copy is preserved; it simply isn&rsquo;t allowed
+  past the LSO). So the dial trades <strong>producer throughput against end-to-end latency</strong> &mdash;
+  not consumer CPU.
+</p>
+
+<div class="callout warning">
+  <span class="label">The Spring trap: a transaction per record</span>
+  <p>
+    A record-based transactional listener can wrap <em>each record</em> in its own transaction &mdash; the
+    worst case for the &ldquo;records per commit&rdquo; rule. To amortize, process in <strong>batches</strong>
+    (batch listeners / larger <code>max.poll.records</code>) so one transaction carries many records.
+    That single change often recovers most of the throughput. Kafka Streams, for reference, defaults
+    to a 100&nbsp;ms commit interval under EOS precisely to balance this dial.
+  </p>
+</div>
+
+<div class="primary-source">
+  <span class="label">Go deeper (primary sources)</span>
+  <p>
+    <a href="https://www.confluent.io/blog/transactions-apache-kafka/" target="_blank" rel="noopener">Confluent &mdash; <em>Transactions in Apache Kafka</em></a>
+    (coordinator, two-phase commit, picking a <code>transactional.id</code>, the performance
+    benchmark) and
+    <a href="https://docs.spring.io/spring-kafka/reference/kafka/transactions.html" target="_blank" rel="noopener">Spring for Apache Kafka &mdash; <em>Transactions</em></a>
+    (<code>transactionIdPrefix</code>, <code>EOSMode.V2</code>, producer <code>maxAge</code>). Definitive: <em>KIP-98</em> &amp; <em>KIP-447</em>.
+  </p>
+</div>
+
+<h2>4. Check yourself</h2>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 1 of 2</p>
+  <p class="quiz-q">A <code>read_committed</code> consumer&rsquo;s lag climbs steadily with zero errors and ~no real backlog, then drops in one step. Most likely?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="An open/hung transaction pins the LSO; the abort/timeout releases it, clearing lag at once.">An open transaction pinned the LSO</button></li>
+    <li><button data-correct="false" data-feedback="A slow consumer shows high throughput tracking load, not a blocked position with zero errors.">The consumer is simply too slow now</button></li>
+    <li><button data-correct="false" data-feedback="Repeated rebalances cause churn and errors, not a clean linear climb then step-drop.">The group is rebalancing over and over</button></li>
+    <li><button data-correct="false" data-feedback="Leader election is brief; it wouldn&rsquo;t produce minutes of linear lag growth.">A partition leader election is ongoing</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Blocked, not slow: the LSO is frozen by an open transaction. It clears in one step at commit/abort or transaction.timeout.ms."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 2 of 2</p>
+  <p class="quiz-q">In <code>EOSMode.V2</code> (Spring 3.0+), how should <code>transactional.id</code> be set across instances?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="Unique per instance is enough now — group metadata handles fencing across rebalances.">A prefix unique per application instance</button></li>
+    <li><button data-correct="false" data-feedback="That was the pre-KIP-447 rule; EOSMode.V2 fences via consumer-group metadata instead.">One id encoded per input partition</button></li>
+    <li><button data-correct="false" data-feedback="A shared prefix makes instances fence each other — only one stays active.">One prefix shared by all instances</button></li>
+    <li><button data-correct="false" data-feedback="A fresh id per restart never fences the old zombie — it defeats the point.">A fresh random id on each restart</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Stable + unique-per-instance. KIP-447 replaced the id-per-partition rule with consumer-group-metadata fencing."></div>
+</div>
+
+<div class="followup">
+  <strong>I&rsquo;m your teacher &mdash; ask on.</strong> We&rsquo;ve now gone three levels deep into Kafka EOS
+  (Lessons 06&ndash;07). Happy to keep drilling &mdash; or when you&rsquo;re ready I can zoom back out to the
+  broker-agnostic thread (idempotency patterns, ordering, backpressure, DLQs) that applies to
+  RabbitMQ/SQS/Pulsar too. Your call.
+</div>
+
+<nav class="lesson-nav">
+  <span class="group">
+    <b>Previous</b>
+    <a href="0006-kafka-exactly-once-internals.html">← Lesson 06 · Inside Kafka Exactly-Once</a>
+  </span>
+  <span class="group">
+    <b>Reference</b>
+    <a href="../reference/0007-operating-kafka-exactly-once-cheatsheet.html">Operating EOS cheat sheet →</a>
+  </span>
+  <span class="group">
+    <b>Up next</b>
+    <a href="0008-idempotency-deduplication.html">Lesson 08 · Idempotency &amp; deduplication in depth</a>
+  </span>
+</nav>
+
+</body>
+</html>

@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cheat Sheet · Log vs Queue Brokers</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<style>
+  body { max-width: 52rem; }
+  @media print { body { margin: 0; } h2 { margin-top: 1.1rem; } }
+</style>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Async &amp; Messaging · Reference 12</p>
+  <h1>Log vs Queue Brokers — Cheat Sheet</h1>
+  <div class="meta"><span>Compressed from Lesson 12</span><span class="dot">•</span><span>Print-friendly</span></div>
+</header>
+
+<h2>The one question</h2>
+<div class="callout insight">
+  <span class="label">Ask this, predict everything</span>
+  <p><strong>Does reading delete the message?</strong><br>
+     <strong>Queue</strong> (RabbitMQ/SQS): yes — consume &amp; delete.
+     <strong>Log</strong> (Kafka/Pulsar): no — append &amp; retain; consumers track offsets.</p>
+</div>
+
+<h2>Everything follows</h2>
+<table>
+  <thead><tr><th>Behaviour</th><th>Log</th><th>Queue</th></tr></thead>
+  <tbody>
+    <tr><td>Replay / rewind</td><td>Yes (seek offset)</td><td>No (acked = gone)</td></tr>
+    <tr><td>Fan-out</td><td>Free (offset per group)</td><td>Copy per consumer</td></tr>
+    <tr><td>Ordering</td><td>Intrinsic per partition</td><td>Fragile</td></tr>
+    <tr><td>Consumer tracking</td><td>Offset</td><td>Per-message ack state</td></tr>
+    <tr><td>Parallelism</td><td>Capped by partitions</td><td>Add consumers freely</td></tr>
+    <tr><td>DLQ / priority / TTL</td><td>Build it / no</td><td>Native / yes</td></tr>
+  </tbody>
+</table>
+
+<h2>Inside</h2>
+<ul>
+  <li><strong>Log:</strong> append-only immutable segments (data + index), sequential I/O + zero-copy; retention by time/size; <code>cleanup.policy=compact</code> = latest value per key.</li>
+  <li><strong>Queue:</strong> per-message delivery state; redelivery on nack / visibility-timeout; removed on ack; per-message priority/TTL/DLQ.</li>
+</ul>
+
+<h2>Choose</h2>
+<div class="callout insight">
+  <span class="label">One-line test</span>
+  <p><strong>Stream of events others may replay → LOG.</strong> <strong>Queue of tasks done once &amp; discarded → QUEUE.</strong>
+     (Events lean log; commands/tasks lean queue.)</p>
+</div>
+<p><strong>Hybrids:</strong> Pulsar (log storage + queue subscriptions), Kinesis (log) vs SQS (queue), Redis Streams (log-shaped).</p>
+
+<pre><code>spring.kafka.consumer.auto-offset-reset = earliest   # replay from 0 (log only)
+cleanup.policy = compact                             # changelog: latest per key</code></pre>
+
+<nav class="lesson-nav">
+  <span class="group"><b>From</b><a href="../lessons/0012-log-vs-queue-brokers.html">← Lesson 12 · Log vs Queue Brokers</a></span>
+  <span class="group"><b>Canonical terms</b><a href="../GLOSSARY.md">GLOSSARY.md</a></span>
+</nav>
+
+</body>
+</html>

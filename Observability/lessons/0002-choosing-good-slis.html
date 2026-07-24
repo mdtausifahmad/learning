@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 02 · Choosing Good SLIs</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<script src="../assets/quiz.js" defer></script>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Reliability &amp; SRE · Lesson 02</p>
+  <h1>Choosing Good SLIs</h1>
+  <div class="meta">
+    <span>◷ ~11 min read</span>
+    <span class="dot">•</span>
+    <span>Level: Foundations</span>
+    <span class="dot">•</span>
+    <span>Prereq: <a href="0001-why-sre-reliability-as-a-target.html">Lesson 01</a> — SLI/SLO/error budget</span>
+  </div>
+</header>
+
+<p class="mission-tie">
+  Last lesson: reliability is a number. But a number <em>of what</em>? Pick the wrong signal and every
+  SLO, alert, and error budget you build measures the wrong thing &mdash; green dashboards while users
+  rage. This lesson is the concrete skill of choosing <span class="term">SLI</span>s that actually
+  track user happiness. It&rsquo;s the raw material for everything downstream.
+</p>
+
+<h2>1. Quick recall, then the trap</h2>
+
+<p>
+  From Lesson 01, in your own words: an SLO is a target for an SLI over a window, and the error budget
+  is <code>1 &minus; SLO</code>. Hold that. Now the single most common SLI mistake:
+</p>
+
+<div class="callout warning">
+  <span class="label">The measure-what&rsquo;s-easy trap</span>
+  <p>
+    New teams reach for what&rsquo;s <em>easy to graph</em> &mdash; CPU, memory, host uptime, pod
+    counts, queue depth. All of these can look <strong>perfectly healthy while users can&rsquo;t check
+    out.</strong> They measure the machine, not the experience. An SLI must be a proxy for
+    <em>user happiness</em>, measured from the user&rsquo;s side.
+  </p>
+</div>
+
+<h2>2. The shape: good events &divide; valid events</h2>
+
+<p>
+  Google&rsquo;s strong recommendation: express every SLI as a ratio of two counts &mdash;
+  <strong>good events divided by valid events</strong>, as a percentage.
+</p>
+
+<pre><code>            good events
+SLI  =  ───────────────────  &times; 100%
+            valid events</code></pre>
+
+<ul>
+  <li><strong>Valid events</strong> = the events you&rsquo;re accountable for (e.g. real user requests;
+      you might exclude malformed junk or health-checks).</li>
+  <li><strong>Good events</strong> = the valid events that met the bar (succeeded, or were fast enough).</li>
+</ul>
+
+<p>Why this exact shape is worth insisting on &mdash; three properties fall out for free:</p>
+
+<ul>
+  <li>It ranges <strong>0%&ndash;100%</strong>: 0 means nothing works, 100 means nothing is broken. Intuitive.</li>
+  <li>It <strong>composes with the error budget</strong> directly: budget = 100% &minus; SLO, in the
+      same units.</li>
+  <li>It&rsquo;s <strong>uniform</strong>: every SLI becomes <em>numerator / denominator / threshold</em>,
+      so one set of alerting, budget, and reporting tooling works for all of them.</li>
+</ul>
+
+<p>In your stack, an <strong>availability</strong> SLI is just a ratio of counters in Prometheus:</p>
+
+<pre><code># Availability SLI — successful ÷ all valid checkout requests, 28-day window
+sum(rate(http_requests_total{job="checkout", code!~"5.."}[28d]))
+  /
+sum(rate(http_requests_total{job="checkout"}[28d]))</code></pre>
+
+<p>And a <strong>latency</strong> SLI reads a histogram &mdash; the proportion faster than a threshold:</p>
+
+<pre><code># Latency SLI — proportion of requests faster than 300 ms
+sum(rate(http_request_duration_seconds_bucket{job="checkout", le="0.3"}[28d]))
+  /
+sum(rate(http_request_duration_seconds_count{job="checkout"}[28d]))</code></pre>
+
+<h2>3. The menu: pick the SLI <em>type</em> by component</h2>
+
+<p>
+  You don&rsquo;t invent SLIs from scratch. Classify each part of your system into one of three
+  component types, then pick from a known menu (from the SRE Workbook):
+</p>
+
+<table>
+  <thead><tr><th>Component</th><th>SLI types on the menu</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><strong>Request-driven</strong><br><span style="color:var(--muted);font-size:.85rem">API, web app</span></td>
+      <td><strong>Availability</strong> (proportion of requests that succeed) ·
+          <strong>Latency</strong> (proportion faster than a threshold) ·
+          <strong>Quality</strong> (proportion served <em>un</em>-degraded)</td>
+    </tr>
+    <tr>
+      <td><strong>Pipeline</strong><br><span style="color:var(--muted);font-size:.85rem">batch, stream, ETL</span></td>
+      <td><strong>Freshness</strong> (proportion of data newer than a threshold) ·
+          <strong>Correctness</strong> · <strong>Coverage</strong></td>
+    </tr>
+    <tr>
+      <td><strong>Storage</strong></td>
+      <td><strong>Durability</strong> (data survives) · Latency · Throughput</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="callout insight">
+  <span class="label">Your starting pair</span>
+  <p>
+    Your services are mostly <strong>request-driven</strong>. So begin with the two workhorses:
+    <strong>availability</strong> and <strong>latency</strong>. Those two SLIs cover most of what your
+    users actually feel. Add quality or freshness later, only where a component demands it.
+  </p>
+</div>
+
+<h2>4. Specification vs. implementation (the sharp idea)</h2>
+
+<p>
+  Separate <em>what</em> you want to measure from <em>how</em> you measure it. This one distinction
+  prevents most SLI arguments:
+</p>
+
+<ul>
+  <li><strong>SLI specification</strong> &mdash; the user outcome that matters, independent of
+      measurement. <em>&ldquo;Ratio of home-page loads under 100&nbsp;ms.&rdquo;</em></li>
+  <li><strong>SLI implementation</strong> &mdash; the specification <em>plus a specific way to measure
+      it.</em> One spec can have several implementations, each with different accuracy and cost.</li>
+</ul>
+
+<figure>
+<svg viewBox="0 0 660 235" role="img" aria-label="One SLI specification fanning out to three implementations with different trade-offs">
+  <defs>
+    <marker id="arw2" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#63625c"></path>
+    </marker>
+  </defs>
+
+  <rect x="180" y="10" width="300" height="50" rx="7" fill="#e9f2ef" stroke="#14807a" stroke-width="1.9"></rect>
+  <text x="330" y="32" text-anchor="middle" font-family="system-ui, sans-serif" font-size="13" fill="#1a1a1a" font-weight="600">SLI specification</text>
+  <text x="330" y="49" text-anchor="middle" font-family="system-ui, sans-serif" font-size="10.5" fill="#63625c">ratio of home-page loads under 100 ms</text>
+
+  <line x1="330" y1="60" x2="112" y2="120" stroke="#63625c" stroke-width="1.4" marker-end="url(#arw2)"></line>
+  <line x1="330" y1="60" x2="330" y2="120" stroke="#63625c" stroke-width="1.4" marker-end="url(#arw2)"></line>
+  <line x1="330" y1="60" x2="548" y2="120" stroke="#63625c" stroke-width="1.4" marker-end="url(#arw2)"></line>
+
+  <rect x="15"  y="122" width="190" height="54" rx="7" fill="#f6f7f4" stroke="#2e5a7a" stroke-width="1.4"></rect>
+  <text x="110" y="146" text-anchor="middle" font-family="system-ui, sans-serif" font-size="12.5" fill="#1a1a1a" font-weight="600">Server logs</text>
+  <text x="110" y="164" text-anchor="middle" font-family="system-ui, sans-serif" font-size="9.5" fill="#63625c">cheap · misses lost requests</text>
+
+  <rect x="235" y="122" width="190" height="54" rx="7" fill="#f6f7f4" stroke="#2e5a7a" stroke-width="1.4"></rect>
+  <text x="330" y="146" text-anchor="middle" font-family="system-ui, sans-serif" font-size="12.5" fill="#1a1a1a" font-weight="600">Synthetic prober</text>
+  <text x="330" y="164" text-anchor="middle" font-family="system-ui, sans-serif" font-size="9.5" fill="#63625c">catches network · misses per-user</text>
+
+  <rect x="455" y="122" width="190" height="54" rx="7" fill="#f6f7f4" stroke="#2e5a7a" stroke-width="1.4"></rect>
+  <text x="550" y="146" text-anchor="middle" font-family="system-ui, sans-serif" font-size="12.5" fill="#1a1a1a" font-weight="600">Client telemetry</text>
+  <text x="550" y="164" text-anchor="middle" font-family="system-ui, sans-serif" font-size="9.5" fill="#63625c">most accurate · costliest</text>
+
+  <text x="330" y="200" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" font-style="italic" fill="#63625c">One specification, three implementations — trading quality &amp; coverage against cost.</text>
+  <text x="330" y="221" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11.5" fill="#14615f" font-weight="600">Measure as close to the user as you can afford.</text>
+</svg>
+<figcaption>The closer to the user you measure, the more truthfully the SLI reflects their experience &mdash; and the more it costs to build.</figcaption>
+</figure>
+
+<p>
+  Judge an implementation on three axes: <strong>quality</strong> (how faithfully it captures the real
+  experience), <strong>coverage</strong> (how many users it represents), and <strong>cost</strong>.
+  The load balancer sees more truth than the server; the browser sees more than the load balancer.
+  Start with what&rsquo;s cheap and honest enough, and know its blind spot.
+</p>
+
+<h2>5. Mind the tail: ratios, not averages</h2>
+
+<p>
+  Never build a latency SLI on an <em>average</em>. Averages hide the pain that drives users away.
+</p>
+
+<div class="callout insight">
+  <span class="label">Why the mean lies</span>
+  <p>
+    If 90% of requests take 100&nbsp;ms and 10% take 10&nbsp;seconds, the average looks tolerable &mdash;
+    yet one in ten users is furious. A ratio SLI catches this: <em>&ldquo;proportion faster than
+    300&nbsp;ms&rdquo;</em>. Better still, use <strong>two thresholds</strong> to pin both the typical
+    case and the tail: <em>90% &lt; 100&nbsp;ms</em> <strong>and</strong> <em>99% &lt; 400&nbsp;ms</em>.
+  </p>
+</div>
+
+<h2>6. The starter recipe</h2>
+
+<p>When you sit down to do this for real (SRE Workbook&rsquo;s method, compressed):</p>
+
+<ol>
+  <li>Pick <strong>one application</strong>. Others can come later.</li>
+  <li>Decide clearly <strong>who the users are</strong> &mdash; whose happiness you&rsquo;re optimising.</li>
+  <li>List their <strong>critical journeys</strong> &mdash; the common, important things they do.</li>
+  <li>Sketch the architecture; <strong>classify components</strong> as request / pipeline / storage.</li>
+  <li>Pick <strong>&le;5 SLI types</strong> for the most critical functionality. Don&rsquo;t let perfect
+      be the enemy of measured &mdash; ship one and iterate.</li>
+</ol>
+
+<div class="primary-source">
+  <span class="label">Read this next (primary source)</span>
+  <p>
+    <a href="https://sre.google/workbook/implementing-slos/" target="_blank" rel="noopener">
+    SRE Workbook &mdash; <em>Implementing SLOs</em></a>: the SLI menu (Table&nbsp;2-1), the
+    specification/implementation split, and a full worked example on a mobile game. For deliberate
+    practice choosing SLIs, the <a href="https://sre.google/resources/practices-and-processes/art-of-slos/" target="_blank" rel="noopener">Art of SLOs</a> workshop is built for exactly this.
+  </p>
+</div>
+
+<h2>7. Check yourself</h2>
+<p>Retrieve before revealing &mdash; effortful recall is what makes it stick.</p>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 1 of 2</p>
+  <p class="quiz-q">The user journey is &ldquo;load the dashboard&rdquo;. Which is the best-formed SLI?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="Yes — a good÷valid ratio of the user&rsquo;s real outcome, with a latency bar.">Proportion of dashboard loads succeeding under 500 ms</button></li>
+    <li><button data-correct="false" data-feedback="An average hides the tail: a slow 1-in-10 can look fine on the mean.">Average dashboard response time staying under 500 ms</button></li>
+    <li><button data-correct="false" data-feedback="CPU is a cause, not experience — it can be low while loads fail.">Proportion of app servers with CPU under 80 percent</button></li>
+    <li><button data-correct="false" data-feedback="&lsquo;Up&rsquo; is not &lsquo;working&rsquo;; measure the outcome, not liveness.">Number of dashboard server pods currently running healthy</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="A good SLI is good÷valid events of the user&rsquo;s outcome — not an average, and not an infrastructure proxy."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 2 of 2</p>
+  <p class="quiz-q">Which of these is an SLI <em>implementation</em>, not a specification?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="This is a specification: the outcome that matters, with no measurement method.">Ratio of home-page loads that complete under 100 ms</button></li>
+    <li><button data-correct="true" data-feedback="Right — it names the measurement source, so it&rsquo;s an implementation.">Ratio of loads under 100 ms, from the server logs</button></li>
+    <li><button data-correct="false" data-feedback="Also a specification — what matters to users, not how measured.">Proportion of user logins that complete successfully</button></li>
+    <li><button data-correct="false" data-feedback="Too fuzzy to be either; a spec must be a precise good÷valid outcome.">How snappy the dashboard feels when users open</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Specification = what outcome matters. Implementation = that spec plus how you measure it, judged on quality, coverage, and cost."></div>
+</div>
+
+<div class="callout tryit">
+  <span class="label">Try it in your own system</span>
+  <p>
+    Take the SLI you drafted after Lesson&nbsp;01 and sharpen it:
+  </p>
+  <ul class="checklist">
+    <li>Write it explicitly as <code>good events &divide; valid events</code> &mdash; define both.</li>
+    <li>Confirm the component type and pick <strong>availability</strong> and/or <strong>latency</strong>.</li>
+    <li>Name <em>where</em> you&rsquo;d measure it (server / load balancer / client) and its one blind spot.</li>
+    <li>If latency, choose <strong>two thresholds</strong> &mdash; a typical one and a tail one.</li>
+  </ul>
+  <p>Bring it back and we&rsquo;ll set the SLO target and compute the budget in Lesson&nbsp;03.</p>
+</div>
+
+<div class="followup">
+  <strong>I&rsquo;m your teacher &mdash; ask me anything.</strong> Want the full latency SLI worked out
+  from a Prometheus histogram (buckets, <code>le</code>, recording rules)? Unsure how to define
+  &ldquo;valid&rdquo; events, or whether to exclude 4xx? Want to pick SLIs for a specific service you
+  own? Ask &mdash; that&rsquo;s where it clicks.
+</div>
+
+<nav class="lesson-nav">
+  <span class="group">
+    <b>Reference</b>
+    <a href="../reference/0002-sli-menu-cheatsheet.html">SLI menu &amp; measurement cheat sheet &rarr;</a>
+    <a href="../reference/0003-latency-sli-prometheus-recipe.html">Latency SLI in Prometheus (recipe) &rarr;</a>
+  </span>
+  <span class="group">
+    <b>Previous</b>
+    <a href="0001-why-sre-reliability-as-a-target.html">&larr; Lesson 01 · Why SRE?</a>
+  </span>
+  <span class="group">
+    <b>Up next</b>
+    <a href="0003-setting-slo-and-error-budget.html">Lesson 03 · Setting SLOs &amp; the error budget &rarr;</a>
+  </span>
+</nav>
+
+</body>
+</html>
