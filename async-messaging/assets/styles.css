@@ -228,6 +228,46 @@ tbody tr:hover { background: #f7f4ec; }
   body { margin: 2rem auto 4rem; }
 }
 
+/* ------- Animated atlas navigation -------------------------------------- */
+.chapter-index {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  gap: .55rem; margin: 1.45rem 0 1.8rem;
+  font-family: -apple-system, system-ui, sans-serif;
+}
+.chapter-index a {
+  display: block; color: var(--ink); text-decoration: none;
+  border: 1px solid var(--rule); border-radius: 7px; background: #fff;
+  padding: .7rem .8rem; line-height: 1.25; transition: background .12s, border-color .12s;
+}
+.chapter-index a:hover { background: #f7f4ec; border-color: #cfc7b5; }
+.chapter-index b { display: block; color: var(--accent-2); font-size: .78rem; margin-bottom: .18rem; }
+.chapter-index span { display: block; color: var(--muted); font-size: .72rem; }
+.scene-kicker {
+  font-family: -apple-system, system-ui, sans-serif;
+  color: var(--accent-2); font-size: .72rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .1em; margin: 2.5rem 0 -.45rem;
+}
+.fact-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  gap: .75rem; margin: 1.25rem 0;
+}
+.fact-grid > div {
+  border-top: 2px solid var(--accent-2); background: #f7f4ec;
+  padding: .75rem .85rem; border-radius: 0 0 6px 6px;
+}
+.fact-grid strong {
+  display: block; font-family: -apple-system, system-ui, sans-serif;
+  font-size: .84rem; margin-bottom: .24rem;
+}
+.fact-grid p { margin: 0; font-size: .89rem; }
+.config-table td:first-child { white-space: nowrap; font-family: "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace; font-size: .8rem; }
+.compact-list li { margin: .3rem 0; }
+
+@media print {
+  .chapter-index { display: none; }
+  .fact-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
 /* ------- Step-through animation (stepflow.js) --------------------------- */
 .stepflow {
   border: 1px solid var(--rule); border-radius: 10px; background: #fff;
@@ -238,8 +278,16 @@ tbody tr:hover { background: #f7f4ec; }
 .sf-stage svg { width: 100%; height: auto; display: block; }
 .sf-actor { transition: stroke .25s, stroke-width .25s, filter .25s; }
 .sf-actor.sf-active {
-  stroke: var(--accent) !important; stroke-width: 2.75 !important;
   filter: drop-shadow(0 1px 5px rgba(122,46,46,.4));
+}
+/* Highlight shapes, never their labels. SVG presentation attributes on a
+   highlighted <g> otherwise inherit a thick red stroke into its <text>. */
+.sf-actor.sf-active:not(g),
+g.sf-actor.sf-active :is(rect, path, line, circle, ellipse, polygon, polyline) {
+  stroke: var(--accent) !important; stroke-width: 2.75 !important;
+}
+g.sf-actor.sf-active text {
+  stroke: none !important;
 }
 .sf-token { transition: transform .55s cubic-bezier(.45,.05,.2,1); }
 .sf-caption { margin: .95rem 0 .2rem; min-height: 3.6rem; }
@@ -263,3 +311,6 @@ tbody tr:hover { background: #f7f4ec; }
 .sf-next:hover:not(:disabled) { background: #264d68; border-color: #264d68; }
 .sf-counter { margin-left: auto; font-size: .78rem; color: var(--muted); }
 @media print { .sf-controls { display: none; } .sf-caption { min-height: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .sf-token, .sf-actor, .sf-btn { transition: none; }
+}

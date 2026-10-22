@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 14 · Testing Event-Sourced Systems</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<script src="../assets/quiz.js" defer></script>
+<script src="../assets/anim.js" defer></script>
+<script src="../assets/es-sim.js" defer></script>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Event Sourcing · Lesson 14</p>
+  <h1>Testing Event-Sourced Systems</h1>
+  <div class="meta">
+    <span>◷ ~15 min read</span>
+    <span class="dot">•</span>
+    <span>Level 4 · Advanced</span>
+    <span class="dot">•</span>
+    <span>Prereq: <a href="0013-gdpr-crypto-shredding-and-temporal-queries.html">Lesson 13 · GDPR &amp; temporal queries</a></span>
+  </div>
+</header>
+
+<p class="mission-tie">
+  Event sourcing has the best unit-testing story in software &mdash; <strong>Given</strong> past events,
+  <strong>When</strong> a command, <strong>Then</strong> new events or an error. No mocks, no database,
+  no Spring context. But the bugs that page you at 3 a.m. live elsewhere: duplicate delivery,
+  concurrent appends, the gap problem, a field rename that breaks a six-year-old event. This lesson
+  builds the full test pyramid, layer by layer, in Java 21.
+</p>
+
+<h2>1. The pyramid for event sourcing</h2>
+
+<figure class="anim" data-anim>
+<div class="anim-stage">
+<svg viewBox="0 0 660 300" role="img" aria-label="Six-layer testing pyramid for event sourcing, built from decider unit tests at the base to replay tests at the top">
+  <defs>
+    <marker id="l14a" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#63625c"></path></marker>
+  </defs>
+  <g font-family="system-ui, sans-serif" font-size="11">
+    <g class="anim-el" data-step="1">
+      <rect x="40" y="250" width="440" height="36" rx="4" fill="#efedf8" stroke="#4b3f8f" stroke-width="1.5"></rect>
+      <text x="260" y="266" text-anchor="middle" font-weight="700" fill="#4b3f8f">Decider unit tests · Given / When / Then</text>
+      <text x="260" y="280" text-anchor="middle" fill="#63625c">pure functions · JUnit 5 · thousands, milliseconds</text>
+    </g>
+    <g class="anim-el" data-step="2">
+      <rect x="70" y="208" width="380" height="36" rx="4" fill="#efedf8" stroke="#5e4fb0" stroke-width="1.5"></rect>
+      <text x="260" y="224" text-anchor="middle" font-weight="700" fill="#5e4fb0">Property-based tests</text>
+      <text x="260" y="238" text-anchor="middle" fill="#63625c">invariants over ANY command sequence · jqwik</text>
+    </g>
+    <g class="anim-el" data-step="3">
+      <rect x="100" y="166" width="320" height="36" rx="4" fill="#fff" stroke="#1f7a5e" stroke-width="1.5"></rect>
+      <text x="260" y="182" text-anchor="middle" font-weight="700" fill="#1f7a5e">Projection tests</text>
+      <text x="260" y="196" text-anchor="middle" fill="#63625c">events → rows · duplicates → idempotent · Postgres</text>
+    </g>
+    <g class="anim-el" data-step="4">
+      <rect x="130" y="124" width="260" height="36" rx="4" fill="#fff" stroke="#1f7a5e" stroke-width="1.5"></rect>
+      <text x="260" y="140" text-anchor="middle" font-weight="700" fill="#1f7a5e">Event-store contract tests</text>
+      <text x="260" y="154" text-anchor="middle" fill="#63625c">concurrency · ordering · gaps</text>
+    </g>
+    <g class="anim-el" data-step="5">
+      <rect x="160" y="82" width="200" height="36" rx="4" fill="#fff" stroke="#c98a1a" stroke-width="1.5"></rect>
+      <text x="260" y="98" text-anchor="middle" font-weight="700" fill="#c98a1a">Schema compatibility</text>
+      <text x="260" y="112" text-anchor="middle" fill="#63625c">golden-file event corpus</text>
+    </g>
+    <g class="anim-el" data-step="6">
+      <rect x="195" y="40" width="130" height="36" rx="4" fill="#fff" stroke="#b23b3b" stroke-width="1.5"></rect>
+      <text x="260" y="56" text-anchor="middle" font-weight="700" fill="#b23b3b">Replay tests</text>
+      <text x="260" y="70" text-anchor="middle" fill="#63625c">anonymised prod</text>
+    </g>
+    <g class="anim-el" data-step="7">
+      <path d="M540 280 V50" stroke="#63625c" stroke-width="1.5" marker-end="url(#l14a)"></path>
+      <text x="552" y="60" fill="#63625c">slower</text>
+      <text x="552" y="74" fill="#63625c">fewer</text>
+      <text x="552" y="88" fill="#63625c">closer to prod</text>
+      <text x="552" y="262" fill="#63625c">fast</text>
+      <text x="552" y="276" fill="#63625c">many</text>
+      <text x="40" y="22" font-weight="700" fill="#4b3f8f">Bugs each layer uniquely catches →</text>
+    </g>
+  </g>
+</svg>
+</div>
+<div class="anim-caps">
+  <p class="anim-cap" data-step="1"><span class="n">1</span><strong>Decider tests</strong> are the base: pure <code>decide</code>/<code>evolve</code>, no I/O. They cover every business rule and are cheap enough to write for every edge case.</p>
+  <p class="anim-cap" data-step="2"><span class="n">2</span><strong>Property tests</strong> generate random command sequences and assert invariants &mdash; &ldquo;balance never negative&rdquo;, &ldquo;evolve never throws for events decide produced&rdquo;. They find sequences you didn&rsquo;t think of.</p>
+  <p class="anim-cap" data-step="3"><span class="n">3</span><strong>Projection tests</strong> run against a real Postgres (Testcontainers on Podman): events in, rows out &mdash; and the same events again, rows unchanged.</p>
+  <p class="anim-cap" data-step="4"><span class="n">4</span><strong>Event-store contract tests</strong> prove the store&rsquo;s guarantees under parallel load: one winner per expected version, per-stream order, no skipped global positions.</p>
+  <p class="anim-cap" data-step="5"><span class="n">5</span><strong>Schema compatibility tests</strong> deserialise and upcast a frozen corpus of historical events on every build. Events are forever; so is this corpus.</p>
+  <p class="anim-cap" data-step="6"><span class="n">6</span><strong>Replay tests</strong> push an anonymised copy of production history through the new code and diff the resulting read models before release.</p>
+  <p class="anim-cap" data-step="7"><span class="n">7</span>Classic pyramid shape &mdash; but note each upper layer catches a <em>class</em> of bug the base cannot see. Skipping one isn&rsquo;t a speed trade-off; it&rsquo;s a blind spot.</p>
+</div>
+<figcaption>The ES test pyramid: wide, pure base; narrow, production-shaped top.</figcaption>
+</figure>
+
+<table>
+  <thead><tr><th>Layer</th><th>What</th><th>Tooling</th><th>Catches</th></tr></thead>
+  <tbody>
+    <tr><td>Decider unit tests</td><td>Given/When/Then on pure functions</td><td>JUnit 5</td><td>business-rule bugs</td></tr>
+    <tr><td><strong>Property-based tests</strong></td><td>invariants over arbitrary command sequences</td><td>jqwik</td><td>unanticipated sequences</td></tr>
+    <tr><td>Projection tests</td><td>events &rarr; rows; duplicates &rarr; idempotent</td><td>JUnit + Testcontainers (Postgres on Podman)</td><td>double-counting, SQL bugs, checkpoint drift</td></tr>
+    <tr><td>Event-store contract tests</td><td>concurrency conflict, ordering, gap handling</td><td>Testcontainers</td><td>lost updates, skipped events</td></tr>
+    <tr><td>Schema compatibility tests</td><td>historical corpus deserialises/upcasts</td><td>JUnit + golden files</td><td>replay breaking after a rename</td></tr>
+    <tr><td><strong>Replay tests</strong></td><td>anonymised prod history through new code; diff read models</td><td>pre-release pipeline</td><td>real-data edge cases, perf regressions</td></tr>
+  </tbody>
+</table>
+
+<h2>2. Decider tests: a tiny Given/When/Then DSL</h2>
+
+<p>Twenty lines of test DSL make every business rule a three-line specification that a domain expert
+can read. The clock is fixed, so <code>decide</code> is deterministic.</p>
+
+<pre><code>class AccountTest {
+
+    private final Clock clock = Clock.fixed(Instant.parse("2026-01-01T10:00:00Z"), ZoneOffset.UTC);
+    private final Instant t = clock.instant();
+
+    @Test
+    void withdraw_within_balance_emits_MoneyWithdrawn() {
+        given(new AccountOpened("A1", "u1", "EUR", t),
+              new MoneyDeposited("A1", new BigDecimal("100"), t))
+        .when(new Withdraw("A1", new BigDecimal("30")))
+        .then(new MoneyWithdrawn("A1", new BigDecimal("30"), t));
+    }
+
+    @Test
+    void withdraw_beyond_balance_is_rejected() {
+        given(new AccountOpened("A1", "u1", "EUR", t),
+              new MoneyDeposited("A1", new BigDecimal("10"), t))
+        .when(new Withdraw("A1", new BigDecimal("30")))
+        .thenThrows(DomainException.class, "Insufficient funds");
+    }
+
+    // --- tiny DSL ---
+    private Scenario given(AccountEvent... history) { return new Scenario(List.of(history)); }
+
+    private final class Scenario {
+        private final List&lt;AccountEvent&gt; history;
+        private AccountCommand cmd;
+        Scenario(List&lt;AccountEvent&gt; h) { history = h; }
+        Scenario when(AccountCommand c) { cmd = c; return this; }
+        void then(AccountEvent... expected) {
+            assertEquals(List.of(expected), Account.decide(cmd, Account.rehydrate(history), clock));
+        }
+        void thenThrows(Class&lt;? extends Throwable&gt; type, String msg) {
+            var ex = assertThrows(type, () -&gt; Account.decide(cmd, Account.rehydrate(history), clock));
+            assertEquals(msg, ex.getMessage());
+        }
+    }
+}</code></pre>
+
+<div class="callout insight">
+  <span class="label">Assert on events, never on state</span>
+  <p>The <em>Then</em> is the emitted events, not the aggregate&rsquo;s private state. Events are the
+  public contract; state is an implementation detail you&rsquo;re free to reshape. Tests that assert
+  state break on every refactor and miss the bug that matters: emitting the wrong fact. Also add
+  &ldquo;Then nothing&rdquo; tests (<code>then()</code> with no events) for idempotent commands.</p>
+</div>
+
+<h2>3. Property-based tests with jqwik</h2>
+
+<p>Example tests check cases you thought of. Properties check <em>rules</em> against hundreds of
+generated sequences &mdash; and jqwik <strong>shrinks</strong> a failure to the smallest sequence that
+reproduces it.</p>
+
+<pre><code>class AccountProperties {
+
+    private final Clock clock = Clock.fixed(Instant.parse("2026-01-01T10:00:00Z"), ZoneOffset.UTC);
+
+    // Invariant holds for ANY sequence of commands; rejected commands are simply skipped.
+    @Property(tries = 1000)
+    void balance_never_negative(@ForAll("commandSequences") List&lt;AccountCommand&gt; cmds) {
+        AccountState s = Account.INITIAL;
+        for (var c : cmds) {
+            try { for (var e : Account.decide(c, s, clock)) s = Account.evolve(s, e); }  // evolve must not throw
+            catch (DomainException ignored) { }
+        }
+        if (s instanceof AccountState.Open o) assertTrue(o.balance().signum() &gt;= 0);
+    }
+
+    // Rehydrating from the full history equals incremental application.
+    @Property
+    void rehydrate_equals_incremental(@ForAll("commandSequences") List&lt;AccountCommand&gt; cmds) {
+        AccountState s = Account.INITIAL;
+        var history = new ArrayList&lt;AccountEvent&gt;();
+        for (var c : cmds) {
+            try {
+                var events = Account.decide(c, s, clock);
+                history.addAll(events);
+                for (var e : events) s = Account.evolve(s, e);
+            } catch (DomainException ignored) { }
+        }
+        assertEquals(s, Account.rehydrate(history));
+    }
+
+    @Provide
+    Arbitrary&lt;List&lt;AccountCommand&gt;&gt; commandSequences() {
+        Arbitrary&lt;BigDecimal&gt; amounts = Arbitraries.bigDecimals()
+                .between(new BigDecimal("0.01"), new BigDecimal("1000")).ofScale(2);
+        Arbitrary&lt;AccountCommand&gt; cmd = Arbitraries.oneOf(
+                Arbitraries.just(new OpenAccount("A1", "u1", "EUR")),
+                amounts.map(a -&gt; new Deposit("A1", a)),
+                amounts.map(a -&gt; new Withdraw("A1", a)),
+                Arbitraries.just(new CloseAccount("A1", "customer request")));
+        return cmd.list().ofMinSize(1).ofMaxSize(60);
+    }
+}</code></pre>
+
+<table>
+  <thead><tr><th>Good ES properties</th><th>Why it matters</th></tr></thead>
+  <tbody>
+    <tr><td>Invariant holds after any sequence</td><td>the whole point of the aggregate</td></tr>
+    <tr><td><code>evolve</code> never throws for events <code>decide</code> produced</td><td>replay must never fail on valid history</td></tr>
+    <tr><td><code>rehydrate(history)</code> == incremental state</td><td>snapshots and caches are safe</td></tr>
+    <tr><td>Projection(events) == Projection(events with duplicates)</td><td>at-least-once delivery is harmless</td></tr>
+    <tr><td><code>upcast(v1)</code> deserialises for any generated v1 payload</td><td>versioning is total, not just for samples</td></tr>
+  </tbody>
+</table>
+
+<h2>4. Projection tests &mdash; including duplicate delivery</h2>
+
+<p>Subscriptions deliver <strong>at least once</strong>. A projection that isn&rsquo;t idempotent will
+double-count the first time a consumer restarts between writing rows and saving its checkpoint. Play
+with the failure first:</p>
+
+<div class="sim" data-sim="projection"></div>
+
+<p>Now pin it down in a test against a real Postgres. On this machine Testcontainers talks to
+<strong>Podman</strong>: export <code>DOCKER_HOST</code> to the Podman machine socket (and, if Ryuk can&rsquo;t
+start under rootless Podman, <code>TESTCONTAINERS_RYUK_DISABLED=true</code>).</p>
+
+<pre><code># once per shell (macOS, podman machine)
+export DOCKER_HOST="unix://$(podman machine inspect --format '{{.ConnectionInfo.PodmanSocket.Path}}')"
+export TESTCONTAINERS_RYUK_DISABLED=true   # only if Ryuk fails to start
+./mvnw verify</code></pre>
+
+<pre><code>@Testcontainers
+class StatementProjectionIT {
+
+    @Container
+    static final PostgreSQLContainer&lt;?&gt; PG = new PostgreSQLContainer&lt;&gt;("postgres:16-alpine");
+
+    static DataSource ds;
+    StatementProjection projection;
+    final Instant t = Instant.parse("2026-01-01T10:00:00Z");
+
+    @BeforeAll static void migrate() { ds = dataSource(PG); Flyway.configure().dataSource(ds).load().migrate(); }
+    @BeforeEach void setUp() { truncate(ds, "statement_line", "checkpoints"); projection = new StatementProjection(ds); }
+
+    @Test
+    void projects_deposit_into_statement_line() {
+        projection.handle(List.of(envelope(1, new MoneyDeposited("A1", new BigDecimal("100"), t))));
+        assertEquals(new BigDecimal("100.00"), balanceOf("A1"));
+        assertEquals(1L, checkpoint("statement"));
+    }
+
+    @Test
+    void duplicate_delivery_is_idempotent() {
+        var batch = List.of(envelope(1, new MoneyDeposited("A1", new BigDecimal("100"), t)),
+                            envelope(2, new MoneyWithdrawn("A1", new BigDecimal("30"), t)));
+        projection.handle(batch);
+        projection.handle(batch);                      // redelivery after a crash
+        projection.handle(List.of(batch.get(1)));      // partial redelivery
+        assertEquals(new BigDecimal("70.00"), balanceOf("A1"));
+        assertEquals(2, countRows("statement_line"));
+        assertEquals(2L, checkpoint("statement"));
+    }
+
+    @Test
+    void rebuild_from_scratch_equals_incremental() {
+        var all = sampleHistory(500);
+        all.forEach(e -&gt; projection.handle(List.of(e)));
+        var incremental = dump("statement_line");
+        truncate(ds, "statement_line", "checkpoints");
+        projection.handle(all);
+        assertEquals(incremental, dump("statement_line"));
+    }
+}</code></pre>
+
+<div class="callout warning">
+  <span class="label">Don&rsquo;t test projections with H2</span>
+  <p><code>ON CONFLICT</code>, <code>JSONB</code>, <code>xid8</code>, advisory locks and transaction
+  visibility are exactly the behaviours under test. An in-memory lookalike passes the tests and
+  fails in production. Use the real engine; Testcontainers makes it a few seconds per class (reuse a
+  static container across methods).</p>
+</div>
+
+<h2>5. Event-store contract tests</h2>
+
+<p>Write the store&rsquo;s guarantees once as an abstract test class; run it against every
+implementation (in-memory fake for fast decider integration tests, Postgres for real). If the fake
+passes the same contract, you can trust it elsewhere.</p>
+
+<pre><code>abstract class EventStoreContract {
+
+    protected abstract EventStore store();
+
+    @Test
+    void appends_are_read_back_in_stream_order() {
+        store().append("acc-1", 0, List.of(opened(), deposit(10), deposit(20)));
+        assertEquals(List.of(1L, 2L, 3L),
+                store().readStream("acc-1", 0).stream().map(EventEnvelope::streamVersion).toList());
+    }
+
+    @Test
+    void stale_expected_version_is_rejected() {
+        store().append("acc-1", 0, List.of(opened()));
+        assertThrows(ConcurrencyException.class, () -&gt; store().append("acc-1", 0, List.of(deposit(5))));
+    }
+
+    @RepeatedTest(20)
+    void exactly_one_of_two_concurrent_writers_wins() throws Exception {
+        var stream = "acc-" + UUID.randomUUID();
+        store().append(stream, 0, List.of(opened()));
+        var start = new CountDownLatch(1);
+        Callable&lt;Boolean&gt; writer = () -&gt; {
+            start.await();
+            try { store().append(stream, 1, List.of(deposit(1))); return true; }
+            catch (ConcurrencyException e) { return false; }
+        };
+        try (var pool = Executors.newFixedThreadPool(2)) {          // ExecutorService is AutoCloseable (Java 19+)
+            var a = pool.submit(writer);
+            var b = pool.submit(writer);
+            start.countDown();
+            assertEquals(1, Stream.of(a.get(), b.get()).filter(won -&gt; won).count());
+        }
+        assertEquals(2, store().readStream(stream, 0).size());
+    }
+
+    @Test
+    void global_reader_never_skips_a_slow_commit() throws Exception {
+        try (var slow = beginTransaction()) {                 // holds position N open, uncommitted
+            slow.append("acc-slow", 0, List.of(opened()));
+            store().append("acc-fast", 0, List.of(opened()));  // N+1 commits first
+            var seen = store().readAll(0, 100);
+            assertTrue(seen.stream().noneMatch(e -&gt; e.streamId().equals("acc-fast")),
+                    "reader must not move past an in-flight lower position");
+            slow.commit();
+        }
+        assertEquals(List.of("acc-slow", "acc-fast"),
+                store().readAll(0, 100).stream().map(EventEnvelope::streamId).toList());
+    }
+}
+
+class PostgresEventStoreIT extends EventStoreContract { /* @Container PG, return new PostgresEventStore(ds) */ }
+class InMemoryEventStoreTest extends EventStoreContract { /* return new InMemoryEventStore() */ }</code></pre>
+
+<p>The last test is the gap problem from Lesson 08 turned into a regression test: it fails on a naive
+<code>WHERE global_position &gt; ?</code> reader and passes with the <code>tx_id</code> visibility filter.
+(<code>beginTransaction()</code> is a test hook that is a no-op for the in-memory store, where the
+property holds trivially.)</p>
+
+<h2>6. Schema compatibility: the golden-file corpus</h2>
+
+<p>Every event type and schema version that has <em>ever</em> reached production gets a JSON sample
+checked into the repo. The corpus is <strong>append-only</strong>: you add files, never edit or delete
+them. Every build must deserialise and upcast all of them.</p>
+
+<pre><code>src/test/resources/event-corpus/
+  MoneyDeposited/v1/amount-as-number.json
+  MoneyDeposited/v1/amount-as-number.expected.json   // what v-latest should look like
+  MoneyDeposited/v2/amount-as-object.json
+  AccountOpened/v1/basic.json</code></pre>
+
+<pre><code>class EventCorpusTest {
+
+    private final ObjectMapper json = new ObjectMapper();
+    private final EventSerde serde = EventSerde.withUpcasters(Upcasters.all());
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("corpus")
+    void historical_event_still_deserialises_and_upcasts(Path file) throws IOException {
+        var raw = RawEvent.fromCorpusFile(file);                // type + schema_version from path
+        var event = assertDoesNotThrow(() -&gt; serde.deserialize(raw));
+        var expected = file.resolveSibling(file.getFileName().toString().replace(".json", ".expected.json"));
+        if (Files.exists(expected)) {
+            assertEquals(json.readTree(expected.toFile()), json.valueToTree(event));
+        }
+    }
+
+    static Stream&lt;Path&gt; corpus() throws IOException {
+        return Files.walk(Path.of("src/test/resources/event-corpus"))
+                .filter(p -&gt; p.toString().endsWith(".json") &amp;&amp; !p.toString().endsWith(".expected.json"));
+    }
+}</code></pre>
+
+<div class="callout insight">
+  <span class="label">Make the corpus self-maintaining</span>
+  <p>Add a CI check that every <code>event_type</code>/<code>schema_version</code> pair seen in
+  production (a nightly <code>SELECT DISTINCT</code> exported as a manifest) has at least one corpus
+  file, and that no corpus file was modified (checksum manifest). This turns &ldquo;we forgot the
+  upcaster&rdquo; from a production incident into a red build.</p>
+</div>
+
+<h2>7. Replay tests on anonymised production data</h2>
+
+<figure>
+<svg viewBox="0 0 660 160" role="img" aria-label="Replay test pipeline: production store copied without the key store, replayed through current and candidate projection code, read models diffed, release gated">
+  <defs>
+    <marker id="l14b" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#4b3f8f"></path></marker>
+  </defs>
+  <g font-family="system-ui, sans-serif" font-size="11">
+    <rect x="10" y="55" width="100" height="44" rx="6" fill="#efedf8" stroke="#4b3f8f"></rect>
+    <text x="60" y="74" text-anchor="middle" font-weight="700" fill="#4b3f8f">prod events</text>
+    <text x="60" y="89" text-anchor="middle" fill="#63625c">nightly copy</text>
+    <path d="M112 77 H140" stroke="#4b3f8f" marker-end="url(#l14b)"></path>
+    <rect x="144" y="55" width="110" height="44" rx="6" fill="#fff" stroke="#c98a1a" stroke-width="1.5"></rect>
+    <text x="199" y="74" text-anchor="middle" font-weight="700">anonymise</text>
+    <text x="199" y="89" text-anchor="middle" fill="#63625c">no key store → [erased]</text>
+    <path d="M256 70 L300 40" stroke="#4b3f8f" marker-end="url(#l14b)"></path>
+    <path d="M256 84 L300 114" stroke="#4b3f8f" marker-end="url(#l14b)"></path>
+    <rect x="304" y="18" width="130" height="40" rx="6" fill="#fff" stroke="#63625c"></rect>
+    <text x="369" y="36" text-anchor="middle" font-weight="700">replay: current</text>
+    <text x="369" y="50" text-anchor="middle" fill="#63625c">release N</text>
+    <rect x="304" y="96" width="130" height="40" rx="6" fill="#fff" stroke="#1f7a5e" stroke-width="1.5"></rect>
+    <text x="369" y="114" text-anchor="middle" font-weight="700" fill="#1f7a5e">replay: candidate</text>
+    <text x="369" y="128" text-anchor="middle" fill="#63625c">release N+1</text>
+    <path d="M436 40 L478 70" stroke="#4b3f8f" marker-end="url(#l14b)"></path>
+    <path d="M436 114 L478 84" stroke="#4b3f8f" marker-end="url(#l14b)"></path>
+    <rect x="482" y="55" width="80" height="44" rx="6" fill="#efedf8" stroke="#4b3f8f"></rect>
+    <text x="522" y="74" text-anchor="middle" font-weight="700" fill="#4b3f8f">diff</text>
+    <text x="522" y="89" text-anchor="middle" fill="#63625c">read models</text>
+    <path d="M564 77 H586" stroke="#4b3f8f" marker-end="url(#l14b)"></path>
+    <rect x="590" y="55" width="62" height="44" rx="6" fill="#e3f3ec" stroke="#1f7a5e"></rect>
+    <text x="621" y="74" text-anchor="middle" font-weight="700" fill="#1f7a5e">gate</text>
+    <text x="621" y="89" text-anchor="middle" fill="#63625c">release</text>
+  </g>
+</svg>
+<figcaption>Replay test: same history, two versions of the code, diff the outputs. Expected differences are allow-listed in the PR.</figcaption>
+</figure>
+
+<ul>
+  <li><strong>Anonymise first.</strong> If you crypto-shred (Lesson 13), copying the events <em>without</em> the key store gives you a PII-free dataset for free. Otherwise run a scrubbing job &mdash; never replay raw prod PII in CI.</li>
+  <li><strong>Diff, don&rsquo;t assert.</strong> Row-level diff of every read model between release N and N+1. Unexpected diffs block the release; intended ones are listed in the PR description.</li>
+  <li><strong>Time it.</strong> The replay is also your rebuild-duration benchmark: if the largest projection now takes 9 hours instead of 2, you learn it here, not during an incident.</li>
+  <li><strong>Catch poison events.</strong> Any event that throws during replay is a bug in <code>evolve</code>, an upcaster, or a projection &mdash; found before it parks a production subscription.</li>
+</ul>
+
+<div class="primary-source">
+  <span class="label">Read this next (primary source)</span>
+  <p><a href="https://jqwik.net/docs/current/user-guide.html" target="_blank" rel="noopener"><em>jqwik User Guide</em></a>
+  (arbitraries, shrinking, stateful testing) and Oskar Dudycz &mdash;
+  <a href="https://event-driven.io/" target="_blank" rel="noopener"><em>event-driven.io</em></a>
+  (articles on testing deciders and projections).</p>
+</div>
+
+<h2>8. Check yourself</h2>
+<p>Retrieve before revealing.</p>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 1 of 3</p>
+  <p class="quiz-q">In a Given/When/Then decider test, the <em>Then</em> should assert on&hellip;</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="State is internal and changes with refactors; it is not the contract.">the aggregate&rsquo;s private state after the command</button></li>
+    <li><button data-correct="false" data-feedback="A pure decider test has no database involved at all.">the rows written to the events table in Postgres</button></li>
+    <li><button data-correct="true" data-feedback="Right — the emitted events (or the rejection) are the observable behaviour.">the new events emitted, or the domain error thrown</button></li>
+    <li><button data-correct="false" data-feedback="Mocks are exactly what pure deciders let you avoid.">the calls made to a mocked repository interface</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Given past events, When a command, Then new events or an error. Events are the public contract; state is an implementation detail."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 2 of 3</p>
+  <p class="quiz-q">Which test would catch a balance projection that double-counts after a consumer restart?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="The decider never sees delivery semantics.">a Given/When/Then test of the Withdraw command</button></li>
+    <li><button data-correct="true" data-feedback="Right — redeliver the same batch and assert rows and checkpoint are unchanged.">a projection test that feeds the same batch twice</button></li>
+    <li><button data-correct="false" data-feedback="Old payloads deserialising says nothing about idempotency.">a golden-file test over the historical event corpus</button></li>
+    <li><button data-correct="false" data-feedback="That checks append conflicts, not consumer idempotency.">a contract test for concurrent appends to a stream</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="At-least-once delivery means duplicates are normal. Projection tests must replay duplicates and partial batches and assert the read model is unchanged."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 3 of 3</p>
+  <p class="quiz-q">A teammate &ldquo;fixes&rdquo; a failing corpus test by editing the old v1 JSON file. Your review says&hellip;</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="Prod still holds the old shape; editing the sample hides the break.">fine, as long as the new JSON matches the v2 schema</button></li>
+    <li><button data-correct="false" data-feedback="Deleting coverage of a real historical shape is worse.">better to delete the file, v1 is obsolete by now</button></li>
+    <li><button data-correct="false" data-feedback="Prod data wouldn&rsquo;t change; the test would just stop protecting you.">fine if production events are migrated the same way</button></li>
+    <li><button data-correct="true" data-feedback="Right — the corpus is append-only; fix the code with an upcaster.">reject it: the corpus is frozen; add an upcaster</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="The corpus mirrors what is stored in production, which never changes. A red corpus test means the code lost compatibility — fix the code, not the sample."></div>
+</div>
+
+<div class="callout tryit">
+  <span class="label">Try it in your own system</span>
+  <ul class="checklist">
+    <li>Write the GWT DSL for one aggregate and convert three existing tests to it. Are they shorter and more readable?</li>
+    <li>Add one jqwik property for your most important invariant. Run 10,000 tries. Did shrinking find anything?</li>
+    <li>Add a duplicate-delivery test to one projection, running Postgres via Testcontainers on the Podman socket.</li>
+    <li>Export one sample of every <code>event_type</code>/<code>schema_version</code> pair in prod into a corpus folder.</li>
+  </ul>
+</div>
+
+<div class="followup">
+  <strong>I&rsquo;m your teacher &mdash; ask me anything.</strong> Want jqwik&rsquo;s stateful testing
+  (action chains) for a process manager, or a Testcontainers setup that reuses one Podman-hosted
+  Postgres across the whole suite? Ask and we&rsquo;ll build it.
+</div>
+
+<nav class="lesson-nav">
+  <span class="group">
+    <b>Reference</b>
+    <a href="../reference/0010-gdpr-and-testing-recipes.html">GDPR &amp; testing recipes &rarr;</a>
+  </span>
+  <span class="group">
+    <b>Previous</b>
+    <a href="0013-gdpr-crypto-shredding-and-temporal-queries.html">&larr; Lesson 13 · GDPR &amp; temporal queries</a>
+  </span>
+  <span class="group">
+    <b>Up next</b>
+    <a href="0015-migrating-from-crud-and-event-storming.html">Lesson 15 · Migrating from CRUD &amp; Event Storming &rarr;</a>
+  </span>
+</nav>
+
+</body>
+</html>

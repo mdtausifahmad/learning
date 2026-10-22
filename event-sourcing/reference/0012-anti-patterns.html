@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cheat Sheet · Event-Sourcing Anti-Patterns</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<style>
+  body { max-width: 52rem; }
+  @media print { body { margin: 0; } h2 { margin-top: 1.1rem; } }
+</style>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Event Sourcing · Reference 12</p>
+  <h1>Anti-Patterns &amp; Failure Modes</h1>
+  <div class="meta"><span>Compressed from Lesson 16</span><span class="dot">•</span><span>Print-friendly</span></div>
+</header>
+
+<table>
+  <thead><tr><th>Anti-pattern</th><th>Symptom</th><th>Remedy</th></tr></thead>
+  <tbody>
+    <tr><td><strong>ES everywhere</strong></td><td>Every microservice event-sourced &ldquo;for consistency&rdquo;; simple CRUD domains drowning in projections</td><td>Apply per bounded context, only where history has business value</td></tr>
+    <tr><td><strong>CRUD events</strong> (<code>EntityUpdated</code>, <code>FieldChanged</code>)</td><td>Events look like diffs; no business intent</td><td>Model domain facts; run Event Storming with domain experts</td></tr>
+    <tr><td><strong>Event store as public integration bus</strong></td><td>Other teams consume your internal events; you can&rsquo;t refactor</td><td>Separate domain vs integration events</td></tr>
+    <tr><td><strong>Fat aggregate state</strong></td><td>Aggregate state = read model; slow rehydration; huge snapshots</td><td>Keep only invariant-relevant state; move the rest to projections</td></tr>
+    <tr><td><strong>God aggregate / long streams</strong></td><td>Concurrency conflicts, millions of events per stream</td><td>Re-draw boundaries; close the books</td></tr>
+    <tr><td><strong>Querying the event store for business reads</strong></td><td><code>SELECT &hellip; FROM events WHERE data-&gt;&gt;'customerId' = &hellip;</code> in request paths</td><td>Build a projection</td></tr>
+    <tr><td><strong>Side effects in <code>evolve</code></strong></td><td>Emails re-sent on every replay</td><td>Side effects only in reactors/subscriptions, never in state application</td></tr>
+    <tr><td><strong>Non-deterministic <code>evolve</code></strong></td><td>Uses <code>now()</code>, random, external lookups &rarr; replay gives different state</td><td>Put all needed data in the event at decision time</td></tr>
+    <tr><td><strong>Dual write to broker</strong></td><td>Lost or phantom messages</td><td>Publish from the event store via subscription</td></tr>
+    <tr><td><strong>Ignoring the gap problem</strong></td><td>Projections silently skip events under load</td><td>Commit-ordered reads (tx-id visibility filter)</td></tr>
+    <tr><td><strong>No versioning strategy</strong></td><td>First rename of a field breaks replay in prod</td><td>Upcasters + historical-event CI corpus</td></tr>
+    <tr><td><strong>Editing events in place to &ldquo;fix&rdquo; data</strong></td><td>Audit trail destroyed; projections diverge</td><td>Compensating events; copy-transform only as governed migration</td></tr>
+    <tr><td><strong>Projection writes from multiple places</strong></td><td>Can&rsquo;t rebuild deterministically</td><td>Read models are written <em>only</em> by their projection</td></tr>
+    <tr><td><strong>Synchronous everything</strong></td><td>Inline projections for every view &rarr; write latency explodes</td><td>Inline only for the 1&ndash;2 views that need it</td></tr>
+  </tbody>
+</table>
+
+<div class="callout warning">
+  <span class="label">Also flag in review</span>
+  <p>PII in stream ids or metadata &middot; fabricated history in migrations (use <code>AccountImported</code>) &middot; CDC change events called &ldquo;event sourcing&rdquo; &middot; snapshots added before measuring &middot; no exit plan in the ADR.</p>
+</div>
+
+<nav class="lesson-nav">
+  <span class="group"><b>From</b><a href="../lessons/0016-staff-judgement-when-not-to-and-the-adr.html">&larr; Lesson 16 · Staff judgement</a></span>
+  <span class="group"><b>Canonical terms</b><a href="../GLOSSARY.md">GLOSSARY.md</a></span>
+  <span class="group"><b>Primary source</b><a href="https://learn.microsoft.com/azure/architecture/patterns/event-sourcing" target="_blank" rel="noopener">Azure · Event Sourcing pattern</a></span>
+</nav>
+
+</body>
+</html>

@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 10 · Sagas, Process Managers &amp; Cross-Aggregate Invariants</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<script src="../assets/quiz.js" defer></script>
+<script src="../assets/anim.js" defer></script>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Event Sourcing · Lesson 10</p>
+  <h1>Sagas, Process Managers &amp; Cross-Aggregate Invariants</h1>
+  <div class="meta">
+    <span>◷ ~16 min read</span>
+    <span class="dot">•</span>
+    <span>Level 3 · Production engineering</span>
+    <span class="dot">•</span>
+    <span>Prereq: <a href="0009-publishing-integration-events-and-kafka.html">Lesson 09 · Publishing &amp; Kafka</a></span>
+  </div>
+</header>
+
+<p class="mission-tie">
+  The aggregate rule you learned in Lesson 03 &mdash; <strong>one command changes one aggregate, in one
+  transaction</strong> &mdash; is what makes event sourcing scale. It is also what makes the business
+  uncomfortable: &ldquo;reserve stock, take payment, confirm the order&rdquo; spans three aggregates and
+  maybe three services; &ldquo;usernames must be unique&rdquo; spans <em>every</em> user. This lesson
+  gives you the toolkit Staff engineers reach for: process managers vs choreography, compensations,
+  timeouts-as-events, set-validation options, and the newer <strong>Dynamic Consistency Boundary</strong>
+  &mdash; plus the judgement to know which to use.
+</p>
+
+<h2>1. Two ways to coordinate: choreography vs process manager</h2>
+
+<p>
+  There is no distributed transaction here. A long-running business process is a sequence of local
+  transactions, each on one aggregate, glued together by events. When a later step fails, earlier
+  steps are undone by <strong>compensating actions</strong>, not rollbacks. The pattern is usually called
+  a <strong>saga</strong>; there are two ways to drive it.
+</p>
+
+<table>
+  <thead><tr><th></th><th>Choreography</th><th>Process manager (orchestration)</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Shape</strong></td><td>Each service reacts to events with commands (event &rarr; command)</td><td>A stateful coordinator receives events and issues commands</td></tr>
+    <tr><td><strong>Where the flow lives</strong></td><td>Implicit, smeared across services</td><td>Explicit, in one place you can read and test</td></tr>
+    <tr><td><strong>Good for</strong></td><td>2&ndash;3 steps, few failure paths</td><td>Branching, compensations, timeouts, &ldquo;what state is order 42 in?&rdquo;</td></tr>
+    <tr><td><strong>Risk</strong></td><td>Cyclic dependencies; nobody can answer &ldquo;where is it stuck?&rdquo;</td><td>Coordinator becomes a god object if it starts holding domain rules</td></tr>
+    <tr><td><strong>State</strong></td><td>None (or scattered)</td><td>Its own &mdash; ideally <strong>event-sourced</strong></td></tr>
+  </tbody>
+</table>
+
+<div class="callout insight">
+  <span class="label">Process manager &ne; aggregate</span>
+  <p>A process manager tracks <em>where the process is</em> (&ldquo;awaiting payment, timeout at
+  14:05&rdquo;); it should not decide domain rules. Inventory decides if stock can be reserved; Payment
+  decides if a card can be charged. The process manager only reacts to their decisions. If your
+  coordinator is computing discounts, it has swallowed an aggregate.</p>
+</div>
+
+<h2>2. Watch one order through the process manager</h2>
+
+<figure class="anim" data-anim>
+<div class="anim-stage">
+<svg viewBox="0 0 660 330" role="img" aria-label="Step-by-step: order fulfilment process manager happy path, payment failure with compensation, and timeout">
+  <defs>
+    <marker id="l10a-ink" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#4b3f8f"></path></marker>
+    <marker id="l10a-good" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#1f7a5e"></path></marker>
+    <marker id="l10a-bad" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#b23b3b"></path></marker>
+    <marker id="l10a-warn" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#c98a1a"></path></marker>
+  </defs>
+  <g font-family="system-ui, sans-serif" font-size="11">
+    <g class="anim-el" data-step="1">
+      <rect x="20" y="8" width="90" height="26" rx="5" fill="#fff" stroke="#63625c"></rect>
+      <text x="65" y="25" text-anchor="middle" font-weight="700">Order</text>
+      <rect x="185" y="8" width="130" height="26" rx="5" fill="#efedf8" stroke="#4b3f8f" stroke-width="1.5"></rect>
+      <text x="250" y="25" text-anchor="middle" font-weight="700" fill="#4b3f8f">Process manager</text>
+      <rect x="380" y="8" width="100" height="26" rx="5" fill="#fff" stroke="#63625c"></rect>
+      <text x="430" y="25" text-anchor="middle" font-weight="700">Inventory</text>
+      <rect x="540" y="8" width="100" height="26" rx="5" fill="#fff" stroke="#63625c"></rect>
+      <text x="590" y="25" text-anchor="middle" font-weight="700">Payment</text>
+      <line x1="65" y1="34" x2="65" y2="270" stroke="#ccc" stroke-dasharray="3 3"></line>
+      <line x1="250" y1="34" x2="250" y2="270" stroke="#4b3f8f" stroke-dasharray="3 3"></line>
+      <line x1="430" y1="34" x2="430" y2="270" stroke="#ccc" stroke-dasharray="3 3"></line>
+      <line x1="590" y1="34" x2="590" y2="270" stroke="#ccc" stroke-dasharray="3 3"></line>
+      <path d="M65 58 H244" stroke="#4b3f8f" stroke-width="1.5" marker-end="url(#l10a-ink)"></path>
+      <text x="155" y="53" text-anchor="middle">OrderPlaced</text>
+    </g>
+    <g class="anim-el" data-step="2">
+      <path d="M250 82 H424" stroke="#4b3f8f" stroke-width="1.5" marker-end="url(#l10a-ink)"></path>
+      <text x="340" y="77" text-anchor="middle">ReserveStock</text>
+    </g>
+    <g class="anim-el" data-step="3">
+      <path d="M430 106 H256" stroke="#1f7a5e" stroke-width="1.5" marker-end="url(#l10a-good)"></path>
+      <text x="340" y="101" text-anchor="middle" fill="#1f7a5e">StockReserved</text>
+      <path d="M250 130 H584" stroke="#4b3f8f" stroke-width="1.5" marker-end="url(#l10a-ink)"></path>
+      <text x="420" y="125" text-anchor="middle">CapturePayment</text>
+      <path d="M250 142 h30 v14 h-24" stroke="#c98a1a" stroke-width="1.5" fill="none" marker-end="url(#l10a-warn)"></path>
+      <text x="288" y="156" fill="#c98a1a">schedule PaymentTimeout (+15 min)</text>
+    </g>
+    <g class="anim-el" data-only="4">
+      <path d="M590 182 H256" stroke="#1f7a5e" stroke-width="1.5" marker-end="url(#l10a-good)"></path>
+      <text x="420" y="177" text-anchor="middle" fill="#1f7a5e">PaymentCaptured</text>
+      <path d="M250 206 H71" stroke="#1f7a5e" stroke-width="1.5" marker-end="url(#l10a-good)"></path>
+      <text x="155" y="201" text-anchor="middle" fill="#1f7a5e">ConfirmOrder</text>
+    </g>
+    <g class="anim-el" data-from="5" data-to="6">
+      <path d="M590 182 H256" stroke="#b23b3b" stroke-width="1.5" marker-end="url(#l10a-bad)"></path>
+      <text x="420" y="177" text-anchor="middle" fill="#b23b3b">PaymentFailed</text>
+    </g>
+    <g class="anim-el" data-only="7">
+      <path d="M250 182 h30 v-12" stroke="#b23b3b" stroke-width="1.5" fill="none"></path>
+      <text x="288" y="180" fill="#b23b3b">PaymentTimeoutElapsed (from durable scheduler)</text>
+    </g>
+    <g class="anim-el" data-from="6">
+      <path d="M250 206 H424" stroke="#c98a1a" stroke-width="1.5" marker-end="url(#l10a-warn)"></path>
+      <text x="340" y="201" text-anchor="middle" fill="#c98a1a">ReleaseStock (compensation)</text>
+      <path d="M250 230 H71" stroke="#b23b3b" stroke-width="1.5" marker-end="url(#l10a-bad)"></path>
+      <text x="155" y="225" text-anchor="middle" fill="#b23b3b">CancelOrder</text>
+    </g>
+    <rect x="20" y="284" width="620" height="38" rx="6" fill="#efedf8" stroke="#4b3f8f"></rect>
+    <text x="34" y="307" font-weight="700" fill="#4b3f8f">PM state:</text>
+    <text class="anim-el" data-only="1" x="100" y="307">Started &mdash; stream fulfilment-42 created from OrderPlaced</text>
+    <text class="anim-el" data-only="2" x="100" y="307">AwaitingStock</text>
+    <text class="anim-el" data-only="3" x="100" y="307">AwaitingPayment &mdash; timeout due at T+15 min (stored as a scheduled event)</text>
+    <text class="anim-el" data-only="4" x="100" y="307" fill="#1f7a5e">Completed &mdash; timeout is now ignored if it fires</text>
+    <text class="anim-el" data-only="5" x="100" y="307" fill="#b23b3b">AwaitingPayment &rarr; failure received</text>
+    <text class="anim-el" data-only="6" x="100" y="307" fill="#c98a1a">Cancelled &mdash; undo earlier step with a compensating command</text>
+    <text class="anim-el" data-only="7" x="100" y="307" fill="#c98a1a">Cancelled &mdash; same compensation, triggered by silence instead of failure</text>
+  </g>
+</svg>
+</div>
+<div class="anim-caps">
+  <p class="anim-cap" data-step="1"><span class="n">1</span><code>OrderPlaced</code> starts a new process-manager instance, keyed by order id. Its state lives in its own stream, <code>fulfilment-42</code>.</p>
+  <p class="anim-cap" data-step="2"><span class="n">2</span>It issues <code>ReserveStock</code>. Inventory, not the process manager, decides whether stock is available.</p>
+  <p class="anim-cap" data-step="3"><span class="n">3</span>On <code>StockReserved</code>, it asks Payment to capture &mdash; and <strong>schedules a timeout</strong>. Silence is a business outcome too.</p>
+  <p class="anim-cap" data-step="4"><span class="n">4</span>Happy path: <code>PaymentCaptured</code> &rarr; <code>ConfirmOrder</code>. The process completes; a late timeout will be ignored by state.</p>
+  <p class="anim-cap" data-step="5"><span class="n">5</span>Rewind: this time Payment answers <code>PaymentFailed</code>. Stock is still reserved &mdash; we can&rsquo;t &ldquo;roll back&rdquo; another aggregate&rsquo;s committed transaction.</p>
+  <p class="anim-cap" data-step="6"><span class="n">6</span>So we <strong>compensate</strong>: <code>ReleaseStock</code> undoes the earlier step semantically, then <code>CancelOrder</code>. Each is a normal command on one aggregate.</p>
+  <p class="anim-cap" data-step="7"><span class="n">7</span>If Payment never answers, the durable scheduler delivers <code>PaymentTimeoutElapsed</code> &mdash; an event like any other &mdash; and the same compensation runs.</p>
+</div>
+<figcaption>Each arrow is a local transaction on one aggregate. Consistency across them is eventual and repaired by compensation, not by locking.</figcaption>
+</figure>
+
+<h2>3. The process manager is a decider too</h2>
+
+<p>
+  A process manager is an excellent candidate for event sourcing itself: its state
+  (<code>AwaitingPayment</code>, pending timeout) must survive restarts and deploys, and its history is
+  the perfect debugging trail for &ldquo;why was order 42 cancelled?&rdquo;. Model it with the same
+  decide/evolve shape as an aggregate &mdash; except its inputs are <em>events from others</em> and its
+  outputs are <em>commands to others</em>.
+</p>
+
+<pre><code>sealed interface FulfilmentInput permits OrderPlaced, StockReserved, StockUnavailable,
+        PaymentCaptured, PaymentFailed, PaymentTimeoutElapsed {}
+record OrderPlaced(UUID orderId, Money total, List&lt;Line&gt; lines) implements FulfilmentInput {}
+record StockReserved(UUID orderId, UUID reservationId)          implements FulfilmentInput {}
+record StockUnavailable(UUID orderId)                           implements FulfilmentInput {}
+record PaymentCaptured(UUID orderId, UUID paymentId)            implements FulfilmentInput {}
+record PaymentFailed(UUID orderId, String reason)               implements FulfilmentInput {}
+record PaymentTimeoutElapsed(UUID orderId)                      implements FulfilmentInput {}
+
+sealed interface Outgoing permits ReserveStock, CapturePayment, ScheduleTimeout,
+        ReleaseStock, ConfirmOrder, CancelOrder, RefundPayment {
+    UUID commandId();                     // deterministic → receivers can dedupe
+}
+
+sealed interface FulfilmentState {
+    record NotStarted()                                                     implements FulfilmentState {}
+    record AwaitingStock(UUID orderId, Money total, List&lt;Line&gt; lines)       implements FulfilmentState {}
+    record AwaitingPayment(UUID orderId, Money total, UUID reservationId)   implements FulfilmentState {}
+    record Completed(UUID orderId)                                          implements FulfilmentState {}
+    record Cancelled(UUID orderId, String reason)                           implements FulfilmentState {}
+}
+
+final class OrderFulfilment {
+    private record Step(FulfilmentState s, FulfilmentInput in) {}
+
+    /** decide: which commands to issue. Pure, no I/O. */
+    static List&lt;Outgoing&gt; react(FulfilmentState state, FulfilmentInput input) {
+        return switch (new Step(state, input)) {
+            case Step(NotStarted n, OrderPlaced p) -&gt;
+                List.of(new ReserveStock(id(p.orderId(), "reserve"), p.orderId(), p.lines()));
+            case Step(AwaitingStock a, StockReserved r) -&gt; List.of(
+                new CapturePayment(id(a.orderId(), "capture"), a.orderId(), a.total()),
+                new ScheduleTimeout(id(a.orderId(), "pay-timeout"), a.orderId(), Duration.ofMinutes(15)));
+            case Step(AwaitingStock a, StockUnavailable u) -&gt;
+                List.of(new CancelOrder(id(a.orderId(), "cancel"), a.orderId(), "OUT_OF_STOCK"));
+            case Step(AwaitingPayment w, PaymentCaptured c) -&gt;
+                List.of(new ConfirmOrder(id(w.orderId(), "confirm"), w.orderId()));
+            case Step(AwaitingPayment w, PaymentFailed f)         -&gt; compensate(w, "PAYMENT_FAILED");
+            case Step(AwaitingPayment w, PaymentTimeoutElapsed t) -&gt; compensate(w, "PAYMENT_TIMEOUT");
+            case Step(Cancelled c, PaymentCaptured late) -&gt;          // money arrived after we gave up
+                List.of(new RefundPayment(id(c.orderId(), "refund"), late.paymentId()));
+            default -&gt; List.of();     // duplicate, late or irrelevant input → no-op (idempotent)
+        };
+    }
+
+    /** evolve: next state. Pure, deterministic. */
+    static FulfilmentState evolve(FulfilmentState state, FulfilmentInput input) {
+        return switch (new Step(state, input)) {
+            case Step(NotStarted n, OrderPlaced p)          -&gt; new AwaitingStock(p.orderId(), p.total(), p.lines());
+            case Step(AwaitingStock a, StockReserved r)     -&gt; new AwaitingPayment(a.orderId(), a.total(), r.reservationId());
+            case Step(AwaitingStock a, StockUnavailable u)  -&gt; new Cancelled(a.orderId(), "OUT_OF_STOCK");
+            case Step(AwaitingPayment w, PaymentCaptured c) -&gt; new Completed(w.orderId());
+            case Step(AwaitingPayment w, PaymentFailed f)   -&gt; new Cancelled(w.orderId(), "PAYMENT_FAILED");
+            case Step(AwaitingPayment w, PaymentTimeoutElapsed t) -&gt; new Cancelled(w.orderId(), "PAYMENT_TIMEOUT");
+            default -&gt; state;
+        };
+    }
+
+    private static List&lt;Outgoing&gt; compensate(AwaitingPayment w, String reason) {
+        return List.of(new ReleaseStock(id(w.orderId(), "release"), w.reservationId()),
+                       new CancelOrder(id(w.orderId(), "cancel"), w.orderId(), reason));
+    }
+
+    private static UUID id(UUID orderId, String step) { return Uuids.v5(orderId, step); }
+}</code></pre>
+
+<p>
+  Note the <code>Cancelled + PaymentCaptured</code> case. A naive &ldquo;ignore everything after
+  cancel&rdquo; default would silently keep a customer&rsquo;s money. Enumerating <em>late</em> arrivals
+  is where most saga bugs hide; the sealed types and record patterns make each combination an explicit,
+  testable decision.
+</p>
+
+<h3>Running it safely</h3>
+
+<pre><code>void on(StoredEvent&lt;FulfilmentInput&gt; incoming) {
+    var streamId = "fulfilment-" + orderIdOf(incoming.data());
+    var history  = store.readStream(streamId);
+    if (history.containsCausation(incoming.eventId())) return;          // already handled
+    var state    = history.fold(OrderFulfilment.initial(), OrderFulfilment::evolve);
+    var commands = OrderFulfilment.react(state, incoming.data());
+    // One atomic append: the input we reacted to + the commands we intend to send.
+    store.append(streamId, history.version(),
+                 toPmEvents(incoming, commands));                       // causationId = incoming.eventId()
+}
+// A separate dispatcher subscription reads CommandIssued events from PM streams and sends them.
+// Crash anywhere → re-sent; receivers dedupe on commandId. Same outbox idea as Lesson 09.</code></pre>
+
+<table>
+  <thead><tr><th>Rule</th><th>Why</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Every step idempotent</strong></td><td>After a crash the process manager will re-send commands; receivers dedupe on a deterministic <code>commandId</code></td></tr>
+    <tr><td><strong>Timeouts are events</strong></td><td><code>PaymentTimeoutElapsed</code> from a durable scheduler (a <code>scheduled_messages</code> table polled with <code>FOR UPDATE SKIP LOCKED</code>, or your platform&rsquo;s scheduler) &mdash; never an in-memory timer</td></tr>
+    <tr><td><strong>Compensations are semantic</strong></td><td><code>ReleaseStock</code>, <code>RefundPayment</code> &mdash; new facts, not deletes. Some steps can&rsquo;t be undone (an email was sent): compensate with another business action</td></tr>
+    <tr><td><strong>Correlate everything</strong></td><td><code>correlationId</code> = order id across all streams; <code>causationId</code> = the event that triggered each command</td></tr>
+    <tr><td><strong>Order pivot steps last</strong></td><td>Put the hardest-to-compensate step (shipping, external payment) as late as possible</td></tr>
+  </tbody>
+</table>
+
+<div class="callout warning">
+  <span class="label">Saga smell</span>
+  <p>If two aggregates need a saga for <em>every</em> operation and you are constantly compensating,
+  the boundary is probably wrong. Sagas are for genuinely independent consistency boundaries
+  (different services, different lifecycles), not a workaround for an aggregate split too finely.</p>
+</div>
+
+<h2>4. Set validation: &ldquo;usernames must be unique&rdquo;</h2>
+
+<p>
+  This invariant spans <em>all</em> user streams, so no single aggregate can enforce it. You have
+  options; the right one depends on how bad a violation really is.
+</p>
+
+<table>
+  <thead><tr><th>Option</th><th>How</th><th>Strength</th><th>Cost</th></tr></thead>
+  <tbody>
+    <tr><td><strong>1. Reservation stream / table</strong></td><td>Append <code>UsernameClaimed</code> to stream <code>username-alice</code> with <code>NoStream</code>, or insert a row in a unique-constraint table in the same transaction as the append (same DB)</td><td>Strict</td><td>Extra write; releasing on rename/delete; two-step + compensation if the store can&rsquo;t append to two streams atomically</td></tr>
+    <tr><td><strong>2. Check read model, compensate races</strong></td><td>Query a projection; on the rare duplicate, detect and fix (rename prompt, merge)</td><td>Eventual</td><td>Needs a detection job + a business process for the fix</td></tr>
+    <tr><td><strong>3. Single aggregate</strong></td><td>If the set is small and bounded (seats on one flight), make the set the aggregate</td><td>Strict</td><td>Contention on a hot stream; only for small sets</td></tr>
+    <tr><td><strong>4. Dynamic Consistency Boundary</strong></td><td>Conditional append over a query (next section)</td><td>Strict</td><td>Newer; store support &amp; scaling to evaluate</td></tr>
+  </tbody>
+</table>
+
+<pre><code>-- Option 1 with a DIY Postgres store: the claim is part of the WRITE model, not a projection.
+CREATE TABLE username_claims (
+    username  TEXT PRIMARY KEY,          -- store normalised (lower-cased, trimmed)
+    user_id   UUID NOT NULL
+);
+
+BEGIN;
+INSERT INTO username_claims (username, user_id) VALUES (lower(:username), :userId);  -- 23505 → "taken"
+INSERT INTO events (event_id, stream_id, stream_version, event_type, data, occurred_at)
+VALUES (:eventId, 'user-' || :userId, 1, 'UserRegistered', :data::jsonb, now());
+COMMIT;</code></pre>
+
+<div class="callout insight">
+  <span class="label">The Staff move: ask the business</span>
+  <p>&ldquo;What happens if two customers briefly share an email?&rdquo; is a product question before it is
+  a technical one. Often the honest answer is &ldquo;we&rsquo;d email support and merge them&rdquo; &mdash;
+  which makes option 2 perfectly acceptable and removes a write-path dependency. Spend strictness where
+  a violation costs money or breaks law, not everywhere.</p>
+</div>
+
+<h2>5. Dynamic Consistency Boundary (DCB) &mdash; the newer frontier</h2>
+
+<p>
+  Classic event sourcing forces you to choose aggregate boundaries up front; invariants that cross them
+  become sagas or reservation tricks. <strong>DCB</strong>, introduced by Sara Pellegrini and Milan
+  Savi&#263; and documented at <a href="https://dcb.events/" target="_blank" rel="noopener">dcb.events</a>,
+  drops the fixed &ldquo;one stream per aggregate&rdquo; rule:
+</p>
+
+<ul>
+  <li>All events live in <strong>one log</strong>, each carrying <strong>tags</strong> (<code>course:c1</code>, <code>student:s7</code>).</li>
+  <li>A command handler <strong>queries exactly the events relevant to its decision</strong>, by type and tag.</li>
+  <li>On append it passes an <strong>append condition</strong>: <em>fail if any event matching this query was appended after position P</em> (the position it read up to).</li>
+</ul>
+
+<figure>
+<svg viewBox="0 0 660 210" role="img" aria-label="DCB: a single tagged log; a command queries events by tags and appends with a condition">
+  <defs>
+    <marker id="l10s-ar" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#4b3f8f"></path></marker>
+  </defs>
+  <g font-family="system-ui, sans-serif" font-size="10.5">
+    <text x="10" y="18" font-weight="700" fill="#4b3f8f">One log, tagged events</text>
+    <rect x="10" y="28" width="100" height="44" rx="5" fill="#efedf8" stroke="#4b3f8f" stroke-width="1.5"></rect>
+    <text x="60" y="45" text-anchor="middle">CourseDefined</text><text x="60" y="62" text-anchor="middle" fill="#4b3f8f">course:c1</text>
+    <rect x="116" y="28" width="100" height="44" rx="5" fill="#fff" stroke="#999"></rect>
+    <text x="166" y="45" text-anchor="middle">CourseDefined</text><text x="166" y="62" text-anchor="middle" fill="#63625c">course:c2</text>
+    <rect x="222" y="28" width="100" height="44" rx="5" fill="#efedf8" stroke="#4b3f8f" stroke-width="1.5"></rect>
+    <text x="272" y="45" text-anchor="middle">StudentSubscr.</text><text x="272" y="62" text-anchor="middle" font-size="9" fill="#4b3f8f">course:c1 student:s3</text>
+    <rect x="328" y="28" width="100" height="44" rx="5" fill="#efedf8" stroke="#4b3f8f" stroke-width="1.5"></rect>
+    <text x="378" y="45" text-anchor="middle">StudentSubscr.</text><text x="378" y="62" text-anchor="middle" font-size="9" fill="#4b3f8f">course:c4 student:s7</text>
+    <rect x="434" y="28" width="100" height="44" rx="5" fill="#fff" stroke="#999"></rect>
+    <text x="484" y="45" text-anchor="middle">StudentSubscr.</text><text x="484" y="62" text-anchor="middle" font-size="9" fill="#63625c">course:c2 student:s9</text>
+    <text x="566" y="55" fill="#4b3f8f" font-weight="700">&larr; P = 5</text>
+    <rect x="10" y="100" width="300" height="56" rx="6" fill="#fff" stroke="#4b3f8f" stroke-width="1.5"></rect>
+    <text x="20" y="118" font-weight="700" fill="#4b3f8f">Query for SubscribeStudent(s7, c1)</text>
+    <text x="20" y="134">types ∈ {CourseDefined, CapacityChanged, StudentSubscr.}</text>
+    <text x="20" y="149">AND (tag course:c1 OR tag student:s7)</text>
+    <path d="M160 98 V76" stroke="#4b3f8f" marker-end="url(#l10s-ar)"></path>
+    <path d="M312 128 H346" stroke="#4b3f8f" stroke-width="1.5" marker-end="url(#l10s-ar)"></path>
+    <rect x="350" y="100" width="300" height="100" rx="6" fill="#fff" stroke="#1f7a5e" stroke-width="1.5"></rect>
+    <text x="360" y="118" font-weight="700" fill="#1f7a5e">decide &amp; conditional append</text>
+    <text x="360" y="135">course c1 not full · s7 has &lt; 5 courses</text>
+    <text x="360" y="152">append StudentSubscribed [course:c1, student:s7]</text>
+    <text x="360" y="169" font-weight="700">condition: no event matching the query</text>
+    <text x="360" y="186" font-weight="700">appended after P = 5 &mdash; else reject &amp; retry</text>
+  </g>
+</svg>
+<figcaption>The consistency boundary is defined per decision by a query, not fixed per aggregate. Highlighted events are the ones this decision depends on.</figcaption>
+</figure>
+
+<pre><code>// Illustrative Java &mdash; API names vary by implementation; concepts follow dcb.events.
+var query = Query.anyOf(
+    QueryItem.types("CourseDefined", "CourseCapacityChanged", "StudentSubscribedToCourse").tag("course:c1"),
+    QueryItem.types("StudentSubscribedToCourse").tag("student:s7"));
+
+var read  = store.read(query);                                  // matching events + last position P
+var state = read.events().stream().reduce(SubscriptionState.EMPTY, SubscriptionState::evolve, (a, b) -&gt; b);
+
+if (state.courseFull("c1"))          throw new CourseFull("c1");
+if (state.coursesOf("s7") &gt;= 5)      throw new TooManyCourses("s7");
+
+store.append(
+    new StudentSubscribedToCourse("s7", "c1").withTags("course:c1", "student:s7"),
+    AppendCondition.failIfEventsMatch(query).after(read.position()));   // conflict → re-read, re-decide</code></pre>
+
+<p>
+  This enforces an invariant spanning &ldquo;course&rdquo; and &ldquo;student&rdquo; without a saga and
+  without a contrived <code>Enrolment</code> super-aggregate. It is genuinely elegant &mdash; and it
+  deserves a sober evaluation:
+</p>
+
+<table>
+  <thead><tr><th>Evaluate</th><th>Question to ask in the spike</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Maturity</strong></td><td>Which stores implement it, and who runs them in production at your scale? (Axon and others have adopted it; the ecosystem is still young.)</td></tr>
+    <tr><td><strong>Scaling</strong></td><td>The conflict check runs over a <em>query</em>, not one stream key. How does the store make check-then-append atomic (locks per tag, serialisation)? What is throughput under contention?</td></tr>
+    <tr><td><strong>DIY risk</strong></td><td>On a home-grown Postgres store, &ldquo;nothing matching after P&rdquo; interacts with the global-ordering gap from Lesson 08. Easy to get subtly wrong.</td></tr>
+    <tr><td><strong>Modelling</strong></td><td>Without aggregates, where do invariants live and how do new engineers discover them? Tag conventions become a contract.</td></tr>
+  </tbody>
+</table>
+
+<div class="callout warning">
+  <span class="label">Know it, evaluate it, don&rsquo;t bet blind</span>
+  <p>DCB is a strong option to <em>mention and reason about</em> in design reviews and interviews. Do not
+  bet a core system on it without a time-boxed spike that measures contention behaviour and failure modes
+  on your target store.</p>
+</div>
+
+<div class="primary-source">
+  <span class="label">Read this next (primary source)</span>
+  <p>Chris Richardson &mdash; <a href="https://microservices.io/patterns/data/saga.html" target="_blank" rel="noopener"><em>Pattern: Saga</em></a>
+  (choreography vs orchestration, compensations), and the
+  <a href="https://dcb.events/" target="_blank" rel="noopener">Dynamic Consistency Boundary</a> site
+  (specification, examples, and implementations).</p>
+</div>
+
+<h2>6. Check yourself</h2>
+<p>Retrieve before revealing.</p>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 1 of 3</p>
+  <p class="quiz-q">Payment fails after stock was reserved by Inventory. What does the process manager do?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="Inventory&rsquo;s transaction is already committed; there is nothing to roll back.">roll back the distributed transaction on Inventory</button></li>
+    <li><button data-correct="false" data-feedback="Events are immutable; deleting history is never the answer.">delete the StockReserved event from Inventory&rsquo;s stream</button></li>
+    <li><button data-correct="false" data-feedback="Retrying forever without a timeout leaves stock locked indefinitely.">keep retrying CapturePayment until it finally succeeds</button></li>
+    <li><button data-correct="true" data-feedback="Right — a semantic undo as a new command, then cancel the order.">issue a compensating ReleaseStock, then CancelOrder</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Sagas replace distributed transactions with local transactions plus compensating actions. Undo is a new business fact."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 2 of 3</p>
+  <p class="quiz-q">How should a payment timeout be implemented in an event-sourced process manager?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="An in-memory timer disappears on restart or deploy.">an in-memory timer inside the process manager instance</button></li>
+    <li><button data-correct="true" data-feedback="Right — durable, replayable, and handled by the same react/evolve code.">a durable scheduler that delivers a timeout event later</button></li>
+    <li><button data-correct="false" data-feedback="Polling Payment couples services and still needs durable state.">a loop that polls Payment&rsquo;s database every few seconds</button></li>
+    <li><button data-correct="false" data-feedback="Kafka retention isn&rsquo;t a business timeout mechanism.">Kafka message retention configured to fifteen minutes</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Timeouts are events (PaymentTimeoutElapsed) from a durable scheduler; state decides whether they still matter."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 3 of 3</p>
+  <p class="quiz-q">What does a DCB append condition actually check?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="That&rsquo;s classic per-stream optimistic concurrency, not DCB.">the single stream&rsquo;s version equals the expected one</button></li>
+    <li><button data-correct="false" data-feedback="DCB doesn&rsquo;t use distributed locks across services.">a distributed lock held across all involved services</button></li>
+    <li><button data-correct="true" data-feedback="Right — the boundary is defined by the decision&rsquo;s query, not a fixed aggregate.">no event matching the decision&rsquo;s query after position P</button></li>
+    <li><button data-correct="false" data-feedback="Read models are eventually consistent; DCB checks the log itself.">the read model confirms that the invariant still holds</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="DCB: query relevant events by tags/types, decide, then append with &lsquo;fail if anything matching this query was appended after P&rsquo;."></div>
+</div>
+
+<div class="callout tryit">
+  <span class="label">Try it in your own system</span>
+  <ul class="checklist">
+    <li>Find one multi-step flow at work implemented as a chain of Kafka listeners. Draw it as a process manager: states, inputs, outputs, timeouts.</li>
+    <li>List every <em>late arrival</em> combination (input arriving in a terminal state). Which ones need a compensation like <code>RefundPayment</code>?</li>
+    <li>Pick one uniqueness rule. Ask the product owner what a duplicate costs, then choose option 1&ndash;4 and justify it in two sentences.</li>
+  </ul>
+</div>
+
+<div class="followup">
+  <strong>I&rsquo;m your teacher &mdash; ask me anything.</strong> Want to write Given/When/Then tests for
+  <code>OrderFulfilment</code>, or compare DCB with a reservation-stream design for one of your invariants?
+  Bring the flow and we&rsquo;ll model it together.
+</div>
+
+<nav class="lesson-nav">
+  <span class="group">
+    <b>Reference</b>
+    <a href="../reference/0008-integration-and-saga-patterns.html">Integration &amp; saga patterns &rarr;</a>
+  </span>
+  <span class="group">
+    <b>Previous</b>
+    <a href="0009-publishing-integration-events-and-kafka.html">&larr; Lesson 09 · Publishing &amp; Kafka</a>
+  </span>
+  <span class="group">
+    <b>Up next</b>
+    <a href="0011-choosing-an-event-store-and-operating-it.html">Lesson 11 · Choosing an event store &amp; operating it &rarr;</a>
+  </span>
+</nav>
+
+</body>
+</html>

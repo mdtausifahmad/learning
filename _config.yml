@@ -1,0 +1,38 @@
+# GitHub Pages (Jekyll) config. index.html is the entry point; every *.md renders
+# through _layouts/default.html (with Mermaid). Course HTML pages are served as-is.
+title: Principal Engineering
+description: Senior → Staff → Principal — playbook, courses and deep dives.
+markdown: kramdown
+kramdown:
+  input: GFM
+  hard_wrap: false
+plugins:
+  - jekyll-relative-links
+  - jekyll-optional-front-matter
+  - jekyll-readme-index
+  - jekyll-default-layout
+  - jekyll-titles-from-headings
+optional_front_matter:
+  remove_originals: true     # *.md → only the rendered *.html is published
+readme_index:
+  enabled: true              # folder/README.md → folder/index.html
+  remove_originals: true
+relative_links:
+  enabled: true
+  collections: false
+titles_from_headings:
+  strip_title: false
+defaults:
+  - scope: { path: "" }
+    values: { layout: default }
+exclude:
+  - .idea
+  - .claude
+  - .impeccable
+  - "**/.DS_Store"
+  - async-messaging/capstone/order-saga/build
+  - async-messaging/capstone/order-saga/.gradle
+  - async-messaging/capstone/order-saga/gradle
+  - async-messaging/capstone/order-saga/HELP.md
+  - Gemfile
+  - Gemfile.lock

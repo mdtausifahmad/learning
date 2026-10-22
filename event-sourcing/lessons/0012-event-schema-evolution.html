@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 12 · Event Schema Evolution &amp; Upcasting</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<script src="../assets/quiz.js" defer></script>
+<script src="../assets/anim.js" defer></script>
+<script src="../assets/es-sim.js" defer></script>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Event Sourcing · Lesson 12</p>
+  <h1>Event Schema Evolution &amp; Upcasting</h1>
+  <div class="meta">
+    <span>◷ ~16 min read</span>
+    <span class="dot">•</span>
+    <span>Level 4 · Advanced</span>
+    <span class="dot">•</span>
+    <span>Prereq: <a href="0011-choosing-an-event-store-and-operating-it.html">Lesson 11 · Choosing &amp; operating a store</a></span>
+  </div>
+</header>
+
+<p class="mission-tie">
+  Events are immutable and live forever. Your understanding of the domain does not stand still. Every
+  event-sourced system eventually has to reconcile those two facts &mdash; and the first innocent
+  &ldquo;rename this record field&rdquo; refactor is what bricks replay in production. This lesson gives
+  you the full versioning toolkit, <strong>in order of preference</strong>, a decision tree you can apply
+  in a design review, and the CI safety net that makes evolution boring. Greg Young&rsquo;s
+  <em>Versioning in an Event Sourced System</em> is the canonical reference; we follow its strategies.
+</p>
+
+<h2>1. The decision tree</h2>
+
+<p>
+  Don&rsquo;t start with &ldquo;which tool?&rdquo;. Start with <strong>&ldquo;what actually
+  changed?&rdquo;</strong> The answer picks the cheapest strategy that is still honest about history.
+</p>
+
+<figure class="anim" data-anim>
+<div class="anim-stage">
+<svg viewBox="0 0 660 300" role="img" aria-label="Step-by-step decision tree for event schema evolution: tolerant reader, upcaster, new event type, copy-and-transform, compensating event">
+  <defs>
+    <marker id="l12a-ink" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#4b3f8f"></path></marker>
+    <marker id="l12a-bad" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#b23b3b"></path></marker>
+  </defs>
+  <g font-family="system-ui, sans-serif" font-size="11">
+    <g class="anim-el" data-step="1">
+      <rect x="245" y="8" width="170" height="36" rx="18" fill="#efedf8" stroke="#4b3f8f" stroke-width="1.5"></rect>
+      <text x="330" y="31" text-anchor="middle" font-weight="700" fill="#4b3f8f">What changed?</text>
+    </g>
+    <g class="anim-el" data-step="2">
+      <path d="M300 44 L72 150" stroke="#4b3f8f" stroke-width="1.5" marker-end="url(#l12a-ink)"></path>
+      <text x="110" y="96" text-anchor="middle" fill="#4b3f8f">added optional field</text>
+      <rect x="8" y="154" width="124" height="80" rx="7" fill="#fff" stroke="#1f7a5e" stroke-width="2"></rect>
+      <text x="70" y="174" text-anchor="middle" font-weight="700" fill="#1f7a5e">Tolerant reader</text>
+      <text x="70" y="192" text-anchor="middle">default the</text>
+      <text x="70" y="207" text-anchor="middle">missing field;</text>
+      <text x="70" y="222" text-anchor="middle">no version bump</text>
+    </g>
+    <g class="anim-el" data-step="3">
+      <path d="M315 44 L202 150" stroke="#4b3f8f" stroke-width="1.5" marker-end="url(#l12a-ink)"></path>
+      <text x="250" y="118" fill="#4b3f8f">renamed /</text>
+      <text x="250" y="131" fill="#4b3f8f">restructured</text>
+      <rect x="140" y="154" width="124" height="80" rx="7" fill="#fff" stroke="#1f7a5e" stroke-width="2"></rect>
+      <text x="202" y="174" text-anchor="middle" font-weight="700" fill="#1f7a5e">Upcaster</text>
+      <text x="202" y="192" text-anchor="middle">transform</text>
+      <text x="202" y="207" text-anchor="middle">v1 &rarr; v2</text>
+      <text x="202" y="222" text-anchor="middle">at read time</text>
+    </g>
+    <g class="anim-el" data-step="4">
+      <path d="M330 44 V150" stroke="#4b3f8f" stroke-width="1.5" marker-end="url(#l12a-ink)"></path>
+      <text x="336" y="100" fill="#4b3f8f">meaning</text>
+      <text x="336" y="113" fill="#4b3f8f">differs</text>
+      <rect x="272" y="154" width="124" height="80" rx="7" fill="#fff" stroke="#c98a1a" stroke-width="2"></rect>
+      <text x="334" y="174" text-anchor="middle" font-weight="700" fill="#c98a1a">New event type</text>
+      <text x="334" y="192" text-anchor="middle">OrderCancelled</text>
+      <text x="334" y="207" text-anchor="middle">ByCustomer;</text>
+      <text x="334" y="222" text-anchor="middle">keep old in evolve</text>
+    </g>
+    <g class="anim-el" data-step="5">
+      <path d="M350 44 L462 150" stroke="#b23b3b" stroke-width="1.5" marker-end="url(#l12a-bad)"></path>
+      <text x="454" y="118" font-size="10" fill="#b23b3b">history wrong /</text>
+      <text x="454" y="131" font-size="10" fill="#b23b3b">massive refactor</text>
+      <rect x="404" y="154" width="124" height="80" rx="7" fill="#fff" stroke="#b23b3b" stroke-width="2"></rect>
+      <text x="466" y="174" text-anchor="middle" font-weight="700" fill="#b23b3b">Copy-and-transform</text>
+      <text x="466" y="192" text-anchor="middle">migrate into new</text>
+      <text x="466" y="207" text-anchor="middle">streams/store;</text>
+      <text x="466" y="222" text-anchor="middle">LAST resort</text>
+    </g>
+    <g class="anim-el" data-step="6">
+      <path d="M380 44 L590 150" stroke="#4b3f8f" stroke-width="1.5" marker-end="url(#l12a-ink)"></path>
+      <text x="580" y="96" text-anchor="middle" fill="#4b3f8f">business mistake</text>
+      <rect x="536" y="154" width="116" height="80" rx="7" fill="#fff" stroke="#1f7a5e" stroke-width="2"></rect>
+      <text x="594" y="174" text-anchor="middle" font-weight="700" fill="#1f7a5e">Compensating</text>
+      <text x="594" y="189" text-anchor="middle" font-weight="700" fill="#1f7a5e">event</text>
+      <text x="594" y="207" text-anchor="middle">never edit</text>
+      <text x="594" y="222" text-anchor="middle">history</text>
+    </g>
+    <g class="anim-el" data-step="7">
+      <path d="M20 262 H520" stroke="#63625c" stroke-width="2" marker-end="url(#l12a-ink)"></path>
+      <text x="20" y="282" fill="#1f7a5e" font-weight="700">cheap · common · no migration</text>
+      <text x="520" y="282" text-anchor="end" fill="#b23b3b" font-weight="700">expensive · risky · audit impact</text>
+      <text x="540" y="266" fill="#63625c">prefer left</text>
+    </g>
+  </g>
+</svg>
+</div>
+<div class="anim-caps">
+  <p class="anim-cap" data-step="1"><span class="n">1</span>Every schema change starts with one question: <strong>what changed</strong> &mdash; shape, meaning, or correctness?</p>
+  <p class="anim-cap" data-step="2"><span class="n">2</span><strong>Added an optional field?</strong> Tolerant reader: old events lack it, the reader defaults it. No version bump, no code path for &ldquo;v1&rdquo;. Covers most changes.</p>
+  <p class="anim-cap" data-step="3"><span class="n">3</span><strong>Renamed or restructured</strong> (e.g. <code>amount: 50</code> &rarr; <code>amount: {value, currency}</code>)? An <strong>upcaster</strong> rewrites the raw event on read. Stored bytes never change.</p>
+  <p class="anim-cap" data-step="4"><span class="n">4</span><strong>Meaning genuinely different?</strong> It&rsquo;s a new fact: a <strong>new event type</strong>. Keep handling the old one in <code>evolve</code> forever (or upcast it into the new type).</p>
+  <p class="anim-cap" data-step="5"><span class="n">5</span><strong>History is structurally wrong</strong> or you&rsquo;re splitting an aggregate? <strong>Copy-and-transform</strong> into new streams. Expensive, risky, and auditors will ask questions. Last resort.</p>
+  <p class="anim-cap" data-step="6"><span class="n">6</span><strong>The business made a mistake</strong> (wrong amount booked)? That is not a schema problem at all: append a <strong>compensating event</strong>, like an accountant.</p>
+  <p class="anim-cap" data-step="7"><span class="n">7</span>Strategies are ordered by cost. Reach right only when the left can&rsquo;t express the change honestly.</p>
+</div>
+<figcaption>The versioning decision tree. Most changes stop at the first branch; copy-and-transform should be rare enough to need an ADR.</figcaption>
+</figure>
+
+<h2>2. Strategy 1 &mdash; Weak schema / tolerant reader</h2>
+
+<p>
+  Store events as JSON, deserialise leniently, make new fields optional with defaults, and
+  <strong>never remove or repurpose a field</strong>. This handles the bulk of real-world changes with
+  zero ceremony.
+</p>
+
+<pre><code>// Forward compatibility: old code can read events written by newer code (unknown fields ignored).
+// (Spring Boot&rsquo;s auto-configured ObjectMapper already disables this; plain Jackson does not.)
+mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+
+// Backward compatibility: new code reads old events that lack the field.
+record MoneyDeposited(String accountId, BigDecimal amount, Instant at, String channel) {
+    MoneyDeposited {
+        if (channel == null) channel = "UNKNOWN";          // default for pre-channel events
+    }
+}
+
+// Decouple the wire name from the Java name, so a refactor can&rsquo;t silently rename the JSON key.
+record MoneyWithdrawn(@JsonProperty("accountId") String account,
+                      @JsonProperty("amount")    BigDecimal amount,
+                      @JsonProperty("at")        Instant at) {}</code></pre>
+
+<table>
+  <thead><tr><th>Safe (tolerant reader)</th><th>Unsafe (needs another strategy)</th></tr></thead>
+  <tbody>
+    <tr><td>Add an optional field with a sensible default</td><td>Rename a field (IDE refactor of a record component!)</td></tr>
+    <tr><td>Add a new enum value <em>if</em> readers handle unknown values</td><td>Change a field&rsquo;s type or unit (cents &rarr; euros)</td></tr>
+    <tr><td>Stop <em>writing</em> an optional field (readers default it)</td><td>Reuse an old field name for a new meaning</td></tr>
+    <tr><td>Add a new event type that old readers ignore</td><td>Make an optional field required</td></tr>
+  </tbody>
+</table>
+
+<div class="callout warning">
+  <span class="label">Primitives hide missing data</span>
+  <p>A missing JSON field mapped to an <code>int</code> or <code>boolean</code> silently becomes
+  <code>0</code>/<code>false</code> &mdash; indistinguishable from a real zero. Use boxed types or explicit
+  defaults in the compact constructor so &ldquo;absent&rdquo; is a decision, not an accident.</p>
+</div>
+
+<h2>3. Strategy 2 &mdash; Upcasting</h2>
+
+<p>
+  When the <em>shape</em> changes, transform old raw events into the current shape <strong>when
+  reading</strong>, before deserialising into domain types. The stored rows never change; the domain only
+  ever sees the latest version. Upcasters are small, pure, chainable functions on raw JSON.
+</p>
+
+<figure>
+<svg viewBox="0 0 660 120" role="img" aria-label="Upcasting pipeline: events table to readStream to upcaster chain to deserialiser to decider and projections">
+  <defs>
+    <marker id="l12s-ar" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#4b3f8f"></path></marker>
+  </defs>
+  <g font-family="system-ui, sans-serif" font-size="11">
+    <rect x="6" y="24" width="110" height="64" rx="8" fill="#efedf8" stroke="#4b3f8f" stroke-width="1.5"></rect>
+    <text x="61" y="44" text-anchor="middle" font-weight="700" fill="#4b3f8f">events table</text>
+    <text x="61" y="62" text-anchor="middle">v1, v2, v3 rows</text>
+    <text x="61" y="78" text-anchor="middle" fill="#63625c">immutable</text>
+    <path d="M118 56 H136" stroke="#4b3f8f" stroke-width="1.5" marker-end="url(#l12s-ar)"></path>
+    <rect x="140" y="36" width="84" height="40" rx="6" fill="#fff" stroke="#63625c"></rect>
+    <text x="182" y="60" text-anchor="middle">readStream</text>
+    <path d="M226 56 H244" stroke="#4b3f8f" stroke-width="1.5" marker-end="url(#l12s-ar)"></path>
+    <rect x="248" y="36" width="84" height="40" rx="6" fill="#fff" stroke="#c98a1a" stroke-width="1.5"></rect>
+    <text x="290" y="60" text-anchor="middle">v1 &rarr; v2</text>
+    <path d="M334 56 H352" stroke="#4b3f8f" stroke-width="1.5" marker-end="url(#l12s-ar)"></path>
+    <rect x="356" y="36" width="84" height="40" rx="6" fill="#fff" stroke="#c98a1a" stroke-width="1.5"></rect>
+    <text x="398" y="60" text-anchor="middle">v2 &rarr; v3</text>
+    <path d="M442 56 H460" stroke="#4b3f8f" stroke-width="1.5" marker-end="url(#l12s-ar)"></path>
+    <rect x="464" y="36" width="84" height="40" rx="6" fill="#fff" stroke="#63625c"></rect>
+    <text x="506" y="54" text-anchor="middle">deserialise</text>
+    <text x="506" y="68" text-anchor="middle">(latest)</text>
+    <path d="M550 56 H568" stroke="#4b3f8f" stroke-width="1.5" marker-end="url(#l12s-ar)"></path>
+    <rect x="572" y="30" width="82" height="52" rx="6" fill="#fff" stroke="#1f7a5e" stroke-width="1.5"></rect>
+    <text x="613" y="52" text-anchor="middle" fill="#1f7a5e" font-weight="700">decider &amp;</text>
+    <text x="613" y="68" text-anchor="middle" fill="#1f7a5e" font-weight="700">projections</text>
+    <text x="344" y="104" text-anchor="middle" fill="#63625c">raw JSON in &rarr; raw JSON out · domain code only knows the latest version</text>
+  </g>
+</svg>
+<figcaption>The upcaster chain sits between storage and deserialisation &mdash; the same place for aggregates, projections and rebuilds.</figcaption>
+</figure>
+
+<pre><code>public record RawEvent(UUID eventId, String eventType, int schemaVersion, ObjectNode data, ObjectNode metadata) {
+    RawEvent withData(ObjectNode d)       { return new RawEvent(eventId, eventType, schemaVersion, d, metadata); }
+    RawEvent withSchemaVersion(int v)     { return new RawEvent(eventId, eventType, v, data, metadata); }
+}
+
+public interface Upcaster {
+    boolean canUpcast(String eventType, int schemaVersion);
+    RawEvent upcast(RawEvent raw);                 // returns the NEXT version (chainable)
+}
+
+/** V1: "amount": 50.00 (implicit EUR). V2: "amount": {"value": "50.00", "currency": "EUR"} */
+public final class MoneyDepositedV1toV2 implements Upcaster {
+    public boolean canUpcast(String type, int v) { return type.equals("MoneyDeposited") &amp;&amp; v == 1; }
+    public RawEvent upcast(RawEvent raw) {
+        ObjectNode data = raw.data().deepCopy();
+        var amount = data.remove("amount");
+        data.putObject("amount").put("value", amount.asText()).put("currency", "EUR");
+        return raw.withData(data).withSchemaVersion(2);
+    }
+}
+
+/** V3 adds "channel"; historical events are explicitly marked UNKNOWN. */
+public final class MoneyDepositedV2toV3 implements Upcaster {
+    public boolean canUpcast(String type, int v) { return type.equals("MoneyDeposited") &amp;&amp; v == 2; }
+    public RawEvent upcast(RawEvent raw) {
+        ObjectNode data = raw.data().deepCopy();
+        data.put("channel", "UNKNOWN");
+        return raw.withData(data).withSchemaVersion(3);
+    }
+}
+
+public final class UpcasterChain {
+    private final List&lt;Upcaster&gt; upcasters;
+    public UpcasterChain(List&lt;Upcaster&gt; upcasters) { this.upcasters = List.copyOf(upcasters); }
+
+    public RawEvent toLatest(RawEvent raw) {
+        var current = raw;
+        for (int guard = 0; guard &lt; 64; guard++) {
+            var e = current;
+            var next = upcasters.stream().filter(u -&gt; u.canUpcast(e.eventType(), e.schemaVersion())).findFirst();
+            if (next.isEmpty()) return current;
+            current = next.get().upcast(current);
+        }
+        throw new IllegalStateException("Upcaster cycle for " + raw.eventType());
+    }
+}</code></pre>
+
+<p>Now play with the chain. Toggle an upcaster off and watch what the deserialiser would be handed:</p>
+
+<div class="sim" data-sim="upcast"></div>
+
+<div class="callout insight">
+  <span class="label">Upcaster rules of thumb</span>
+  <p><strong>Pure and deterministic</strong> &mdash; no database lookups, no <code>now()</code>; a replay
+  next year must produce the same bytes. <strong>One step per version</strong> (v1&rarr;v2, v2&rarr;v3),
+  never &ldquo;v1&rarr;latest&rdquo;, so each upcaster is written once and never touched again.
+  <strong>Same chain everywhere</strong>: aggregate loading, projections, rebuilds, and the integration
+  publisher. Axon and Marten ship this mechanism built in; on DIY Postgres it lives in
+  <code>readStream</code>/<code>readAll</code>.</p>
+</div>
+
+<p>
+  Upcasting has a cost: every read pays the transform, and a long chain of old versions accumulates.
+  When a version is truly dead (and your corpus test proves equivalence), a <em>governed</em>
+  copy-and-transform can collapse it &mdash; but that&rsquo;s a deliberate migration, not housekeeping.
+</p>
+
+<h2>4. Strategy 3 &mdash; New event type</h2>
+
+<p>
+  If the <em>meaning</em> changed, no amount of field mapping is honest. <code>OrderCancelled</code> used
+  to mean &ldquo;customer cancelled&rdquo;; now merchants can cancel too, with refunds and penalties that
+  differ. That&rsquo;s two new facts.
+</p>
+
+<pre><code>sealed interface OrderEvent permits OrderPlaced, OrderCancelled,
+        OrderCancelledByCustomer, OrderCancelledByMerchant /* … */ {}
+
+@Deprecated // no longer written; handled forever because history contains it
+record OrderCancelled(String orderId, Instant at) implements OrderEvent {}
+record OrderCancelledByCustomer(String orderId, String reason, Instant at) implements OrderEvent {}
+record OrderCancelledByMerchant(String orderId, String reason, Money penalty, Instant at) implements OrderEvent {}
+
+static OrderState evolve(OrderState s, OrderEvent e) {
+    return switch (e) {
+        case OrderCancelled c           -&gt; s.cancelled(c.at());            // legacy meaning, kept
+        case OrderCancelledByCustomer c -&gt; s.cancelled(c.at());
+        case OrderCancelledByMerchant c -&gt; s.cancelled(c.at()).withPenalty(c.penalty());
+        // … other cases
+    };
+}</code></pre>
+
+<p>
+  Alternatively, upcast <code>OrderCancelled</code> into <code>OrderCancelledByCustomer</code>
+  &mdash; <em>only</em> if that is historically true. If you don&rsquo;t actually know who cancelled old
+  orders, don&rsquo;t invent it: keep the legacy type, or upcast to <code>reason = "UNKNOWN"</code>.
+</p>
+
+<h2>5. Strategy 4 &mdash; Copy-and-transform; and compensating events</h2>
+
+<table>
+  <thead><tr><th></th><th>Copy-and-transform (stream migration)</th><th>Compensating event</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Problem</strong></td><td>History&rsquo;s <em>structure</em> no longer fits (splitting an aggregate, merging streams, dead versions)</td><td>A <em>business</em> fact was wrong (wrong amount, wrong customer)</td></tr>
+    <tr><td><strong>Mechanism</strong></td><td>Read all events, transform, write into a new store/streams, switch over</td><td>Append <code>DepositCorrected</code> / <code>ChargeReversed</code></td></tr>
+    <tr><td><strong>History</strong></td><td>Rewritten copy; original must be archived read-only for auditors</td><td>Untouched; the correction is itself auditable</td></tr>
+    <tr><td><strong>Risk</strong></td><td>High &mdash; big-bang cut-over, projections rebuilt, consumers re-pointed</td><td>Low &mdash; normal command path</td></tr>
+    <tr><td><strong>Governance</strong></td><td>ADR, dry-run on a prod copy, checksum of before/after state per stream</td><td>Normal feature work</td></tr>
+  </tbody>
+</table>
+
+<div class="callout warning">
+  <span class="label">Never edit events in place</span>
+  <p><code>UPDATE events SET data = …</code> to &ldquo;fix&rdquo; data destroys the audit trail, silently
+  desynchronises every projection and downstream consumer, and breaks the promise that made event sourcing
+  worth paying for. If copy-and-transform feels necessary, run it as a governed migration with the
+  original archived &mdash; never as a hotfix.</p>
+</div>
+
+<h2>6. Serialisation format &amp; schema registries</h2>
+
+<table>
+  <thead><tr><th>Format</th><th>Pros</th><th>Cons</th></tr></thead>
+  <tbody>
+    <tr><td><strong>JSON (JSONB)</strong></td><td>Human-readable; queryable in Postgres; weak-schema friendly</td><td>Bigger; no enforced schema</td></tr>
+    <tr><td><strong>Avro / Protobuf + Schema Registry</strong></td><td>Compact; compatibility checked in CI and at registration</td><td>Harder to inspect and debug; the registry is a runtime dependency</td></tr>
+  </tbody>
+</table>
+
+<p>
+  The common mix: <strong>JSON in the event store</strong> (debuggability, flexibility, upcasters on raw
+  JSON) and <strong>Avro or Protobuf for public integration events on Kafka</strong> (contract
+  enforcement across teams &mdash; Lesson 09). Know the registry compatibility modes cold:
+</p>
+
+<table>
+  <thead><tr><th>Mode</th><th>Guarantee</th><th>Allowed changes (Avro)</th><th>Upgrade order</th></tr></thead>
+  <tbody>
+    <tr><td><strong>BACKWARD</strong> (common default)</td><td>New schema can read data written with the previous one</td><td>Delete fields; add fields <em>with defaults</em></td><td>Consumers first</td></tr>
+    <tr><td><strong>FORWARD</strong></td><td>Previous schema can read data written with the new one</td><td>Add fields; delete fields that had defaults</td><td>Producers first</td></tr>
+    <tr><td><strong>FULL</strong></td><td>Both directions</td><td>Add/delete only fields with defaults</td><td>Any order</td></tr>
+    <tr><td><strong>*_TRANSITIVE</strong></td><td>Same, checked against <em>all</em> previous versions, not just the last</td><td>As above</td><td>&mdash;</td></tr>
+    <tr><td><strong>NONE</strong></td><td>No checks</td><td>Anything (don&rsquo;t, for public contracts)</td><td>&mdash;</td></tr>
+  </tbody>
+</table>
+
+<pre><code>{ "type": "record", "name": "OrderSubmittedV1", "namespace": "com.acme.orders.public",
+  "fields": [
+    { "name": "orderId",     "type": "string" },
+    { "name": "totalAmount", "type": "string" },
+    { "name": "currency",    "type": "string" },
+    { "name": "channel",     "type": ["null", "string"], "default": null }
+  ] }</code></pre>
+<p>The <code>channel</code> field was added later; because it declares a default, the change passes a
+BACKWARD check &mdash; new readers fill <code>null</code> when reading older records.</p>
+
+<div class="callout insight">
+  <span class="label">Why event stores want *_TRANSITIVE thinking</span>
+  <p>A Kafka consumer usually reads recent data, so &ldquo;compatible with the previous version&rdquo; is
+  often enough. An event store replays <strong>every version ever written</strong>. Your internal
+  compatibility bar is effectively <em>transitive</em>: today&rsquo;s code must read 2019&rsquo;s events.
+  For Protobuf, the equivalent discipline is: never reuse a field number; <code>reserved</code> removed
+  ones.</p>
+</div>
+
+<h2>7. The Staff safety net: a historical-event corpus in CI</h2>
+
+<p>
+  Unit tests construct events with today&rsquo;s classes, so they can&rsquo;t catch a change that breaks
+  <em>yesterday&rsquo;s</em> bytes. Keep a corpus of <strong>real historical samples</strong> &mdash; one per
+  event type &times; schema version, scrubbed of PII &mdash; and replay it on every build.
+</p>
+
+<pre><code>src/test/resources/event-corpus/
+  MoneyDeposited/v1.json   MoneyDeposited/v2.json   MoneyDeposited/v3.json
+  OrderCancelled/v1.json   OrderCancelledByCustomer/v1.json
+  streams/account-golden.jsonl   +  account-golden.expected.json</code></pre>
+
+<pre><code>class HistoricalEventCorpusTest {
+
+    static Stream&lt;Path&gt; samples() throws IOException {
+        return Files.walk(Path.of("src/test/resources/event-corpus"))
+                    .filter(p -&gt; p.toString().endsWith(".json") &amp;&amp; !p.toString().contains("streams"));
+    }
+
+    @ParameterizedTest @MethodSource("samples")
+    void every_historical_event_upcasts_and_deserialises(Path sample) throws IOException {
+        RawEvent raw    = Corpus.read(sample);                       // {type, schemaVersion, data}
+        RawEvent latest = chain.toLatest(raw);
+        assertThatNoException().isThrownBy(() -&gt; serializer.deserialize(latest));
+    }
+
+    @Test
+    void golden_stream_replays_to_the_same_state() throws IOException {
+        var events = Corpus.readStream("streams/account-golden.jsonl").stream()
+                           .map(chain::toLatest).map(serializer::deserialize).toList();
+        var state  = events.stream().reduce(Account.initial(), Account::evolve, (a, b) -&gt; b);
+        assertThat(json(state)).isEqualTo(Corpus.text("streams/account-golden.expected.json"));
+    }
+
+    @Test
+    void every_registered_event_type_has_a_sample() {
+        assertThat(Corpus.typesCovered()).containsAll(EventTypeRegistry.allTypesAndVersions());
+    }
+}</code></pre>
+
+<p>
+  The third test is the one people forget: it forces whoever introduces a new event type or version to
+  commit a sample, so the corpus grows with the system. This catches &ldquo;harmless&rdquo; refactors
+  &mdash; renaming a record component, changing <code>BigDecimal</code> to <code>long</code>, tightening a
+  null check &mdash; before they brick replay in production.
+</p>
+
+<div class="primary-source">
+  <span class="label">Read this next (primary source)</span>
+  <p>Greg Young &mdash; <a href="https://leanpub.com/esversioning" target="_blank" rel="noopener"><em>Versioning in an Event Sourced System</em></a>
+  (on Leanpub; the canonical treatment of every strategy above). For framework mechanics, see
+  upcasting in the <a href="https://docs.axoniq.io/" target="_blank" rel="noopener">AxonIQ docs</a> and
+  event versioning in <a href="https://martendb.io/" target="_blank" rel="noopener">Marten</a>.</p>
+</div>
+
+<h2>8. Check yourself</h2>
+<p>Retrieve before revealing.</p>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 1 of 3</p>
+  <p class="quiz-q"><code>MoneyDeposited.amount</code> changes from a number to <code>{value, currency}</code>. Best strategy?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="Defaulting a missing field won&rsquo;t turn a number into an object.">tolerant reader with a default for the new field</button></li>
+    <li><button data-correct="false" data-feedback="Far too heavy; history is fine, only its shape changed.">copy-and-transform every stream into a new store</button></li>
+    <li><button data-correct="true" data-feedback="Right — a shape change with the same meaning: transform raw v1 to v2 on read.">an upcaster that rewrites v1 to v2 on every read</button></li>
+    <li><button data-correct="false" data-feedback="Editing stored events destroys the audit trail and desyncs consumers.">an UPDATE that rewrites the JSONB in the events table</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Restructured, same meaning &rarr; upcaster. Stored events stay immutable; the domain sees only the latest shape."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 2 of 3</p>
+  <p class="quiz-q">An engineer renames the record component <code>at</code> to <code>occurredAt</code>. What catches it before prod?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="Right — real historical samples deserialised on every build expose the broken key.">a CI test replaying a corpus of historical events</button></li>
+    <li><button data-correct="false" data-feedback="Unit tests build events with today&rsquo;s classes, so they rename along with the code.">unit tests that construct events with current classes</button></li>
+    <li><button data-correct="false" data-feedback="The registry typically guards Kafka contracts, not JSON in the event store.">the schema registry&rsquo;s BACKWARD compatibility check</button></li>
+    <li><button data-correct="false" data-feedback="Ignoring unknown properties hides the new key; the old one simply goes missing.">setting FAIL_ON_UNKNOWN_PROPERTIES to false globally</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Only yesterday&rsquo;s bytes test yesterday&rsquo;s compatibility. Keep a type &times; version corpus and replay it in CI."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 3 of 3</p>
+  <p class="quiz-q">A registry subject uses BACKWARD compatibility. Which change is allowed?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="New readers couldn&rsquo;t fill the field for old data without a default.">adding a required field that has no default value</button></li>
+    <li><button data-correct="false" data-feedback="Changing a field&rsquo;s type breaks readers of existing data.">changing a field&rsquo;s type from string to an integer</button></li>
+    <li><button data-correct="false" data-feedback="Renaming without aliases means old data no longer maps to the field.">renaming a field without adding any alias to it</button></li>
+    <li><button data-correct="true" data-feedback="Right — the new reader fills the default when reading older data.">adding an optional field that declares a default</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="BACKWARD: the new schema must read old data. Adding fields with defaults and deleting fields are allowed; upgrade consumers first."></div>
+</div>
+
+<div class="callout tryit">
+  <span class="label">Try it in your own system</span>
+  <ul class="checklist">
+    <li>Take three changes from your last quarter&rsquo;s Kafka/DB migrations and run each through the decision tree. Which branch would each land on?</li>
+    <li>Export one real sample per event type &times; version from a running system (scrub PII) into <code>src/test/resources/event-corpus</code>.</li>
+    <li>Check your registry: are public topics BACKWARD or FULL? Is any subject on NONE?</li>
+    <li>Write the <code>UpcasterChain</code> and wire it into <code>readStream</code> before you need it &mdash; the first upcaster is easier with the hook already in place.</li>
+  </ul>
+</div>
+
+<div class="followup">
+  <strong>I&rsquo;m your teacher &mdash; ask me anything.</strong> Have a real schema change in flight?
+  Bring the before/after JSON and we&rsquo;ll pick the strategy, write the upcaster, and add the corpus
+  samples together.
+</div>
+
+<nav class="lesson-nav">
+  <span class="group">
+    <b>Reference</b>
+    <a href="../reference/0009-schema-evolution-decision-tree.html">Schema evolution decision tree &rarr;</a>
+  </span>
+  <span class="group">
+    <b>Previous</b>
+    <a href="0011-choosing-an-event-store-and-operating-it.html">&larr; Lesson 11 · Choosing &amp; operating a store</a>
+  </span>
+  <span class="group">
+    <b>Up next</b>
+    <a href="0013-gdpr-crypto-shredding-and-temporal-queries.html">Lesson 13 · GDPR, crypto-shredding &amp; temporal queries &rarr;</a>
+  </span>
+</nav>
+
+</body>
+</html>

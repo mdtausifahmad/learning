@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cheat Sheet · Decider Template (Java 21)</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<style>
+  body { max-width: 52rem; }
+  @media print { body { margin: 0; } h2 { margin-top: 1.1rem; } }
+</style>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Event Sourcing · Reference 03</p>
+  <h1>Decider Template (Java 21)</h1>
+  <div class="meta"><span>Compressed from Lesson 03</span><span class="dot">•</span><span>Print-friendly</span></div>
+</header>
+
+<table>
+  <thead><tr><th>Function</th><th>Signature</th><th>Rules</th></tr></thead>
+  <tbody>
+    <tr><td><code>initialState</code></td><td><code>S</code></td><td>Start of every replay</td></tr>
+    <tr><td><code>decide</code></td><td><code>(C, S) &rarr; List&lt;E&gt;</code></td><td>All business rules; may reject; injected <code>Clock</code></td></tr>
+    <tr><td><code>evolve</code></td><td><code>(S, E) &rarr; S</code></td><td>Pure; never throws for business reasons; no <code>default</code> branch</td></tr>
+  </tbody>
+</table>
+
+<h2>Skeleton</h2>
+<pre><code>public sealed interface XEvent permits XEvent.Created, XEvent.Changed {
+    record Created(String id, Instant at)               implements XEvent {}
+    record Changed(String id, String value, Instant at) implements XEvent {}
+}
+
+public sealed interface XCommand permits XCommand.Create, XCommand.Change {
+    record Create(String id)               implements XCommand {}
+    record Change(String id, String value) implements XCommand {}
+}
+
+public sealed interface XState {            // only what decide() needs
+    record Initial()           implements XState {}
+    record Active(String id)   implements XState {}
+}
+
+public final class X {
+    public static final XState INITIAL = new XState.Initial();
+    private X() {}
+
+    public static List&lt;XEvent&gt; decide(XCommand cmd, XState state, Clock clock) {
+        var now = clock.instant();
+        return switch (cmd) {
+            case XCommand.Create c -&gt; switch (state) {
+                case XState.Initial i -&gt; List.of(new XEvent.Created(c.id(), now));
+                default -&gt; throw new DomainException("already exists");
+            };
+            case XCommand.Change c -&gt; {
+                var a = requireActive(state);
+                yield List.of(new XEvent.Changed(a.id(), c.value(), now));
+            }
+        };
+    }
+
+    public static XState evolve(XState state, XEvent event) {
+        return switch (event) {               // exhaustive: no default
+            case XEvent.Created e -&gt; new XState.Active(e.id());
+            case XEvent.Changed e -&gt; state;   // nothing decide() needs changed
+        };
+    }
+
+    public static XState fold(List&lt;XEvent&gt; history) {
+        XState s = INITIAL;
+        for (var e : history) s = evolve(s, e);
+        return s;
+    }
+
+    private static XState.Active requireActive(XState s) {
+        if (s instanceof XState.Active a) return a;
+        throw new DomainException("not active");
+    }
+}</code></pre>
+
+<h2>Given / When / Then test skeleton</h2>
+<pre><code>class XTest {
+    static final Clock CLOCK = Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), ZoneOffset.UTC);
+    static final Instant T = CLOCK.instant();
+
+    static List&lt;XEvent&gt; when(List&lt;XEvent&gt; given, XCommand cmd) {
+        return X.decide(cmd, X.fold(given), CLOCK);
+    }
+
+    @Test void change_on_active_emits_Changed() {
+        var given = List.&lt;XEvent&gt;of(new XEvent.Created("x-1", T));
+        assertThat(when(given, new XCommand.Change("x-1", "v")))
+            .containsExactly(new XEvent.Changed("x-1", "v", T));
+    }
+
+    @Test void create_twice_is_rejected() {
+        var given = List.&lt;XEvent&gt;of(new XEvent.Created("x-1", T));
+        assertThatThrownBy(() -&gt; when(given, new XCommand.Create("x-1")))
+            .isInstanceOf(DomainException.class);
+    }
+}</code></pre>
+
+<h2>Review checklist</h2>
+<ul class="checklist">
+  <li>No I/O, <code>Instant.now()</code>, <code>UUID.randomUUID()</code> or Spring beans inside decide/evolve.</li>
+  <li>State has no display-only fields (names, lists, timestamps nobody checks).</li>
+  <li>No <code>default -&gt;</code> on event switches; no validation in <code>evolve</code>.</li>
+  <li>Boundary drawn around an invariant; each command touches one stream.</li>
+  <li>One style per codebase: functional Decider <em>or</em> OO aggregate with uncommitted changes.</li>
+</ul>
+
+<nav class="lesson-nav">
+  <span class="group"><b>From</b><a href="../lessons/0003-decider-aggregates-in-java.html">&larr; Lesson 03 · The Decider in Java 21</a></span>
+  <span class="group"><b>Canonical terms</b><a href="../GLOSSARY.md">GLOSSARY.md</a></span>
+  <span class="group"><b>Primary source</b><a href="https://thinkbeforecoding.com/post/2021/12/17/functional-event-sourcing-decider" target="_blank" rel="noopener">Chassaing · Functional Event Sourcing Decider</a></span>
+</nav>
+
+</body>
+</html>

@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 05 · CQRS &amp; Projections</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<script src="../assets/quiz.js" defer></script>
+<script src="../assets/anim.js" defer></script>
+<script src="../assets/es-sim.js" defer></script>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Event Sourcing · Lesson 05</p>
+  <h1>CQRS &amp; Projections</h1>
+  <div class="meta">
+    <span>◷ ~15 min read</span>
+    <span class="dot">•</span>
+    <span>Level 2 · The read side</span>
+    <span class="dot">•</span>
+    <span>Prereq: <a href="0004-event-store-optimistic-concurrency.html">Lesson 04</a></span>
+  </div>
+</header>
+
+<p class="mission-tie">
+  Lessons 01&ndash;04 built a write side that is superb at one question: &ldquo;give me everything about
+  <code>account-A1</code>&rdquo;. Your product manager will ask a different one on day two: &ldquo;show
+  me all accounts over &euro;10k opened in Berlin last month&rdquo;. The event store can&rsquo;t answer
+  that &mdash; <strong>projections</strong> can. Getting projections right (idempotent, checkpointed,
+  rebuildable) is the difference between a read side you trust and one you &ldquo;fix with a SQL
+  script&rdquo; every other week.
+</p>
+
+<h2>1. Why you need a read side</h2>
+
+<p>
+  The write model is a set of <em>streams keyed by aggregate id</em>. It is optimised for
+  <code>readStream(id)</code> and <code>append(id, expectedVersion, events)</code> &mdash; nothing else.
+  Ask it &ldquo;all orders over &euro;500 placed in Berlin last week&rdquo; and you&rsquo;d have to
+  replay <em>every</em> order stream, fold each one, then filter in memory. That&rsquo;s a full table scan
+  with extra steps.
+</p>
+
+<table>
+  <thead><tr><th>Question</th><th>Write side (event streams)</th><th>Read side (projection)</th></tr></thead>
+  <tbody>
+    <tr><td>&ldquo;State of order-123 right now&rdquo;</td><td>&#10003; rehydrate one stream</td><td>&#10003; one row lookup</td></tr>
+    <tr><td>&ldquo;Orders &gt; &euro;500 in Berlin last week&rdquo;</td><td>&#10007; replay everything</td><td>&#10003; indexed table / search index</td></tr>
+    <tr><td>&ldquo;Revenue per day this quarter&rdquo;</td><td>&#10007; replay everything</td><td>&#10003; pre-aggregated table / OLAP store</td></tr>
+    <tr><td>&ldquo;Full-text search over customer notes&rdquo;</td><td>&#10007; impossible in practice</td><td>&#10003; OpenSearch / Elasticsearch index</td></tr>
+  </tbody>
+</table>
+
+<p>
+  <strong>CQRS</strong> (Command Query Responsibility Segregation) means using <em>different models</em> for
+  writing and reading. It&rsquo;s a separate pattern from event sourcing &mdash; you can do CQRS on a CRUD
+  database &mdash; but with ES it is <em>nearly mandatory</em>, because the write model can&rsquo;t serve
+  arbitrary queries. The key consequence you must design for: <strong>reads are eventually consistent
+  with writes</strong>, typically by milliseconds to seconds (Lesson 06 is all about living with that).
+</p>
+
+<figure class="anim" data-anim>
+<div class="anim-stage">
+<svg viewBox="0 0 680 300" role="img" aria-label="Step-by-step: a command flows to the aggregate, events are appended to the event store, projections consume the global log in order and update read models, and the query API serves from the read models">
+  <g font-family="system-ui, sans-serif" font-size="11">
+    <g class="anim-el" data-step="1">
+      <text x="14" y="20" font-weight="700" fill="#4b3f8f" font-size="10" letter-spacing="1">WRITE SIDE</text>
+      <rect x="14" y="34" width="86" height="34" rx="6" fill="#fff" stroke="#63625c"></rect>
+      <text x="57" y="55" text-anchor="middle">Client</text>
+      <path d="M100 51 H128" stroke="#4b3f8f" stroke-width="1.5" marker-end="url(#l5a1)"></path>
+      <text x="114" y="44" text-anchor="middle" fill="#4b3f8f" font-size="9">cmd</text>
+      <rect x="132" y="30" width="120" height="42" rx="6" fill="#efedf8" stroke="#4b3f8f" stroke-width="1.5"></rect>
+      <text x="192" y="48" text-anchor="middle" font-weight="700" fill="#4b3f8f">Command handler</text>
+      <text x="192" y="63" text-anchor="middle" fill="#63625c" font-size="10">decide / evolve</text>
+    </g>
+    <g class="anim-el" data-step="2">
+      <path d="M252 51 H290" stroke="#4b3f8f" stroke-width="1.5" marker-end="url(#l5a1)"></path>
+      <text x="271" y="44" text-anchor="middle" fill="#4b3f8f" font-size="9">append</text>
+      <rect x="294" y="22" width="150" height="62" rx="8" fill="#fff" stroke="#4b3f8f" stroke-width="2"></rect>
+      <text x="369" y="40" text-anchor="middle" font-weight="700" fill="#4b3f8f">Event store</text>
+      <text x="369" y="54" text-anchor="middle" fill="#63625c" font-size="10">source of truth</text>
+      <rect x="304" y="62" width="24" height="14" rx="2" fill="#efedf8" stroke="#5e4fb0"></rect>
+      <rect x="331" y="62" width="24" height="14" rx="2" fill="#efedf8" stroke="#5e4fb0"></rect>
+      <rect x="358" y="62" width="24" height="14" rx="2" fill="#efedf8" stroke="#5e4fb0"></rect>
+      <rect x="385" y="62" width="24" height="14" rx="2" fill="#efedf8" stroke="#5e4fb0"></rect>
+      <rect x="412" y="62" width="24" height="14" rx="2" fill="#5e4fb0" stroke="#5e4fb0"></rect>
+      <text x="424" y="73" text-anchor="middle" fill="#fff" font-size="8">#5</text>
+    </g>
+    <g class="anim-el" data-step="3">
+      <text x="460" y="20" font-weight="700" fill="#63625c" font-size="10" letter-spacing="1">GLOBAL LOG &rarr;</text>
+      <path d="M369 84 V112" stroke="#5e4fb0" stroke-width="1.5" marker-end="url(#l5a2)"></path>
+      <path d="M369 112 H130 V132" stroke="#5e4fb0" stroke-width="1.5" fill="none" marker-end="url(#l5a2)"></path>
+      <path d="M369 112 V132" stroke="#5e4fb0" stroke-width="1.5" marker-end="url(#l5a2)"></path>
+      <path d="M369 112 H600 V132" stroke="#5e4fb0" stroke-width="1.5" fill="none" marker-end="url(#l5a2)"></path>
+      <text x="380" y="106" fill="#5e4fb0" font-size="9">subscribe in global order</text>
+      <rect x="60" y="136" width="140" height="40" rx="6" fill="#fff" stroke="#c98a1a" stroke-width="1.5"></rect>
+      <text x="130" y="153" text-anchor="middle" font-weight="700">AccountBalance-v1</text>
+      <text x="130" y="168" text-anchor="middle" fill="#63625c" font-size="10">checkpoint 4</text>
+      <rect x="299" y="136" width="140" height="40" rx="6" fill="#fff" stroke="#c98a1a" stroke-width="1.5"></rect>
+      <text x="369" y="153" text-anchor="middle" font-weight="700">AccountSearch-v3</text>
+      <text x="369" y="168" text-anchor="middle" fill="#63625c" font-size="10">checkpoint 5</text>
+      <rect x="530" y="136" width="140" height="40" rx="6" fill="#fff" stroke="#c98a1a" stroke-width="1.5"></rect>
+      <text x="600" y="153" text-anchor="middle" font-weight="700">DailyRevenue-v2</text>
+      <text x="600" y="168" text-anchor="middle" fill="#63625c" font-size="10">checkpoint 3</text>
+    </g>
+    <g class="anim-el" data-step="4">
+      <rect x="54" y="181" width="152" height="20" rx="4" fill="#e3f3ec" stroke="#1f7a5e"></rect>
+      <text x="130" y="195" text-anchor="middle" fill="#1f7a5e" font-size="9.5" font-weight="700">UPDATE row + checkpoint &middot; 1 tx</text>
+    </g>
+    <g class="anim-el" data-step="5">
+      <text x="14" y="222" font-weight="700" fill="#2e5a7a" font-size="10" letter-spacing="1">READ SIDE</text>
+      <path d="M130 201 V228" stroke="#c98a1a" stroke-width="1.5" marker-end="url(#l5a3)"></path>
+      <path d="M369 176 V228" stroke="#c98a1a" stroke-width="1.5" marker-end="url(#l5a3)"></path>
+      <path d="M600 176 V228" stroke="#c98a1a" stroke-width="1.5" marker-end="url(#l5a3)"></path>
+      <rect x="70" y="232" width="120" height="30" rx="12" fill="#efedf8" stroke="#2e5a7a"></rect>
+      <text x="130" y="251" text-anchor="middle">Postgres table</text>
+      <rect x="309" y="232" width="120" height="30" rx="12" fill="#efedf8" stroke="#2e5a7a"></rect>
+      <text x="369" y="251" text-anchor="middle">OpenSearch index</text>
+      <rect x="540" y="232" width="120" height="30" rx="12" fill="#efedf8" stroke="#2e5a7a"></rect>
+      <text x="600" y="251" text-anchor="middle">ClickHouse</text>
+    </g>
+    <g class="anim-el" data-step="6">
+      <rect x="200" y="272" width="90" height="24" rx="5" fill="#fff" stroke="#63625c"></rect>
+      <text x="245" y="288" text-anchor="middle">Client</text>
+      <path d="M290 284 H330" stroke="#2e5a7a" stroke-width="1.5" marker-end="url(#l5a4)"></path>
+      <text x="310" y="279" text-anchor="middle" fill="#2e5a7a" font-size="9">query</text>
+      <rect x="334" y="272" width="90" height="24" rx="5" fill="#fff" stroke="#2e5a7a" stroke-width="1.5"></rect>
+      <text x="379" y="288" text-anchor="middle" font-weight="700" fill="#2e5a7a">Query API</text>
+      <path d="M334 278 Q 200 270 160 264" stroke="#2e5a7a" fill="none" stroke-dasharray="3 3" marker-end="url(#l5a4)"></path>
+      <path d="M379 272 V265" stroke="#2e5a7a" stroke-dasharray="3 3" marker-end="url(#l5a4)"></path>
+    </g>
+    <g class="anim-el" data-only="7">
+      <rect x="460" y="270" width="210" height="28" rx="5" fill="#fbf1e7" stroke="#c98a1a"></rect>
+      <text x="565" y="282" text-anchor="middle" fill="#b5651d" font-size="10" font-weight="700">lag = head (5) &minus; checkpoint (3)</text>
+      <text x="565" y="294" text-anchor="middle" fill="#b5651d" font-size="9.5">reads are eventually consistent</text>
+    </g>
+  </g>
+  <defs>
+    <marker id="l5a1" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#4b3f8f"></path></marker>
+    <marker id="l5a2" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#5e4fb0"></path></marker>
+    <marker id="l5a3" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#c98a1a"></path></marker>
+    <marker id="l5a4" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#2e5a7a"></path></marker>
+  </defs>
+</svg>
+</div>
+<div class="anim-caps">
+  <p class="anim-cap" data-step="1"><span class="n">1</span>A <strong>command</strong> reaches the handler, which loads the aggregate and runs <code>decide</code>. This is exactly Lessons 03&ndash;04.</p>
+  <p class="anim-cap" data-step="2"><span class="n">2</span>Accepted events are <strong>appended</strong> with an expected version. Each gets a <code>global_position</code> in the store&rsquo;s single ordered log (event #5 here).</p>
+  <p class="anim-cap" data-step="3"><span class="n">3</span>Each <strong>projection</strong> is an independent subscriber that reads the <em>global</em> log in order from its own <strong>checkpoint</strong>. Three projections, three different positions &mdash; they progress independently.</p>
+  <p class="anim-cap" data-step="4"><span class="n">4</span>For every event, the projection updates its read model <em>and</em> advances its checkpoint &mdash; ideally in <strong>one transaction</strong>, so a crash can&rsquo;t separate them.</p>
+  <p class="anim-cap" data-step="5"><span class="n">5</span>Each read model lives in whatever store fits the query: a Postgres table for lookups, a search index for text, an OLAP store for aggregates. They are <strong>disposable</strong> &mdash; all rebuildable from the log.</p>
+  <p class="anim-cap" data-step="6"><span class="n">6</span>The <strong>query API</strong> only ever reads read models. It never touches the event store for list/search queries, and nothing but the projection writes to a read model.</p>
+  <p class="anim-cap" data-step="7"><span class="n">7</span>The price: <strong>projection lag</strong>. DailyRevenue is two events behind head. That gap, in positions and in seconds, is the primary SLO of your read side.</p>
+</div>
+<figcaption>CQRS with event sourcing: one write model (streams), many read models (projections), connected by the ordered global log.</figcaption>
+</figure>
+
+<div class="callout insight">
+  <span class="label">Mental model</span>
+  <p>A projection is <strong>just another fold</strong> &mdash; <code>events.foldLeft(initial, evolve)</code> &mdash;
+  but over the <em>global</em> log instead of one stream, and into a database instead of memory. If you can
+  write <code>evolve</code>, you can write a projection.</p>
+</div>
+
+<h2>2. Writing a projection in Java</h2>
+
+<p>The read model and the checkpoint table (same Postgres database as the read model):</p>
+
+<pre><code>CREATE TABLE rm_account_balance (
+    account_id     TEXT PRIMARY KEY,
+    owner_id       TEXT    NOT NULL,
+    balance        NUMERIC(19,2) NOT NULL,
+    status         TEXT    NOT NULL DEFAULT 'OPEN',
+    last_position  BIGINT  NOT NULL          -- idempotency guard, per row
+);
+
+CREATE TABLE projection_checkpoints (
+    name      TEXT PRIMARY KEY,                -- e.g. 'account-balance-v1'
+    position  BIGINT NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);</code></pre>
+
+<p>The projection itself. Note the sealed-interface <code>switch</code>, the per-row guard and the
+checkpoint written inside the same <code>@Transactional</code> boundary:</p>
+
+<pre><code>public final class AccountBalanceProjection implements Projection {
+
+    private final JdbcTemplate jdbc;
+
+    public AccountBalanceProjection(JdbcTemplate jdbc) { this.jdbc = jdbc; }
+
+    @Override public String name() { return "account-balance-v1"; }   // versioned name!
+
+    @Override
+    @Transactional   // read-model update + checkpoint in ONE transaction
+    public void handle(EventEnvelope env) {
+        long pos = env.globalPosition();
+        switch (env.event()) {
+            case AccountEvent.AccountOpened e -&gt; jdbc.update("""
+                INSERT INTO rm_account_balance (account_id, owner_id, balance, last_position)
+                VALUES (?, ?, 0, ?)
+                ON CONFLICT (account_id) DO NOTHING
+                """, e.accountId(), e.ownerId(), pos);
+
+            case AccountEvent.MoneyDeposited e -&gt; jdbc.update("""
+                UPDATE rm_account_balance
+                   SET balance = balance + ?, last_position = ?
+                 WHERE account_id = ? AND last_position &lt; ?     -- idempotency guard
+                """, e.amount(), pos, e.accountId(), pos);
+
+            case AccountEvent.MoneyWithdrawn e -&gt; jdbc.update("""
+                UPDATE rm_account_balance
+                   SET balance = balance - ?, last_position = ?
+                 WHERE account_id = ? AND last_position &lt; ?
+                """, e.amount(), pos, e.accountId(), pos);
+
+            case AccountEvent.AccountClosed e -&gt; jdbc.update("""
+                UPDATE rm_account_balance
+                   SET status = 'CLOSED', last_position = ?
+                 WHERE account_id = ? AND last_position &lt; ?
+                """, pos, e.accountId(), pos);
+
+            default -&gt; { /* ignore events this projection doesn't care about */ }
+        }
+        jdbc.update("""
+            INSERT INTO projection_checkpoints (name, position) VALUES (?, ?)
+            ON CONFLICT (name) DO UPDATE SET position = EXCLUDED.position, updated_at = now()
+            """, name(), pos);
+    }
+}</code></pre>
+
+<p>And the runner that drives it &mdash; a polling catch-up loop (Lesson 08 covers subscriptions and the
+ordering trap hiding in <code>readAll</code>):</p>
+
+<pre><code>public void runOnce(Projection p) {
+    long from = checkpoints.get(p.name()).orElse(0L);
+    List&lt;EventEnvelope&gt; batch = store.readAll(from, 500);    // global_position &gt; from
+    for (EventEnvelope env : batch) {
+        try {
+            p.handle(env);                                       // own tx per event
+        } catch (Exception ex) {
+            retryOrPark(p, env, ex);                             // never silently skip
+            return;
+        }
+    }
+}</code></pre>
+
+<div class="callout warning">
+  <span class="label">Two small details that bite</span>
+  <p><strong>(1)</strong> The <code>default</code> branch still advances the checkpoint. A projection that
+  only cares about 2% of events must still move past the other 98%, or it re-reads them forever.
+  <strong>(2)</strong> One-transaction-per-event is correct but slow during catch-up. A common optimisation
+  is to apply a <em>batch</em> of events and write the checkpoint once at the end of the batch &mdash; still
+  one transaction, so the atomicity argument holds.</p>
+</div>
+
+<h2>3. The three properties every projection must have</h2>
+
+<table>
+  <thead><tr><th>Property</th><th>Why</th><th>How</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Idempotent</strong></td><td>Delivery is <em>at-least-once</em>. After a crash or redeploy you <strong>will</strong> see an event twice.</td><td>Store last processed position per row (guard <code>WHERE last_position &lt; :pos</code>) or per projection; <code>UPSERT</code>; dedupe on <code>event_id</code>.</td></tr>
+    <tr><td><strong>Checkpointed</strong></td><td>Resume from where you stopped, not from zero.</td><td>Save <code>globalPosition</code> &mdash; ideally <strong>in the same transaction</strong> as the read-model write &rArr; exactly-once <em>effect</em>.</td></tr>
+    <tr><td><strong>Rebuildable</strong></td><td>Bugs happen; requirements change.</td><td>Must be able to start from position 0 into a fresh table. <strong>Never</strong> write to a read model from anywhere else.</td></tr>
+  </tbody>
+</table>
+
+<p>
+  Why do you need <em>both</em> the same-transaction checkpoint <em>and</em> the per-row guard? Because the
+  read model is not always in the same database as the checkpoint. Writing to OpenSearch, Redis or a
+  different Postgres cluster means you can&rsquo;t share a transaction; then the <strong>idempotency guard is
+  your only defence</strong> (store the position on the document and use a conditional/versioned write).
+  Defence in depth is cheap here. Try it:
+</p>
+
+<div class="sim" data-sim="projection"></div>
+
+<p>
+  Do this sequence twice: with both safeguards <em>off</em>, click <em>Process next</em> twice, then
+  <em>crash before checkpoint</em>, then <em>Restart</em> &mdash; the balance double-counts. Now enable
+  <strong>only</strong> the guard, reset, and repeat: the redelivered event hits
+  <code>WHERE last_position &lt; :pos</code> and updates 0 rows. Then try <strong>only</strong> same-tx: the
+  crash rolls back the whole unit of work, so the redelivery is the <em>first</em> application.
+</p>
+
+<div class="callout insight">
+  <span class="label">&ldquo;Exactly-once&rdquo; is about effects, not delivery</span>
+  <p>No subscription mechanism gives you exactly-once <em>delivery</em> across a crash. What you can build is
+  exactly-once <em>effect</em>: at-least-once delivery + an idempotent, atomic apply. Say it this way in a
+  design review &mdash; it signals you know where the guarantee actually comes from.</p>
+</div>
+
+<h2>4. The projection lifecycle</h2>
+
+<p>
+  A projection is a long-running process with a small, explicit state machine. Making these states
+  observable (a <code>status</code> column next to the checkpoint, a gauge per state) is what lets on-call
+  reason about it at 3 a.m.
+</p>
+
+<figure>
+<svg viewBox="0 0 660 250" role="img" aria-label="Projection state machine: CatchingUp to Live; Live to Failed; Failed back to Live or to Parked; Live to Rebuilding and back to Live">
+  <g font-family="system-ui, sans-serif" font-size="11">
+    <circle cx="30" cy="70" r="7" fill="#4b3f8f"></circle>
+    <path d="M37 70 H86" stroke="#4b3f8f" stroke-width="1.5" marker-end="url(#l5b1)"></path>
+    <text x="60" y="60" text-anchor="middle" fill="#63625c" font-size="9">start @ ckpt</text>
+    <rect x="90" y="48" width="120" height="44" rx="10" fill="#efedf8" stroke="#4b3f8f" stroke-width="1.5"></rect>
+    <text x="150" y="68" text-anchor="middle" font-weight="700" fill="#4b3f8f">CatchingUp</text>
+    <text x="150" y="83" text-anchor="middle" fill="#63625c" font-size="9.5">reading history fast</text>
+    <path d="M210 70 H286" stroke="#4b3f8f" stroke-width="1.5" marker-end="url(#l5b1)"></path>
+    <text x="248" y="62" text-anchor="middle" fill="#63625c" font-size="9">reached head</text>
+    <rect x="290" y="48" width="120" height="44" rx="10" fill="#e3f3ec" stroke="#1f7a5e" stroke-width="1.5"></rect>
+    <text x="350" y="68" text-anchor="middle" font-weight="700" fill="#1f7a5e">Live</text>
+    <text x="350" y="83" text-anchor="middle" fill="#63625c" font-size="9.5">handle + checkpoint</text>
+    <path d="M330 48 C 320 18, 380 18, 370 48" stroke="#1f7a5e" fill="none" stroke-width="1.5" marker-end="url(#l5b2)"></path>
+    <text x="350" y="16" text-anchor="middle" fill="#1f7a5e" font-size="9">new event</text>
+    <path d="M410 62 H486" stroke="#b23b3b" stroke-width="1.5" marker-end="url(#l5b3)"></path>
+    <text x="448" y="55" text-anchor="middle" fill="#b23b3b" font-size="9">handler error</text>
+    <path d="M486 82 H410" stroke="#1f7a5e" stroke-width="1.5" marker-end="url(#l5b2)"></path>
+    <text x="448" y="96" text-anchor="middle" fill="#1f7a5e" font-size="9">retry succeeds</text>
+    <rect x="490" y="48" width="120" height="44" rx="10" fill="#f8eaea" stroke="#b23b3b" stroke-width="1.5"></rect>
+    <text x="550" y="68" text-anchor="middle" font-weight="700" fill="#b23b3b">Failed</text>
+    <text x="550" y="83" text-anchor="middle" fill="#63625c" font-size="9.5">backoff, retry</text>
+    <path d="M550 92 V146" stroke="#c98a1a" stroke-width="1.5" marker-end="url(#l5b4)"></path>
+    <text x="558" y="122" fill="#c98a1a" font-size="9">poison event</text>
+    <rect x="490" y="150" width="120" height="44" rx="10" fill="#fbf1e7" stroke="#c98a1a" stroke-width="1.5"></rect>
+    <text x="550" y="170" text-anchor="middle" font-weight="700" fill="#b5651d">Parked</text>
+    <text x="550" y="185" text-anchor="middle" fill="#63625c" font-size="9.5">alert a human</text>
+    <path d="M335 92 V146" stroke="#4b3f8f" stroke-width="1.5" marker-end="url(#l5b1)"></path>
+    <text x="250" y="122" fill="#4b3f8f" font-size="9">deploy v2 projection</text>
+    <rect x="290" y="150" width="120" height="44" rx="10" fill="#efedf8" stroke="#5e4fb0" stroke-width="1.5" stroke-dasharray="4 3"></rect>
+    <text x="350" y="170" text-anchor="middle" font-weight="700" fill="#5e4fb0">Rebuilding</text>
+    <text x="350" y="185" text-anchor="middle" fill="#63625c" font-size="9.5">v2 replays from 0</text>
+    <path d="M365 146 V96" stroke="#1f7a5e" stroke-width="1.5" marker-end="url(#l5b2)"></path>
+    <text x="372" y="122" fill="#1f7a5e" font-size="9">caught up &rarr; swap alias</text>
+    <text x="330" y="230" text-anchor="middle" fill="#63625c" font-size="10">Expose the state as a metric: a projection stuck in Failed or Parked is an incident, not a log line.</text>
+  </g>
+  <defs>
+    <marker id="l5b1" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#4b3f8f"></path></marker>
+    <marker id="l5b2" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#1f7a5e"></path></marker>
+    <marker id="l5b3" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#b23b3b"></path></marker>
+    <marker id="l5b4" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#c98a1a"></path></marker>
+  </defs>
+</svg>
+<figcaption>The projection state machine. &ldquo;Rebuilding&rdquo; is a <em>new</em> projection version running beside the live one (Lesson 06).</figcaption>
+</figure>
+
+<table>
+  <thead><tr><th>State</th><th>What&rsquo;s happening</th><th>What to watch</th></tr></thead>
+  <tbody>
+    <tr><td><strong>CatchingUp</strong></td><td>Reading history from checkpoint (or 0) as fast as possible, in big batches</td><td>events/sec, ETA to head</td></tr>
+    <tr><td><strong>Live</strong></td><td>At head; handles each new event + checkpoint</td><td>lag in positions and seconds</td></tr>
+    <tr><td><strong>Failed</strong></td><td>Handler threw; retrying with backoff. <em>Does not skip.</em></td><td>retry count, time in state</td></tr>
+    <tr><td><strong>Parked</strong></td><td>A poison event (bug, bad data) exhausted retries; projection halted &amp; alerted</td><td>parked count &mdash; should be 0</td></tr>
+    <tr><td><strong>Rebuilding</strong></td><td>A v2 replays from 0 into a fresh table beside v1</td><td>progress %, rebuild duration</td></tr>
+  </tbody>
+</table>
+
+<div class="callout warning">
+  <span class="label">Never &ldquo;log and continue&rdquo;</span>
+  <p>Skipping a failing event silently corrupts the read model forever &mdash; and nobody knows which rows
+  are wrong. For a per-entity projection you <em>may</em> choose to park just that entity and keep the
+  rest flowing; for an aggregating projection (totals) you must stop. Either way, it&rsquo;s a visible,
+  alerting state, not a <code>catch (Exception e) { log.warn(...) }</code>.</p>
+</div>
+
+<h2>5. Types of projections</h2>
+
+<table>
+  <thead><tr><th>Type</th><th>Example</th><th>Notes</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Per-entity (document)</strong></td><td><code>OrderDetails</code> per order</td><td>Easiest; parallelisable by stream id</td></tr>
+    <tr><td><strong>List / search</strong></td><td>&ldquo;Orders for customer X&rdquo;</td><td>A table with indexes, or a search index</td></tr>
+    <tr><td><strong>Aggregating</strong></td><td>Revenue per day</td><td>Beware non-commutative operations; prefer storing inputs</td></tr>
+    <tr><td><strong>Cross-stream join</strong></td><td>Order with customer name</td><td>Must also consume <code>CustomerRenamed</code>; keep a local lookup table</td></tr>
+    <tr><td><strong>In-memory</strong></td><td>Hot leaderboard</td><td>Rebuilt on startup; needs fast catch-up or a snapshot</td></tr>
+    <tr><td><strong>Live / ad-hoc</strong></td><td>One-off analytics over history</td><td>Run a temporary projection, throw it away</td></tr>
+    <tr><td><strong>Integration publisher</strong></td><td>Push to Kafka</td><td>A &ldquo;projection&rdquo; whose output is another system (<a href="0009-publishing-integration-events-and-kafka.html">Lesson 09</a>)</td></tr>
+  </tbody>
+</table>
+
+<h3>The cross-stream join, done right</h3>
+<p>
+  The tempting mistake is to call the Customer service (or query the customer table) from inside the
+  Order projection. That makes the projection&rsquo;s output depend on <em>when</em> you ran it &mdash; a
+  rebuild produces different rows than the original run, so it isn&rsquo;t deterministic and isn&rsquo;t
+  truly rebuildable. Instead, the projection consumes <strong>both</strong> streams&rsquo; events and keeps
+  its own lookup:
+</p>
+
+<pre><code>switch (env.event()) {
+    case CustomerEvent.CustomerRegistered e -&gt; lookup.upsert(e.customerId(), e.name(), pos);
+    case CustomerEvent.CustomerRenamed e    -&gt; {
+        lookup.upsert(e.customerId(), e.newName(), pos);
+        jdbc.update("UPDATE rm_orders SET customer_name = ? WHERE customer_id = ?",
+                    e.newName(), e.customerId());                // fan-out the rename
+    }
+    case OrderEvent.OrderPlaced e -&gt; jdbc.update("""
+        INSERT INTO rm_orders (order_id, customer_id, customer_name, total, last_position)
+        VALUES (?, ?, ?, ?, ?) ON CONFLICT (order_id) DO NOTHING
+        """, e.orderId(), e.customerId(), lookup.name(e.customerId()), e.total(), pos);
+    default -&gt; { }
+}</code></pre>
+
+<p>
+  Because both event types arrive in <em>global</em> order, the lookup is always exactly as up to date
+  as the order it&rsquo;s joining &mdash; on the first run and on every rebuild.
+</p>
+
+<div class="callout insight">
+  <span class="label">Aggregating projections: store inputs, not just totals</span>
+  <p><code>revenue = revenue + amount</code> is fine until a refund arrives for a day you&rsquo;ve
+  already &ldquo;closed&rdquo;, or a currency conversion rule changes. Keeping the per-event inputs
+  (e.g. one row per order line with its day) and computing totals with a query or materialised view
+  makes the projection idempotent by construction and cheaper to fix.</p>
+</div>
+
+<div class="primary-source">
+  <span class="label">Read this next (primary source)</span>
+  <p>Martin Fowler &mdash; <a href="https://martinfowler.com/bliki/CQRS.html" target="_blank" rel="noopener"><em>CQRS</em></a>
+  (including his warning that CQRS adds risky complexity and belongs only in specific bounded contexts), and
+  Microsoft&rsquo;s <a href="https://learn.microsoft.com/azure/architecture/patterns/cqrs" target="_blank" rel="noopener"><em>CQRS pattern</em></a>
+  in the Azure Architecture Center (read-model stores, eventual consistency, when not to use it).</p>
+</div>
+
+<h2>6. Check yourself</h2>
+<p>Retrieve before revealing.</p>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 1 of 3</p>
+  <p class="quiz-q">Your projection writes to OpenSearch while checkpoints live in Postgres. What protects you from double-applying an event after a crash?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="You can&rsquo;t open one ACID transaction across Postgres and OpenSearch.">wrapping both writes in one @Transactional method</button></li>
+    <li><button data-correct="false" data-feedback="No subscription can promise exactly-once delivery across a crash.">relying on the store&rsquo;s exactly-once delivery mode</button></li>
+    <li><button data-correct="false" data-feedback="Checkpointing earlier means a crash can lose the event instead — worse.">saving the checkpoint before writing the document</button></li>
+    <li><button data-correct="true" data-feedback="Right — store the position on the document and write conditionally; a replay becomes a no-op.">a position-based guard on each document write</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Same-transaction checkpoints only work when the read model shares the database. Across stores, idempotency (position or event_id guard) is your only defence."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 2 of 3</p>
+  <p class="quiz-q">An OrderSummary projection needs the customer&rsquo;s current name. The rebuild-safe design is to&hellip;</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="Right — consuming CustomerRenamed in global order makes the join deterministic on every rebuild.">consume customer events and keep a local lookup</button></li>
+    <li><button data-correct="false" data-feedback="The result then depends on when you ran it — a rebuild gives different rows.">call the Customer API from inside the handler</button></li>
+    <li><button data-correct="false" data-feedback="Read models are disposable views; joining against another live table breaks determinism the same way.">join to the live customers table at handle time</button></li>
+    <li><button data-correct="false" data-feedback="Event payloads should carry what the fact needs, not every attribute some view might want.">add the customer name to every order event</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="A projection must be a pure function of the log it consumes. External lookups at handle time make it non-deterministic and break rebuilds."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 3 of 3</p>
+  <p class="quiz-q">A projection hits an event it can&rsquo;t deserialise after 10 retries. The right default behaviour is to&hellip;</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="Silently skipping corrupts the read model with no trace of which rows are wrong.">log a warning, skip it and advance the checkpoint</button></li>
+    <li><button data-correct="false" data-feedback="Events are immutable; fix the code (e.g. an upcaster) rather than the history.">rewrite the stored event so that it can be parsed</button></li>
+    <li><button data-correct="true" data-feedback="Right — a visible, alerting state; parked count should always be zero.">park it, halt or isolate the projection, and alert</button></li>
+    <li><button data-correct="false" data-feedback="Retrying forever with no alert hides the incident and burns resources.">keep retrying it forever with exponential backoff</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Poison events go to a Parked state with an alert. Never 'log and continue' — the read model would be silently wrong forever."></div>
+</div>
+
+<div class="callout tryit">
+  <span class="label">Try it in your own system</span>
+  <ul class="checklist">
+    <li>Pick one read model at work (any denormalised table, cache or search index). Who writes to it? If the answer is &ldquo;more than one code path&rdquo;, it isn&rsquo;t rebuildable.</li>
+    <li>Build <code>AccountBalance</code> and <code>TransactionsByDay</code> projections on your Lesson 04 Postgres store (<code>podman run</code> a <code>postgres:16</code>). Kill the JVM mid catch-up with <code>kill -9</code>; verify no double counting on restart.</li>
+    <li>Add a <code>status</code> column to <code>projection_checkpoints</code> and expose lag (<code>head &minus; position</code>) as a Micrometer gauge.</li>
+  </ul>
+</div>
+
+<div class="followup">
+  <strong>I&rsquo;m your teacher &mdash; ask me anything.</strong> Unsure whether to batch checkpoints, how to
+  park one entity without halting the rest, or how this maps onto Axon tracking processors or Marten async
+  projections? Bring your projection code and we&rsquo;ll review it against the three properties.
+</div>
+
+<nav class="lesson-nav">
+  <span class="group">
+    <b>Reference</b>
+    <a href="../reference/0005-projection-checklist.html">Projection checklist &rarr;</a>
+  </span>
+  <span class="group">
+    <b>Previous</b>
+    <a href="0004-event-store-optimistic-concurrency.html">&larr; Lesson 04 · The event store &amp; optimistic concurrency</a>
+  </span>
+  <span class="group">
+    <b>Up next</b>
+    <a href="0006-rebuilds-and-eventual-consistency.html">Lesson 06 · Rebuilds &amp; eventual consistency &rarr;</a>
+  </span>
+</nav>
+
+</body>
+</html>

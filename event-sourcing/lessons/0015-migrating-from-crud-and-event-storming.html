@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 15 · Migrating from CRUD &amp; Event Storming</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<script src="../assets/quiz.js" defer></script>
+<script src="../assets/anim.js" defer></script>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Event Sourcing · Lesson 15</p>
+  <h1>Migrating from CRUD &amp; Event Storming</h1>
+  <div class="meta">
+    <span>◷ ~14 min read</span>
+    <span class="dot">•</span>
+    <span>Level 4 · Advanced</span>
+    <span class="dot">•</span>
+    <span>Prereq: <a href="0014-testing-event-sourced-systems.html">Lesson 14 · Testing event-sourced systems</a></span>
+  </div>
+</header>
+
+<p class="mission-tie">
+  You will almost never get a greenfield event-sourced system. You&rsquo;ll get a ten-year-old
+  <code>accounts</code> table with forty readers, and a product team that can&rsquo;t stop shipping while
+  you rebuild the foundations. This lesson is the safe path: a strangler-fig migration, honest import
+  events, shadow mode &mdash; and the workshop techniques (Event Storming, Event Modeling) you use to
+  discover the right events <em>with the business</em> before writing a line of code.
+</p>
+
+<h2>1. The strangler path, step by step</h2>
+
+<figure class="anim" data-anim>
+<div class="anim-stage">
+<svg viewBox="0 0 680 290" role="img" aria-label="Strangler fig migration in six steps from legacy CRUD tables to event-sourced context with projections">
+  <defs>
+    <marker id="l15a" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#4b3f8f"></path></marker>
+    <marker id="l15b" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#63625c"></path></marker>
+    <marker id="l15c" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#1f7a5e"></path></marker>
+  </defs>
+  <g font-family="system-ui, sans-serif" font-size="11">
+    <g class="anim-el" data-step="1">
+      <rect x="20" y="10" width="640" height="34" rx="6" fill="#efedf8" stroke="#4b3f8f"></rect>
+      <text x="340" y="25" text-anchor="middle" font-weight="700" fill="#4b3f8f">1 · Pick ONE bounded context where history has clear business value</text>
+      <text x="340" y="38" text-anchor="middle" fill="#63625c">Accounts ✓ · Product catalogue ✗ · User settings ✗</text>
+    </g>
+    <g class="anim-el" data-from="1" data-to="5">
+      <rect x="40" y="150" width="140" height="56" rx="6" fill="#f6f7f4" stroke="#63625c" stroke-width="1.5"></rect>
+      <text x="110" y="172" text-anchor="middle" font-weight="700" fill="#63625c">legacy tables</text>
+      <text x="110" y="188" text-anchor="middle" fill="#63625c">accounts, ledger_rows</text>
+      <rect x="40" y="240" width="140" height="34" rx="6" fill="#fff" stroke="#63625c"></rect>
+      <text x="110" y="261" text-anchor="middle" fill="#63625c">40 legacy readers</text>
+      <path d="M110 238 V210" stroke="#63625c" marker-end="url(#l15b)"></path>
+    </g>
+    <g class="anim-el" data-from="1" data-to="2">
+      <rect x="40" y="70" width="140" height="34" rx="6" fill="#fff" stroke="#63625c"></rect>
+      <text x="110" y="91" text-anchor="middle" fill="#63625c">writes (CRUD)</text>
+      <path d="M110 106 V146" stroke="#63625c" marker-end="url(#l15b)"></path>
+    </g>
+    <g class="anim-el" data-step="2">
+      <rect x="290" y="150" width="140" height="56" rx="6" fill="#efedf8" stroke="#4b3f8f" stroke-width="1.5"></rect>
+      <text x="360" y="172" text-anchor="middle" font-weight="700" fill="#4b3f8f">event store</text>
+      <text x="360" y="188" text-anchor="middle" fill="#4b3f8f">AccountImported × N</text>
+      <path d="M182 172 H286" stroke="#4b3f8f" stroke-dasharray="5 3" marker-end="url(#l15a)"></path>
+      <text x="234" y="166" text-anchor="middle" fill="#4b3f8f">seed once</text>
+    </g>
+    <g class="anim-el" data-step="3">
+      <rect x="290" y="70" width="140" height="34" rx="6" fill="#fff" stroke="#4b3f8f" stroke-width="1.5"></rect>
+      <text x="360" y="91" text-anchor="middle" fill="#4b3f8f">writes → aggregates</text>
+      <path d="M360 106 V146" stroke="#4b3f8f" marker-end="url(#l15a)"></path>
+    </g>
+    <g class="anim-el" data-from="4" data-to="5">
+      <path d="M288 196 H184" stroke="#1f7a5e" stroke-width="1.5" marker-end="url(#l15c)"></path>
+      <text x="236" y="212" text-anchor="middle" fill="#1f7a5e">legacy projection</text>
+    </g>
+    <g class="anim-el" data-step="5">
+      <rect x="490" y="150" width="160" height="56" rx="6" fill="#fff" stroke="#1f7a5e" stroke-width="1.5"></rect>
+      <text x="570" y="172" text-anchor="middle" font-weight="700" fill="#1f7a5e">new projections</text>
+      <text x="570" y="188" text-anchor="middle" fill="#1f7a5e">statement, balance…</text>
+      <path d="M432 178 H486" stroke="#1f7a5e" marker-end="url(#l15c)"></path>
+      <rect x="490" y="240" width="160" height="34" rx="6" fill="#fff" stroke="#1f7a5e"></rect>
+      <text x="570" y="261" text-anchor="middle" fill="#1f7a5e">readers migrate 1 by 1</text>
+      <path d="M570 238 V210" stroke="#1f7a5e" marker-end="url(#l15c)"></path>
+    </g>
+    <g class="anim-el" data-step="6">
+      <rect x="40" y="150" width="140" height="124" rx="6" fill="#fff" stroke="#b23b3b" stroke-dasharray="5 3"></rect>
+      <text x="110" y="205" text-anchor="middle" fill="#b23b3b" font-weight="700">decommissioned</text>
+      <text x="110" y="222" text-anchor="middle" fill="#b23b3b">(archived, read-only)</text>
+    </g>
+  </g>
+</svg>
+</div>
+<div class="anim-caps">
+  <p class="anim-cap" data-step="1"><span class="n">1</span>Scope ruthlessly: <strong>one</strong> bounded context where audit or behavioural history has clear business value. Everything else stays CRUD.</p>
+  <p class="anim-cap" data-step="2"><span class="n">2</span>Seed one stream per entity with an honest <strong>migration event</strong> carrying the current state (<span class="term">AccountImported</span>). History before this point is not invented.</p>
+  <p class="anim-cap" data-step="3"><span class="n">3</span>Route <strong>all writes</strong> for that context through event-sourced aggregates. The legacy write path is switched off &mdash; there must be a single writer.</p>
+  <p class="anim-cap" data-step="4"><span class="n">4</span>A projection writes events <strong>back into the legacy tables</strong>, so the 40 existing readers keep working unchanged. The legacy schema is now a read model.</p>
+  <p class="anim-cap" data-step="5"><span class="n">5</span>Build purpose-made projections and move readers to them <strong>one by one</strong>, each a small, reversible change.</p>
+  <p class="anim-cap" data-step="6"><span class="n">6</span>When the last reader has moved, stop the legacy projection and decommission the tables (archive first).</p>
+</div>
+<figcaption>Strangler fig: every step is shippable and reversible; at no point does the business stop.</figcaption>
+</figure>
+
+<table>
+  <thead><tr><th>Step</th><th>Exit criterion before the next step</th><th>Rollback</th></tr></thead>
+  <tbody>
+    <tr><td>2 · Seed</td><td>Folded state of every stream == legacy row (automated reconciliation)</td><td>drop the streams, re-import</td></tr>
+    <tr><td>3 · Route writes</td><td>Shadow mode diff at zero for N days</td><td>flip the feature flag back to CRUD writes</td></tr>
+    <tr><td>4 · Project back</td><td>Legacy readers see identical data; projection lag within SLO</td><td>still possible: legacy tables are complete</td></tr>
+    <tr><td>5 · Move readers</td><td>Per-reader sign-off</td><td>point that reader back at legacy tables</td></tr>
+    <tr><td>6 · Decommission</td><td>Zero queries on legacy tables for a full business cycle (month-end!)</td><td>restore from archive</td></tr>
+  </tbody>
+</table>
+
+<h2>2. Honest import events</h2>
+
+<p>You know the account&rsquo;s balance today. You do <em>not</em> know the 3,000 deposits that produced
+it &mdash; and even if an old audit table hints at them, it&rsquo;s probably incomplete. Don&rsquo;t
+fabricate a fake history; name the event for what actually happened: <em>we imported it</em>.</p>
+
+<pre><code>public sealed interface AccountEvent permits
+        AccountEvent.AccountImported, AccountEvent.AccountOpened,
+        AccountEvent.MoneyDeposited, AccountEvent.MoneyWithdrawn, AccountEvent.AccountClosed {
+
+    /** Honest migration event: "this is what the legacy system said on import". */
+    record AccountImported(String accountId, String ownerId, String currency,
+                           BigDecimal balance, String legacyStatus,
+                           Instant legacyCreatedAt,      // as reported by legacy, not trusted as fact
+                           String importBatchId, Instant at) implements AccountEvent {}
+    // ...
+}
+
+// evolve: an imported account starts life with its migrated balance
+case AccountImported e -&gt; switch (e.legacyStatus()) {
+    case "CLOSED" -&gt; new AccountState.Closed(e.accountId());
+    default       -&gt; new AccountState.Open(e.accountId(), e.balance());
+};</code></pre>
+
+<pre><code>-- One-off seeding job: idempotent per account (expected version 0 = stream must not exist)
+SELECT id, owner_id, currency, balance, status, created_at
+FROM   accounts
+WHERE  id &gt; :last_id
+ORDER  BY id
+LIMIT  1000;   -- keyset pagination; append each as AccountImported with expectedVersion = 0</code></pre>
+
+<table>
+  <thead><tr><th>Honest</th><th>Fabricated (avoid)</th></tr></thead>
+  <tbody>
+    <tr><td><code>AccountImported{balance: 8412.00}</code></td><td><code>AccountOpened</code> + synthetic <code>MoneyDeposited 8412.00</code></td></tr>
+    <tr><td><code>LegacyStateSnapshotted</code></td><td>3,000 &ldquo;reconstructed&rdquo; deposits from a lossy audit table</td></tr>
+    <tr><td>Auditor sees exactly where knowledge begins</td><td>Auditor sees a deposit that never happened &mdash; a compliance problem</td></tr>
+  </tbody>
+</table>
+
+<div class="callout warning">
+  <span class="label">Single writer, or you&rsquo;ll corrupt both</span>
+  <p>Once writes go through aggregates, <strong>nothing</strong> else may write the legacy tables for that
+  context &mdash; no batch job, no admin UI, no &ldquo;quick SQL fix&rdquo;. Hunt down every writer
+  before step 3 (grep, <code>pg_stat_statements</code>, revoke <code>UPDATE</code> on the tables). A
+  second writer means the legacy projection silently overwrites someone else&rsquo;s change.</p>
+</div>
+
+<h2>3. Project back into the legacy tables</h2>
+
+<pre><code>/** The old schema becomes just another read model.
+ *  Assumes a `version` column added to the legacy table and set to 1 by the seeding job. */
+public final class LegacyAccountsProjection implements Projection&lt;AccountEvent&gt; {
+    public void apply(EventEnvelope&lt;AccountEvent&gt; env, JdbcTemplate tx) {
+        switch (env.event()) {
+            case AccountImported e -&gt; { /* rows already exist: nothing to write */ }
+            case AccountOpened e   -&gt; tx.update("""
+                    INSERT INTO accounts(id, owner_id, currency, balance, status)
+                    VALUES (?, ?, ?, 0, 'OPEN') ON CONFLICT (id) DO NOTHING""",
+                    e.accountId(), e.ownerId(), e.currency());
+            case MoneyDeposited e  -&gt; tx.update(
+                    "UPDATE accounts SET balance = balance + ?, version = ? WHERE id = ? AND version &lt; ?",
+                    e.amount(), env.streamVersion(), e.accountId(), env.streamVersion());
+            case MoneyWithdrawn e  -&gt; tx.update(
+                    "UPDATE accounts SET balance = balance - ?, version = ? WHERE id = ? AND version &lt; ?",
+                    e.amount(), env.streamVersion(), e.accountId(), env.streamVersion());
+            case AccountClosed e   -&gt; tx.update(
+                    "UPDATE accounts SET status = 'CLOSED', version = ? WHERE id = ? AND version &lt; ?",
+                    env.streamVersion(), e.accountId(), env.streamVersion());
+        }
+    }
+}</code></pre>
+
+<p>The <code>version &lt; ?</code> guard makes increments idempotent under redelivery &mdash; the same
+technique from Lesson 05, applied to a schema you didn&rsquo;t design.</p>
+
+<h2>4. Shadow mode: prove it before you cut over</h2>
+
+<p>Before step 3 goes live, run both paths for every real command: the legacy CRUD code still
+<em>owns</em> the data; the event-sourced path runs alongside into a shadow store. A reconciler compares
+results continuously.</p>
+
+<table>
+  <thead><tr><th>Compare</th><th>How</th><th>A diff usually means</th></tr></thead>
+  <tbody>
+    <tr><td>Accept/reject decision</td><td>log both outcomes per request id</td><td>a business rule the legacy code enforces implicitly (a trigger, a constraint)</td></tr>
+    <tr><td>Resulting state</td><td>folded shadow state vs legacy row, nightly + sampled live</td><td>rounding, time-zones, an undocumented side path</td></tr>
+    <tr><td>Side effects</td><td>shadow path has reactors <strong>disabled</strong></td><td>&mdash; (never send emails twice)</td></tr>
+  </tbody>
+</table>
+
+<div class="callout insight">
+  <span class="label">Shadow mode is a discovery tool</span>
+  <p>Every diff is a rule nobody wrote down. Teams that skip shadow mode find those rules in
+  production. Leave it running until the diff rate is zero across at least one full business cycle
+  (month-end, year-end batch, renewal season).</p>
+</div>
+
+<h2>5. CDC is not event sourcing</h2>
+
+<p>A tempting shortcut: point Debezium at the legacy database and call the change stream &ldquo;our
+events&rdquo;. It&rsquo;s a genuinely useful <em>integration</em> step &mdash; but it isn&rsquo;t event
+sourcing.</p>
+
+<pre><code>// Debezium change event (simplified): a DATA diff
+{ "op": "u", "source": {"table": "accounts"},
+  "before": {"id": 42, "balance": 100.00, "status": 2},
+  "after":  {"id": 42, "balance":  70.00, "status": 3} }
+
+// Domain event: a BUSINESS fact
+{ "type": "MoneyWithdrawn", "accountId": "42", "amount": 30.00,
+  "channel": "ATM", "reason": "cash withdrawal" }</code></pre>
+
+<table>
+  <thead><tr><th></th><th>CDC change event</th><th>Domain event</th></tr></thead>
+  <tbody>
+    <tr><td>Source of truth</td><td>the table; the log is a by-product</td><td>the log; tables are by-products</td></tr>
+    <tr><td>Meaning</td><td>&ldquo;row changed&rdquo; (<code>status 2&rarr;3</code>)</td><td>&ldquo;what happened and why&rdquo;</td></tr>
+    <tr><td>Intent</td><td>lost &mdash; <code>AddressCorrected</code> and <code>CustomerMoved</code> look identical</td><td>explicit</td></tr>
+    <tr><td>Coupling</td><td>consumers bound to your table schema</td><td>consumers bound to a designed contract</td></tr>
+    <tr><td>Good for</td><td>integration from legacy, cache invalidation, outbox relay</td><td>rebuilding state, audit, new projections</td></tr>
+  </tbody>
+</table>
+
+<h2>6. Discovering events: Event Storming</h2>
+
+<p>
+  Alberto Brandolini&rsquo;s <strong>Event Storming</strong> is a workshop: domain experts and engineers,
+  a very long wall, and sticky notes. You start with <em>chaotic exploration</em> (everyone writes domain
+  events, past tense, orange), then enforce a <em>timeline</em>, mark <em>hotspots</em>, find
+  <em>pivotal events</em> that split the story into phases, and only then add commands, actors, policies,
+  aggregates and read models. Boundaries between clusters become bounded-context candidates.
+</p>
+
+<table>
+  <thead><tr><th>Sticky</th><th>Colour</th><th>Example</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Domain event</strong></td><td><span style="background:#f5a25d;padding:0 .4em;border-radius:3px">orange</span></td><td>OrderPlaced, PaymentCaptured</td></tr>
+    <tr><td><strong>Command</strong></td><td><span style="background:#8cc4f0;padding:0 .4em;border-radius:3px">blue</span></td><td>PlaceOrder, CapturePayment</td></tr>
+    <tr><td><strong>Aggregate</strong></td><td><span style="background:#f7e27a;padding:0 .4em;border-radius:3px">yellow (large)</span></td><td>Order, Payment</td></tr>
+    <tr><td>Actor / user</td><td><span style="background:#fbf3b5;padding:0 .4em;border-radius:3px">small yellow</span></td><td>Customer, Warehouse clerk</td></tr>
+    <tr><td><strong>Policy</strong> (&ldquo;whenever&hellip; then&hellip;&rdquo;)</td><td><span style="background:#c9b6e8;padding:0 .4em;border-radius:3px">lilac</span></td><td>When OrderPlaced &rarr; ReserveStock</td></tr>
+    <tr><td><strong>Read model</strong></td><td><span style="background:#a8dca8;padding:0 .4em;border-radius:3px">green</span></td><td>Order status page</td></tr>
+    <tr><td>External system</td><td><span style="background:#f5b8cf;padding:0 .4em;border-radius:3px">pink</span></td><td>Payment provider</td></tr>
+    <tr><td><strong>Hotspot</strong></td><td><span style="background:#e0605a;color:#fff;padding:0 .4em;border-radius:3px">red</span></td><td>&ldquo;Who decides refunds over &euro;500?&rdquo;</td></tr>
+  </tbody>
+</table>
+
+<figure>
+<svg viewBox="0 0 680 200" role="img" aria-label="Event storming wall: actor, command, aggregate, event, policy, read model and hotspot stickies along a timeline">
+  <defs>
+    <marker id="l15d" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#63625c"></path></marker>
+  </defs>
+  <g font-family="system-ui, sans-serif" font-size="11">
+    <line x1="10" y1="190" x2="670" y2="190" stroke="#63625c" marker-end="url(#l15d)"></line>
+    <text x="600" y="184" fill="#63625c">time →</text>
+    <rect x="10" y="70" width="60" height="30" fill="#fbf3b5"></rect><text x="40" y="89" text-anchor="middle">Customer</text>
+    <rect x="80" y="60" width="90" height="50" fill="#8cc4f0"></rect><text x="125" y="89" text-anchor="middle">PlaceOrder</text>
+    <rect x="180" y="20" width="90" height="40" fill="#f7e27a"></rect><text x="225" y="44" text-anchor="middle">Order</text>
+    <rect x="180" y="70" width="90" height="50" fill="#f5a25d"></rect><text x="225" y="99" text-anchor="middle">OrderPlaced</text>
+    <rect x="280" y="70" width="110" height="50" fill="#c9b6e8"></rect><text x="335" y="91" text-anchor="middle">When placed</text><text x="335" y="106" text-anchor="middle">→ reserve stock</text>
+    <rect x="400" y="60" width="90" height="50" fill="#8cc4f0"></rect><text x="445" y="89" text-anchor="middle">ReserveStock</text>
+    <rect x="500" y="20" width="90" height="40" fill="#f7e27a"></rect><text x="545" y="44" text-anchor="middle">Inventory</text>
+    <rect x="500" y="70" width="100" height="50" fill="#f5a25d"></rect><text x="550" y="99" text-anchor="middle">StockReserved</text>
+    <rect x="180" y="130" width="110" height="40" fill="#a8dca8"></rect><text x="235" y="154" text-anchor="middle">Order status view</text>
+    <rect x="500" y="130" width="140" height="40" fill="#e0605a" transform="rotate(-3 570 150)"></rect><text x="570" y="154" text-anchor="middle" fill="#fff" transform="rotate(-3 570 150)">Out of stock → ???</text>
+  </g>
+</svg>
+<figcaption>A slice of an Event Storming wall. The red hotspot is the most valuable sticky in the room: an open question the business hasn&rsquo;t answered.</figcaption>
+</figure>
+
+<h2>7. Designing slices: Event Modeling</h2>
+
+<p>
+  Adam Dymitruk&rsquo;s <strong>Event Modeling</strong> turns the storm into a blueprint: a single
+  left-to-right timeline of screens (UI wireframes), commands, events and views. It has only four
+  patterns &mdash; <strong>state change</strong> (UI &rarr; command &rarr; event), <strong>state view</strong>
+  (events &rarr; view &rarr; UI), <strong>automation</strong> (view &rarr; processor &rarr; command) and
+  <strong>translation</strong> (external events &rarr; our events). Each vertical <em>slice</em> is
+  independently buildable and comes with its own Given/When/Then spec &mdash; exactly the tests from
+  Lesson 14.
+</p>
+
+<pre><code>Slice: "Place order"                      Slice: "Order status"
+  Given  CartCheckedOut{cart: C1}            Given  OrderPlaced{O1}, StockReserved{O1}
+  When   PlaceOrder{cart: C1}                Then   view OrderStatus{O1} = "Reserved"
+  Then   OrderPlaced{order: O1, total: 80}</code></pre>
+
+<table>
+  <thead><tr><th></th><th>Event Storming</th><th>Event Modeling</th></tr></thead>
+  <tbody>
+    <tr><td>Goal</td><td>explore the domain; find boundaries and hotspots</td><td>specify the system; plan delivery</td></tr>
+    <tr><td>Output</td><td>bounded contexts, aggregates, language</td><td>slices with GWT specs, ready to estimate</td></tr>
+    <tr><td>When</td><td>early, messy, &ldquo;big picture&rdquo;</td><td>after boundaries are known</td></tr>
+  </tbody>
+</table>
+
+<div class="callout insight">
+  <span class="label">The Staff contribution</span>
+  <p>Staff engineers <strong>facilitate</strong> these workshops with product and domain experts.
+  It&rsquo;s often the highest-leverage thing you&rsquo;ll do on an ES adoption: the code follows from
+  a good model, and a bad model (<code>OrderUpdated</code>, <code>StatusChanged</code>) can&rsquo;t be
+  rescued by good code.</p>
+</div>
+
+<div class="primary-source">
+  <span class="label">Read this next (primary source)</span>
+  <p>Alberto Brandolini &mdash; <a href="https://leanpub.com/introducing_eventstorming" target="_blank" rel="noopener"><em>Introducing EventStorming</em></a>
+  (Leanpub) and Adam Dymitruk &mdash; <a href="https://eventmodeling.org/" target="_blank" rel="noopener"><em>eventmodeling.org</em></a>.
+  For migration, Martin Fowler&rsquo;s <a href="https://martinfowler.com/eaaDev/EventSourcing.html" target="_blank" rel="noopener"><em>Event Sourcing</em></a>
+  remains the clearest statement of what you&rsquo;re migrating <em>to</em>.</p>
+</div>
+
+<h2>8. Check yourself</h2>
+<p>Retrieve before revealing.</p>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 1 of 3</p>
+  <p class="quiz-q">You&rsquo;re seeding streams from a legacy <code>accounts</code> table. Which first event is right?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="That fabricates a deposit that never happened.">AccountOpened plus a synthetic MoneyDeposited</button></li>
+    <li><button data-correct="true" data-feedback="Right — honest about where knowledge begins.">AccountImported carrying the current balance</button></li>
+    <li><button data-correct="false" data-feedback="A CRUD-style diff event with no business meaning.">AccountUpdated with every column of the row</button></li>
+    <li><button data-correct="false" data-feedback="Audit tables are usually lossy; this invents history.">a deposit per row in the old audit_log table</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Name migration events for what happened: the state was imported. Never fabricate history you don&rsquo;t actually know."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 2 of 3</p>
+  <p class="quiz-q">Writes now go through aggregates, but 40 reports still query the old tables. You should&hellip;</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="Two writers will overwrite each other&rsquo;s changes.">keep the CRUD writes too, so both stores stay in sync</button></li>
+    <li><button data-correct="false" data-feedback="A big-bang rewrite is exactly what the strangler avoids.">rewrite all 40 reports before switching any writes</button></li>
+    <li><button data-correct="true" data-feedback="Right — legacy tables become a read model; readers move one by one.">project events back into the legacy tables for now</button></li>
+    <li><button data-correct="false" data-feedback="Business reads on the event store are an anti-pattern.">point the reports at the events table with JSONB SQL</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Strangler step 4: a projection keeps the legacy schema populated, so old readers keep working while you migrate them individually."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 3 of 3</p>
+  <p class="quiz-q">In an Event Storming workshop, the red/hotspot stickies mark&hellip;</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="Those are pink: systems outside your control.">external systems the domain must integrate with</button></li>
+    <li><button data-correct="false" data-feedback="Those are lilac: reactive rules.">policies that react to events by issuing commands</button></li>
+    <li><button data-correct="false" data-feedback="Errors are usually just more orange events (PaymentFailed).">failure events such as PaymentFailed or Timeout</button></li>
+    <li><button data-correct="true" data-feedback="Right — questions, conflicts and pain points to resolve.">open questions, disagreements and known pain points</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Orange = events, blue = commands, yellow = aggregates/actors, lilac = policies, green = read models, pink = external systems, red = hotspots."></div>
+</div>
+
+<div class="callout tryit">
+  <span class="label">Try it in your own system</span>
+  <ul class="checklist">
+    <li>Pick one CRUD table you&rsquo;d migrate. List every writer (code, jobs, humans). Could you make it single-writer?</li>
+    <li>Design its import event. What does the legacy system know, and what must you <em>not</em> pretend to know?</li>
+    <li>Run a 90-minute Event Storming with one domain expert on a single process. Count the hotspots.</li>
+    <li>Turn one cluster into two Event Modeling slices, each with a Given/When/Then.</li>
+  </ul>
+</div>
+
+<div class="followup">
+  <strong>I&rsquo;m your teacher &mdash; ask me anything.</strong> Want a facilitation script for your
+  first Event Storming, or help writing the reconciliation job for shadow mode? Bring your legacy
+  schema.
+</div>
+
+<nav class="lesson-nav">
+  <span class="group">
+    <b>Reference</b>
+    <a href="../reference/0011-adr-template-and-review-questions.html">ADR template &amp; review questions &rarr;</a>
+  </span>
+  <span class="group">
+    <b>Previous</b>
+    <a href="0014-testing-event-sourced-systems.html">&larr; Lesson 14 · Testing event-sourced systems</a>
+  </span>
+  <span class="group">
+    <b>Up next</b>
+    <a href="0016-staff-judgement-when-not-to-and-the-adr.html">Lesson 16 · When (not) to event-source &amp; the ADR &rarr;</a>
+  </span>
+</nav>
+
+</body>
+</html>

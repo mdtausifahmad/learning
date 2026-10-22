@@ -1,0 +1,29 @@
+---
+permalink: /404.html
+layout: null
+---
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Not found · Principal Engineering</title>
+<link rel="stylesheet" href="{{ '/assets/site.css' | relative_url }}">
+<script>
+  // Course pages link to markdown sources (GLOSSARY.md, lab/README.md …). Pages publishes
+  // those as rendered HTML, so forward *.md requests to the rendered page.
+  (function () {
+    var p = location.pathname;
+    if (/\.md$/i.test(p)) {
+      var to = /\/README\.md$/i.test(p) ? p.replace(/README\.md$/i, '') : p.replace(/\.md$/i, '.html');
+      location.replace(to + location.search + location.hash);
+    }
+  })();
+</script>
+</head>
+<body>
+  <p class="eyebrow">404</p>
+  <h1>Page not found</h1>
+  <p>That page doesn’t exist. Head back to the <a href="{{ '/' | relative_url }}">course map</a>.</p>
+</body>
+</html>

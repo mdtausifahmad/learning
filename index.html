@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Principal Engineering — Senior → Staff → Principal</title>
+<meta name="description" content="A personal, evidence-based playbook and course library for growing from Senior to Staff and Principal engineer.">
+<link rel="stylesheet" href="assets/site.css">
+</head>
+<body>
+
+<header>
+  <p class="eyebrow">Principal-Engineering Track</p>
+  <h1>From Senior to Staff to Principal</h1>
+  <p class="lede">A personal, evidence-based playbook for the next stage of an engineering career, plus
+    interactive courses and deep dives for every skill it calls for.</p>
+  <p class="meta">7-part playbook · 3 interactive courses · 24 deep-dive guides</p>
+</header>
+
+<h2>Start here: the playbook</h2>
+<p>Read these in order the first time, then come back to them as reference. The
+  <a href="overview.html" data-md="README.md">overview</a> explains the one idea behind all of it:
+  Staff is a different job, not a better Senior.</p>
+<ol class="path"><li><a href="01-what-is-required.html" data-md="01-what-is-required.md">What Is Required From a Staff / Principal Engineer</a><br><span class="desc">What Staff/Principal actually is: archetypes, competency matrices, the exact gap.</span></li><li><a href="02-skills-to-upgrade.html" data-md="02-skills-to-upgrade.md">Skills to Upgrade</a><br><span class="desc">Every technical and leadership topic to level up, and what good looks like.</span></li><li><a href="03-career-progression-plan.html" data-md="03-career-progression-plan.md">Career Progression Plan (Step-by-Step)</a><br><span class="desc">The phased 12–18 month plan combining study, leadership and a promotion campaign.</span></li><li><a href="04-subjects-and-resources.html" data-md="04-subjects-and-resources.md">Subjects &amp; Resources — The Study Curriculum</a><br><span class="desc">The sequenced study curriculum: courses, books, lectures, time estimates.</span></li><li><a href="05-promotion-playbook.html" data-md="05-promotion-playbook.md">Promotion Playbook</a><br><span class="desc">Getting the title: promo packet, staff projects, the committee process.</span></li><li><a href="06-self-assessment-and-tracking.html" data-md="06-self-assessment-and-tracking.md">Self-Assessment &amp; Tracking</a><br><span class="desc">Self-scoring, the brag doc, milestones and the manager 1:1 script.</span></li><li><a href="07-real-world-stories.html" data-md="07-real-world-stories.md">Real-World Stories &amp; Lessons</a><br><span class="desc">Ten first-person stories of people who made the jump, and what they learned.</span></li></ol>
+
+<h2>Interactive courses</h2>
+<p>Lessons with step-through animations, live simulators, quizzes, cheat sheets and runnable Podman labs.</p>
+<div class="courses">
+  <article class="course es">
+    <h3><a href="event-sourcing/index.html">Event Sourcing</a></h3>
+    <p>Level zero to Staff: deciders, Postgres event stores, projections, the gap problem, schema evolution, GDPR, and when not to.</p>
+    <p class="meta">16 lessons · 12 references · lab · <a href="event-sourcing/GUIDE.html" data-md="event-sourcing/GUIDE.md">full guide</a></p>
+  </article>
+  <article class="course async">
+    <h3><a href="async-messaging/lessons/0001-why-async.html">Async Messaging</a></h3>
+    <p>Queues, Kafka internals, delivery guarantees, idempotency, outbox, sagas and CDC with Debezium.</p>
+    <p class="meta">19 lessons · 19 cheat sheets · <a href="async-messaging/capstone/capstone-brief.html">capstone</a></p>
+  </article>
+  <article class="course obs">
+    <h3><a href="Observability/index.html">Reliability &amp; Observability</a></h3>
+    <p>SLIs, SLOs and error budgets, golden signals, incidents, overload, safe change and NALSD.</p>
+    <p class="meta">16 lessons · 17 references · lab</p>
+  </article>
+</div>
+
+<details>
+  <summary>All Async Messaging lessons and cheat sheets</summary>
+  <h3>Lessons</h3>
+  <ol class="cols"><li><a href="async-messaging/lessons/0001-why-async.html">Why Async? The Problem Messaging Solves</a></li><li><a href="async-messaging/lessons/0002-queue-vs-topic.html">Queues vs Topics — One Consumer or Many?</a></li><li><a href="async-messaging/lessons/0003-kafka-consumer-groups-deep-dive.html">Deep Dive — Kafka Consumer Groups &amp; Partition Assignment</a></li><li><a href="async-messaging/lessons/0004-event-command-query.html">Event vs Command vs Query</a></li><li><a href="async-messaging/lessons/0005-delivery-guarantees.html">Delivery Guarantees — At-Most / At-Least / Exactly-Once</a></li><li><a href="async-messaging/lessons/0006-kafka-exactly-once-internals.html">Deep Dive — Inside Kafka Exactly-Once</a></li><li><a href="async-messaging/lessons/0007-operating-kafka-exactly-once.html">Deep Dive — Operating Kafka Exactly-Once</a></li><li><a href="async-messaging/lessons/0008-idempotency-deduplication.html">Idempotency &amp; Deduplication in Depth</a></li><li><a href="async-messaging/lessons/0009-ordering-partitioning.html">Ordering &amp; Partitioning</a></li><li><a href="async-messaging/lessons/0010-backpressure-load-leveling.html">Backpressure &amp; Load Leveling</a></li><li><a href="async-messaging/lessons/0011-retries-dlq-poison-messages.html">Retries, Dead-Letter Queues &amp; Poison Messages</a></li><li><a href="async-messaging/lessons/0012-log-vs-queue-brokers.html">Log vs Queue Brokers — Internals</a></li><li><a href="async-messaging/lessons/0013-choreography-orchestration.html">Event-Driven Architecture — Choreography vs Orchestration</a></li><li><a href="async-messaging/lessons/0014-transactional-outbox.html">Transactional Outbox &amp; the Dual-Write Problem</a></li><li><a href="async-messaging/lessons/0015-saga-pattern.html">The Saga Pattern &amp; Distributed Workflows</a></li><li><a href="async-messaging/lessons/0016-schema-evolution.html">Schema Evolution &amp; Contracts</a></li><li><a href="async-messaging/lessons/0017-event-sourcing-cqrs.html">Event Sourcing &amp; CQRS</a></li><li><a href="async-messaging/lessons/0018-observability-when-not-to.html">Observability, Operations &amp; When NOT to Use Messaging</a></li><li><a href="async-messaging/lessons/0019-debezium-postgresql-cdc-atlas.html">Debezium ⇄ PostgreSQL CDC, Animated</a></li></ol>
+  <h3>Cheat sheets</h3>
+  <ol class="cols"><li><a href="async-messaging/reference/0001-sync-vs-async-cheatsheet.html">Sync ↔ Async Decision</a></li><li><a href="async-messaging/reference/0002-queue-vs-topic-cheatsheet.html">Queue ↔ Topic</a></li><li><a href="async-messaging/reference/0003-kafka-consumer-groups-cheatsheet.html">Kafka Consumer Group Internals</a></li><li><a href="async-messaging/reference/0004-event-command-query-cheatsheet.html">Event / Command / Query</a></li><li><a href="async-messaging/reference/0005-delivery-guarantees-cheatsheet.html">Delivery Guarantees</a></li><li><a href="async-messaging/reference/0006-kafka-exactly-once-internals-cheatsheet.html">Inside Kafka Exactly-Once</a></li><li><a href="async-messaging/reference/0007-operating-kafka-exactly-once-cheatsheet.html">Operating Kafka Exactly-Once</a></li><li><a href="async-messaging/reference/0008-idempotency-cheatsheet.html">Idempotency &amp; Deduplication</a></li><li><a href="async-messaging/reference/0009-ordering-partitioning-cheatsheet.html">Ordering &amp; Partitioning</a></li><li><a href="async-messaging/reference/0010-backpressure-load-leveling-cheatsheet.html">Backpressure &amp; Load Leveling</a></li><li><a href="async-messaging/reference/0011-retries-dlq-cheatsheet.html">Retries &amp; Dead-Letter Queues</a></li><li><a href="async-messaging/reference/0012-log-vs-queue-cheatsheet.html">Log vs Queue Brokers</a></li><li><a href="async-messaging/reference/0013-choreography-orchestration-cheatsheet.html">Choreography vs Orchestration</a></li><li><a href="async-messaging/reference/0014-transactional-outbox-cheatsheet.html">Transactional Outbox</a></li><li><a href="async-messaging/reference/0015-saga-cheatsheet.html">The Saga Pattern</a></li><li><a href="async-messaging/reference/0016-schema-evolution-cheatsheet.html">Schema Evolution</a></li><li><a href="async-messaging/reference/0017-event-sourcing-cqrs-cheatsheet.html">Event Sourcing &amp; CQRS</a></li><li><a href="async-messaging/reference/0018-observability-when-not-cheatsheet.html">Observability &amp; When Not To</a></li><li><a href="async-messaging/reference/0019-debezium-postgresql-cdc-cheatsheet.html">Debezium ⇄ PostgreSQL CDC</a></li></ol>
+</details>
+
+<h2>Deep-dive guides</h2>
+
+<h3><a href="system-design/" data-md="system-design/README.md">System design &amp; architecture at scale</a></h3>
+<ol class="cols"><li><a href="system-design/01-scalability-tradeoff-axes.html" data-md="system-design/01-scalability-tradeoff-axes.md">Scalability Trade-off Axes</a></li><li><a href="system-design/02-cap-theorem-consistency-models.html" data-md="system-design/02-cap-theorem-consistency-models.md">CAP Theorem &amp; Consistency Models</a></li><li><a href="system-design/03-databases-and-data-modeling.html" data-md="system-design/03-databases-and-data-modeling.md">Databases &amp; Data Modeling</a></li><li><a href="system-design/04-caching.html" data-md="system-design/04-caching.md">Caching</a></li><li><a href="system-design/05-asynchronism-and-messaging.html" data-md="system-design/05-asynchronism-and-messaging.md">Asynchronism &amp; Messaging</a></li><li><a href="system-design/06-networking-and-api-design.html" data-md="system-design/06-networking-and-api-design.md">Networking &amp; API Design</a></li><li><a href="system-design/07-back-of-envelope-estimation.html" data-md="system-design/07-back-of-envelope-estimation.md">Back-of-the-Envelope Estimation</a></li><li><a href="system-design/08-resilience-and-fault-tolerance.html" data-md="system-design/08-resilience-and-fault-tolerance.md">Resilience &amp; Fault Tolerance Patterns</a></li></ol>
+
+<h3><a href="technical-skills/" data-md="technical-skills/README.md">Technical skills (Part A)</a></h3>
+<ol class="cols"><li><a href="technical-skills/A2-data-intensive-distributed-systems.html" data-md="technical-skills/A2-data-intensive-distributed-systems.md">Data-Intensive &amp; Distributed Systems</a></li><li><a href="technical-skills/A3-reliability-observability-sre.html" data-md="technical-skills/A3-reliability-observability-sre.md">Reliability, Observability &amp; SRE</a></li><li><a href="technical-skills/A4-software-architecture.html" data-md="technical-skills/A4-software-architecture.md">Software Architecture &amp; Evolutionary Design</a></li><li><a href="technical-skills/A5-engineering-strategy-and-vision.html" data-md="technical-skills/A5-engineering-strategy-and-vision.md">Engineering Strategy &amp; Technical Vision</a></li><li><a href="technical-skills/A6-technical-writing-docs-rfcs-adrs.html" data-md="technical-skills/A6-technical-writing-docs-rfcs-adrs.md">Technical Writing — Design Docs, RFCs &amp; ADRs</a></li><li><a href="technical-skills/A7-security-and-privacy.html" data-md="technical-skills/A7-security-and-privacy.md">Security &amp; Privacy as a Design Concern</a></li><li><a href="technical-skills/A8-cloud-infrastructure.html" data-md="technical-skills/A8-cloud-infrastructure.md">Cloud Infrastructure &amp; Pragmatic Tech Choices</a></li><li><a href="technical-skills/A9-tshaped-breadth-and-depth.html" data-md="technical-skills/A9-tshaped-breadth-and-depth.md">T-shaped Breadth + Depth</a></li></ol>
+
+<h3><a href="leadership-skills/" data-md="leadership-skills/README.md">Leadership skills (Part B)</a></h3>
+<ol class="cols"><li><a href="leadership-skills/B1-influence-without-authority.html" data-md="leadership-skills/B1-influence-without-authority.md">Influence Without Authority</a></li><li><a href="leadership-skills/B2-communication-and-executive-writing.html" data-md="leadership-skills/B2-communication-and-executive-writing.md">Communication &amp; Executive Writing</a></li><li><a href="leadership-skills/B3-technical-and-project-leadership.html" data-md="leadership-skills/B3-technical-and-project-leadership.md">Technical &amp; Project Leadership</a></li><li><a href="leadership-skills/B4-mentorship-and-sponsorship.html" data-md="leadership-skills/B4-mentorship-and-sponsorship.md">Mentorship &amp; Sponsorship</a></li><li><a href="leadership-skills/B5-stakeholder-management-and-trust.html" data-md="leadership-skills/B5-stakeholder-management-and-trust.md">Stakeholder Management, Trust &amp; Political Capital</a></li><li><a href="leadership-skills/B6-glue-work.html" data-md="leadership-skills/B6-glue-work.md">Glue Work — Made Visible</a></li><li><a href="leadership-skills/B7-decision-making.html" data-md="leadership-skills/B7-decision-making.md">Decision-Making &amp; Disagreeing Productively</a></li><li><a href="leadership-skills/B8-prioritization.html" data-md="leadership-skills/B8-prioritization.md">Prioritization at Scale — &quot;Work on What Matters&quot;</a></li></ol>
+
+<footer>
+  Source on <a href="https://github.com/mdtausifahmad/principal-engineering">GitHub</a>.
+  The markdown guides render here with their Mermaid diagrams.
+</footer>
+
+<script>
+  // Opened straight from disk (no Jekyll build): point markdown links at the .md sources.
+  if (location.protocol === 'file:') {
+    document.querySelectorAll('a[data-md]').forEach(a => a.setAttribute('href', a.dataset.md));
+  }
+</script>
+</body>
+</html>

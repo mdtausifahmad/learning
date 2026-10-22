@@ -69,16 +69,25 @@
   </tbody>
 </table>
 
+<h2>Increasing partitions in production</h2>
+<ul>
+  <li><strong>Increase is supported; decrease is not.</strong> Treat it as a routing/topology change, not a resize.</li>
+  <li><strong>No historic redistribution:</strong> P0–P<em>n</em> keep their records and lag; new partitions start empty.</li>
+  <li><strong>Keyed route can change:</strong> a key&rsquo;s future events can land in a new partition, so historical per-key ordering can break across the old and new logs.</li>
+  <li><strong>New capacity is future-only:</strong> the group must assign new partitions, and more consumer capacity is needed to use them. With <code>auto.offset.reset=latest</code>, audit initial offsets on new partitions.</li>
+  <li><strong>Review co-partitioning:</strong> Kafka Streams equi-joins require matching partition counts and partitioning. For strict historical key order, drain old work before each key&rsquo;s cutover (or merge by sequence); migrate/repartition all co-partitioned inputs together.</li>
+</ul>
+
 <h2>Spring Kafka levers</h2>
 <pre><code>setConcurrency(4)                  // consumer threads in this instance (total = instances × concurrency)
 partition.assignment.strategy = CooperativeStickyAssignor
 session.timeout.ms = 45000         // heartbeat miss window -> rebalance
 max.poll.interval.ms = 300000      // slow processing also triggers rebalance
-group.instance.id = ${HOSTNAME}    // static membership</code></pre>
+group.instance.id = ${STABLE_MEMBER_ID}  // stable unique slot, e.g. StatefulSet identity</code></pre>
 
 <div class="callout warning">
   <span class="label">Field diagnosis</span>
-  <p>"Scaled pods, throughput flat" → consumers &gt; partitions → extras idle. Fix = more partitions, not more pods.</p>
+  <p>"Scaled pods, throughput flat" → consumers &gt; partitions → extras idle. More partitions may be the capacity fix, but first audit keyed ordering, old lag, co-partitioning, and consumer rollout.</p>
 </div>
 
 <nav class="lesson-nav">

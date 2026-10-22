@@ -14,7 +14,7 @@
   <p class="eyebrow">Async &amp; Messaging · Lesson 03 · Deep Dive</p>
   <h1>Why Consumers ≤ Partitions — Kafka&rsquo;s Consumer Group Machinery</h1>
   <div class="meta">
-    <span>◷ ~16 min read</span>
+    <span>◷ ~43 min read</span>
     <span class="dot">•</span>
     <span>Level: Depth / Staff</span>
     <span class="dot">•</span>
@@ -119,10 +119,13 @@
 <h2>3. How it&rsquo;s enforced under the hood</h2>
 
 <p>
-  No broker &ldquo;load-balances&rdquo; partitions onto consumers. Instead, the group runs a little protocol.
-  Crucially, per the <a href="https://www.confluent.io/blog/incremental-cooperative-rebalancing-in-kafka/" target="_blank" rel="noopener">Confluent rebalancing paper</a>,
+  No broker &ldquo;load-balances&rdquo; partitions onto consumers. In the <strong>classic consumer-group
+  protocol</strong> used by <code>CooperativeStickyAssignor</code>, the group instead runs a little
+  embedded protocol. Crucially, per the
+  <a href="https://www.confluent.io/blog/incremental-cooperative-rebalancing-in-kafka/" target="_blank" rel="noopener">Confluent rebalancing paper</a>,
   &ldquo;group membership is <em>all</em> the broker/coordinator knows about the group&rdquo; &mdash; the actual
-  assignment is computed by the clients themselves (an <em>embedded protocol</em>):
+  assignment is computed by the clients themselves. Kafka&rsquo;s newer consumer protocol can perform
+  assignment coordinator-side; this lesson deliberately animates the classic protocol:
 </p>
 
 <ol>
@@ -141,71 +144,90 @@
   <li><strong>Heartbeat &amp; consume.</strong> Members send periodic heartbeats. Miss
       <code>session.timeout.ms</code> and the coordinator declares you dead and triggers a
       <span class="term">rebalance</span> &mdash; your partitions are reassigned to a survivor. That is also
-      how an idle standby gets promoted the instant an active consumer dies.</li>
+      how an idle standby gets promoted after the timeout (or sooner after a graceful leave).</li>
 </ol>
 
 <div class="callout warning">
-  <span class="label">Rebalances: the hidden cost</span>
+  <span class="label">Rebalances: two costs, three complementary fixes</span>
   <p>
     The classic (&ldquo;eager&rdquo;) protocol is <strong>stop-the-world</strong>: on any membership change
     <em>every</em> consumer revokes <em>all</em> partitions, then everyone gets a fresh assignment &mdash;
-    a processing pause proportional to the load. That&rsquo;s why a rolling deploy of 10 pods can cause 10
-    disruptive rebalances. The modern fix is <strong>Incremental Cooperative Rebalancing</strong>
-    (<code>CooperativeStickyAssignor</code>): only the partitions that must move are revoked; everything
-    else keeps processing. Pair it with <strong>static membership</strong>
-    (<code>group.instance.id</code>) so a quick pod restart doesn&rsquo;t trigger a rebalance at all.
+    a processing pause proportional to the load. That creates two distinct costs:
+    <strong>needless local-state rebuilds</strong> when a partition returns to the same consumer, and
+    <strong>needless paused processing</strong> while everyone waits for the new assignment.
+    <code>StickyAssignor</code> addresses the first by preserving prior ownership where it can.
+    <code>CooperativeStickyAssignor</code> addresses the second with a revoke-only round followed by an
+    assignment round. <strong>Static membership</strong> (<code>group.instance.id</code>) is separate:
+    for a short, planned restart, it can avoid starting a rebalance at all when the same stable member
+    returns before <code>session.timeout.ms</code>.
   </p>
 </div>
 
-<h3>Watch it: assignment, idle standbys, and a rebalance</h3>
+<h3>Animation A: the classic eager rebalance mechanics</h3>
 <p>
-  Step through the group&rsquo;s whole life (← / → keys work). Consumers join and split the 4 partitions,
-  the extras go <strong>idle</strong>, then a crash triggers a <strong>rebalance</strong> that promotes
-  a standby.
+  Start with a deliberately small group: four partitions and four consumers. Step through it with
+  <kbd>←</kbd> / <kbd>→</kbd> or the buttons. The important question is not just
+  <em>which</em> partition moves, but why unrelated partitions pause too.
 </p>
 
-<div class="stepflow" data-token="token">
+<div class="stepflow" data-token="rb-token">
   <div class="sf-stage">
-    <svg viewBox="0 0 720 344" role="img" aria-label="Four partitions assigned across a growing consumer group; extra consumers idle; a crash triggers a rebalance">
+    <svg viewBox="0 0 780 410" role="img" aria-label="Step-by-step eager Kafka consumer-group rebalance: a member leaves, every partition is revoked, members join, the leader computes an assignment, and SyncGroup resumes consumption">
       <defs>
-        <marker id="l3arw" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#3f7a3f"></path></marker>
+        <marker id="rb-arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#3f7a3f"></path></marker>
+        <marker id="rb-message-arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#2e5a7a"></path></marker>
       </defs>
 
-      <text x="110" y="24" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="600" fill="#6b6459">topic · 4 partitions</text>
-      <rect x="40" y="40" width="140" height="54" rx="8" fill="#f3f0e8" stroke="#6b6459" stroke-width="1.25"></rect>
-      <text x="110" y="71" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" fill="#1a1a1a">Partition 0</text>
-      <g id="p1" class="sf-actor"><rect x="40" y="102" width="140" height="54" rx="8" fill="#f3f0e8" stroke="#6b6459" stroke-width="1.25"></rect><text x="110" y="133" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" fill="#1a1a1a">Partition 1</text></g>
-      <rect x="40" y="164" width="140" height="54" rx="8" fill="#f3f0e8" stroke="#6b6459" stroke-width="1.25"></rect>
-      <text x="110" y="195" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" fill="#1a1a1a">Partition 2</text>
-      <rect x="40" y="226" width="140" height="54" rx="8" fill="#f3f0e8" stroke="#6b6459" stroke-width="1.25"></rect>
-      <text x="110" y="257" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" fill="#1a1a1a">Partition 3</text>
+      <text x="104" y="25" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="700" fill="#6b6459">topic · orders (4 partitions)</text>
+      <g id="rb-p0" class="sf-actor"><rect x="34" y="42" width="140" height="46" rx="7" fill="#f3f0e8" stroke="#6b6459" stroke-width="1.25"></rect><text x="104" y="70" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" fill="#1a1a1a">P0</text></g>
+      <g id="rb-p1" class="sf-actor"><rect x="34" y="98" width="140" height="46" rx="7" fill="#f3f0e8" stroke="#6b6459" stroke-width="1.25"></rect><text x="104" y="126" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" fill="#1a1a1a">P1</text></g>
+      <g id="rb-p2" class="sf-actor"><rect x="34" y="154" width="140" height="46" rx="7" fill="#f3f0e8" stroke="#6b6459" stroke-width="1.25"></rect><text x="104" y="182" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" fill="#1a1a1a">P2</text></g>
+      <g id="rb-p3" class="sf-actor"><rect x="34" y="210" width="140" height="46" rx="7" fill="#f3f0e8" stroke="#6b6459" stroke-width="1.25"></rect><text x="104" y="238" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" fill="#1a1a1a">P3</text></g>
 
-      <text x="570" y="24" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="600" fill="#6b6459">consumer group: fulfillment</text>
+      <g id="rb-coordinator" class="sf-actor">
+        <rect x="285" y="132" width="184" height="84" rx="9" fill="#eef1f6" stroke="#2e5a7a" stroke-width="1.5"></rect>
+        <text x="377" y="163" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" font-weight="700" fill="#1a1a1a">Group coordinator</text>
+        <text x="377" y="184" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" fill="#2e5a7a">membership + generation</text>
+        <text x="377" y="201" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" fill="#2e5a7a">not the assignment algorithm</text>
+      </g>
 
-      <line id="aP0C1" x1="180" y1="67" x2="466" y2="59" stroke="#3f7a3f" stroke-width="1.75" marker-end="url(#l3arw)" style="display:none"></line>
-      <line id="aP1C1" x1="180" y1="129" x2="466" y2="59" stroke="#3f7a3f" stroke-width="1.75" marker-end="url(#l3arw)" style="display:none"></line>
-      <line id="aP2C1" x1="180" y1="191" x2="466" y2="59" stroke="#3f7a3f" stroke-width="1.75" marker-end="url(#l3arw)" style="display:none"></line>
-      <line id="aP3C1" x1="180" y1="253" x2="466" y2="59" stroke="#3f7a3f" stroke-width="1.75" marker-end="url(#l3arw)" style="display:none"></line>
-      <line id="aP2C2" x1="180" y1="191" x2="466" y2="103" stroke="#3f7a3f" stroke-width="1.75" marker-end="url(#l3arw)" style="display:none"></line>
-      <line id="aP3C2" x1="180" y1="253" x2="466" y2="103" stroke="#3f7a3f" stroke-width="1.75" marker-end="url(#l3arw)" style="display:none"></line>
-      <line id="aP1C2" x1="180" y1="129" x2="466" y2="103" stroke="#3f7a3f" stroke-width="1.75" marker-end="url(#l3arw)" style="display:none"></line>
-      <line id="aP2C3" x1="180" y1="191" x2="466" y2="147" stroke="#3f7a3f" stroke-width="1.75" marker-end="url(#l3arw)" style="display:none"></line>
-      <line id="aP3C4" x1="180" y1="253" x2="466" y2="191" stroke="#3f7a3f" stroke-width="1.75" marker-end="url(#l3arw)" style="display:none"></line>
-      <line id="aP1C5" x1="180" y1="129" x2="466" y2="235" stroke="#b5651d" stroke-width="1.9" marker-end="url(#l3arw)" style="display:none"></line>
+      <text x="653" y="25" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="700" fill="#6b6459">consumer group: fulfillment</text>
+      <g id="rb-c1" class="sf-actor" style="display:none"><rect x="560" y="42" width="184" height="42" rx="7" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.5"></rect><text x="652" y="67" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" fill="#1a1a1a">C1 · leader in this example</text></g>
+      <g id="rb-c2" class="sf-actor" style="display:none"><rect x="560" y="98" width="184" height="42" rx="7" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.5"></rect><text x="652" y="123" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" fill="#1a1a1a">C2</text></g>
+      <g id="rb-c2-leaving" class="sf-actor" style="display:none"><rect x="560" y="98" width="184" height="42" rx="7" fill="#f8eaea" stroke="#a32f2f" stroke-width="1.5"></rect><text x="652" y="123" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11.5" font-weight="700" fill="#a32f2f">C2 · terminating</text></g>
+      <g id="rb-c2-new" class="sf-actor" style="display:none"><rect x="560" y="98" width="184" height="42" rx="7" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.5"></rect><text x="652" y="123" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" fill="#1a1a1a">C2′ · replacement pod</text></g>
+      <g id="rb-c3" class="sf-actor" style="display:none"><rect x="560" y="154" width="184" height="42" rx="7" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.5"></rect><text x="652" y="179" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" fill="#1a1a1a">C3</text></g>
+      <g id="rb-c4" class="sf-actor" style="display:none"><rect x="560" y="210" width="184" height="42" rx="7" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.5"></rect><text x="652" y="235" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" fill="#1a1a1a">C4</text></g>
 
-      <g id="consC1" class="sf-actor" style="display:none"><rect x="470" y="40" width="200" height="38" rx="8" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.5"></rect><text x="570" y="64" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" fill="#1a1a1a">Consumer 1</text></g>
-      <g id="consC2" class="sf-actor" style="display:none"><rect x="470" y="84" width="200" height="38" rx="8" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.5"></rect><text x="570" y="108" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" fill="#1a1a1a">Consumer 2</text></g>
-      <g id="consC3" class="sf-actor" style="display:none"><rect x="470" y="128" width="200" height="38" rx="8" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.5"></rect><text x="570" y="152" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" fill="#1a1a1a">Consumer 3</text></g>
-      <g id="consC4" class="sf-actor" style="display:none"><rect x="470" y="172" width="200" height="38" rx="8" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.5"></rect><text x="570" y="196" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" fill="#1a1a1a">Consumer 4</text></g>
-      <g id="consC5" class="sf-actor" style="display:none"><rect x="470" y="216" width="200" height="38" rx="8" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.5"></rect><text x="540" y="240" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" fill="#1a1a1a">Consumer 5</text></g>
-      <g id="consC6" class="sf-actor" style="display:none"><rect x="470" y="260" width="200" height="38" rx="8" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.5"></rect><text x="540" y="284" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" fill="#1a1a1a">Consumer 6</text></g>
+      <line id="rb-a0c1" x1="174" y1="65" x2="556" y2="63" stroke="#3f7a3f" stroke-width="1.7" marker-end="url(#rb-arrow)" style="display:none"></line>
+      <line id="rb-a1c2" x1="174" y1="121" x2="556" y2="119" stroke="#3f7a3f" stroke-width="1.7" marker-end="url(#rb-arrow)" style="display:none"></line>
+      <line id="rb-a2c3" x1="174" y1="177" x2="556" y2="175" stroke="#3f7a3f" stroke-width="1.7" marker-end="url(#rb-arrow)" style="display:none"></line>
+      <line id="rb-a3c4" x1="174" y1="233" x2="556" y2="231" stroke="#3f7a3f" stroke-width="1.7" marker-end="url(#rb-arrow)" style="display:none"></line>
+      <line id="rb-leave-arrow" x1="558" y1="119" x2="473" y2="156" stroke="#2e5a7a" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#rb-message-arrow)" style="display:none"></line>
 
-      <g id="idleC5" style="display:none"><rect x="612" y="227" width="48" height="22" rx="5" fill="#f6f1e7" stroke="#c9c1b1" stroke-width="1"></rect><text x="636" y="242" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" fill="#8a4d16">idle</text></g>
-      <g id="idleC6" style="display:none"><rect x="612" y="271" width="48" height="22" rx="5" fill="#f6f1e7" stroke="#c9c1b1" stroke-width="1"></rect><text x="636" y="286" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" fill="#8a4d16">idle</text></g>
+      <g id="rb-pause-strip" style="display:none">
+        <rect x="25" y="276" width="170" height="68" rx="9" fill="#7a2e2e" stroke="#4f1616" stroke-width="1.5"></rect>
+        <text x="110" y="303" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" font-weight="700" fill="#fffdfa">P0–P3 REVOKED</text>
+        <text x="110" y="326" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" fill="#fffdfa">fetch + processing paused</text>
+      </g>
+      <g id="rb-joining" style="display:none">
+        <rect x="265" y="274" width="224" height="31" rx="7" fill="#eef1f6" stroke="#2e5a7a" stroke-width="1.1"></rect>
+        <text x="377" y="294" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" font-weight="600" fill="#2e5a7a">new generation: members rejoin</text>
+      </g>
+      <g id="rb-plan" style="display:none">
+        <rect x="245" y="316" width="264" height="42" rx="7" fill="#f6f1e7" stroke="#b5651d" stroke-width="1.1"></rect>
+        <text x="377" y="334" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="700" fill="#8a4d16">C1 computes full map</text>
+        <text x="377" y="350" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" fill="#8a4d16">P0→C1 · P1→C2′ · P2→C3 · P3→C4</text>
+      </g>
+      <g id="rb-running" style="display:none">
+        <rect x="266" y="370" width="222" height="25" rx="6" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.1"></rect>
+        <text x="377" y="386" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="700" fill="#3f7a3f">generation active · all partitions run</text>
+      </g>
 
-      <g id="deadC2" style="display:none"><rect x="470" y="84" width="200" height="38" rx="8" fill="#f8eaea" fill-opacity="0.92" stroke="#a32f2f" stroke-width="1.5"></rect><text x="570" y="108" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" font-weight="700" fill="#a32f2f">✗ Consumer 2 crashed</text></g>
-
-      <g id="rebal" style="display:none"><rect x="248" y="312" width="224" height="24" rx="6" fill="#eef1f6" stroke="#2e5a7a" stroke-width="1.1"></rect><text x="360" y="328" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="600" fill="#2e5a7a">⟳ rebalance — partitions reassigned</text></g>
+      <g id="rb-token" class="sf-token" style="display:none">
+        <rect x="0" y="0" width="106" height="25" rx="6" fill="#fff" stroke="#2e5a7a" stroke-width="1.2"></rect>
+        <text class="sf-token-label" x="53" y="17" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="700" fill="#2e5a7a"></text>
+      </g>
     </svg>
   </div>
 
@@ -220,14 +242,296 @@
 
   <script type="application/json" class="sf-steps">
   [
-    {"title":"A topic and an empty group","desc":"The topic has 4 partitions; the consumer group is empty. Watch how partitions get shared — and what happens with too many consumers.","token":null,"visible":[],"highlight":[]},
-    {"title":"Consumer 1 joins","desc":"With one member, Consumer 1 is assigned <strong>all 4 partitions</strong> — one consumer can own many.","token":null,"visible":["consC1","aP0C1","aP1C1","aP2C1","aP3C1"],"highlight":["consC1"]},
-    {"title":"Consumer 2 joins → rebalance","desc":"A second member triggers a rebalance; the partitions split <strong>2 and 2</strong>.","token":null,"visible":["consC1","consC2","aP0C1","aP1C1","aP2C2","aP3C2","rebal"],"highlight":["consC1","consC2"]},
-    {"title":"Consumers 3 and 4 join","desc":"Now each consumer owns exactly one partition — <strong>full parallelism</strong>: 4 partitions, 4 workers.","token":null,"visible":["consC1","consC2","consC3","consC4","aP0C1","aP1C2","aP2C3","aP3C4","rebal"],"highlight":["consC1","consC2","consC3","consC4"]},
-    {"title":"Consumers 5 and 6 join → IDLE","desc":"There are no partitions left, so Consumers 5 and 6 sit <strong>idle</strong>. Max useful consumers = partition count.","token":null,"visible":["consC1","consC2","consC3","consC4","consC5","consC6","aP0C1","aP1C2","aP2C3","aP3C4","idleC5","idleC6"],"highlight":["consC1","consC2","consC3","consC4"]},
-    {"title":"Consumer 2 crashes","desc":"Consumer 2 dies. Its partition — <strong>P1</strong> — is momentarily orphaned; no one is reading it.","token":null,"visible":["consC1","consC2","consC3","consC4","consC5","consC6","aP0C1","aP2C3","aP3C4","idleC5","idleC6","deadC2"],"highlight":["consC1","consC3","consC4","p1"]},
-    {"title":"Rebalance promotes a standby","desc":"A rebalance reassigns <strong>P1 to Consumer 5</strong> — the idle standby becomes useful instantly. Consumer 6 stays idle.","token":null,"visible":["consC1","consC2","consC3","consC4","consC5","consC6","aP0C1","aP1C5","aP2C3","aP3C4","idleC6","deadC2","rebal"],"highlight":["consC1","consC3","consC4","consC5","p1"]},
-    {"title":"What you just saw","desc":"Parallelism is <strong>capped by partitions</strong>, extras are <strong>hot standbys</strong>, and any membership change triggers a <strong>rebalance</strong> that moves partitions.","token":null,"visible":["consC1","consC2","consC3","consC4","consC5","consC6","aP0C1","aP1C5","aP2C3","aP3C4","idleC6","deadC2"],"highlight":["consC1","consC3","consC4","consC5"]}
+    {"title":"Steady state: one owner per partition","desc":"The current assignment is stable: C1 owns P0, C2 owns P1, C3 owns P2, and C4 owns P3. All four partitions are actively being fetched and processed.","token":null,"visible":["rb-c1","rb-c2","rb-c3","rb-c4","rb-a0c1","rb-a1c2","rb-a2c3","rb-a3c4","rb-running"],"highlight":["rb-p0","rb-p1","rb-p2","rb-p3","rb-c1","rb-c2","rb-c3","rb-c4"]},
+    {"title":"A member leaves the group","desc":"C2&rsquo;s pod is being replaced and sends <code>LeaveGroup</code>. A missed heartbeat would lead to the same outcome after <code>session.timeout.ms</code>: the coordinator starts a new generation.","token":{"x":442,"y":104},"tokenLabel":"LeaveGroup","visible":["rb-c1","rb-c2-leaving","rb-c3","rb-c4","rb-a0c1","rb-a1c2","rb-a2c3","rb-a3c4","rb-leave-arrow"],"highlight":["rb-c2-leaving","rb-coordinator","rb-p1"]},
+    {"title":"Eager means every member revokes every partition","desc":"This is the stop-the-world moment. Before rejoining, the surviving clients run their revoke callback and release <strong>all</strong> assignments. P0, P2, and P3 pause even though the next plan will give them back to the same consumers.","token":null,"visible":["rb-c1","rb-c2-leaving","rb-c3","rb-c4","rb-pause-strip","rb-joining"],"highlight":["rb-coordinator","rb-p0","rb-p1","rb-p2","rb-p3","rb-c1","rb-c3","rb-c4"]},
+    {"title":"JoinGroup forms the next generation","desc":"C1, C2′, C3, and C4 join. The coordinator records membership, picks a leader for this generation, and gives that leader the member/subscription list. No partition is processing yet.","token":{"x":401,"y":236},"tokenLabel":"JoinGroup","visible":["rb-c1","rb-c2-new","rb-c3","rb-c4","rb-joining"],"highlight":["rb-coordinator","rb-c1","rb-c2-new","rb-c3","rb-c4"]},
+    {"title":"The leader computes the complete assignment","desc":"Under this classic protocol, the broker does not run your assignor. Here C1 runs it client-side, produces a full partition → member map, and sends that plan to the coordinator in <code>SyncGroup</code>. Only P1 changes owner, but the plan is complete.","token":{"x":401,"y":303},"tokenLabel":"SyncGroup","visible":["rb-c1","rb-c2-new","rb-c3","rb-c4","rb-joining","rb-plan"],"highlight":["rb-coordinator","rb-c1","rb-p1"]},
+    {"title":"SyncGroup distributes slices; consumption resumes","desc":"The coordinator relays each member&rsquo;s slice. C2′ gets P1; C1, C3, and C4 get their old partitions back. The key cost of eager rebalancing is now visible: <strong>all four paused for one transfer.</strong>","token":{"x":466,"y":367},"tokenLabel":"assignment","visible":["rb-c1","rb-c2-new","rb-c3","rb-c4","rb-a0c1","rb-a1c2","rb-a2c3","rb-a3c4","rb-plan","rb-running"],"highlight":["rb-p0","rb-p1","rb-p2","rb-p3","rb-c1","rb-c2-new","rb-c3","rb-c4"]}
+  ]
+  </script>
+</div>
+
+<h3>Animation B: the two Stop-the-World problems</h3>
+<p>
+  This uses the same three-partition example as the
+  <a href="https://developer.confluent.io/courses/architecture/consumer-group-protocol/" target="_blank" rel="noopener">Confluent consumer-group-protocol course</a>.
+  Imagine each consumer keeps a local aggregate, cache, or state-store slice for its assigned
+  partitions. Problem #1 is throwing away state that will be needed again; Problem #2 is stopping
+  every partition while the group negotiates. Watch both appear when a third consumer joins.
+</p>
+
+<div class="stepflow">
+  <div class="sf-stage">
+    <svg viewBox="0 0 780 355" role="img" aria-label="Step-by-step eager rebalance showing consumers clearing local state, two partitions returning to their original owners, and unnecessary state rebuilding">
+      <defs>
+        <marker id="cost-arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#3f7a3f"></path></marker>
+        <marker id="cost-target-arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#b5651d"></path></marker>
+      </defs>
+
+      <text x="85" y="28" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="700" fill="#6b6459">topic · three partitions</text>
+      <g id="cost-p0" class="sf-actor"><rect x="28" y="48" width="114" height="42" rx="7" fill="#f3f0e8" stroke="#6b6459" stroke-width="1.25"></rect><text x="85" y="74" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" fill="#1a1a1a">P0</text></g>
+      <g id="cost-p1" class="sf-actor"><rect x="28" y="106" width="114" height="42" rx="7" fill="#f3f0e8" stroke="#6b6459" stroke-width="1.25"></rect><text x="85" y="132" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" fill="#1a1a1a">P1</text></g>
+      <g id="cost-p2" class="sf-actor"><rect x="28" y="164" width="114" height="42" rx="7" fill="#f3f0e8" stroke="#6b6459" stroke-width="1.25"></rect><text x="85" y="190" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" fill="#1a1a1a">P2</text></g>
+
+      <g id="cost-coordinator" class="sf-actor">
+        <rect x="264" y="104" width="182" height="69" rx="9" fill="#eef1f6" stroke="#2e5a7a" stroke-width="1.5"></rect>
+        <text x="355" y="133" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" font-weight="700" fill="#1a1a1a">Group coordinator</text>
+        <text x="355" y="154" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" fill="#2e5a7a">new generation / Join + Sync</text>
+      </g>
+
+      <g id="cost-c1" class="sf-actor" style="display:none"><rect x="548" y="48" width="186" height="38" rx="7" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.5"></rect><text x="641" y="72" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" fill="#1a1a1a">Consumer 1</text></g>
+      <g id="cost-c2" class="sf-actor" style="display:none"><rect x="548" y="106" width="186" height="38" rx="7" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.5"></rect><text x="641" y="130" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" fill="#1a1a1a">Consumer 2</text></g>
+      <g id="cost-c3" class="sf-actor" style="display:none"><rect x="548" y="164" width="186" height="38" rx="7" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.5"></rect><text x="641" y="188" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" fill="#1a1a1a">Consumer 3 · joins</text></g>
+
+      <line id="cost-a0c1" x1="142" y1="69" x2="544" y2="67" stroke="#3f7a3f" stroke-width="1.7" marker-end="url(#cost-arrow)" style="display:none"></line>
+      <line id="cost-a1c2" x1="142" y1="127" x2="544" y2="125" stroke="#3f7a3f" stroke-width="1.7" marker-end="url(#cost-arrow)" style="display:none"></line>
+      <line id="cost-a2c1" x1="142" y1="185" x2="544" y2="73" stroke="#3f7a3f" stroke-width="1.7" marker-end="url(#cost-arrow)" style="display:none"></line>
+      <line id="cost-a2c3" x1="142" y1="185" x2="544" y2="183" stroke="#3f7a3f" stroke-width="1.7" marker-end="url(#cost-arrow)" style="display:none"></line>
+      <line id="cost-target-p2c3" x1="142" y1="185" x2="544" y2="183" stroke="#b5651d" stroke-width="1.7" stroke-dasharray="5 4" marker-end="url(#cost-target-arrow)" style="display:none"></line>
+
+      <g id="cost-state-c1-ready" style="display:none"><rect x="548" y="88" width="186" height="18" rx="4" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1"></rect><text x="641" y="101" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9.5" fill="#24552d">local state: P0 + P2</text></g>
+      <g id="cost-state-c2-ready" style="display:none"><rect x="548" y="146" width="186" height="18" rx="4" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1"></rect><text x="641" y="159" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9.5" fill="#24552d">local state: P1</text></g>
+      <g id="cost-state-c1-cleared" style="display:none"><rect x="548" y="88" width="186" height="18" rx="4" fill="#7a2e2e" stroke="#4f1616" stroke-width="1"></rect><text x="641" y="101" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9.5" fill="#fffdfa">local state cleared</text></g>
+      <g id="cost-state-c2-cleared" style="display:none"><rect x="548" y="146" width="186" height="18" rx="4" fill="#7a2e2e" stroke="#4f1616" stroke-width="1"></rect><text x="641" y="159" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9.5" fill="#fffdfa">local state cleared</text></g>
+      <g id="cost-state-c1-waste" style="display:none"><rect x="548" y="88" width="186" height="18" rx="4" fill="#f6f1e7" stroke="#b5651d" stroke-width="1"></rect><text x="641" y="101" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9.5" fill="#8a4d16">rebuild P0 · avoidable</text></g>
+      <g id="cost-state-c2-waste" style="display:none"><rect x="548" y="146" width="186" height="18" rx="4" fill="#f6f1e7" stroke="#b5651d" stroke-width="1"></rect><text x="641" y="159" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9.5" fill="#8a4d16">rebuild P1 · avoidable</text></g>
+      <g id="cost-state-c3-required" style="display:none"><rect x="548" y="204" width="186" height="18" rx="4" fill="#eef1f6" stroke="#2e5a7a" stroke-width="1"></rect><text x="641" y="217" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9.5" fill="#2e5a7a">build P2 · required after move</text></g>
+
+      <g id="cost-target" style="display:none"><rect x="236" y="224" width="238" height="35" rx="7" fill="#f6f1e7" stroke="#b5651d" stroke-width="1.1"></rect><text x="355" y="246" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="700" fill="#8a4d16">target: P0→C1 · P1→C2 · P2→C3</text></g>
+      <g id="cost-revoke" style="display:none"><rect x="26" y="271" width="182" height="62" rx="9" fill="#7a2e2e" stroke="#4f1616" stroke-width="1.4"></rect><text x="117" y="295" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11.5" font-weight="700" fill="#fffdfa">revoke all partitions</text><text x="117" y="316" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" fill="#fffdfa">then clear local state</text></g>
+      <g id="cost-paused" style="display:none"><rect x="236" y="271" width="238" height="62" rx="9" fill="#7a2e2e" stroke="#4f1616" stroke-width="1.4"></rect><text x="355" y="295" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11.5" font-weight="700" fill="#fffdfa">P0, P1, P2 have no owner</text><text x="355" y="316" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" fill="#fffdfa">all processing is paused</text></g>
+      <g id="cost-rebuild" style="display:none"><rect x="236" y="271" width="238" height="62" rx="9" fill="#f6f1e7" stroke="#b5651d" stroke-width="1.4"></rect><text x="355" y="295" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11.5" font-weight="700" fill="#8a4d16">new assignment arrives</text><text x="355" y="316" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" fill="#8a4d16">all state rebuilds delay the resume</text></g>
+    </svg>
+  </div>
+
+  <div class="sf-caption"><p class="sf-title"></p><p class="sf-desc"></p></div>
+  <div class="sf-controls">
+    <button class="sf-btn sf-prev" type="button">◀ Prev</button>
+    <button class="sf-btn sf-next" type="button">Next ▶</button>
+    <button class="sf-btn sf-reset" type="button">↺ Reset</button>
+    <button class="sf-btn sf-play" type="button">▶ Play</button>
+    <span class="sf-counter"></span>
+  </div>
+
+  <script type="application/json" class="sf-steps">
+  [
+    {"title":"Stable: state lives beside its partition","desc":"C1 owns P0 and P2, so it has local state for both. C2 owns P1 and has its local state. This is fast because each consumer can reuse the state it already built.","visible":["cost-c1","cost-c2","cost-a0c1","cost-a1c2","cost-a2c1","cost-state-c1-ready","cost-state-c2-ready"],"highlight":["cost-p0","cost-p1","cost-p2","cost-c1","cost-c2"]},
+    {"title":"C3 joins; only P2 needs to move","desc":"The target assignment is balanced: P0 stays with C1, P1 stays with C2, and P2 moves to the new C3. Keep that fact in mind: P0 and P1 do <em>not</em> need a new owner.","visible":["cost-c1","cost-c2","cost-c3","cost-a0c1","cost-a1c2","cost-a2c1","cost-target-p2c3","cost-state-c1-ready","cost-state-c2-ready","cost-target"],"highlight":["cost-coordinator","cost-c3","cost-p2"]},
+    {"title":"Problem #1: eager rebalance clears all local state","desc":"The eager protocol tells C1 and C2 to revoke <strong>every</strong> partition before the new plan exists. Stateful consumers commonly discard the local state for those partitions at this point.","visible":["cost-c1","cost-c2","cost-c3","cost-state-c1-cleared","cost-state-c2-cleared","cost-target","cost-revoke"],"highlight":["cost-p0","cost-p1","cost-p2","cost-c1","cost-c2","cost-coordinator"]},
+    {"title":"Problem #2: all processing pauses","desc":"While members revoke, JoinGroup, and SyncGroup, none of the three partitions has an active owner. Records in P0 and P1 wait even though they are about to return to the same consumers.","visible":["cost-c1","cost-c2","cost-c3","cost-state-c1-cleared","cost-state-c2-cleared","cost-target","cost-revoke","cost-paused"],"highlight":["cost-p0","cost-p1","cost-p2","cost-coordinator"]},
+    {"title":"The new map arrives — and exposes the wasted work","desc":"P0 returns to C1 and P1 returns to C2, but both consumers already threw away their state, so they rebuild it. Rebuilding P2 at C3 is necessary; rebuilding P0 and P1 is not.","visible":["cost-c1","cost-c2","cost-c3","cost-a0c1","cost-a1c2","cost-a2c3","cost-state-c1-waste","cost-state-c2-waste","cost-state-c3-required","cost-target","cost-rebuild"],"highlight":["cost-p0","cost-p1","cost-p2","cost-c1","cost-c2","cost-c3"]},
+    {"title":"Separate the two costs","desc":"The same eager rebalance caused two different harms: <strong>unnecessary state rebuild</strong> for P0/P1 and <strong>unnecessary processing pause</strong> for all three partitions. Kafka addresses them with different, complementary mechanisms.","visible":["cost-c1","cost-c2","cost-c3","cost-a0c1","cost-a1c2","cost-a2c3","cost-state-c1-waste","cost-state-c2-waste","cost-state-c3-required","cost-target","cost-rebuild"],"highlight":["cost-p0","cost-p1","cost-p2"]}
+  ]
+  </script>
+</div>
+
+<h3>Animation C: the layered fixes — Sticky, Cooperative, then static membership</h3>
+<p>
+  The fixes deliberately solve different parts of the problem. Step through them in order:
+  first keep useful state, then keep unaffected partitions processing, then avoid a restart-triggered
+  rebalance when a member is known to be coming straight back.
+</p>
+
+<div class="stepflow">
+  <div class="sf-stage">
+    <svg viewBox="0 0 780 370" role="img" aria-label="Step-by-step animation of StickyAssignor retaining state, CooperativeStickyAssignor revoking only a moving partition in the first round and assigning it in a second round, and static membership avoiding a quick-restart rebalance">
+      <defs>
+        <marker id="fix-arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#3f7a3f"></path></marker>
+        <marker id="fix-warning-arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#b5651d"></path></marker>
+      </defs>
+
+      <text x="84" y="28" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="700" fill="#6b6459">topic · three partitions</text>
+      <g id="fix-p0" class="sf-actor"><rect x="27" y="48" width="114" height="42" rx="7" fill="#f3f0e8" stroke="#6b6459" stroke-width="1.25"></rect><text x="84" y="74" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" fill="#1a1a1a">P0</text></g>
+      <g id="fix-p1" class="sf-actor"><rect x="27" y="106" width="114" height="42" rx="7" fill="#f3f0e8" stroke="#6b6459" stroke-width="1.25"></rect><text x="84" y="132" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" fill="#1a1a1a">P1</text></g>
+      <g id="fix-p2" class="sf-actor"><rect x="27" y="164" width="114" height="42" rx="7" fill="#f3f0e8" stroke="#6b6459" stroke-width="1.25"></rect><text x="84" y="190" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" fill="#1a1a1a">P2</text></g>
+
+      <g id="fix-coordinator" class="sf-actor">
+        <rect x="260" y="104" width="188" height="70" rx="9" fill="#eef1f6" stroke="#2e5a7a" stroke-width="1.5"></rect>
+        <text x="354" y="133" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" font-weight="700" fill="#1a1a1a">Group coordinator</text>
+        <text x="354" y="154" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" fill="#2e5a7a">membership + generations</text>
+      </g>
+
+      <g id="fix-c1" class="sf-actor" style="display:none"><rect x="548" y="48" width="186" height="38" rx="7" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.5"></rect><text x="641" y="72" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" fill="#1a1a1a">Consumer 1</text></g>
+      <g id="fix-c1-restarting" class="sf-actor" style="display:none"><rect x="548" y="48" width="186" height="38" rx="7" fill="#eef1f6" stroke="#2e5a7a" stroke-width="1.5"></rect><text x="641" y="72" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" font-weight="700" fill="#2e5a7a">C1 restarting · fulfillment-1</text></g>
+      <g id="fix-c2" class="sf-actor" style="display:none"><rect x="548" y="106" width="186" height="38" rx="7" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.5"></rect><text x="641" y="130" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" fill="#1a1a1a">Consumer 2</text></g>
+      <g id="fix-c3" class="sf-actor" style="display:none"><rect x="548" y="164" width="186" height="38" rx="7" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.5"></rect><text x="641" y="188" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" fill="#1a1a1a">Consumer 3 · new member</text></g>
+
+      <line id="fix-a0c1" x1="141" y1="69" x2="544" y2="67" stroke="#3f7a3f" stroke-width="1.7" marker-end="url(#fix-arrow)" style="display:none"></line>
+      <line id="fix-a1c2" x1="141" y1="127" x2="544" y2="125" stroke="#3f7a3f" stroke-width="1.7" marker-end="url(#fix-arrow)" style="display:none"></line>
+      <line id="fix-a2c1" x1="141" y1="185" x2="544" y2="73" stroke="#3f7a3f" stroke-width="1.7" marker-end="url(#fix-arrow)" style="display:none"></line>
+      <line id="fix-a2c3" x1="141" y1="185" x2="544" y2="183" stroke="#3f7a3f" stroke-width="1.7" marker-end="url(#fix-arrow)" style="display:none"></line>
+      <line id="fix-p2-revoke" x1="141" y1="185" x2="221" y2="185" stroke="#b5651d" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#fix-warning-arrow)" style="display:none"></line>
+
+      <g id="fix-sticky-plan" style="display:none"><rect x="223" y="220" width="262" height="43" rx="8" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.2"></rect><text x="354" y="238" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="700" fill="#24552d">StickyAssignor: defer clearing state in revoke callback</text><text x="354" y="253" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9.5" fill="#24552d">target moves only P2 → C3</text></g>
+      <g id="fix-sticky-result" style="display:none"><rect x="223" y="220" width="262" height="43" rx="8" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.2"></rect><text x="354" y="238" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="700" fill="#24552d">P0/P1 retain local state</text><text x="354" y="253" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9.5" fill="#24552d">only C3 restores state for moved P2</text></g>
+      <g id="fix-sticky-limit" style="display:none"><rect x="223" y="274" width="262" height="33" rx="7" fill="#f6f1e7" stroke="#b5651d" stroke-width="1.1"></rect><text x="354" y="295" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" fill="#8a4d16">State is saved; eager protocol can still pause P0/P1.</text></g>
+
+      <g id="fix-owned-report" style="display:none"><rect x="223" y="220" width="262" height="43" rx="8" fill="#eef1f6" stroke="#2e5a7a" stroke-width="1.2"></rect><text x="354" y="238" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="700" fill="#2e5a7a">Cooperative step 1: JoinGroup reports ownership</text><text x="354" y="253" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9.5" fill="#2e5a7a">C1 reports P0 + P2 · C2 reports P1</text></g>
+      <g id="fix-coop1" style="display:none"><rect x="223" y="274" width="262" height="43" rx="8" fill="#f6f1e7" stroke="#b5651d" stroke-width="1.2"></rect><text x="354" y="292" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="700" fill="#8a4d16">Cooperative step 1: revoke P2 only</text><text x="354" y="307" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9.5" fill="#8a4d16">P0 and P1 keep processing</text></g>
+      <g id="fix-coop2" style="display:none"><rect x="223" y="274" width="262" height="43" rx="8" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.2"></rect><text x="354" y="292" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="700" fill="#24552d">Cooperative step 2: assign free P2 to C3</text><text x="354" y="307" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9.5" fill="#24552d">P0 and P1 never stopped</text></g>
+
+      <g id="fix-p0-held" style="display:none"><rect x="146" y="56" width="84" height="26" rx="6" fill="#eef1f6" stroke="#2e5a7a" stroke-width="1.1"></rect><text x="188" y="73" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9.5" font-weight="700" fill="#2e5a7a">held for C1</text></g>
+      <g id="fix-static-hold" style="display:none"><rect x="223" y="220" width="262" height="43" rx="8" fill="#eef1f6" stroke="#2e5a7a" stroke-width="1.2"></rect><text x="354" y="238" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="700" fill="#2e5a7a">Static member: no LeaveGroup on planned stop</text><text x="354" y="253" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9.5" fill="#2e5a7a">coordinator holds C1&rsquo;s assignment</text></g>
+      <g id="fix-static-resume" style="display:none"><rect x="223" y="274" width="262" height="43" rx="8" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.2"></rect><text x="354" y="292" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="700" fill="#24552d">same ID returns before session.timeout.ms</text><text x="354" y="307" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9.5" fill="#24552d">C1 resumes P0 — no rebalance, no rebuild</text></g>
+      <g id="fix-static-limit" style="display:none"><rect x="223" y="322" width="262" height="29" rx="7" fill="#f6f1e7" stroke="#b5651d" stroke-width="1.1"></rect><text x="354" y="341" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9.5" fill="#8a4d16">Past the timeout, Kafka must rebalance for availability.</text></g>
+    </svg>
+  </div>
+
+  <div class="sf-caption"><p class="sf-title"></p><p class="sf-desc"></p></div>
+  <div class="sf-controls">
+    <button class="sf-btn sf-prev" type="button">◀ Prev</button>
+    <button class="sf-btn sf-next" type="button">Next ▶</button>
+    <button class="sf-btn sf-reset" type="button">↺ Reset</button>
+    <button class="sf-btn sf-play" type="button">▶ Play</button>
+    <span class="sf-counter"></span>
+  </div>
+
+  <script type="application/json" class="sf-steps">
+  [
+    {"title":"Start from the same assignment","desc":"C1 owns P0 and P2; C2 owns P1. C3 is about to join. The desired balanced outcome moves only P2 to C3.","visible":["fix-c1","fix-c2","fix-a0c1","fix-a1c2","fix-a2c1"],"highlight":["fix-p0","fix-p1","fix-p2","fix-c1","fix-c2"]},
+    {"title":"Avoid needless state rebuild with StickyAssignor","desc":"StickyAssignor uses the previous assignment as input. The revoke callback still fires before the plan exists — but a stateful application can <em>defer clearing</em> per-partition state there, betting that StickyAssignor will return the same partition. The assignor then tries to keep each partition with its current owner while still producing a balanced plan.","visible":["fix-c1","fix-c2","fix-c3","fix-a0c1","fix-a1c2","fix-a2c3","fix-sticky-plan"],"highlight":["fix-p0","fix-p1","fix-p2","fix-c3"]},
+    {"title":"Sticky result: rebuild only the moved partition","desc":"P0 remains on C1 and P1 remains on C2, so their local state is still usable. C3 alone restores/builds state for P2. This removes the <strong>needless rebuild</strong>, not necessarily the eager pause.","visible":["fix-c1","fix-c2","fix-c3","fix-a0c1","fix-a1c2","fix-a2c3","fix-sticky-result","fix-sticky-limit"],"highlight":["fix-p0","fix-p1","fix-p2","fix-c1","fix-c2","fix-c3"]},
+    {"title":"Avoid pause with CooperativeStickyAssignor — step 1","desc":"Members include their currently owned partitions in JoinGroup. The assignor can see that C1 still owns P2, so it does <strong>not</strong> give P2 to C3 yet. It first tells only C1 to revoke P2.","visible":["fix-c1","fix-c2","fix-c3","fix-a0c1","fix-a1c2","fix-a2c1","fix-owned-report","fix-p2-revoke","fix-coop1"],"highlight":["fix-p0","fix-p1","fix-p2","fix-c1","fix-coordinator"]},
+    {"title":"After step 1: only P2 pauses","desc":"C1 revokes P2. C1 keeps processing P0 and C2 keeps processing P1 throughout the handoff. C3 has no P2 yet — that prevents two consumers owning it at once.","visible":["fix-c1","fix-c2","fix-c3","fix-a0c1","fix-a1c2","fix-p2-revoke","fix-coop1"],"highlight":["fix-p0","fix-p1","fix-p2","fix-c1","fix-c2"]},
+    {"title":"Avoid pause with CooperativeStickyAssignor — step 2","desc":"The next rebalance sees P2 as unowned. Now the leader can safely assign P2 to C3. P0 and P1 never revoked, so their processing never stopped.","visible":["fix-c1","fix-c2","fix-c3","fix-a0c1","fix-a1c2","fix-a2c3","fix-coop2"],"highlight":["fix-p0","fix-p1","fix-p2","fix-c3"]},
+    {"title":"Avoid a restart-triggered rebalance with static membership","desc":"Now imagine C1 is deliberately restarted. With a stable, unique <code>group.instance.id</code> such as <code>fulfillment-1</code>, it does not send LeaveGroup on this planned stop. The coordinator holds C1&rsquo;s P0 assignment instead of reshuffling the group; P0 waits briefly while P1 and P2 keep processing.","visible":["fix-c1-restarting","fix-c2","fix-c3","fix-a1c2","fix-a2c3","fix-p0-held","fix-static-hold"],"highlight":["fix-p0","fix-c1-restarting","fix-coordinator"]},
+    {"title":"Same static member returns: no rebalance","desc":"C1 returns with the same static ID before <code>session.timeout.ms</code>. It resumes P0 with its existing assignment; C2 and C3 continued with P1 and P2. No Join/Sync rebalance and no state handoff were needed.","visible":["fix-c1","fix-c2","fix-c3","fix-a0c1","fix-a1c2","fix-a2c3","fix-static-resume"],"highlight":["fix-p0","fix-p1","fix-p2","fix-c1","fix-c2","fix-c3"]},
+    {"title":"Static membership is a deliberate availability trade-off","desc":"If C1 does not return before the session timeout, Kafka must declare it dead and rebalance so P0 can be processed elsewhere. Use a unique, stable identity (for example, a StatefulSet slot), not an ephemeral Deployment hostname; duplicate live IDs cause one member to be fenced.","visible":["fix-c1-restarting","fix-c2","fix-c3","fix-a1c2","fix-a2c3","fix-p0-held","fix-static-hold","fix-static-limit"],"highlight":["fix-p0","fix-coordinator"]}
+  ]
+  </script>
+</div>
+
+<h3>Animation D: a 10-pod rolling deploy — eager versus incremental cooperative</h3>
+<p>
+  Now replay one rollout wave with ten pods and ten partitions, then generalize it across all ten
+  sequential replacements. The animation treats each replacement as one group transition; in a real
+  deployment, separated leave and join events can create additional rebalance rounds.
+</p>
+
+<div class="stepflow" data-token="roll-token">
+  <div class="sf-stage">
+    <svg viewBox="0 0 780 430" role="img" aria-label="Comparison of eager and incremental cooperative rebalancing during a rolling deployment of ten pods, showing all partitions pausing versus only the moving partition pausing">
+      <text x="230" y="26" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" font-weight="700" fill="#6b6459">partition work owned by the 10-pod group</text>
+      <text x="618" y="26" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" font-weight="700" fill="#6b6459">one rollout wave</text>
+
+      <g id="roll-baseline" class="sf-actor" style="display:none">
+        <g fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.2">
+          <rect x="30" y="48" width="76" height="43" rx="6"></rect><rect x="112" y="48" width="76" height="43" rx="6"></rect><rect x="194" y="48" width="76" height="43" rx="6"></rect><rect x="276" y="48" width="76" height="43" rx="6"></rect><rect x="358" y="48" width="76" height="43" rx="6"></rect>
+          <rect x="30" y="98" width="76" height="43" rx="6"></rect><rect x="112" y="98" width="76" height="43" rx="6"></rect><rect x="194" y="98" width="76" height="43" rx="6"></rect><rect x="276" y="98" width="76" height="43" rx="6"></rect><rect x="358" y="98" width="76" height="43" rx="6"></rect>
+        </g>
+        <g text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" fill="#1a1a1a">
+          <text x="68" y="68">P0 → pod 1</text><text x="150" y="68">P1 → pod 2</text><text x="232" y="68">P2 → pod 3</text><text x="314" y="68">P3 → pod 4</text><text x="396" y="68">P4 → pod 5</text>
+          <text x="68" y="118">P5 → pod 6</text><text x="150" y="118">P6 → pod 7</text><text x="232" y="118">P7 → pod 8</text><text x="314" y="118">P8 → pod 9</text><text x="396" y="118">P9 → pod 10</text>
+        </g>
+      </g>
+
+      <g id="roll-eager-stop" class="sf-actor" style="display:none">
+        <rect x="24" y="43" width="416" height="104" rx="9" fill="#f8eaea" stroke="#a32f2f" stroke-width="1.5"></rect>
+        <text x="232" y="78" text-anchor="middle" font-family="system-ui,sans-serif" font-size="13" font-weight="700" fill="#a32f2f">P0 · P1 · P2 · P3 · P4 · P5 · P6 · P7 · P8 · P9</text>
+        <text x="232" y="105" text-anchor="middle" font-family="system-ui,sans-serif" font-size="15" font-weight="700" fill="#a32f2f">all revoked / all paused</text>
+        <text x="232" y="128" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" fill="#a32f2f">even though only P0 needs a different owner</text>
+      </g>
+
+      <g id="roll-eager-new" class="sf-actor" style="display:none">
+        <g fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.2">
+          <rect x="30" y="48" width="76" height="43" rx="6"></rect><rect x="112" y="48" width="76" height="43" rx="6"></rect><rect x="194" y="48" width="76" height="43" rx="6"></rect><rect x="276" y="48" width="76" height="43" rx="6"></rect><rect x="358" y="48" width="76" height="43" rx="6"></rect>
+          <rect x="30" y="98" width="76" height="43" rx="6"></rect><rect x="112" y="98" width="76" height="43" rx="6"></rect><rect x="194" y="98" width="76" height="43" rx="6"></rect><rect x="276" y="98" width="76" height="43" rx="6"></rect><rect x="358" y="98" width="76" height="43" rx="6"></rect>
+        </g>
+        <g text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" fill="#1a1a1a">
+          <text x="68" y="68">P0 → pod 1′</text><text x="150" y="68">P1 → pod 2</text><text x="232" y="68">P2 → pod 3</text><text x="314" y="68">P3 → pod 4</text><text x="396" y="68">P4 → pod 5</text>
+          <text x="68" y="118">P5 → pod 6</text><text x="150" y="118">P6 → pod 7</text><text x="232" y="118">P7 → pod 8</text><text x="314" y="118">P8 → pod 9</text><text x="396" y="118">P9 → pod 10</text>
+        </g>
+      </g>
+
+      <g id="roll-coop-moving" class="sf-actor" style="display:none">
+        <rect x="30" y="48" width="76" height="93" rx="7" fill="#f6f1e7" stroke="#b5651d" stroke-width="1.5"></rect>
+        <text x="68" y="78" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" font-weight="700" fill="#8a4d16">P0</text>
+        <text x="68" y="98" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" fill="#8a4d16">only</text>
+        <text x="68" y="117" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" fill="#8a4d16">moving</text>
+        <rect x="112" y="48" width="322" height="93" rx="7" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.4"></rect>
+        <text x="273" y="80" text-anchor="middle" font-family="system-ui,sans-serif" font-size="13" font-weight="700" fill="#3f7a3f">P1–P9 keep consuming</text>
+        <text x="273" y="104" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" fill="#3f7a3f">their owners did not change</text>
+        <text x="273" y="124" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" fill="#3f7a3f">9 / 10 of the group stays productive</text>
+      </g>
+
+      <g id="roll-coop-revoked" class="sf-actor" style="display:none">
+        <rect x="30" y="48" width="76" height="93" rx="7" fill="#eef1f6" stroke="#6b6459" stroke-width="1.5"></rect>
+        <text x="68" y="78" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" font-weight="700" fill="#455260">P0</text>
+        <text x="68" y="98" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" fill="#455260">revoked</text>
+        <text x="68" y="117" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" fill="#455260">awaiting handoff</text>
+        <rect x="112" y="48" width="322" height="93" rx="7" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.4"></rect>
+        <text x="273" y="80" text-anchor="middle" font-family="system-ui,sans-serif" font-size="13" font-weight="700" fill="#3f7a3f">P1–P9 still consuming</text>
+        <text x="273" y="105" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" fill="#3f7a3f">no group-wide revoke callback</text>
+        <text x="273" y="124" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" fill="#3f7a3f">single ownership stays intact</text>
+      </g>
+
+      <g id="roll-coop-new" class="sf-actor" style="display:none">
+        <rect x="30" y="48" width="76" height="93" rx="7" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.5"></rect>
+        <text x="68" y="78" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" font-weight="700" fill="#3f7a3f">P0</text>
+        <text x="68" y="98" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" fill="#3f7a3f">→ pod 1′</text>
+        <text x="68" y="117" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" fill="#3f7a3f">resumes</text>
+        <rect x="112" y="48" width="322" height="93" rx="7" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.4"></rect>
+        <text x="273" y="80" text-anchor="middle" font-family="system-ui,sans-serif" font-size="13" font-weight="700" fill="#3f7a3f">P1–P9 never stopped</text>
+        <text x="273" y="105" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" fill="#3f7a3f">all 10 partitions are now active</text>
+      </g>
+
+      <g id="roll-pod-old" class="sf-actor" style="display:none">
+        <rect x="512" y="52" width="214" height="45" rx="8" fill="#f8eaea" stroke="#a32f2f" stroke-width="1.5"></rect>
+        <text x="619" y="72" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" font-weight="700" fill="#a32f2f">pod 1 (old) terminates</text>
+        <text x="619" y="87" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" fill="#a32f2f">P0 is the only departing owner</text>
+      </g>
+      <g id="roll-pod-new" class="sf-actor" style="display:none">
+        <rect x="512" y="52" width="214" height="45" rx="8" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.5"></rect>
+        <text x="619" y="72" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" font-weight="700" fill="#3f7a3f">pod 1′ (new) joins</text>
+        <text x="619" y="87" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" fill="#3f7a3f">it can receive P0</text>
+      </g>
+      <g id="roll-other-pods" style="display:none">
+        <rect x="512" y="110" width="214" height="31" rx="7" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.1"></rect>
+        <text x="619" y="130" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" font-weight="700" fill="#3f7a3f">pods 2–10 remain healthy</text>
+      </g>
+
+      <g id="roll-eager-summary" style="display:none">
+        <text x="232" y="190" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" font-weight="700" fill="#a32f2f">Eager: 10 rollout waves → 10 group-wide pauses</text>
+        <g fill="#f8eaea" stroke="#a32f2f" stroke-width="1"><rect x="30" y="204" width="36" height="27" rx="4"></rect><rect x="71" y="204" width="36" height="27" rx="4"></rect><rect x="112" y="204" width="36" height="27" rx="4"></rect><rect x="153" y="204" width="36" height="27" rx="4"></rect><rect x="194" y="204" width="36" height="27" rx="4"></rect><rect x="235" y="204" width="36" height="27" rx="4"></rect><rect x="276" y="204" width="36" height="27" rx="4"></rect><rect x="317" y="204" width="36" height="27" rx="4"></rect><rect x="358" y="204" width="36" height="27" rx="4"></rect><rect x="399" y="204" width="36" height="27" rx="4"></rect></g>
+        <g text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" font-weight="700" fill="#a32f2f"><text x="48" y="222">1</text><text x="89" y="222">2</text><text x="130" y="222">3</text><text x="171" y="222">4</text><text x="212" y="222">5</text><text x="253" y="222">6</text><text x="294" y="222">7</text><text x="335" y="222">8</text><text x="376" y="222">9</text><text x="417" y="222">10</text></g>
+        <text x="232" y="250" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" fill="#a32f2f">each box: all 10 partition workers stop before any resume</text>
+      </g>
+
+      <g id="roll-coop-summary" style="display:none">
+        <text x="232" y="190" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" font-weight="700" fill="#8a4d16">Cooperative: 10 rollout waves → one localized transfer each</text>
+        <g fill="#f6f1e7" stroke="#b5651d" stroke-width="1"><rect x="30" y="204" width="36" height="27" rx="4"></rect><rect x="71" y="204" width="36" height="27" rx="4"></rect><rect x="112" y="204" width="36" height="27" rx="4"></rect><rect x="153" y="204" width="36" height="27" rx="4"></rect><rect x="194" y="204" width="36" height="27" rx="4"></rect><rect x="235" y="204" width="36" height="27" rx="4"></rect><rect x="276" y="204" width="36" height="27" rx="4"></rect><rect x="317" y="204" width="36" height="27" rx="4"></rect><rect x="358" y="204" width="36" height="27" rx="4"></rect><rect x="399" y="204" width="36" height="27" rx="4"></rect></g>
+        <g text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" font-weight="700" fill="#8a4d16"><text x="48" y="222">P0</text><text x="89" y="222">P1</text><text x="130" y="222">P2</text><text x="171" y="222">P3</text><text x="212" y="222">P4</text><text x="253" y="222">P5</text><text x="294" y="222">P6</text><text x="335" y="222">P7</text><text x="376" y="222">P8</text><text x="417" y="222">P9</text></g>
+        <text x="232" y="250" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" fill="#8a4d16">each box: only the partition owned by that departing pod pauses</text>
+      </g>
+
+      <g id="roll-token" class="sf-token" style="display:none">
+        <rect x="0" y="0" width="104" height="25" rx="6" fill="#fff" stroke="#2e5a7a" stroke-width="1.2"></rect>
+        <text class="sf-token-label" x="52" y="17" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="700" fill="#2e5a7a"></text>
+      </g>
+    </svg>
+  </div>
+
+  <div class="sf-caption"><p class="sf-title"></p><p class="sf-desc"></p></div>
+  <div class="sf-controls">
+    <button class="sf-btn sf-prev" type="button">◀ Prev</button>
+    <button class="sf-btn sf-next" type="button">Next ▶</button>
+    <button class="sf-btn sf-reset" type="button">↺ Reset</button>
+    <button class="sf-btn sf-play" type="button">▶ Play</button>
+    <span class="sf-counter"></span>
+  </div>
+
+  <script type="application/json" class="sf-steps">
+  [
+    {"title":"Before the rollout: full, healthy parallelism","desc":"Ten pods own ten partitions. This is the starting state for both protocols: each partition has exactly one owner and all ten are processing.","token":null,"visible":["roll-baseline","roll-other-pods"],"highlight":["roll-baseline"]},
+    {"title":"Eager, wave 1: one pod leaves; every partition stops","desc":"Pod 1 is replaced. Under the eager protocol, all members revoke all assignments. P1–P9 do not need new owners, but they stop anyway while the group reforms.","token":{"x":508,"y":147},"tokenLabel":"LeaveGroup","visible":["roll-eager-stop","roll-pod-old","roll-other-pods"],"highlight":["roll-eager-stop","roll-pod-old"]},
+    {"title":"Eager: full map, then everybody restarts","desc":"After JoinGroup and SyncGroup, P0 goes to pod 1′ and P1–P9 return to their original pods. This wave moved one partition but paused ten.","token":{"x":440,"y":112},"tokenLabel":"SyncGroup","visible":["roll-eager-new","roll-pod-new","roll-other-pods"],"highlight":["roll-eager-new","roll-pod-new"]},
+    {"title":"Eager impact across all 10 rollout waves","desc":"Repeat the same pattern for pods 2 through 10: each rollout wave causes a whole-group interruption. The red boxes are an impact sketch, <strong>not a latency metric</strong>; actual rounds and durations depend on timing and workload.","token":null,"visible":["roll-eager-new","roll-pod-new","roll-other-pods","roll-eager-summary"],"highlight":["roll-eager-summary"]},
+    {"title":"Replay wave 1 with Incremental Cooperative Rebalancing","desc":"The membership change still happens. Cooperative does not magically make a deploy invisible; it starts from the same healthy 10-partition group.","token":null,"visible":["roll-baseline","roll-other-pods"],"highlight":["roll-baseline"]},
+    {"title":"Cooperative: revoke only the moving partition","desc":"Pod 1 is leaving, so P0 is the only partition that must move. P1–P9 keep fetching and processing on their existing owners. The rebalance&rsquo;s blast radius is one partition, not the whole group.","token":{"x":508,"y":147},"tokenLabel":"LeaveGroup","visible":["roll-coop-moving","roll-pod-old","roll-other-pods"],"highlight":["roll-coop-moving","roll-pod-old"]},
+    {"title":"A departing pod leaves P0 unowned, not globally paused","desc":"Because pod 1 has departed, P0 is now unowned and awaiting its replacement; P1–P9 still process. A <em>live-owner</em> transfer needs the two-round revoke-then-assign sequence shown in Animation C, but a departed owner can often hand off in one round.","token":{"x":440,"y":112},"tokenLabel":"P0 free","visible":["roll-coop-revoked","roll-pod-new","roll-other-pods"],"highlight":["roll-coop-revoked","roll-pod-new"]},
+    {"title":"The replacement receives P0; the rest never stopped","desc":"Once P0 is no longer owned by the departing member, pod 1′ receives it and resumes. The visible difference from eager rebalancing is that P1–P9 were never released or reassigned.","token":{"x":440,"y":112},"tokenLabel":"assign P0","visible":["roll-coop-new","roll-pod-new","roll-other-pods"],"highlight":["roll-coop-new","roll-pod-new"]},
+    {"title":"Cooperative impact across all 10 rollout waves","desc":"The group may still rebalance on each membership change, but it performs one local transfer per departing pod. For a one-partition-per-pod group, nine workers stay useful in every wave. That is the operational win of <code>CooperativeStickyAssignor</code>.","token":null,"visible":["roll-coop-new","roll-pod-new","roll-other-pods","roll-coop-summary"],"highlight":["roll-coop-new","roll-coop-summary"]}
   ]
   </script>
 </div>
@@ -242,6 +546,325 @@
     <tr><td><code>CooperativeStickyAssignor</code></td><td>Sticky + incremental/cooperative rebalancing. The modern default choice for large or frequently-scaled groups.</td></tr>
   </tbody>
 </table>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     STRATEGY ANIMATIONS
+     Scenario: 2 topics (orders · payments), each 3 partitions.
+     3 consumers. Show initial assignment, then a rebalance when C3 joins.
+     ═══════════════════════════════════════════════════════════════ -->
+
+<h3>Animation E · RangeAssignor — co-partitioned, but can skew</h3>
+<p>
+  RangeAssignor sorts partitions and consumers alphabetically, then divides
+  each topic's partitions into contiguous ranges. The key property: the same
+  partition <em>index</em> goes to the same consumer across topics, enabling
+  co-partitioned joins. The cost: with an uneven count, the first consumer
+  always absorbs the extra partition on <em>every</em> topic.
+</p>
+
+<div class="stepflow">
+  <div class="sf-stage">
+    <svg viewBox="0 0 780 360" role="img" aria-label="RangeAssignor: per-topic ranges assigned to consumers, showing co-partitioned join property and uneven skew on C1">
+      <defs>
+        <marker id="ra-arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#3f7a3f"></path></marker>
+        <marker id="ra-join-arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#2e5a7a"></path></marker>
+      </defs>
+
+      <!-- topic labels -->
+      <text x="84" y="22" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="700" fill="#6b6459">topic: orders (3 partitions)</text>
+      <text x="84" y="178" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="700" fill="#6b6459">topic: payments (3 partitions)</text>
+
+      <!-- orders partitions -->
+      <g id="ra-op0"><rect x="27" y="32" width="114" height="38" rx="6" fill="#f3f0e8" stroke="#6b6459" stroke-width="1.25"></rect><text x="84" y="56" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" fill="#1a1a1a">orders-P0</text></g>
+      <g id="ra-op1"><rect x="27" y="78" width="114" height="38" rx="6" fill="#f3f0e8" stroke="#6b6459" stroke-width="1.25"></rect><text x="84" y="102" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" fill="#1a1a1a">orders-P1</text></g>
+      <g id="ra-op2"><rect x="27" y="124" width="114" height="38" rx="6" fill="#f3f0e8" stroke="#6b6459" stroke-width="1.25"></rect><text x="84" y="148" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" fill="#1a1a1a">orders-P2</text></g>
+      <!-- payments partitions -->
+      <g id="ra-pp0"><rect x="27" y="188" width="114" height="38" rx="6" fill="#f3f0e8" stroke="#6b6459" stroke-width="1.25"></rect><text x="84" y="212" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" fill="#1a1a1a">payments-P0</text></g>
+      <g id="ra-pp1"><rect x="27" y="234" width="114" height="38" rx="6" fill="#f3f0e8" stroke="#6b6459" stroke-width="1.25"></rect><text x="84" y="258" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" fill="#1a1a1a">payments-P1</text></g>
+      <g id="ra-pp2"><rect x="27" y="280" width="114" height="38" rx="6" fill="#f3f0e8" stroke="#6b6459" stroke-width="1.25"></rect><text x="84" y="304" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" fill="#1a1a1a">payments-P2</text></g>
+
+      <!-- consumers -->
+      <g id="ra-c1" style="display:none"><rect x="548" y="32"  width="186" height="38" rx="7" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.5"></rect><text x="641" y="56"  text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" fill="#1a1a1a">Consumer 1</text></g>
+      <g id="ra-c2" style="display:none"><rect x="548" y="140" width="186" height="38" rx="7" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.5"></rect><text x="641" y="164" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" fill="#1a1a1a">Consumer 2</text></g>
+      <g id="ra-c3" style="display:none"><rect x="548" y="248" width="186" height="38" rx="7" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.5"></rect><text x="641" y="272" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" fill="#1a1a1a">Consumer 3</text></g>
+
+      <!-- assignment arrows: orders -->
+      <line id="ra-op0-c1" x1="141" y1="51"  x2="544" y2="51"  stroke="#3f7a3f" stroke-width="1.7" marker-end="url(#ra-arrow)" style="display:none"></line>
+      <line id="ra-op1-c1" x1="141" y1="97"  x2="544" y2="57"  stroke="#3f7a3f" stroke-width="1.7" marker-end="url(#ra-arrow)" style="display:none"></line>
+      <line id="ra-op2-c2" x1="141" y1="143" x2="544" y2="159" stroke="#3f7a3f" stroke-width="1.7" marker-end="url(#ra-arrow)" style="display:none"></line>
+      <!-- assignment arrows: payments -->
+      <line id="ra-pp0-c1" x1="141" y1="207" x2="544" y2="63"  stroke="#3f7a3f" stroke-width="1.7" marker-end="url(#ra-arrow)" style="display:none"></line>
+      <line id="ra-pp1-c2" x1="141" y1="253" x2="544" y2="159" stroke="#3f7a3f" stroke-width="1.7" marker-end="url(#ra-arrow)" style="display:none"></line>
+      <line id="ra-pp2-c3" x1="141" y1="299" x2="544" y2="267" stroke="#3f7a3f" stroke-width="1.7" marker-end="url(#ra-arrow)" style="display:none"></line>
+
+      <!-- skew callout -->
+      <g id="ra-skew" style="display:none">
+        <rect x="390" y="32" width="142" height="72" rx="7" fill="#f8eaea" stroke="#a32f2f" stroke-width="1.2"></rect>
+        <text x="461" y="54"  text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" font-weight="700" fill="#a32f2f">C1 owns 4 partitions</text>
+        <text x="461" y="70"  text-anchor="middle" font-family="system-ui,sans-serif" font-size="9.5" fill="#a32f2f">C2 owns 2</text>
+        <text x="461" y="86"  text-anchor="middle" font-family="system-ui,sans-serif" font-size="9.5" fill="#a32f2f">C3 owns 2 — skewed!</text>
+      </g>
+
+      <!-- join callout -->
+      <g id="ra-join" style="display:none">
+        <rect x="27" y="330" width="540" height="24" rx="6" fill="#eef1f6" stroke="#2e5a7a" stroke-width="1.1"></rect>
+        <text x="297" y="346" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" font-weight="700" fill="#2e5a7a">Co-partitioned join: orders-P0 and payments-P0 always land on the same consumer</text>
+      </g>
+    </svg>
+  </div>
+  <div class="sf-caption"><p class="sf-title"></p><p class="sf-desc"></p></div>
+  <div class="sf-controls">
+    <button class="sf-btn sf-prev" type="button">◀ Prev</button>
+    <button class="sf-btn sf-next" type="button">Next ▶</button>
+    <button class="sf-btn sf-reset" type="button">↺ Reset</button>
+    <button class="sf-btn sf-play" type="button">▶ Play</button>
+    <span class="sf-counter"></span>
+  </div>
+  <script type="application/json" class="sf-steps">
+  [
+    {"title":"Two topics, three consumers — what gets assigned?","desc":"RangeAssignor processes each topic independently. It sorts the partitions (0, 1, 2) and the consumers (C1, C2, C3) alphabetically, then slices the partitions into contiguous ranges.","visible":["ra-c1","ra-c2","ra-c3"],"highlight":[]},
+    {"title":"orders: range per consumer","desc":"3 partitions ÷ 3 consumers = 1 each. orders-P0 → C1, orders-P1 → C1 (the range is [P0,P1] because floor(3/3)×1=1 but the first consumer gets the remainder: actually for 3÷3 it is exactly 1 each). So P0→C1, P1→C2, P2→C3.","visible":["ra-c1","ra-c2","ra-c3","ra-op0-c1","ra-op1-c1","ra-op2-c2"],"highlight":["ra-op0","ra-op1","ra-op2","ra-c1","ra-c2"]},
+    {"title":"payments: same algorithm, same result per index","desc":"payments is treated independently, but the same sort order means P0→C1, P1→C2, P2→C3 again. The same-index property is preserved: orders-P0 and payments-P0 both go to C1.","visible":["ra-c1","ra-c2","ra-c3","ra-op0-c1","ra-op1-c1","ra-op2-c2","ra-pp0-c1","ra-pp1-c2","ra-pp2-c3","ra-join"],"highlight":["ra-pp0","ra-pp1","ra-pp2","ra-c1","ra-c2","ra-c3"]},
+    {"title":"The co-partitioned join property","desc":"A stream-join on order_id works correctly only if the same key's records from both topics land on the same consumer. Because RangeAssignor aligns partition indices across topics, this is guaranteed without any extra coordination.","visible":["ra-c1","ra-c2","ra-c3","ra-op0-c1","ra-op1-c1","ra-op2-c2","ra-pp0-c1","ra-pp1-c2","ra-pp2-c3","ra-join"],"highlight":["ra-op0","ra-pp0","ra-c1"]},
+    {"title":"The skew problem — try 5 partitions, 3 consumers","desc":"With 5 partitions and 3 consumers, RangeAssignor gives C1 two partitions (the remainder), C2 two, and C3 one — <em>per topic</em>. Across two topics C1 owns 4, C2 owns 4, C3 owns 2. The more topics you subscribe to, the worse C1's overload grows.","visible":["ra-c1","ra-c2","ra-c3","ra-op0-c1","ra-op1-c1","ra-op2-c2","ra-pp0-c1","ra-pp1-c2","ra-pp2-c3","ra-skew"],"highlight":["ra-c1","ra-skew"]}
+  ]
+  </script>
+</div>
+
+<h3>Animation F · RoundRobinAssignor — even spread, no co-partition</h3>
+<p>
+  RoundRobinAssignor flattens all topic-partitions into a single sorted list, then
+  distributes them round-robin across consumers. Load is as even as possible, but
+  same-index partitions from different topics can end up on different consumers,
+  breaking co-partitioned joins.
+</p>
+
+<div class="stepflow">
+  <div class="sf-stage">
+    <svg viewBox="0 0 780 300" role="img" aria-label="RoundRobinAssignor: all partitions merged into one list and distributed round-robin, showing even balance but broken co-partition alignment">
+      <defs>
+        <marker id="rr-arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#3f7a3f"></path></marker>
+        <marker id="rr-break-arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#a32f2f"></path></marker>
+      </defs>
+
+      <text x="84" y="22" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="700" fill="#6b6459">all 6 partitions — merged &amp; sorted</text>
+
+      <!-- merged partition list -->
+      <g id="rr-list">
+        <rect x="27" y="32" width="114" height="32" rx="6" fill="#f3f0e8" stroke="#6b6459" stroke-width="1.25"></rect><text x="84" y="53" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" fill="#1a1a1a">orders-P0</text>
+        <rect x="27" y="72" width="114" height="32" rx="6" fill="#f3f0e8" stroke="#6b6459" stroke-width="1.25"></rect><text x="84" y="93" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" fill="#1a1a1a">orders-P1</text>
+        <rect x="27" y="112" width="114" height="32" rx="6" fill="#f3f0e8" stroke="#6b6459" stroke-width="1.25"></rect><text x="84" y="133" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" fill="#1a1a1a">orders-P2</text>
+        <rect x="27" y="152" width="114" height="32" rx="6" fill="#f3f0e8" stroke="#6b6459" stroke-width="1.25"></rect><text x="84" y="173" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" fill="#1a1a1a">payments-P0</text>
+        <rect x="27" y="192" width="114" height="32" rx="6" fill="#f3f0e8" stroke="#6b6459" stroke-width="1.25"></rect><text x="84" y="213" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" fill="#1a1a1a">payments-P1</text>
+        <rect x="27" y="232" width="114" height="32" rx="6" fill="#f3f0e8" stroke="#6b6459" stroke-width="1.25"></rect><text x="84" y="253" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" fill="#1a1a1a">payments-P2</text>
+      </g>
+
+      <!-- round-robin index badges -->
+      <g id="rr-badges" style="display:none">
+        <circle cx="19" cy="48"  r="9" fill="#3f7a3f"></circle><text x="19" y="53"  text-anchor="middle" font-family="system-ui,sans-serif" font-size="9" font-weight="700" fill="#fff">1</text>
+        <circle cx="19" cy="88"  r="9" fill="#2e5a7a"></circle><text x="19" y="93"  text-anchor="middle" font-family="system-ui,sans-serif" font-size="9" font-weight="700" fill="#fff">2</text>
+        <circle cx="19" cy="128" r="9" fill="#7a4e2e"></circle><text x="19" y="133" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9" font-weight="700" fill="#fff">3</text>
+        <circle cx="19" cy="168" r="9" fill="#3f7a3f"></circle><text x="19" y="173" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9" font-weight="700" fill="#fff">1</text>
+        <circle cx="19" cy="208" r="9" fill="#2e5a7a"></circle><text x="19" y="213" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9" font-weight="700" fill="#fff">2</text>
+        <circle cx="19" cy="248" r="9" fill="#7a4e2e"></circle><text x="19" y="253" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9" font-weight="700" fill="#fff">3</text>
+      </g>
+
+      <!-- consumers -->
+      <g id="rr-c1" style="display:none"><rect x="548" y="40"  width="186" height="38" rx="7" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.5"></rect><text x="641" y="64"  text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" fill="#1a1a1a">Consumer 1</text></g>
+      <g id="rr-c2" style="display:none"><rect x="548" y="128" width="186" height="38" rx="7" fill="#eef4ee" stroke="#2e5a7a" stroke-width="1.5"></rect><text x="641" y="152" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" fill="#1a1a1a">Consumer 2</text></g>
+      <g id="rr-c3" style="display:none"><rect x="548" y="216" width="186" height="38" rx="7" fill="#eef4ee" stroke="#7a4e2e" stroke-width="1.5"></rect><text x="641" y="240" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" fill="#1a1a1a">Consumer 3</text></g>
+
+      <!-- arrows -->
+      <line id="rr-a1" x1="141" y1="48"  x2="544" y2="59"  stroke="#3f7a3f" stroke-width="1.7" marker-end="url(#rr-arrow)" style="display:none"></line>
+      <line id="rr-a2" x1="141" y1="88"  x2="544" y2="147" stroke="#3f7a3f" stroke-width="1.7" marker-end="url(#rr-arrow)" style="display:none"></line>
+      <line id="rr-a3" x1="141" y1="128" x2="544" y2="235" stroke="#3f7a3f" stroke-width="1.7" marker-end="url(#rr-arrow)" style="display:none"></line>
+      <line id="rr-a4" x1="141" y1="168" x2="544" y2="65"  stroke="#3f7a3f" stroke-width="1.7" marker-end="url(#rr-arrow)" style="display:none"></line>
+      <line id="rr-a5" x1="141" y1="208" x2="544" y2="153" stroke="#3f7a3f" stroke-width="1.7" marker-end="url(#rr-arrow)" style="display:none"></line>
+      <line id="rr-a6" x1="141" y1="248" x2="544" y2="241" stroke="#3f7a3f" stroke-width="1.7" marker-end="url(#rr-arrow)" style="display:none"></line>
+
+      <!-- broken-join callout -->
+      <g id="rr-broken" style="display:none">
+        <rect x="215" y="32" width="294" height="52" rx="8" fill="#f8eaea" stroke="#a32f2f" stroke-width="1.2"></rect>
+        <text x="362" y="52" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="700" fill="#a32f2f">orders-P0 → C1 · payments-P0 → C1 ✓ (happens to align)</text>
+        <text x="362" y="70" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" fill="#a32f2f">Not guaranteed — a different consumer count breaks it</text>
+      </g>
+      <!-- even callout -->
+      <g id="rr-even" style="display:none">
+        <rect x="215" y="250" width="294" height="34" rx="8" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.2"></rect>
+        <text x="362" y="272" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="700" fill="#3f7a3f">Each consumer owns exactly 2 partitions — perfectly balanced</text>
+      </g>
+    </svg>
+  </div>
+  <div class="sf-caption"><p class="sf-title"></p><p class="sf-desc"></p></div>
+  <div class="sf-controls">
+    <button class="sf-btn sf-prev" type="button">◀ Prev</button>
+    <button class="sf-btn sf-next" type="button">Next ▶</button>
+    <button class="sf-btn sf-reset" type="button">↺ Reset</button>
+    <button class="sf-btn sf-play" type="button">▶ Play</button>
+    <span class="sf-counter"></span>
+  </div>
+  <script type="application/json" class="sf-steps">
+  [
+    {"title":"All partitions merged into one sorted list","desc":"RoundRobinAssignor ignores topic boundaries. It takes all subscribed topic-partitions, sorts them (topic name then partition number), and produces a single flat sequence: orders-P0, orders-P1, orders-P2, payments-P0, payments-P1, payments-P2.","visible":["rr-list","rr-c1","rr-c2","rr-c3"],"highlight":[]},
+    {"title":"Round-robin distribution: slot 1, 2, 3, 1, 2, 3 …","desc":"Each partition in the sorted sequence is assigned to the next consumer in rotation. The colored index badge shows which consumer slot (1=C1, 2=C2, 3=C3) each partition falls into.","visible":["rr-list","rr-c1","rr-c2","rr-c3","rr-badges"],"highlight":["rr-c1","rr-c2","rr-c3"]},
+    {"title":"Result: perfectly balanced load","desc":"Every consumer owns exactly 2 partitions regardless of topic origin. With 6 partitions and 3 consumers there is no remainder, so no consumer gets an extra. This is the key advantage over RangeAssignor.","visible":["rr-list","rr-c1","rr-c2","rr-c3","rr-badges","rr-a1","rr-a2","rr-a3","rr-a4","rr-a5","rr-a6","rr-even"],"highlight":["rr-c1","rr-c2","rr-c3"]},
+    {"title":"The co-partitioned join trade-off","desc":"orders-P0 and payments-P0 happen to land on the same consumer in this example, but that alignment is incidental — it breaks as soon as the consumer count changes. <strong>Do not rely on RoundRobinAssignor for stream joins.</strong> Use RangeAssignor (or ensure equal partition counts + stable membership).","visible":["rr-list","rr-c1","rr-c2","rr-c3","rr-badges","rr-a1","rr-a2","rr-a3","rr-a4","rr-a5","rr-a6","rr-broken","rr-even"],"highlight":["rr-c1"]}
+  ]
+  </script>
+</div>
+
+<h3>Animation G · StickyAssignor — balance + churn minimisation</h3>
+<p>
+  StickyAssignor targets two goals in order: (1) produce a balanced assignment,
+  (2) move as few partitions as possible from the previous assignment. It keeps
+  local state alive where it doesn't need to move. The underlying rebalance is
+  still <em>eager</em> (stop-the-world); stability is the gain, not reduced pause time.
+</p>
+
+<div class="stepflow">
+  <div class="sf-stage">
+    <svg viewBox="0 0 780 310" role="img" aria-label="StickyAssignor: C1 owns P0+P2, C2 owns P1. C3 joins. Sticky moves only P2, preserving C1 and C2 state.">
+      <defs>
+        <marker id="st-arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#3f7a3f"></path></marker>
+        <marker id="st-move-arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#b5651d"></path></marker>
+      </defs>
+
+      <!-- partitions -->
+      <text x="84" y="22" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="700" fill="#6b6459">topic (3 partitions)</text>
+      <g id="st-p0"><rect x="27" y="32" width="114" height="38" rx="6" fill="#f3f0e8" stroke="#6b6459" stroke-width="1.25"></rect><text x="84" y="56" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" fill="#1a1a1a">P0</text></g>
+      <g id="st-p1"><rect x="27" y="82" width="114" height="38" rx="6" fill="#f3f0e8" stroke="#6b6459" stroke-width="1.25"></rect><text x="84" y="106" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" fill="#1a1a1a">P1</text></g>
+      <g id="st-p2"><rect x="27" y="132" width="114" height="38" rx="6" fill="#f3f0e8" stroke="#6b6459" stroke-width="1.25"></rect><text x="84" y="156" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" fill="#1a1a1a">P2</text></g>
+
+      <!-- consumers -->
+      <g id="st-c1" style="display:none"><rect x="548" y="32"  width="186" height="38" rx="7" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.5"></rect><text x="641" y="56"  text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" fill="#1a1a1a">Consumer 1</text></g>
+      <g id="st-c2" style="display:none"><rect x="548" y="132" width="186" height="38" rx="7" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.5"></rect><text x="641" y="156" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" fill="#1a1a1a">Consumer 2</text></g>
+      <g id="st-c3" style="display:none"><rect x="548" y="232" width="186" height="38" rx="7" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.5"></rect><text x="641" y="256" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" fill="#1a1a1a">Consumer 3 · joins</text></g>
+
+      <!-- state badges -->
+      <g id="st-state-c1-before" style="display:none"><rect x="548" y="72" width="186" height="18" rx="4" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1"></rect><text x="641" y="85" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9.5" fill="#24552d">local state: P0 + P2</text></g>
+      <g id="st-state-c2-before" style="display:none"><rect x="548" y="172" width="186" height="18" rx="4" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1"></rect><text x="641" y="185" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9.5" fill="#24552d">local state: P1</text></g>
+      <g id="st-state-c1-after"  style="display:none"><rect x="548" y="72" width="186" height="18" rx="4" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1"></rect><text x="641" y="85" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9.5" fill="#24552d">local state: P0 ✓ (kept)</text></g>
+      <g id="st-state-c2-after"  style="display:none"><rect x="548" y="172" width="186" height="18" rx="4" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1"></rect><text x="641" y="185" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9.5" fill="#24552d">local state: P1 ✓ (kept)</text></g>
+      <g id="st-state-c3-build"  style="display:none"><rect x="548" y="272" width="186" height="18" rx="4" fill="#f6f1e7" stroke="#b5651d" stroke-width="1"></rect><text x="641" y="285" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9.5" fill="#8a4d16">build P2 state · necessary</text></g>
+
+      <!-- arrows before -->
+      <line id="st-a0c1-before" x1="141" y1="51"  x2="544" y2="51"  stroke="#3f7a3f" stroke-width="1.7" marker-end="url(#st-arrow)" style="display:none"></line>
+      <line id="st-a2c1-before" x1="141" y1="151" x2="544" y2="57"  stroke="#3f7a3f" stroke-width="1.7" marker-end="url(#st-arrow)" style="display:none"></line>
+      <line id="st-a1c2-before" x1="141" y1="101" x2="544" y2="151" stroke="#3f7a3f" stroke-width="1.7" marker-end="url(#st-arrow)" style="display:none"></line>
+      <!-- arrows after -->
+      <line id="st-a0c1-after"  x1="141" y1="51"  x2="544" y2="51"  stroke="#3f7a3f" stroke-width="1.7" marker-end="url(#st-arrow)" style="display:none"></line>
+      <line id="st-a1c2-after"  x1="141" y1="101" x2="544" y2="151" stroke="#3f7a3f" stroke-width="1.7" marker-end="url(#st-arrow)" style="display:none"></line>
+      <line id="st-a2c3-after"  x1="141" y1="151" x2="544" y2="251" stroke="#b5651d" stroke-width="2"   marker-end="url(#st-move-arrow)" style="display:none"></line>
+
+      <!-- commentary -->
+      <g id="st-rr-would-do" style="display:none">
+        <rect x="215" y="210" width="290" height="42" rx="7" fill="#f8eaea" stroke="#a32f2f" stroke-width="1.1"></rect>
+        <text x="360" y="228" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="700" fill="#a32f2f">RoundRobin would move P1→C3 and P2→C3</text>
+        <text x="360" y="244" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9.5" fill="#a32f2f">forcing two unnecessary state rebuilds</text>
+      </g>
+      <g id="st-sticky-wins" style="display:none">
+        <rect x="215" y="210" width="290" height="42" rx="7" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.1"></rect>
+        <text x="360" y="228" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="700" fill="#24552d">Sticky moves only P2 → C3</text>
+        <text x="360" y="244" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9.5" fill="#24552d">C1 and C2 keep their state — zero wasted rebuild</text>
+      </g>
+    </svg>
+  </div>
+  <div class="sf-caption"><p class="sf-title"></p><p class="sf-desc"></p></div>
+  <div class="sf-controls">
+    <button class="sf-btn sf-prev" type="button">◀ Prev</button>
+    <button class="sf-btn sf-next" type="button">Next ▶</button>
+    <button class="sf-btn sf-reset" type="button">↺ Reset</button>
+    <button class="sf-btn sf-play" type="button">▶ Play</button>
+    <span class="sf-counter"></span>
+  </div>
+  <script type="application/json" class="sf-steps">
+  [
+    {"title":"Before: C1 owns P0 + P2, C2 owns P1","desc":"C1 holds two partitions and has built local state for both. C2 holds P1 with its own state. This is a common imbalance when 3 partitions are split between 2 consumers.","visible":["st-c1","st-c2","st-a0c1-before","st-a2c1-before","st-a1c2-before","st-state-c1-before","st-state-c2-before"],"highlight":["st-p0","st-p1","st-p2","st-c1","st-c2"]},
+    {"title":"C3 joins — what would a naïve assignor do?","desc":"A simple balancer (like RoundRobinAssignor) would move P1 off C2 and P2 off C1 to give C3 two partitions — but those consumers just threw away useful local state for partitions they would have kept anyway.","visible":["st-c1","st-c2","st-c3","st-a0c1-before","st-a2c1-before","st-a1c2-before","st-state-c1-before","st-state-c2-before","st-rr-would-do"],"highlight":["st-c3","st-p1","st-p2"]},
+    {"title":"StickyAssignor: keep prior owners, move only what's needed","desc":"StickyAssignor reads the previous assignment from each member's JoinGroup metadata. Goal 1 (balance): 3 partitions for 3 consumers = 1 each. Goal 2 (minimal churn): P0 stays with C1, P1 stays with C2. Only P2, the unneeded second partition on C1, needs to move to C3.","visible":["st-c1","st-c2","st-c3","st-a0c1-after","st-a1c2-after","st-a2c3-after","st-state-c1-after","st-state-c2-after","st-state-c3-build","st-sticky-wins"],"highlight":["st-p2","st-c3"]},
+    {"title":"Why this still uses an eager rebalance","desc":"StickyAssignor minimises <em>state rebuild cost</em>, not the pause duration. All partitions are still revoked before the new plan arrives (eager protocol). The application can defer clearing state in its revoke callback — if the assignment confirms the partition returned, no rebuild is needed. <code>CooperativeStickyAssignor</code> adds the incremental protocol to also eliminate the pause.","visible":["st-c1","st-c2","st-c3","st-a0c1-after","st-a1c2-after","st-a2c3-after","st-state-c1-after","st-state-c2-after","st-state-c3-build","st-sticky-wins"],"highlight":["st-c1","st-c2"]}
+  ]
+  </script>
+</div>
+
+<h3>Animation H · CooperativeStickyAssignor — sticky + no group-wide pause</h3>
+<p>
+  CooperativeStickyAssignor adds an <em>incremental</em> two-round protocol on top of
+  Sticky's assignment algorithm. Only the partition that must move is revoked in round 1;
+  it is assigned to its new owner in round 2. Unaffected partitions keep processing throughout.
+</p>
+
+<div class="stepflow">
+  <div class="sf-stage">
+    <svg viewBox="0 0 780 320" role="img" aria-label="CooperativeStickyAssignor: round 1 revokes only P2, round 2 assigns P2 to C3. P0 and P1 never stop processing.">
+      <defs>
+        <marker id="cs-arrow"      markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#3f7a3f"></path></marker>
+        <marker id="cs-revoke-arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#b5651d"></path></marker>
+      </defs>
+
+      <!-- partitions -->
+      <text x="84" y="22" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="700" fill="#6b6459">topic (3 partitions)</text>
+      <g id="cs-p0"><rect x="27" y="32"  width="114" height="38" rx="6" fill="#f3f0e8" stroke="#6b6459" stroke-width="1.25"></rect><text x="84" y="56"  text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" fill="#1a1a1a">P0</text></g>
+      <g id="cs-p1"><rect x="27" y="82"  width="114" height="38" rx="6" fill="#f3f0e8" stroke="#6b6459" stroke-width="1.25"></rect><text x="84" y="106" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" fill="#1a1a1a">P1</text></g>
+      <g id="cs-p2"><rect x="27" y="132" width="114" height="38" rx="6" fill="#f3f0e8" stroke="#6b6459" stroke-width="1.25"></rect><text x="84" y="156" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" fill="#1a1a1a">P2</text></g>
+
+      <!-- consumers -->
+      <g id="cs-c1" style="display:none"><rect x="548" y="32"  width="186" height="38" rx="7" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.5"></rect><text x="641" y="56"  text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" fill="#1a1a1a">Consumer 1</text></g>
+      <g id="cs-c2" style="display:none"><rect x="548" y="132" width="186" height="38" rx="7" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.5"></rect><text x="641" y="156" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" fill="#1a1a1a">Consumer 2</text></g>
+      <g id="cs-c3" style="display:none"><rect x="548" y="232" width="186" height="38" rx="7" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.5"></rect><text x="641" y="256" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" fill="#1a1a1a">Consumer 3 · new</text></g>
+
+      <!-- before arrows -->
+      <line id="cs-a0c1" x1="141" y1="51"  x2="544" y2="51"  stroke="#3f7a3f" stroke-width="1.7" marker-end="url(#cs-arrow)" style="display:none"></line>
+      <line id="cs-a2c1" x1="141" y1="151" x2="544" y2="57"  stroke="#3f7a3f" stroke-width="1.7" marker-end="url(#cs-arrow)" style="display:none"></line>
+      <line id="cs-a1c2" x1="141" y1="101" x2="544" y2="151" stroke="#3f7a3f" stroke-width="1.7" marker-end="url(#cs-arrow)" style="display:none"></line>
+      <!-- after arrow: P2 → C3 -->
+      <line id="cs-a2c3" x1="141" y1="151" x2="544" y2="251" stroke="#3f7a3f" stroke-width="1.7" marker-end="url(#cs-arrow)" style="display:none"></line>
+      <!-- revoke dashed -->
+      <line id="cs-p2-revoke" x1="141" y1="151" x2="221" y2="151" stroke="#b5651d" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#cs-revoke-arrow)" style="display:none"></line>
+
+      <!-- round labels -->
+      <g id="cs-round1-label" style="display:none">
+        <rect x="215" y="32"  width="280" height="28" rx="6" fill="#f6f1e7" stroke="#b5651d" stroke-width="1.1"></rect>
+        <text x="355" y="50" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" font-weight="700" fill="#8a4d16">Round 1 · revoke P2 only · P0 and P1 keep running</text>
+      </g>
+      <g id="cs-round2-label" style="display:none">
+        <rect x="215" y="32"  width="280" height="28" rx="6" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.1"></rect>
+        <text x="355" y="50" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" font-weight="700" fill="#24552d">Round 2 · assign free P2 to C3 · still no group pause</text>
+      </g>
+
+      <!-- processing status bars -->
+      <g id="cs-p0-running" style="display:none"><rect x="148" y="38"  width="60" height="26" rx="5" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1"></rect><text x="178" y="55" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9" font-weight="700" fill="#3f7a3f">running</text></g>
+      <g id="cs-p1-running" style="display:none"><rect x="148" y="88"  width="60" height="26" rx="5" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1"></rect><text x="178" y="105" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9" font-weight="700" fill="#3f7a3f">running</text></g>
+      <g id="cs-p2-waiting" style="display:none"><rect x="148" y="138" width="60" height="26" rx="5" fill="#f6f1e7" stroke="#b5651d" stroke-width="1"></rect><text x="178" y="155" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9" font-weight="700" fill="#8a4d16">revoked</text></g>
+      <g id="cs-p2-running" style="display:none"><rect x="148" y="138" width="60" height="26" rx="5" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1"></rect><text x="178" y="155" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9" font-weight="700" fill="#3f7a3f">running</text></g>
+
+      <!-- eager comparison -->
+      <g id="cs-eager-compare" style="display:none">
+        <rect x="215" y="200" width="280" height="42" rx="7" fill="#f8eaea" stroke="#a32f2f" stroke-width="1.1"></rect>
+        <text x="355" y="218" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="700" fill="#a32f2f">Eager would have paused P0 + P1 + P2</text>
+        <text x="355" y="234" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9.5" fill="#a32f2f">even though only P2 changed owner</text>
+      </g>
+    </svg>
+  </div>
+  <div class="sf-caption"><p class="sf-title"></p><p class="sf-desc"></p></div>
+  <div class="sf-controls">
+    <button class="sf-btn sf-prev" type="button">◀ Prev</button>
+    <button class="sf-btn sf-next" type="button">Next ▶</button>
+    <button class="sf-btn sf-reset" type="button">↺ Reset</button>
+    <button class="sf-btn sf-play" type="button">▶ Play</button>
+    <span class="sf-counter"></span>
+  </div>
+  <script type="application/json" class="sf-steps">
+  [
+    {"title":"Start: same assignment as before C3 joined","desc":"C1 owns P0 and P2; C2 owns P1. C3 is about to join. StickyAssignor's algorithm will determine that only P2 must move. CooperativeStickyAssignor then executes that move without pausing the group.","visible":["cs-c1","cs-c2","cs-a0c1","cs-a2c1","cs-a1c2","cs-p0-running","cs-p1-running","cs-p2-running"],"highlight":["cs-p0","cs-p1","cs-p2","cs-c1","cs-c2"]},
+    {"title":"C3 joins — members report current ownership in JoinGroup","desc":"In the cooperative protocol, each member includes its currently owned partitions in the JoinGroup request. The leader now knows C1 still holds P2 and can plan a safe incremental transfer.","visible":["cs-c1","cs-c2","cs-c3","cs-a0c1","cs-a2c1","cs-a1c2","cs-p0-running","cs-p1-running","cs-p2-running"],"highlight":["cs-c3","cs-c1","cs-c2"]},
+    {"title":"Round 1 · revoke only P2","desc":"SyncGroup tells C1 to revoke P2. That is the only change in this round. P0 on C1 and P1 on C2 are not in the revoke list — their owners continue fetching and processing normally.","visible":["cs-c1","cs-c2","cs-c3","cs-a0c1","cs-a1c2","cs-p0-running","cs-p1-running","cs-p2-waiting","cs-p2-revoke","cs-round1-label"],"highlight":["cs-p2","cs-c1"]},
+    {"title":"P2 is now unowned — safe to assign","desc":"Because P2 has no owner, assigning it to C3 cannot violate the single-owner invariant. A second JoinGroup + SyncGroup cycle triggers automatically.","visible":["cs-c1","cs-c2","cs-c3","cs-a0c1","cs-a1c2","cs-p0-running","cs-p1-running","cs-p2-waiting","cs-round1-label"],"highlight":["cs-p2","cs-c3"]},
+    {"title":"Round 2 · assign free P2 to C3","desc":"The leader assigns P2 to C3. C1 retains P0 with no state loss; C2 retains P1. Only P2 experienced a brief ownership gap. P0 and P1 never stopped.","visible":["cs-c1","cs-c2","cs-c3","cs-a0c1","cs-a1c2","cs-a2c3","cs-p0-running","cs-p1-running","cs-p2-running","cs-round2-label"],"highlight":["cs-p2","cs-c3"]},
+    {"title":"Compare: what eager would have cost","desc":"An eager rebalance would have revoked P0, P1, and P2 simultaneously — pausing the whole group to transfer a single partition. CooperativeStickyAssignor's two-round dance confines the disruption to exactly the partitions that need to move.","visible":["cs-c1","cs-c2","cs-c3","cs-a0c1","cs-a1c2","cs-a2c3","cs-p0-running","cs-p1-running","cs-p2-running","cs-round2-label","cs-eager-compare"],"highlight":["cs-p0","cs-p1","cs-p2"]}
+  ]
+  </script>
+</div>
 
 <h2>5. Pros &amp; cons of the whole design</h2>
 
@@ -264,8 +887,9 @@
     and you can&rsquo;t scale out later without pain. <strong>Idle consumers waste money</strong> if you
     over-provision instances. But <strong>over-partitioning isn&rsquo;t free either</strong>: more partitions
     mean more open file handles and memory on brokers, longer leader elections and failover, higher
-    end-to-end latency, and slower rebalances. <strong>Changing partition count reshuffles
-    key→partition mapping</strong>, breaking historical per-key ordering and co-partitioning.
+    end-to-end latency, and slower rebalances. <strong>For normal keyed routing, changing partition
+    count reshuffles key→partition mapping</strong>, which can break historical per-key ordering and
+    co-partitioning.
     <strong>Hot partitions</strong> (key skew) overload one consumer while others idle. And
     <strong>rebalances pause processing</strong> unless you adopt cooperative rebalancing + static
     membership.
@@ -282,7 +906,119 @@
   </p>
 </div>
 
-<h2>6. In your stack: Spring Kafka knobs</h2>
+<h2>6. Increasing partitions in production: a routing change, not a resize</h2>
+
+<p>
+  Kafka <em>does</em> let you increase a topic&rsquo;s partition count; it does not let you decrease it.
+  The difficult part is not the command. Adding partitions changes the topology that producers,
+  consumers, and stream processors use. It does <strong>not</strong> take the data already in the topic
+  and spread it over more workers. Apache Kafka&rsquo;s
+  <a href="https://kafka.apache.org/43/operations/basic-kafka-operations/#modifying-topics" target="_blank" rel="noopener">topic-operation documentation</a>
+  calls out both consequences: existing data is not automatically redistributed, and keyed records
+  can be mapped differently after the count changes.
+</p>
+
+<div class="callout warning">
+  <span class="label">The production mental model</span>
+  <p>
+    An in-place increase is a <strong>future-routing migration</strong>, not a resize of yesterday&rsquo;s
+    workload. New partitions start empty. Old records, old lag, and a hot key&rsquo;s old history stay in
+    their original partitions. Future records may follow a different route.
+  </p>
+</div>
+
+<h3>What changes, and what does not</h3>
+
+<table>
+  <thead><tr><th>After 4 → 6 partitions</th><th>Production consequence</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Only P4 and P5 are created</strong></td><td>P0–P3 are not split. Historic records and any backlog remain where they were, so an existing hot partition is not repaired.</td></tr>
+    <tr><td><strong>Future keyed routing can change</strong></td><td>With the usual keyed hash/modulo route, the same key can move to a new partition. Kafka still orders each individual partition, but the key now has two independent histories.</td></tr>
+    <tr><td><strong>Clients discover new metadata</strong></td><td>A subscribed group must coordinate a fresh assignment before P4/P5 have owners. With no committed offset on a new partition, <code>auto.offset.reset=latest</code> can skip records written before that group begins reading it.</td></tr>
+    <tr><td><strong>Potential parallelism grows</strong></td><td>Actual processing capacity grows only when consumer capacity is available. With the same number of consumers, they simply own more partitions.</td></tr>
+    <tr><td><strong>Topology assumptions change</strong></td><td>Co-partitioned topics, Kafka Streams joins, explicit partition numbers, monitoring/alert thresholds, and capacity plans need review. A Streams equi-join requires matching partition counts and partitioning.</td></tr>
+  </tbody>
+</table>
+
+<h3>Animation E: follow one key through a 4 → 6 change</h3>
+
+<p>
+  This is an illustrative keyed route, not a claim about the exact hash of <code>customer-42</code>.
+  Step through it and watch the important boundary: the old event remains on P2 while the next event
+  for the <em>same</em> key can land on P4.
+</p>
+
+<div class="stepflow">
+  <div class="sf-stage">
+    <svg viewBox="0 0 780 420" role="img" aria-label="Step-by-step animation showing an existing Kafka topic increasing from four to six partitions, its historical records remaining in place, later keyed records routing to a different partition, a consumer group reassignment, ordering and backlog risks, and a safe migration decision">
+      <text x="194" y="25" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" font-weight="700" fill="#6b6459">topic: orders</text>
+      <text x="596" y="25" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" font-weight="700" fill="#6b6459">consumer group: fulfillment</text>
+
+      <g id="pi-p0" class="sf-actor" style="display:none"><rect x="28" y="43" width="102" height="55" rx="7" fill="#f3f0e8" stroke="#6b6459" stroke-width="1.25"></rect><text x="79" y="66" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" font-weight="700" fill="#1a1a1a">P0</text><text x="79" y="84" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" fill="#6b6459">existing</text></g>
+      <g id="pi-p1" class="sf-actor" style="display:none"><rect x="143" y="43" width="102" height="55" rx="7" fill="#f3f0e8" stroke="#6b6459" stroke-width="1.25"></rect><text x="194" y="66" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" font-weight="700" fill="#1a1a1a">P1</text><text x="194" y="84" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" fill="#6b6459">existing</text></g>
+      <g id="pi-p2" class="sf-actor" style="display:none"><rect x="258" y="43" width="102" height="55" rx="7" fill="#f3f0e8" stroke="#6b6459" stroke-width="1.25"></rect><text x="309" y="66" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" font-weight="700" fill="#1a1a1a">P2</text><text x="309" y="84" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" fill="#6b6459">existing</text></g>
+      <g id="pi-p3" class="sf-actor" style="display:none"><rect x="28" y="111" width="102" height="55" rx="7" fill="#f3f0e8" stroke="#6b6459" stroke-width="1.25"></rect><text x="79" y="134" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" font-weight="700" fill="#1a1a1a">P3</text><text x="79" y="152" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" fill="#6b6459">existing</text></g>
+      <g id="pi-p4" class="sf-actor" style="display:none"><rect x="143" y="111" width="102" height="55" rx="7" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.4"></rect><text x="194" y="134" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" font-weight="700" fill="#1a1a1a">P4</text><text x="194" y="152" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" fill="#3f7a3f">new</text></g>
+      <g id="pi-p5" class="sf-actor" style="display:none"><rect x="258" y="111" width="102" height="55" rx="7" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.4"></rect><text x="309" y="134" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" font-weight="700" fill="#1a1a1a">P5</text><text x="309" y="152" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" fill="#3f7a3f">new</text></g>
+
+      <g id="pi-old-record" class="sf-actor" style="display:none"><rect x="267" y="72" width="84" height="18" rx="4" fill="#fbf1e7" stroke="#b5651d" stroke-width="1"></rect><text x="309" y="85" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9.5" font-weight="700" fill="#8a4d16">#100 · old</text></g>
+      <g id="pi-new-record" class="sf-actor" style="display:none"><rect x="152" y="140" width="84" height="18" rx="4" fill="#eef1f6" stroke="#2e5a7a" stroke-width="1"></rect><text x="194" y="153" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9.5" font-weight="700" fill="#2e5a7a">#101 · new</text></g>
+
+      <g id="pi-c1-before" class="sf-actor" style="display:none"><rect x="452" y="43" width="286" height="52" rx="8" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.4"></rect><text x="470" y="65" font-family="system-ui,sans-serif" font-size="12" font-weight="700" fill="#1a1a1a">C1</text><text x="470" y="83" font-family="system-ui,sans-serif" font-size="10.5" fill="#3f7a3f">owns P0, P2</text><text x="719" y="65" text-anchor="end" font-family="system-ui,sans-serif" font-size="10" fill="#6b6459">before</text></g>
+      <g id="pi-c2-before" class="sf-actor" style="display:none"><rect x="452" y="111" width="286" height="52" rx="8" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.4"></rect><text x="470" y="133" font-family="system-ui,sans-serif" font-size="12" font-weight="700" fill="#1a1a1a">C2</text><text x="470" y="151" font-family="system-ui,sans-serif" font-size="10.5" fill="#3f7a3f">owns P1, P3</text><text x="719" y="133" text-anchor="end" font-family="system-ui,sans-serif" font-size="10" fill="#6b6459">before</text></g>
+      <g id="pi-c1-after" class="sf-actor" style="display:none"><rect x="452" y="43" width="286" height="52" rx="8" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.4"></rect><text x="470" y="65" font-family="system-ui,sans-serif" font-size="12" font-weight="700" fill="#1a1a1a">C1</text><text x="470" y="83" font-family="system-ui,sans-serif" font-size="10.5" fill="#3f7a3f">owns P0, P1, P2</text><text x="719" y="65" text-anchor="end" font-family="system-ui,sans-serif" font-size="10" fill="#6b6459">illustrative</text></g>
+      <g id="pi-c2-after" class="sf-actor" style="display:none"><rect x="452" y="111" width="286" height="52" rx="8" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.4"></rect><text x="470" y="133" font-family="system-ui,sans-serif" font-size="12" font-weight="700" fill="#1a1a1a">C2</text><text x="470" y="151" font-family="system-ui,sans-serif" font-size="10.5" fill="#3f7a3f">owns P3, P4, P5</text><text x="719" y="133" text-anchor="end" font-family="system-ui,sans-serif" font-size="10" fill="#6b6459">illustrative</text></g>
+
+      <g id="pi-before-route" class="sf-actor" style="display:none"><rect x="28" y="190" width="354" height="61" rx="8" fill="#f6f1e7" stroke="#b5651d" stroke-width="1.2"></rect><text x="46" y="214" font-family="system-ui,sans-serif" font-size="11" font-weight="700" fill="#8a4d16">before</text><text x="46" y="236" font-family="system-ui,sans-serif" font-size="11" fill="#1a1a1a">customer-42 · illustrative hash 10 → 10 % 4 = 2 → P2</text></g>
+      <g id="pi-after-route" class="sf-actor" style="display:none"><rect x="398" y="190" width="340" height="61" rx="8" fill="#eef1f6" stroke="#2e5a7a" stroke-width="1.2"></rect><text x="416" y="214" font-family="system-ui,sans-serif" font-size="11" font-weight="700" fill="#2e5a7a">after producer metadata refresh</text><text x="416" y="236" font-family="system-ui,sans-serif" font-size="11" fill="#1a1a1a">same hash 10 → 10 % 6 = 4 → P4</text></g>
+
+      <g id="pi-alter-panel" class="sf-actor" style="display:none"><rect x="28" y="275" width="710" height="104" rx="9" fill="#eef1f6" stroke="#2e5a7a" stroke-width="1.25"></rect><text x="48" y="304" font-family="system-ui,sans-serif" font-size="12" font-weight="700" fill="#2e5a7a">AlterTopic: partitions 4 → 6</text><text x="48" y="329" font-family="system-ui,sans-serif" font-size="11" fill="#1a1a1a">Kafka creates P4 and P5. It does not split P2 or copy event #100 into the new partitions.</text><text x="48" y="354" font-family="system-ui,sans-serif" font-size="10.5" fill="#2e5a7a">Increase is supported; decrease is not. The new partition logs and replicas also need broker capacity.</text></g>
+      <g id="pi-rebalance-panel" class="sf-actor" style="display:none"><rect x="28" y="275" width="710" height="104" rx="9" fill="#f6f1e7" stroke="#b5651d" stroke-width="1.25"></rect><text x="48" y="304" font-family="system-ui,sans-serif" font-size="12" font-weight="700" fill="#8a4d16">Metadata refresh → group assignment</text><text x="48" y="329" font-family="system-ui,sans-serif" font-size="11" fill="#1a1a1a">After the group discovers P4/P5, it coordinates a new assignment so those partitions have owners.</text><text x="48" y="354" font-family="system-ui,sans-serif" font-size="10.5" fill="#8a4d16">If P4/P5 have no committed offset and auto.offset.reset=latest, records written before reading starts can be skipped.</text></g>
+      <g id="pi-order-panel" class="sf-actor" style="display:none"><rect x="28" y="275" width="710" height="104" rx="9" fill="#f8eaea" stroke="#a32f2f" stroke-width="1.25"></rect><rect x="48" y="307" width="277" height="43" rx="6" fill="#fffdfa" stroke="#b5651d" stroke-width="1"></rect><text x="64" y="326" font-family="system-ui,sans-serif" font-size="10.5" font-weight="700" fill="#8a4d16">C1 drains P2</text><text x="64" y="342" font-family="system-ui,sans-serif" font-size="10" fill="#1a1a1a">#100 still waits behind old lag</text><rect x="345" y="307" width="277" height="43" rx="6" fill="#fffdfa" stroke="#2e5a7a" stroke-width="1"></rect><text x="361" y="326" font-family="system-ui,sans-serif" font-size="10.5" font-weight="700" fill="#2e5a7a">C2 processes P4</text><text x="361" y="342" font-family="system-ui,sans-serif" font-size="10" fill="#1a1a1a">#101 can finish first</text><text x="48" y="369" font-family="system-ui,sans-serif" font-size="10.5" font-weight="700" fill="#a32f2f">One key now spans two independent partition logs: Kafka cannot preserve order across them.</text></g>
+      <g id="pi-backlog-panel" class="sf-actor" style="display:none"><rect x="28" y="275" width="342" height="104" rx="9" fill="#fbf1e7" stroke="#b5651d" stroke-width="1.25"></rect><text x="48" y="305" font-family="system-ui,sans-serif" font-size="12" font-weight="700" fill="#8a4d16">Old work stays put</text><text x="48" y="330" font-family="system-ui,sans-serif" font-size="11" fill="#1a1a1a">P2&rsquo;s historic backlog is still P2&rsquo;s job.</text><text x="48" y="354" font-family="system-ui,sans-serif" font-size="10.5" fill="#8a4d16">A single hot key is still one partition&rsquo;s load.</text></g>
+      <g id="pi-capacity-panel" class="sf-actor" style="display:none"><rect x="396" y="275" width="342" height="104" rx="9" fill="#eef1f6" stroke="#2e5a7a" stroke-width="1.25"></rect><text x="416" y="305" font-family="system-ui,sans-serif" font-size="12" font-weight="700" fill="#2e5a7a">Potential ≠ active capacity</text><text x="416" y="330" font-family="system-ui,sans-serif" font-size="11" fill="#1a1a1a">2 consumers are still 2 consumer processes.</text><text x="416" y="354" font-family="system-ui,sans-serif" font-size="10.5" fill="#2e5a7a">Add healthy consumers to use new parallelism.</text></g>
+      <g id="pi-topology-panel" class="sf-actor" style="display:none"><rect x="28" y="275" width="710" height="104" rx="9" fill="#f8eaea" stroke="#a32f2f" stroke-width="1.25"></rect><rect x="48" y="307" width="202" height="42" rx="6" fill="#fffdfa" stroke="#2e5a7a" stroke-width="1"></rect><text x="149" y="326" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" font-weight="700" fill="#2e5a7a">orders · 6 partitions</text><rect x="278" y="307" width="202" height="42" rx="6" fill="#fffdfa" stroke="#b5651d" stroke-width="1"></rect><text x="379" y="326" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" font-weight="700" fill="#8a4d16">payments · 4 partitions</text><text x="511" y="333" font-family="system-ui,sans-serif" font-size="18" font-weight="700" fill="#a32f2f">≠</text><text x="48" y="369" font-family="system-ui,sans-serif" font-size="10.5" font-weight="700" fill="#a32f2f">Review co-partitioned joins, repartition topics, and any code that assumes matching partition counts.</text></g>
+      <g id="pi-decision-accept" class="sf-actor" style="display:none"><rect x="28" y="275" width="342" height="104" rx="9" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.25"></rect><text x="48" y="305" font-family="system-ui,sans-serif" font-size="12" font-weight="700" fill="#3f7a3f">In-place increase can be valid</text><text x="48" y="330" font-family="system-ui,sans-serif" font-size="10.5" fill="#1a1a1a">Only after auditing order, offsets, consumers,</text><text x="48" y="348" font-family="system-ui,sans-serif" font-size="10.5" fill="#1a1a1a">topology, broker capacity, and rollout metrics.</text></g>
+      <g id="pi-decision-migrate" class="sf-actor" style="display:none"><rect x="396" y="275" width="342" height="104" rx="9" fill="#eef1f6" stroke="#2e5a7a" stroke-width="1.25"></rect><text x="416" y="305" font-family="system-ui,sans-serif" font-size="12" font-weight="700" fill="#2e5a7a">Strict key order / co-partitioning</text><text x="416" y="330" font-family="system-ui,sans-serif" font-size="10.5" fill="#1a1a1a">Cut each key over after old work drains,</text><text x="416" y="348" font-family="system-ui,sans-serif" font-size="10.5" fill="#1a1a1a">or merge both histories by a sequence.</text></g>
+    </svg>
+  </div>
+
+  <div class="sf-caption"><p class="sf-title"></p><p class="sf-desc"></p></div>
+  <div class="sf-controls">
+    <button class="sf-btn sf-prev" type="button">◀ Prev</button>
+    <button class="sf-btn sf-next" type="button">Next ▶</button>
+    <button class="sf-btn sf-reset" type="button">↺ Reset</button>
+    <button class="sf-btn sf-play" type="button">▶ Play</button>
+    <span class="sf-counter"></span>
+  </div>
+
+  <script type="application/json" class="sf-steps">
+  [
+    {"title":"Before: one key has one partition history","desc":"For this illustrative key, hash 10 gives <code>10 % 4 = 2</code>. Its earlier event, #100, is in P2, so the key has one ordered partition log.","visible":["pi-p0","pi-p1","pi-p2","pi-p3","pi-old-record","pi-before-route","pi-c1-before","pi-c2-before"],"highlight":["pi-p2","pi-old-record","pi-before-route","pi-c1-before"]},
+    {"title":"Increase 4 → 6: Kafka creates empty P4 and P5","desc":"P4 and P5 are added. P0–P3 are not split, and #100 remains in P2. Kafka can increase a topic&rsquo;s count, but it does not redistribute existing records.","visible":["pi-p0","pi-p1","pi-p2","pi-p3","pi-p4","pi-p5","pi-old-record","pi-before-route","pi-c1-before","pi-c2-before","pi-alter-panel"],"highlight":["pi-p4","pi-p5","pi-old-record","pi-alter-panel"]},
+    {"title":"The same key can now route to P4","desc":"Once producer metadata reflects six partitions, the same illustrative hash gives <code>10 % 6 = 4</code>. Later event #101 goes to P4; the old event was never moved.","visible":["pi-p0","pi-p1","pi-p2","pi-p3","pi-p4","pi-p5","pi-old-record","pi-new-record","pi-before-route","pi-after-route","pi-c1-before","pi-c2-before"],"highlight":["pi-p2","pi-p4","pi-old-record","pi-new-record","pi-after-route"]},
+    {"title":"The group must discover and assign the new partitions","desc":"Clients refresh metadata, then the subscribed group coordinates a new assignment for P4/P5. This ownership is illustrative; the actual assignor decides it. With no offset on a new partition, <code>auto.offset.reset=latest</code> can skip records sent before reading begins.","visible":["pi-p0","pi-p1","pi-p2","pi-p3","pi-p4","pi-p5","pi-old-record","pi-new-record","pi-after-route","pi-c1-after","pi-c2-after","pi-rebalance-panel"],"highlight":["pi-p4","pi-p5","pi-c1-after","pi-c2-after","pi-rebalance-panel"]},
+    {"title":"Historical per-key ordering can now break","desc":"Now take the complementary safe-offset case: the group uses <code>earliest</code>, or #101 arrives after C2&rsquo;s initial position is set. C1 can still drain #100 from P2 while C2 finishes #101 from P4 first. Kafka preserved order <em>inside</em> each partition, not across the key&rsquo;s two histories.","visible":["pi-p0","pi-p1","pi-p2","pi-p3","pi-p4","pi-p5","pi-old-record","pi-new-record","pi-after-route","pi-c1-after","pi-c2-after","pi-order-panel"],"highlight":["pi-p2","pi-p4","pi-old-record","pi-new-record","pi-order-panel"]},
+    {"title":"Existing backlog and worker capacity do not move","desc":"Historic backlog remains on P2. P4/P5 affect future routing only. More partitions create <em>potential</em> parallelism, but without more healthy consumers the same consumers simply own more partitions.","visible":["pi-p0","pi-p1","pi-p2","pi-p3","pi-p4","pi-p5","pi-old-record","pi-new-record","pi-after-route","pi-c1-after","pi-c2-after","pi-backlog-panel","pi-capacity-panel"],"highlight":["pi-p2","pi-p4","pi-p5","pi-backlog-panel","pi-capacity-panel"]},
+    {"title":"Review every co-partitioned topology","desc":"If a joined topic remains at four partitions while <code>orders</code> has six, the old alignment is gone. Kafka Streams equi-joins require matching counts and partitioning, so review joins, repartition topics, and partition-number assumptions before the change.","visible":["pi-p0","pi-p1","pi-p2","pi-p3","pi-p4","pi-p5","pi-old-record","pi-new-record","pi-after-route","pi-c1-after","pi-c2-after","pi-topology-panel"],"highlight":["pi-p4","pi-p5","pi-topology-panel"]},
+    {"title":"Choose the migration boundary deliberately","desc":"An in-place increase can be acceptable when split key history is understood and controlled. For strict historical order, <code>orders-v2</code> only helps when each key crosses an ordering boundary: drain old work first or merge both histories by a sequence. For a co-partitioned join, migrate or repartition <em>all</em> inputs together with the same count and partitioner.","visible":["pi-p0","pi-p1","pi-p2","pi-p3","pi-p4","pi-p5","pi-old-record","pi-new-record","pi-after-route","pi-c1-after","pi-c2-after","pi-decision-accept","pi-decision-migrate"],"highlight":["pi-decision-accept","pi-decision-migrate"]}
+  ]
+  </script>
+</div>
+
+<div class="callout tryit">
+  <span class="label">Staff-level decision checklist</span>
+  <p>
+    Before an in-place increase, make the boundary explicit: (1) which keys need strict historical
+    order, (2) whether any streams/join inputs must remain co-partitioned, (3) how every consumer
+    initializes new-partition offsets, (4) which consumers will absorb the added partitions, and
+    (5) how you will watch assignment churn, skipped-record risk, consumer lag, and broker capacity.
+    If those answers are not safe, create a versioned topic, cut each key over only after old work
+    drains (or merge with a sequence), and migrate co-partitioned inputs together.
+  </p>
+</div>
+
+<h2>7. In your stack: Spring Kafka knobs</h2>
 
 <p>
   In <code>spring-kafka</code>, the <code>concurrency</code> on a listener container is how many
@@ -308,13 +1044,14 @@ spring:
         partition.assignment.strategy: org.apache.kafka.clients.consumer.CooperativeStickyAssignor
         session.timeout.ms: 45000          # miss heartbeats this long -> declared dead -> rebalance
         max.poll.interval.ms: 300000       # too-slow processing also triggers a rebalance
-        group.instance.id: ${HOSTNAME}     # static membership: skip rebalance on quick restarts</code></pre>
+        group.instance.id: ${STABLE_MEMBER_ID}  # e.g. StatefulSet slot; preserve a transient restart</code></pre>
 
 <div class="callout warning">
   <span class="label">The most common real-world bug this explains</span>
   <p>
     &ldquo;We scaled to 20 pods but throughput flatlined.&rdquo; The topic had 8 partitions &mdash; so 12 pods
-    were idle. The fix is <em>more partitions</em>, not more pods. Now you know exactly why.
+    were idle. More partitions may be the capacity fix, but treat the increase as a controlled routing
+    change before applying it. Now you know exactly why.
   </p>
 </div>
 
@@ -324,14 +1061,16 @@ spring:
     <a href="https://developer.confluent.io/courses/architecture/consumer-group-protocol/" target="_blank" rel="noopener">Confluent &mdash; <em>Consumer Group Protocol</em></a>
     (coordinator, leader, Join/Sync/Heartbeat, assignment strategies) and
     <a href="https://www.confluent.io/blog/incremental-cooperative-rebalancing-in-kafka/" target="_blank" rel="noopener">Confluent &mdash; <em>Incremental Cooperative Rebalancing</em></a>
-    (eager vs cooperative, why the broker stays generic).
+    (eager vs cooperative, why the broker stays generic). For the new production topic-change
+    decision, use Apache Kafka&rsquo;s <a href="https://kafka.apache.org/43/operations/basic-kafka-operations/#modifying-topics" target="_blank" rel="noopener"><em>Modifying Topics</em></a>
+    guidance and its <a href="https://kafka.apache.org/43/streams/developer-guide/dsl-api/#join-co-partitioning-requirements" target="_blank" rel="noopener"><em>Streams join co-partitioning requirements</em></a>.
   </p>
 </div>
 
-<h2>7. Check yourself</h2>
+<h2>8. Check yourself</h2>
 
 <div class="quiz" data-quiz>
-  <p class="quiz-kicker">Retrieval practice · 1 of 2</p>
+  <p class="quiz-kicker">Retrieval practice · 1 of 3</p>
   <p class="quiz-q">Deepest reason Kafka forbids two consumers of one group from sharing a partition?</p>
   <ul class="quiz-options">
     <li><button data-correct="true" data-feedback="A single owner gives one ordered cursor and one offset writer per (group, partition).">It preserves ordering and a single offset</button></li>
@@ -343,7 +1082,7 @@ spring:
 </div>
 
 <div class="quiz" data-quiz>
-  <p class="quiz-kicker">Retrieval practice · 2 of 2</p>
+  <p class="quiz-kicker">Retrieval practice · 2 of 3</p>
   <p class="quiz-q">Who actually computes which consumer gets which partition?</p>
   <ul class="quiz-options">
     <li><button data-correct="false" data-feedback="The coordinator only tracks membership and relays the plan; it doesn&rsquo;t compute it.">The group coordinator broker computes it</button></li>
@@ -352,6 +1091,18 @@ spring:
     <li><button data-correct="false" data-feedback="There is a single leader per group doing assignment, not every consumer independently.">Each consumer picks its own partitions</button></li>
   </ul>
   <div class="quiz-explain" hidden data-base="Assignment is an embedded, client-side protocol: the leader runs the strategy; the broker only knows membership."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 3 of 3</p>
+  <p class="quiz-q">Why can&rsquo;t adding partitions repair today&rsquo;s hot, backlogged P2 by itself?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="Exactly. Existing P2 records stay in P2; added partitions only change future routing, and new consumers are needed to use new capacity.">Historic records remain in P2</button></li>
+    <li><button data-correct="false" data-feedback="Kafka does create P4/P5, but it does not move P2&rsquo;s existing records into them.">Kafka delays P4 and P5 creation</button></li>
+    <li><button data-correct="false" data-feedback="Consumers do coordinate a new assignment, but that assignment cannot redistribute the partition log itself.">The assignor rejects new partitions</button></li>
+    <li><button data-correct="false" data-feedback="The key concern is not a faster leader election; it is historic data placement and future keyed routing.">A leader election blocks migration</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Partition growth adds empty future lanes. It does not repartition history, so old lag stays in its original partition and keyed routing may change going forward."></div>
 </div>
 
 <div class="followup">

@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cheat Sheet · Event Design Checklist</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<style>
+  body { max-width: 52rem; }
+  @media print { body { margin: 0; } h2 { margin-top: 1.1rem; } }
+</style>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Event Sourcing · Reference 02</p>
+  <h1>Event Design Checklist</h1>
+  <div class="meta"><span>Compressed from Lesson 02</span><span class="dot">•</span><span>Print-friendly</span></div>
+</header>
+
+<div class="callout insight">
+  <span class="label">Mindset</span>
+  <p>Events are your <strong>permanent public contract with the future</strong>. You can change code
+  tomorrow; you can&rsquo;t change what you wrote down yesterday.</p>
+</div>
+
+<h2>Review checklist</h2>
+<ul class="checklist">
+  <li><strong>Past tense, business language</strong> &mdash; a domain expert recognises the name (<code>InvoiceIssued</code>, not <code>InvoiceUpdated</code>).</li>
+  <li><strong>Intent, not diff</strong> &mdash; could a consumer react to one reason but not another? Then they&rsquo;re separate types.</li>
+  <li><strong>Applicable without lookups</strong> &mdash; <code>evolve</code> needs no DB, clock, random or config.</li>
+  <li><strong>Historical inputs captured</strong> &mdash; rates, prices, policy versions whose derivation can change.</li>
+  <li><strong>No derived state</strong> whose derivation is stable (running balance) &mdash; fold it instead.</li>
+  <li><strong>No CRUD events</strong> &mdash; no <code>XUpdated{allFields}</code>, no <code>StatusChanged{from,to}</code>.</li>
+  <li><strong>One event per business fact</strong>; multiple facts from one command &rarr; one atomic append.</li>
+  <li><strong>Payload vs metadata</strong> &mdash; business data in <code>data</code>; ids, trace, tenant, user in <code>metadata</code>.</li>
+  <li><strong>Minimal PII</strong> &mdash; reference by id; encrypt or isolate personal data (Lesson 13).</li>
+  <li><strong>Schema version</strong> set in the envelope from day one.</li>
+</ul>
+
+<h2>Smell &rarr; fix</h2>
+<table>
+  <thead><tr><th>Smell</th><th>Fix</th></tr></thead>
+  <tbody>
+    <tr><td><code>CustomerUpdated{changedFields}</code></td><td><code>AddressCorrected</code> / <code>CustomerRelocated</code></td></tr>
+    <tr><td><code>OrderStatusChanged{from,to}</code></td><td><code>OrderShipped</code>, <code>OrderCancelled</code>&hellip;</td></tr>
+    <tr><td>evolve calls tax/price service</td><td>Store <code>taxRate</code>, <code>unitPrice</code> in the event</td></tr>
+    <tr><td><code>QuantityFieldSet</code> per keystroke</td><td>Group by what the user accomplished</td></tr>
+    <tr><td>Whole customer copied into every event</td><td>Carry ids for stable data, values for changeable inputs</td></tr>
+    <tr><td><code>traceId</code> inside <code>data</code></td><td>Move to <code>metadata.traceparent</code></td></tr>
+  </tbody>
+</table>
+
+<h2>Envelope</h2>
+<pre><code>public record EventEnvelope(
+        UUID eventId, String streamId, long streamVersion, long globalPosition,
+        String eventType, int schemaVersion, Instant occurredAt,
+        Object data,                         // the business fact
+        Map&lt;String, String&gt; metadata) {}     // correlationId, causationId, userId, tenantId, traceparent</code></pre>
+
+<h2>Correlation &amp; causation rule</h2>
+<table>
+  <thead><tr><th>When handling message M, every emitted message gets&hellip;</th><th>Answers</th></tr></thead>
+  <tbody>
+    <tr><td><code>correlationId = M.correlationId</code></td><td>&ldquo;Which business flow?&rdquo; &mdash; group the whole story</td></tr>
+    <tr><td><code>causationId = M.messageId</code></td><td>&ldquo;What directly caused this?&rdquo; &mdash; rebuild the causal tree</td></tr>
+  </tbody>
+</table>
+
+<nav class="lesson-nav">
+  <span class="group"><b>From</b><a href="../lessons/0002-events-commands-designing-events.html">&larr; Lesson 02 · Designing good events</a></span>
+  <span class="group"><b>Canonical terms</b><a href="../GLOSSARY.md">GLOSSARY.md</a></span>
+  <span class="group"><b>Primary source</b><a href="https://event-driven.io/en/" target="_blank" rel="noopener">event-driven.io · Oskar Dudycz</a></span>
+</nav>
+
+</body>
+</html>

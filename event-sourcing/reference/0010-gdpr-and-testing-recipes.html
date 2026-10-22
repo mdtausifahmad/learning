@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cheat Sheet · GDPR &amp; Testing Recipes</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<style>
+  body { max-width: 52rem; }
+  @media print { body { margin: 0; } h2 { margin-top: 1.1rem; } }
+</style>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Event Sourcing · Reference 10</p>
+  <h1>GDPR &amp; Testing Recipes</h1>
+  <div class="meta"><span>Compressed from Lessons 13 &amp; 14</span><span class="dot">•</span><span>Print-friendly</span></div>
+</header>
+
+<h2>PII options (pick in this order)</h2>
+<table>
+  <thead><tr><th>Technique</th><th>How</th><th>Use when</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Keep PII out</strong></td><td>events carry <code>customerId</code>; PII in deletable CRUD store</td><td>default</td></tr>
+    <tr><td><strong>Crypto-shredding</strong></td><td>AES-GCM per-subject key; delete key &rarr; <code>[erased]</code></td><td>PII must travel with the fact</td></tr>
+    <tr><td>Stream deletion</td><td>delete/truncate <code>customer-42</code>; projections handle tombstones</td><td>whole stream is personal</td></tr>
+    <tr><td>Copy-transform</td><td>rewrite history without the subject</td><td>last resort, governed</td></tr>
+  </tbody>
+</table>
+
+<h2>Erasure checklist (own the data map)</h2>
+<ul class="checklist">
+  <li>Destroy key / delete stream; append PII-free <code>CustomerDataErased</code>.</li>
+  <li><strong>Read models</strong> scrub on that event; rebuild yields <code>[erased]</code>.</li>
+  <li><strong>Snapshots</strong>: no PII in aggregate state; delete subject&rsquo;s snapshots.</li>
+  <li><strong>Kafka</strong>: ids/ciphertext only; tombstone compacted keys; retention &lt; deadline.</li>
+  <li><strong>Backups &amp; key-store backups / KMS soft-delete</strong>: retention &lt; deadline (1 month default).</li>
+  <li><strong>Data lake, logs, DLQ, search, caches</strong>: erasure handler or TTL each.</li>
+  <li>No PII in stream ids, metadata, tags or message keys.</li>
+</ul>
+
+<h2>Temporal queries</h2>
+<table>
+  <thead><tr><th>Question</th><th>Axis</th><th>Filter</th></tr></thead>
+  <tbody>
+    <tr><td>What did we <strong>know</strong> at T?</td><td>system time</td><td><code>recorded_at &lt;= T</code></td></tr>
+    <tr><td>What <strong>was true</strong> at T?</td><td>valid time</td><td><code>effectiveFrom &lt;= T</code> (in payload)</td></tr>
+    <tr><td>What did we believe at T1 about T2?</td><td>bi-temporal</td><td>both</td></tr>
+  </tbody>
+</table>
+<p>Retroactive event (recorded now, effective earlier) &rarr; a policy appends a compensating event (<code>BackpayCalculated</code>). Never rewrite.</p>
+
+<h2>Test pyramid</h2>
+<table>
+  <thead><tr><th>Layer</th><th>Assert</th><th>Tool</th></tr></thead>
+  <tbody>
+    <tr><td>Decider</td><td>Given events / When command / Then events or error</td><td>JUnit 5</td></tr>
+    <tr><td>Property</td><td>invariant for any sequence; evolve never throws; rehydrate == incremental</td><td>jqwik</td></tr>
+    <tr><td>Projection</td><td>rows correct; same batch twice &rArr; unchanged</td><td>Testcontainers PG</td></tr>
+    <tr><td>Store contract</td><td>1 winner per expected version; order; no gap skips</td><td>Testcontainers</td></tr>
+    <tr><td>Schema</td><td>append-only golden corpus deserialises + upcasts</td><td>JUnit + files</td></tr>
+    <tr><td>Replay</td><td>anonymised prod through N and N+1; diff read models</td><td>pipeline</td></tr>
+  </tbody>
+</table>
+
+<pre><code>given(new AccountOpened("A1","u1","EUR",t), new MoneyDeposited("A1", bd("10"), t))
+  .when(new Withdraw("A1", bd("30")))
+  .thenThrows(DomainException.class, "Insufficient funds");</code></pre>
+
+<pre><code># Testcontainers on Podman (macOS)
+export DOCKER_HOST="unix://$(podman machine inspect --format '{{.ConnectionInfo.PodmanSocket.Path}}')"
+export TESTCONTAINERS_RYUK_DISABLED=true   # only if Ryuk fails</code></pre>
+
+<div class="callout warning">
+  <span class="label">Never</span>
+  <p>Edit a corpus file to make a test pass &middot; test projections on H2 &middot; replay raw prod PII in CI &middot; assert on aggregate state instead of events.</p>
+</div>
+
+<nav class="lesson-nav">
+  <span class="group"><b>From</b><a href="../lessons/0013-gdpr-crypto-shredding-and-temporal-queries.html">&larr; Lesson 13 · GDPR</a><a href="../lessons/0014-testing-event-sourced-systems.html">&larr; Lesson 14 · Testing</a></span>
+  <span class="group"><b>Canonical terms</b><a href="../GLOSSARY.md">GLOSSARY.md</a></span>
+  <span class="group"><b>Primary source</b><a href="https://jqwik.net/" target="_blank" rel="noopener">jqwik.net</a><a href="https://event-driven.io/" target="_blank" rel="noopener">event-driven.io</a></span>
+</nav>
+
+</body>
+</html>

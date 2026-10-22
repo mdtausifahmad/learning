@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Event Sourcing — Course Map</title>
+<link rel="stylesheet" href="assets/styles.css">
+<style>
+  .course-sec { margin: 1.8rem 0; }
+  .course-sec > h2 { margin-bottom: .3rem; }
+  .arc { font-size: .82rem; color: var(--muted); font-style: italic; margin: 0 0 .7rem; }
+  ol.lessons { margin: .3rem 0; padding-left: 1.4rem; }
+  ol.lessons li { margin: .5rem 0; }
+  ol.lessons a { font-weight: 600; }
+  .desc { color: var(--muted); font-size: .92rem; }
+  .refs { display: grid; grid-template-columns: 1fr 1fr; gap: .3rem 1.4rem; list-style: none; padding: 0; font-size: .92rem; }
+  .docs a { margin-right: 1.2rem; }
+  .sim-tag { font-family: -apple-system, system-ui, sans-serif; font-size: .64rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--accent); border: 1px solid var(--accent); border-radius: 10px; padding: 0 .4rem; margin-left: .35rem; vertical-align: middle; }
+  @media (max-width: 620px) { .refs { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Principal-Engineering Track</p>
+  <h1>Event Sourcing: Level 0 &rarr; Staff</h1>
+  <div class="meta"><span>16 lessons · 12 reference sheets · 5 interactive simulators · 1 runnable lab</span><span class="dot">•</span><span>Java 21 · PostgreSQL · Kafka · Podman</span></div>
+</header>
+
+<p class="mission-tie">
+  From &ldquo;what is an event?&rdquo; to deciding &mdash; and defending in an architecture review &mdash;
+  whether, where and how your organisation should event-source a domain. Each lesson is a single sitting,
+  with an animated walkthrough, quizzes, and a &ldquo;try it in your system&rdquo; task. Prefer one long
+  read? The whole course is also in <a href="GUIDE.md">GUIDE.md</a> (with Mermaid diagrams). See
+  <a href="MISSION.md">MISSION.md</a> for the why.
+</p>
+
+<div class="course-sec">
+  <h2>Part I · Foundations <span class="desc">(Level 0&ndash;1)</span></h2>
+  <p class="arc">Store facts, derive state.</p>
+  <ol class="lessons">
+    <li><a href="lessons/0001-state-vs-history-mental-model.html">State vs history: the mental model</a><span class="sim-tag">sim</span><br><span class="desc">The inversion; fold; why (and why not).</span></li>
+    <li><a href="lessons/0002-events-commands-designing-events.html">Events, commands &amp; designing good events</a><br><span class="desc">Past tense, intent over diffs, envelopes, correlation/causation.</span></li>
+    <li><a href="lessons/0003-decider-aggregates-in-java.html">The Decider: aggregates in Java 21</a><br><span class="desc">Pure decide/evolve, sealed types, minimal state.</span></li>
+    <li><a href="lessons/0004-event-store-optimistic-concurrency.html">The event store &amp; optimistic concurrency</a><span class="sim-tag">sim</span><br><span class="desc">Postgres schema, expectedVersion, stream design.</span></li>
+  </ol>
+</div>
+
+<div class="course-sec">
+  <h2>Part II · The read side <span class="desc">(Level 2)</span></h2>
+  <p class="arc">CQRS: answer any question, eventually.</p>
+  <ol class="lessons" start="5">
+    <li><a href="lessons/0005-cqrs-and-projections.html">CQRS &amp; projections</a><span class="sim-tag">sim</span><br><span class="desc">Idempotent, checkpointed, rebuildable.</span></li>
+    <li><a href="lessons/0006-rebuilds-and-eventual-consistency.html">Rebuilds &amp; living with eventual consistency</a><br><span class="desc">Blue/green rebuilds; read-your-writes; UX strategies.</span></li>
+  </ol>
+</div>
+
+<div class="course-sec">
+  <h2>Part III · Production engineering <span class="desc">(Level 3)</span></h2>
+  <p class="arc">What separates a demo from a system you can page someone about.</p>
+  <ol class="lessons" start="7">
+    <li><a href="lessons/0007-snapshots-and-closing-the-books.html">Snapshots &amp; closing the books</a><br><span class="desc">Caches, not truth; short-lived streams.</span></li>
+    <li><a href="lessons/0008-subscriptions-and-the-gap-problem.html">Subscriptions &amp; the global-ordering gap</a><span class="sim-tag">sim</span><br><span class="desc">Catch-up vs persistent; the bug that skips events forever.</span></li>
+    <li><a href="lessons/0009-publishing-integration-events-and-kafka.html">Publishing: integration events &amp; Kafka</a><br><span class="desc">Domain vs integration events; no dual writes; is Kafka an event store?</span></li>
+    <li><a href="lessons/0010-sagas-process-managers-and-invariants.html">Sagas, process managers &amp; cross-aggregate invariants</a><br><span class="desc">Compensation, timeouts, uniqueness, DCB.</span></li>
+    <li><a href="lessons/0011-choosing-an-event-store-and-operating-it.html">Choosing an event store &amp; operating it</a><br><span class="desc">Postgres vs KurrentDB vs Axon vs DynamoDB; SLOs &amp; observability.</span></li>
+  </ol>
+</div>
+
+<div class="course-sec">
+  <h2>Part IV · Advanced <span class="desc">(Level 4)</span></h2>
+  <p class="arc">Events are forever &mdash; make them evolvable, lawful and testable.</p>
+  <ol class="lessons" start="12">
+    <li><a href="lessons/0012-event-schema-evolution.html">Event schema evolution &amp; upcasting</a><span class="sim-tag">sim</span><br><span class="desc">Weak schema, upcasters, new types, copy-transform.</span></li>
+    <li><a href="lessons/0013-gdpr-crypto-shredding-and-temporal-queries.html">GDPR, crypto-shredding &amp; temporal queries</a><br><span class="desc">Forgetting in an immutable log; bi-temporality.</span></li>
+    <li><a href="lessons/0014-testing-event-sourced-systems.html">Testing event-sourced systems</a><br><span class="desc">Given/When/Then, property tests, replay tests.</span></li>
+    <li><a href="lessons/0015-migrating-from-crud-and-event-storming.html">Migrating from CRUD &amp; Event Storming</a><br><span class="desc">Strangler path; discovering events with the business.</span></li>
+  </ol>
+</div>
+
+<div class="course-sec">
+  <h2>Part V · Staff judgement <span class="desc">(Level 5)</span></h2>
+  <p class="arc">The decision, the trade-offs, and the people.</p>
+  <ol class="lessons" start="16">
+    <li><a href="lessons/0016-staff-judgement-when-not-to-and-the-adr.html">When (not) to event-source, anti-patterns &amp; the ADR</a> <strong>· capstone</strong><br><span class="desc">Decision framework, design review, org adoption, the Ledgerly capstone.</span></li>
+  </ol>
+</div>
+
+<hr>
+
+<div class="course-sec">
+  <h2>Reference cheat sheets</h2>
+  <ul class="refs">
+    <li><a href="reference/0001-es-vocabulary-cheatsheet.html">01 · Vocabulary</a></li>
+    <li><a href="reference/0002-event-design-checklist.html">02 · Event design checklist</a></li>
+    <li><a href="reference/0003-decider-java-template.html">03 · Decider template (Java)</a></li>
+    <li><a href="reference/0004-postgres-event-store-recipe.html">04 · Postgres event store recipe</a></li>
+    <li><a href="reference/0005-projection-checklist.html">05 · Projection checklist</a></li>
+    <li><a href="reference/0006-consistency-ux-strategies.html">06 · Eventual-consistency strategies</a></li>
+    <li><a href="reference/0007-production-readiness-checklist.html">07 · Production readiness</a></li>
+    <li><a href="reference/0008-integration-and-saga-patterns.html">08 · Integration &amp; saga patterns</a></li>
+    <li><a href="reference/0009-schema-evolution-decision-tree.html">09 · Schema evolution decision tree</a></li>
+    <li><a href="reference/0010-gdpr-and-testing-recipes.html">10 · GDPR &amp; testing recipes</a></li>
+    <li><a href="reference/0011-adr-template-and-review-questions.html">11 · ADR template &amp; review questions</a></li>
+    <li><a href="reference/0012-anti-patterns.html">12 · Anti-patterns</a></li>
+  </ul>
+</div>
+
+<div class="course-sec">
+  <h2>Hands-on &amp; workspace</h2>
+  <p class="docs">
+    <a href="assets/lab/README.md">Postgres event-store lab (podman compose)</a>
+    <a href="GUIDE.md">Full guide (Markdown)</a>
+    <a href="MISSION.md">Mission</a>
+    <a href="GLOSSARY.md">Glossary</a>
+    <a href="RESOURCES.md">Resources</a>
+    <a href="NOTES.md">Notes</a>
+  </p>
+</div>
+
+<div class="followup">
+  <strong>Your teacher is here.</strong> Bring a real domain from work and we&rsquo;ll run it through the
+  decision framework, model its events, or review your ADR. Ask anytime.
+</div>
+
+</body>
+</html>

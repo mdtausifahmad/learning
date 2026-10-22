@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 11 · Choosing an Event Store &amp; Operating It</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<script src="../assets/quiz.js" defer></script>
+<script src="../assets/anim.js" defer></script>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Event Sourcing · Lesson 11</p>
+  <h1>Choosing an Event Store &amp; Operating It</h1>
+  <div class="meta">
+    <span>◷ ~15 min read</span>
+    <span class="dot">•</span>
+    <span>Level 3 · Production engineering</span>
+    <span class="dot">•</span>
+    <span>Prereq: <a href="0010-sagas-process-managers-and-invariants.html">Lesson 10 · Sagas &amp; invariants</a></span>
+  </div>
+</header>
+
+<p class="mission-tie">
+  By now you could build an event store on Postgres in a week. The Staff question is different: <em>should
+  you, and what will it cost to run for five years?</em> This lesson gives you a map of the store
+  landscape with honest trade-offs, the metrics that tell you an event-sourced system is healthy (and
+  which ones should page someone), how to stitch one OpenTelemetry trace across asynchronous hops, and
+  the performance and scaling levers you&rsquo;ll pull &mdash; including multi-tenancy and multi-region.
+</p>
+
+<h2>1. The landscape</h2>
+
+<p>
+  Every option below can run a serious event-sourced system. They differ in what <em>you</em> own:
+  ordering guarantees, subscriptions, archiving, clustering &mdash; and how much new operational and
+  conceptual surface your team takes on.
+</p>
+
+<table>
+  <thead><tr><th>Option</th><th>Strengths</th><th>Watch out for</th></tr></thead>
+  <tbody>
+    <tr><td><strong>PostgreSQL</strong> (DIY or library)</td><td>Team already knows it; ACID; inline projections in the same DB/transaction; familiar backups &amp; ops</td><td>You own ordering/gaps (Lesson 08), subscriptions, archiving. Libraries: <strong>Marten</strong> (.NET), <strong>Emmett</strong> (TypeScript), <strong>Eventuous</strong> (.NET), or your own thin module (~500 LOC + tests)</td></tr>
+    <tr><td><strong>KurrentDB</strong> (formerly EventStoreDB)</td><td>Purpose-built: streams, gap-free <code>$all</code>, catch-up &amp; persistent subscriptions, server-side projections, expected versions</td><td>Another database to operate and learn; licensing has changed over time &mdash; <strong>check current terms</strong> for the features you need</td></tr>
+    <tr><td><strong>Axon Framework + Axon Server</strong> (Java)</td><td>Full Java/Spring ecosystem: aggregates, sagas, event processors, snapshots, upcasters; DCB support in recent versions</td><td>Framework lock-in shapes your domain code; clustering/enterprise features depend on edition &mdash; <strong>check current terms</strong></td></tr>
+    <tr><td><strong>Akka / Apache Pekko Persistence</strong> (JVM)</td><td>Actor-based, high throughput, pluggable journals (Cassandra, JDBC, DynamoDB)</td><td>Actor-model learning curve; Akka moved to the Business Source Licence in 2022, which led to the Apache Pekko fork &mdash; <strong>check current terms</strong></td></tr>
+    <tr><td><strong>DynamoDB / Cosmos DB</strong></td><td>Serverless scale; conditional writes give <code>expectedVersion</code>; DynamoDB Streams / Change Feed for subscriptions</td><td>No global ordering across partitions; per-item size limits; stream retention windows (DynamoDB Streams keeps 24 h) &mdash; subscribers must keep up</td></tr>
+    <tr><td><strong>Kafka (+ Streams)</strong></td><td>Superb distribution and fan-out</td><td>No per-key conditional append or cheap per-stream reads (Lesson 09)</td></tr>
+  </tbody>
+</table>
+
+<pre><code>// DynamoDB as an event store: PK = streamId, SK = version. The condition IS optimistic concurrency.
+var put = PutItemRequest.builder()
+    .tableName("events")
+    .item(Map.of(
+        "streamId", AttributeValue.fromS("order-42"),
+        "version",  AttributeValue.fromN(Long.toString(expectedVersion + 1)),
+        "type",     AttributeValue.fromS("OrderSubmitted"),
+        "data",     AttributeValue.fromS(json)))
+    .conditionExpression("attribute_not_exists(streamId)")   // that (PK, SK) must not exist yet
+    .build();
+// ConditionalCheckFailedException → someone else appended version N+1 first → reload &amp; retry.</code></pre>
+
+<figure>
+<svg viewBox="0 0 660 220" role="img" aria-label="Staff heuristic for choosing an event store">
+  <defs>
+    <marker id="l11s-ar" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#4b3f8f"></path></marker>
+  </defs>
+  <g font-family="system-ui, sans-serif" font-size="11">
+    <rect x="10" y="20" width="190" height="56" rx="8" fill="#efedf8" stroke="#4b3f8f" stroke-width="1.5"></rect>
+    <text x="105" y="43" text-anchor="middle" font-weight="700" fill="#4b3f8f">Team new to ES and</text>
+    <text x="105" y="60" text-anchor="middle" font-weight="700" fill="#4b3f8f">already runs Postgres?</text>
+    <path d="M202 48 H246" stroke="#4b3f8f" stroke-width="1.5" marker-end="url(#l11s-ar)"></path>
+    <text x="224" y="42" text-anchor="middle" fill="#1f7a5e">yes</text>
+    <rect x="250" y="20" width="180" height="56" rx="8" fill="#fff" stroke="#1f7a5e" stroke-width="1.5"></rect>
+    <text x="340" y="43" text-anchor="middle" font-weight="700" fill="#1f7a5e">Postgres + thin, well-</text>
+    <text x="340" y="60" text-anchor="middle" font-weight="700" fill="#1f7a5e">tested store module</text>
+    <path d="M432 48 H476" stroke="#4b3f8f" stroke-width="1.5" marker-end="url(#l11s-ar)"></path>
+    <rect x="480" y="14" width="170" height="68" rx="8" fill="#fff" stroke="#c98a1a" stroke-width="1.5"></rect>
+    <text x="565" y="35" text-anchor="middle" font-weight="700" fill="#c98a1a">Hit a concrete limit?</text>
+    <text x="565" y="52" text-anchor="middle">throughput · subscriptions</text>
+    <text x="565" y="68" text-anchor="middle">· ops pain (measured)</text>
+    <path d="M565 84 V118" stroke="#4b3f8f" stroke-width="1.5" marker-end="url(#l11s-ar)"></path>
+    <text x="575" y="104" fill="#c98a1a">yes &mdash; graduate</text>
+    <path d="M105 78 V118" stroke="#4b3f8f" stroke-width="1.5" marker-end="url(#l11s-ar)"></path>
+    <text x="115" y="104" fill="#63625c">no / special needs</text>
+    <rect x="10" y="122" width="640" height="88" rx="8" fill="#fff" stroke="#4b3f8f"></rect>
+    <text x="24" y="144" font-weight="700" fill="#4b3f8f">Dedicated store, chosen by the constraint you actually hit</text>
+    <text x="24" y="164">Purpose-built streams, $all &amp; subscriptions &rarr; KurrentDB</text>
+    <text x="24" y="182">Java/Spring shop wanting a full framework (sagas, upcasters) &rarr; Axon Framework + Axon Server</text>
+    <text x="24" y="200">Serverless / AWS-native &rarr; DynamoDB · actor-style very high throughput &rarr; Pekko Persistence</text>
+  </g>
+</svg>
+<figcaption>Start with what you can operate; graduate when a measured limit &mdash; not a blog post &mdash; tells you to.</figcaption>
+</figure>
+
+<div class="callout insight">
+  <span class="label">Staff heuristic</span>
+  <p>If your team is new to event sourcing and already runs Postgres, start with Postgres and a thin,
+  well-tested event-store module. You learn the patterns without learning a new database at the same
+  time. <strong>Graduate to a dedicated store when you hit concrete limits</strong> (throughput,
+  subscription complexity, operational pain) &mdash; not before. Keep the store behind an
+  <code>EventStore</code> interface so the switch is a migration, not a rewrite.</p>
+</div>
+
+<h2>2. What to measure from day one</h2>
+
+<table>
+  <thead><tr><th>Metric</th><th>Why it matters</th><th>Alert when</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Projection lag</strong> (<code>head_position &minus; checkpoint</code>, and in seconds)</td><td>The primary SLO of the read side &mdash; it&rsquo;s how stale users&rsquo; screens are</td><td>Seconds-lag above the UX budget for N minutes</td></tr>
+    <tr><td><strong>Append latency &amp; conflict rate</strong></td><td>High conflict rate &rarr; aggregate too coarse or a hot spot</td><td>Conflict rate trend up; p99 append latency up</td></tr>
+    <tr><td><strong>Events per stream</strong> (p50/p99/max)</td><td>Detect unbounded streams before they hurt</td><td>max crosses your &ldquo;close the books&rdquo; threshold</td></tr>
+    <tr><td><strong>Rehydration time</strong> (p99)</td><td>Tells you if and when you need snapshots</td><td>p99 approaching command latency budget</td></tr>
+    <tr><td><strong>Parked / poison events</strong></td><td>Should be zero; anything else means a projection is skipping or stuck</td><td>&gt; 0 &mdash; page: it&rsquo;s an incident</td></tr>
+    <tr><td><strong>Rebuild duration</strong> per projection</td><td>Operational readiness: how long a bug fix takes to reach users</td><td>Exceeds your recovery objective</td></tr>
+  </tbody>
+</table>
+
+<pre><code>-- Lag per projection: in events, and as the age of the oldest unprocessed event.
+SELECT c.name,
+       (SELECT max(global_position) FROM events) - c.position            AS lag_events,
+       now() - (SELECT min(recorded_at) FROM events e
+                 WHERE e.global_position &gt; c.position)                  AS lag_age
+FROM projection_checkpoints c;</code></pre>
+
+<pre><code>// Micrometer: export lag so Prometheus/Grafana can alert on it.
+Gauge.builder("es.projection.lag.events", lagService, s -&gt; s.lagEvents("orders-summary-v2"))
+     .tag("projection", "orders-summary-v2")
+     .register(meterRegistry);
+
+Timer.builder("es.append.latency").tag("stream_type", "order").publishPercentileHistogram()
+     .register(meterRegistry);
+Counter.builder("es.append.conflicts").tag("stream_type", "order").register(meterRegistry);</code></pre>
+
+<div class="callout warning">
+  <span class="label">Cardinality trap</span>
+  <p>Tag metrics by <strong>stream type</strong> and <strong>projection name</strong>, never by stream id
+  or aggregate id &mdash; that mints one time series per order. Per-stream detail belongs in traces and
+  logs.</p>
+</div>
+
+<h2>3. One trace across asynchronous hops</h2>
+
+<p>
+  In a request/response system, trace context flows through HTTP headers automatically. In an
+  event-sourced system the request ends at the append; the interesting work &mdash; projections,
+  publishing, downstream consumers &mdash; happens later, in other processes. The fix: <strong>store
+  <code>correlationId</code>, <code>causationId</code> and the W3C <code>traceparent</code> in event
+  metadata</strong> and restore them wherever the event is read.
+</p>
+
+<figure class="anim" data-anim>
+<div class="anim-stage">
+<svg viewBox="0 0 660 300" role="img" aria-label="Step-by-step: traceparent propagated through event metadata from HTTP request to downstream consumer">
+  <defs>
+    <marker id="l11a-ink" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#4b3f8f"></path></marker>
+    <marker id="l11a-warn" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#c98a1a"></path></marker>
+  </defs>
+  <g font-family="system-ui, sans-serif" font-size="11">
+    <g class="anim-el" data-step="1">
+      <rect x="10" y="30" width="130" height="58" rx="7" fill="#fff" stroke="#63625c" stroke-width="1.5"></rect>
+      <text x="75" y="50" text-anchor="middle" font-weight="700">POST /orders</text>
+      <text x="75" y="67" text-anchor="middle" fill="#4b3f8f">traceparent:</text>
+      <text x="75" y="81" text-anchor="middle" fill="#4b3f8f">00-4bf9…-01</text>
+    </g>
+    <g class="anim-el" data-step="2">
+      <path d="M142 59 H176" stroke="#4b3f8f" stroke-width="1.5" marker-end="url(#l11a-ink)"></path>
+      <rect x="180" y="30" width="130" height="58" rx="7" fill="#fff" stroke="#4b3f8f" stroke-width="1.5"></rect>
+      <text x="245" y="50" text-anchor="middle" font-weight="700">Command handler</text>
+      <text x="245" y="67" text-anchor="middle" fill="#63625c">span: PlaceOrder</text>
+      <text x="245" y="81" text-anchor="middle" fill="#63625c">span: append</text>
+    </g>
+    <g class="anim-el" data-step="3">
+      <path d="M312 59 H346" stroke="#4b3f8f" stroke-width="1.5" marker-end="url(#l11a-ink)"></path>
+      <rect x="350" y="20" width="150" height="88" rx="8" fill="#efedf8" stroke="#4b3f8f" stroke-width="1.5"></rect>
+      <text x="425" y="38" text-anchor="middle" font-weight="700" fill="#4b3f8f">Event store row</text>
+      <text x="425" y="56" text-anchor="middle">metadata {</text>
+      <text x="425" y="71" text-anchor="middle">traceparent, correlationId,</text>
+      <text x="425" y="86" text-anchor="middle">causationId, tenantId }</text>
+      <text x="425" y="101" text-anchor="middle" fill="#63625c">HTTP request ends here</text>
+    </g>
+    <g class="anim-el" data-step="4">
+      <path d="M502 50 H536" stroke="#c98a1a" stroke-width="1.5" marker-end="url(#l11a-warn)"></path>
+      <rect x="540" y="22" width="110" height="64" rx="7" fill="#fff" stroke="#c98a1a" stroke-width="1.5"></rect>
+      <text x="595" y="42" text-anchor="middle" font-weight="700">Projection</text>
+      <text x="595" y="58" text-anchor="middle" fill="#c98a1a">new span</text>
+      <text x="595" y="73" text-anchor="middle" fill="#c98a1a">+ link to origin</text>
+    </g>
+    <g class="anim-el" data-step="5">
+      <path d="M425 110 V160" stroke="#4b3f8f" stroke-width="1.5" marker-end="url(#l11a-ink)"></path>
+      <rect x="350" y="164" width="150" height="58" rx="7" fill="#fff" stroke="#4b3f8f" stroke-width="1.5"></rect>
+      <text x="425" y="184" text-anchor="middle" font-weight="700">Publisher</text>
+      <text x="425" y="200" text-anchor="middle" fill="#63625c">extract &rarr; span: publish</text>
+      <text x="425" y="214" text-anchor="middle" fill="#63625c">inject &rarr; Kafka header</text>
+    </g>
+    <g class="anim-el" data-step="6">
+      <path d="M348 193 H314" stroke="#4b3f8f" stroke-width="1.5" marker-end="url(#l11a-ink)"></path>
+      <rect x="180" y="164" width="130" height="58" rx="7" fill="#fff" stroke="#1f7a5e" stroke-width="1.5"></rect>
+      <text x="245" y="184" text-anchor="middle" font-weight="700" fill="#1f7a5e">orders.public</text>
+      <text x="245" y="200" text-anchor="middle" fill="#63625c">header traceparent</text>
+      <text x="245" y="214" text-anchor="middle" fill="#63625c">header eventId</text>
+      <path d="M178 193 H144" stroke="#4b3f8f" stroke-width="1.5" marker-end="url(#l11a-ink)"></path>
+      <rect x="10" y="164" width="130" height="58" rx="7" fill="#fff" stroke="#4b3f8f" stroke-width="1.5"></rect>
+      <text x="75" y="184" text-anchor="middle" font-weight="700">Payments svc</text>
+      <text x="75" y="200" text-anchor="middle" fill="#63625c">span: consume</text>
+      <text x="75" y="214" text-anchor="middle" fill="#63625c">same trace id</text>
+    </g>
+    <g class="anim-el" data-step="7">
+      <rect x="10" y="240" width="640" height="52" rx="7" fill="#efedf8" stroke="#4b3f8f"></rect>
+      <text x="20" y="258" font-weight="700" fill="#4b3f8f">Trace 4bf9…</text>
+      <rect x="110" y="250" width="200" height="10" rx="2" fill="#4b3f8f"></rect>
+      <text x="115" y="278" fill="#63625c">HTTP + append</text>
+      <rect x="330" y="250" width="70" height="10" rx="2" fill="#5e4fb0"></rect>
+      <text x="330" y="278" fill="#63625c">publish</text>
+      <rect x="420" y="250" width="120" height="10" rx="2" fill="#1f7a5e"></rect>
+      <text x="420" y="278" fill="#63625c">consume (Payments)</text>
+      <rect x="560" y="250" width="80" height="10" rx="2" fill="none" stroke="#c98a1a" stroke-dasharray="3 2"></rect>
+      <text x="560" y="278" fill="#c98a1a">linked: projection</text>
+    </g>
+  </g>
+</svg>
+</div>
+<div class="anim-caps">
+  <p class="anim-cap" data-step="1"><span class="n">1</span>The request arrives with a W3C <code>traceparent</code> (or the gateway starts one).</p>
+  <p class="anim-cap" data-step="2"><span class="n">2</span>The command handler creates spans for the decision and the append, as usual.</p>
+  <p class="anim-cap" data-step="3"><span class="n">3</span>Before appending, it <strong>injects</strong> the current context into event metadata alongside <code>correlationId</code>, <code>causationId</code> and <code>tenantId</code>. The HTTP request ends; the context lives on in the row.</p>
+  <p class="anim-cap" data-step="4"><span class="n">4</span>A projection processes the event seconds (or, during a rebuild, months) later. It starts a <strong>new span with a link</strong> to the original context rather than pretending to be its child.</p>
+  <p class="anim-cap" data-step="5"><span class="n">5</span>The publisher <strong>extracts</strong> context from metadata, creates a publish span, and <strong>injects</strong> it into Kafka record headers.</p>
+  <p class="anim-cap" data-step="6"><span class="n">6</span>Downstream consumers (with standard Kafka instrumentation) pick up the header &mdash; their spans join the same trace.</p>
+  <p class="anim-cap" data-step="7"><span class="n">7</span>Result: one trace from click to downstream side effect, with async work linked. &ldquo;Why did Payments charge twice?&rdquo; becomes a query, not an archaeology project.</p>
+</div>
+<figcaption>Event metadata is the carrier that lets trace context survive the asynchronous gap between append and everything that happens after.</figcaption>
+</figure>
+
+<pre><code>private static final TextMapSetter&lt;Map&lt;String, String&gt;&gt; SETTER = Map::put;
+private static final TextMapGetter&lt;Map&lt;String, String&gt;&gt; GETTER = new TextMapGetter&lt;&gt;() {
+    public Iterable&lt;String&gt; keys(Map&lt;String, String&gt; c) { return c.keySet(); }
+    public String get(Map&lt;String, String&gt; c, String key) { return c == null ? null : c.get(key); }
+};
+private final TextMapPropagator propagator = GlobalOpenTelemetry.getPropagators().getTextMapPropagator();
+
+// Write side: put the current context into the event's metadata.
+Map&lt;String, String&gt; metadata = new HashMap&lt;&gt;(Map.of(
+        "correlationId", cmd.correlationId(), "causationId", cmd.commandId().toString()));
+propagator.inject(Context.current(), metadata, SETTER);
+
+// Read side (projection): new span, LINKED to the origin &mdash; it may run long after the request.
+Context origin = propagator.extract(Context.root(), event.metadata(), GETTER);
+Span span = tracer.spanBuilder("project " + event.type())
+        .setSpanKind(SpanKind.CONSUMER)
+        .setNoParent()
+        .addLink(Span.fromContext(origin).getSpanContext())
+        .setAttribute("es.global_position", event.globalPosition())
+        .startSpan();</code></pre>
+
+<div class="callout insight">
+  <span class="label">Parent or link?</span>
+  <p>Use a <strong>parent</strong> when the work is a direct, timely continuation (publisher &rarr; Kafka
+  &rarr; consumer). Use a <strong>link</strong> when processing is decoupled in time or batched
+  (projections, rebuilds): otherwise a rebuild run next year attaches thousands of spans to a trace that
+  closed long ago. Never put <code>traceparent</code> in the event <em>data</em> &mdash; it&rsquo;s
+  operational metadata, not a business fact.</p>
+</div>
+
+<h2>4. Performance &amp; scaling levers</h2>
+
+<table>
+  <thead><tr><th>Concern</th><th>Technique</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Append throughput</strong></td><td>Batch appends; keep transactions small; partition the events table (by <code>global_position</code> range or time); avoid hot aggregates</td></tr>
+    <tr><td><strong>Hot aggregates</strong> (thousands of writes/sec on one stream)</td><td>Split the aggregate (e.g. per-shard counters); use commutative events with <code>expectedVersion = Any</code>; or model it as a queue, not an aggregate</td></tr>
+    <tr><td><strong>Rehydration latency</strong></td><td>Short streams &rarr; snapshots &rarr; in-memory aggregate cache keyed by stream id and validated by version</td></tr>
+    <tr><td><strong>Projection throughput</strong></td><td>Batch writes; parallelise by partition key; <code>COPY</code>/bulk APIs; a separate database for read models</td></tr>
+    <tr><td><strong>Storage growth</strong></td><td>Archive closed streams to object storage; compress <code>data</code>; tiered storage</td></tr>
+    <tr><td><strong>Multi-tenancy</strong></td><td><code>tenant_id</code> column + row-level security, or schema/database per tenant for isolation and per-tenant rebuilds</td></tr>
+    <tr><td><strong>Multi-region</strong></td><td>Usually a single writer region per aggregate (home region) + async replication; multi-writer needs conflict-free (CRDT-like) event design &mdash; avoid unless essential</td></tr>
+  </tbody>
+</table>
+
+<pre><code>-- Multi-tenancy with row-level security on a shared events table
+ALTER TABLE events ADD COLUMN tenant_id TEXT NOT NULL;
+ALTER TABLE events ENABLE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON events
+    USING (tenant_id = current_setting('app.tenant_id'));
+-- Per request/transaction:  SET LOCAL app.tenant_id = 'tenant-eu-1';
+-- Note: RLS does not apply to the table owner or superusers &mdash; run the app as a dedicated role.</code></pre>
+
+<div class="callout warning">
+  <span class="label">Numbers are hypotheses until measured</span>
+  <p>A single Postgres primary on decent hardware can typically sustain thousands to low tens of
+  thousands of small event appends per second with batching. Use that to sanity-check a design, then
+  <strong>load-test with your own payloads, indexes and fsync settings</strong> before committing to
+  an architecture or a vendor.</p>
+</div>
+
+<table>
+  <thead><tr><th>Multi-region option</th><th>Consistency</th><th>Complexity</th><th>Fits</th></tr></thead>
+  <tbody>
+    <tr><td>Single global writer + read replicas</td><td>Strong for writes</td><td>Low</td><td>Most systems; cross-region write latency acceptable</td></tr>
+    <tr><td>Home region per aggregate (e.g. by tenant)</td><td>Strong per aggregate</td><td>Medium &mdash; routing, region moves as migrations</td><td>Data-residency, latency-sensitive tenants</td></tr>
+    <tr><td>Multi-writer, merge streams</td><td>Eventual; conflicts by design</td><td>High &mdash; commutative events, conflict resolution</td><td>Rare; offline-first, collaborative editing</td></tr>
+  </tbody>
+</table>
+
+<div class="primary-source">
+  <span class="label">Read this next (primary source)</span>
+  <p>Vendor docs are the authority on guarantees and current licensing:
+  <a href="https://docs.kurrent.io/" target="_blank" rel="noopener">KurrentDB docs</a>,
+  <a href="https://docs.axoniq.io/" target="_blank" rel="noopener">AxonIQ docs</a>,
+  <a href="https://martendb.io/" target="_blank" rel="noopener">Marten</a> (a great reference for how a
+  Postgres-based store solves ordering and its async daemon). For the pattern overview and
+  considerations: Microsoft&rsquo;s
+  <a href="https://learn.microsoft.com/azure/architecture/patterns/event-sourcing" target="_blank" rel="noopener"><em>Event Sourcing pattern</em></a>.</p>
+</div>
+
+<h2>5. Check yourself</h2>
+<p>Retrieve before revealing.</p>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 1 of 3</p>
+  <p class="quiz-q">A Spring team new to event sourcing already runs Postgres. What&rsquo;s the Staff default?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="Kafka lacks per-stream reads and conditional appends for the write model.">Kafka with compacted topics as the source of truth</button></li>
+    <li><button data-correct="false" data-feedback="Possibly later — but learning a new database and new patterns at once multiplies risk.">a dedicated event-store database from the first sprint</button></li>
+    <li><button data-correct="true" data-feedback="Right — learn the patterns on known infrastructure; graduate on measured limits.">Postgres plus a thin, well-tested event-store module</button></li>
+    <li><button data-correct="false" data-feedback="Global ordering across partitions is absent; not a natural first choice here.">DynamoDB, because conditional writes are built in</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Start with what the team can operate; keep the store behind an interface; graduate when throughput, subscriptions or ops pain are measured problems."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 2 of 3</p>
+  <p class="quiz-q">The append conflict rate on <code>order</code> streams is climbing. What does it most likely signal?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="Right — many writers on the same stream: re-draw the boundary or split the hot spot.">an aggregate that is too coarse, or a hot spot</button></li>
+    <li><button data-correct="false" data-feedback="Projection lag doesn&rsquo;t cause write-side version conflicts.">projections lagging too far behind the event head</button></li>
+    <li><button data-correct="false" data-feedback="Gaps affect readers of the global log, not per-stream version checks.">gaps appearing in the global position sequence</button></li>
+    <li><button data-correct="false" data-feedback="Snapshots speed up loading; they don&rsquo;t create concurrent writers.">snapshots are being taken too frequently per stream</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Conflicts mean concurrent writers on one stream. Look at aggregate boundaries, hot aggregates, commutative events."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 3 of 3</p>
+  <p class="quiz-q">Why should a projection usually <em>link</em> to the event&rsquo;s original trace instead of becoming its child?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="OTel supports both; this isn&rsquo;t a protocol limitation.">W3C traceparent cannot be parsed from JSONB metadata</button></li>
+    <li><button data-correct="false" data-feedback="Links don&rsquo;t reduce cost meaningfully; the reason is semantics.">links are cheaper to store in every tracing backend</button></li>
+    <li><button data-correct="false" data-feedback="Sampling decisions can still flow through links or parents.">child spans would disable sampling for the trace</button></li>
+    <li><button data-correct="true" data-feedback="Right — processing is decoupled in time (and replays happen much later).">it runs decoupled in time, and rebuilds replay it later</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Parent for timely continuations (publish &rarr; consume); link for time-decoupled or batched work like projections and rebuilds."></div>
+</div>
+
+<div class="callout tryit">
+  <span class="label">Try it in your own system</span>
+  <ul class="checklist">
+    <li>Write the six metrics above as a Grafana dashboard spec for one service. Which one would page, and at what threshold?</li>
+    <li>Check whether your Kafka producers and consumers propagate <code>traceparent</code> headers today. Where does the trace break?</li>
+    <li>Write a one-paragraph &ldquo;store choice&rdquo; ADR section for your team, naming the concrete limit that would make you graduate.</li>
+    <li>Run a 10-minute append load test with <code>podman</code>-hosted Postgres and your real event payloads. Record events/sec and p99.</li>
+  </ul>
+</div>
+
+<div class="followup">
+  <strong>I&rsquo;m your teacher &mdash; ask me anything.</strong> Want to sketch SLOs for your read side,
+  compare KurrentDB subscriptions with a Postgres poller, or plan a home-region design for multi-tenant
+  data residency? Bring your constraints and we&rsquo;ll work through it.
+</div>
+
+<nav class="lesson-nav">
+  <span class="group">
+    <b>Reference</b>
+    <a href="../reference/0007-production-readiness-checklist.html">Production-readiness checklist &rarr;</a>
+  </span>
+  <span class="group">
+    <b>Previous</b>
+    <a href="0010-sagas-process-managers-and-invariants.html">&larr; Lesson 10 · Sagas &amp; invariants</a>
+  </span>
+  <span class="group">
+    <b>Up next</b>
+    <a href="0012-event-schema-evolution.html">Lesson 12 · Event schema evolution &amp; upcasting &rarr;</a>
+  </span>
+</nav>
+
+</body>
+</html>

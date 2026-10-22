@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 03 · The Decider: Aggregates in Java 21</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<script src="../assets/quiz.js" defer></script>
+<script src="../assets/anim.js" defer></script>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Event Sourcing · Lesson 03</p>
+  <h1>The Decider: Aggregates in Java 21</h1>
+  <div class="meta">
+    <span>◷ ~16 min read</span>
+    <span class="dot">•</span>
+    <span>Level 1 · Core mechanics</span>
+    <span class="dot">•</span>
+    <span>Prereq: <a href="0002-events-commands-designing-events.html">Lesson 02</a></span>
+  </div>
+</header>
+
+<p class="mission-tie">
+  You now know what good events look like. The next question is: <em>where do they come from?</em>
+  The modern, testable answer is the <strong>Decider pattern</strong> &mdash; three pure functions that
+  hold all your business rules and know nothing about databases, Spring or Kafka. Get this shape right
+  and your domain tests run in milliseconds, your replays are deterministic, and a new event type is a
+  compiler error until every rule handles it.
+</p>
+
+<h2>1. Three functions, no I/O</h2>
+
+<p>
+  Popularised by J&eacute;r&eacute;mie Chassaing, the Decider is the formal version of the equation from
+  Lesson 01:
+</p>
+
+<pre><code>initialState : State
+decide       : (Command, State) -&gt; List&lt;Event&gt;   // business rules; may reject
+evolve       : (State, Event)   -&gt; State         // pure state transition; never throws</code></pre>
+
+<p>
+  Everything with side effects &mdash; loading events, appending, clocks, HTTP &mdash; lives in a thin
+  <strong>application service</strong> (the &ldquo;imperative shell&rdquo;) wrapped around this
+  &ldquo;functional core&rdquo;.
+</p>
+
+<figure class="anim" data-anim>
+<div class="anim-stage">
+<svg viewBox="0 0 680 270" role="img" aria-label="Step-by-step: the application service loads events, folds evolve, calls decide, and appends with an expected version">
+  <defs>
+    <marker id="l3a-ind" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#4b3f8f"></path></marker>
+    <marker id="l3a-good" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#1f7a5e"></path></marker>
+    <marker id="l3a-bad" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#b23b3b"></path></marker>
+  </defs>
+  <g font-family="system-ui, sans-serif" font-size="11">
+    <g class="anim-el" data-from="1">
+      <rect x="10" y="100" width="130" height="60" rx="8" fill="#fff" stroke="#63625c" stroke-width="1.4"></rect>
+      <text x="75" y="124" text-anchor="middle" font-weight="700">Application</text>
+      <text x="75" y="140" text-anchor="middle">service (I/O shell)</text>
+      <rect x="12" y="20" width="126" height="30" rx="5" fill="#fff" stroke="#5e4fb0" stroke-dasharray="5 3"></rect>
+      <text x="75" y="39" text-anchor="middle" fill="#5e4fb0" font-weight="700">Withdraw(ACC-1, 50)</text>
+      <path d="M75 52 V96" stroke="#5e4fb0" marker-end="url(#l3a-ind)"></path>
+      <rect x="250" y="20" width="250" height="230" rx="12" fill="#efedf8" stroke="#4b3f8f" stroke-width="1.6" stroke-dasharray="6 4"></rect>
+      <text x="375" y="40" text-anchor="middle" font-weight="700" fill="#4b3f8f">Decider (pure &mdash; no I/O)</text>
+      <rect x="560" y="95" width="110" height="70" rx="8" fill="#fff" stroke="#4b3f8f" stroke-width="1.4"></rect>
+      <text x="615" y="125" text-anchor="middle" font-weight="700" fill="#4b3f8f">Event store</text>
+      <text x="615" y="142" text-anchor="middle" fill="#63625c">append-only</text>
+    </g>
+    <g class="anim-el" data-step="2">
+      <path d="M142 112 C 330 70, 450 70, 556 108" fill="none" stroke="#4b3f8f" stroke-width="1.4" marker-end="url(#l3a-ind)"></path>
+      <text x="400" y="66" text-anchor="middle" fill="#4b3f8f">1. readStream("account-ACC-1")</text>
+      <text x="400" y="82" text-anchor="middle" fill="#63625c">&rarr; [Opened, Deposited 100] · version 2</text>
+    </g>
+    <g class="anim-el" data-step="3">
+      <rect x="270" y="95" width="210" height="40" rx="6" fill="#fff" stroke="#4b3f8f"></rect>
+      <text x="375" y="112" text-anchor="middle" font-weight="700" fill="#4b3f8f">2. fold evolve</text>
+      <text x="375" y="127" text-anchor="middle" fill="#63625c">NotOpened &rarr; Open(0) &rarr; Open(100)</text>
+      <path d="M142 125 H266" stroke="#4b3f8f" marker-end="url(#l3a-ind)"></path>
+    </g>
+    <g class="anim-el" data-step="4">
+      <rect x="270" y="150" width="210" height="40" rx="6" fill="#fff" stroke="#4b3f8f"></rect>
+      <text x="375" y="167" text-anchor="middle" font-weight="700" fill="#4b3f8f">3. decide(Withdraw 50, Open(100))</text>
+      <text x="375" y="182" text-anchor="middle" fill="#1f7a5e">&rarr; [MoneyWithdrawn 50]</text>
+      <path d="M142 145 L266 168" stroke="#4b3f8f" marker-end="url(#l3a-ind)"></path>
+    </g>
+    <g class="anim-el" data-step="5">
+      <path d="M142 155 C 300 245, 470 245, 586 168" fill="none" stroke="#1f7a5e" stroke-width="1.6" marker-end="url(#l3a-good)"></path>
+      <text x="375" y="232" text-anchor="middle" fill="#1f7a5e" font-weight="700">4. append(stream, expectedVersion = 2, events)</text>
+      <text x="615" y="185" text-anchor="middle" fill="#1f7a5e" font-weight="700">v3 ✓</text>
+    </g>
+    <g class="anim-el" data-step="6">
+      <rect x="520" y="200" width="155" height="58" rx="6" fill="#f8eaea" stroke="#b23b3b"></rect>
+      <text x="597" y="218" text-anchor="middle" fill="#b23b3b" font-weight="700">If decide throws:</text>
+      <text x="597" y="234" text-anchor="middle" fill="#63625c">nothing appended,</text>
+      <text x="597" y="250" text-anchor="middle" fill="#63625c">422 to the caller</text>
+    </g>
+  </g>
+</svg>
+</div>
+<div class="anim-caps">
+  <p class="anim-cap" data-step="1"><span class="n">1</span>A command arrives at the <strong>application service</strong>. Only the shell touches I/O; the Decider in the middle is pure.</p>
+  <p class="anim-cap" data-step="2"><span class="n">2</span>The shell <strong>loads</strong> the stream and remembers its version (2). That version will guard the write.</p>
+  <p class="anim-cap" data-step="3"><span class="n">3</span>It folds <code>evolve</code> over the history to get current state: <code>Open(balance=100)</code>. This is <em>rehydration</em>.</p>
+  <p class="anim-cap" data-step="4"><span class="n">4</span><code>decide</code> applies the rules and returns new events &mdash; it does not save them. It just returns data.</p>
+  <p class="anim-cap" data-step="5"><span class="n">5</span>The shell <strong>appends</strong> with <code>expectedVersion = 2</code>. If someone else wrote meanwhile, the store rejects it (Lesson 04).</p>
+  <p class="anim-cap" data-step="6"><span class="n">6</span>A business rejection is just an exception (or a result type) from <code>decide</code>; the shell maps it to an HTTP error. History stays untouched.</p>
+</div>
+<figcaption>Functional core, imperative shell: load &rarr; fold &rarr; decide &rarr; append.</figcaption>
+</figure>
+
+<h2>2. The full bank-account Decider</h2>
+
+<h3>Events and commands: sealed hierarchies of records</h3>
+
+<pre><code>public sealed interface AccountEvent permits
+        AccountEvent.AccountOpened, AccountEvent.MoneyDeposited,
+        AccountEvent.MoneyWithdrawn, AccountEvent.AccountClosed {
+
+    record AccountOpened(String accountId, String ownerId, String currency, Instant at) implements AccountEvent {}
+    record MoneyDeposited(String accountId, BigDecimal amount, Instant at)            implements AccountEvent {}
+    record MoneyWithdrawn(String accountId, BigDecimal amount, Instant at)            implements AccountEvent {}
+    record AccountClosed(String accountId, String reason, Instant at)                 implements AccountEvent {}
+}
+
+public sealed interface AccountCommand permits
+        AccountCommand.OpenAccount, AccountCommand.Deposit,
+        AccountCommand.Withdraw, AccountCommand.CloseAccount {
+
+    record OpenAccount(String accountId, String ownerId, String currency) implements AccountCommand {}
+    record Deposit(String accountId, BigDecimal amount)                   implements AccountCommand {}
+    record Withdraw(String accountId, BigDecimal amount)                  implements AccountCommand {}
+    record CloseAccount(String accountId, String reason)                  implements AccountCommand {}
+}</code></pre>
+
+<h3>State: only what <code>decide</code> needs</h3>
+
+<pre><code>public sealed interface AccountState {
+    record NotOpened()                                 implements AccountState {}
+    record Open(String accountId, BigDecimal balance)  implements AccountState {}
+    record Closed(String accountId)                    implements AccountState {}
+}</code></pre>
+
+<p>
+  Modelling state as a sealed type (rather than one class with a <code>status</code> enum and nullable
+  fields) makes illegal states unrepresentable: a <code>NotOpened</code> account simply <em>has</em> no
+  balance to read.
+</p>
+
+<h3>The Decider</h3>
+
+<pre><code>public final class Account {
+
+    public static final AccountState INITIAL = new AccountState.NotOpened();
+    private static final BigDecimal OVERDRAFT_LIMIT = BigDecimal.ZERO;
+
+    private Account() {}
+
+    public static List&lt;AccountEvent&gt; decide(AccountCommand cmd, AccountState state, Clock clock) {
+        var now = clock.instant();
+        return switch (cmd) {
+            case AccountCommand.OpenAccount c -&gt; switch (state) {
+                case AccountState.NotOpened n -&gt; List.of(
+                        new AccountEvent.AccountOpened(c.accountId(), c.ownerId(), c.currency(), now));
+                default -&gt; throw new DomainException("Account already exists");
+            };
+            case AccountCommand.Deposit c -&gt; {
+                var open = requireOpen(state);
+                requirePositive(c.amount());
+                yield List.of(new AccountEvent.MoneyDeposited(open.accountId(), c.amount(), now));
+            }
+            case AccountCommand.Withdraw c -&gt; {
+                var open = requireOpen(state);
+                requirePositive(c.amount());
+                if (open.balance().subtract(c.amount()).compareTo(OVERDRAFT_LIMIT.negate()) &lt; 0) {
+                    throw new DomainException("Insufficient funds");
+                }
+                yield List.of(new AccountEvent.MoneyWithdrawn(open.accountId(), c.amount(), now));
+            }
+            case AccountCommand.CloseAccount c -&gt; {
+                var open = requireOpen(state);
+                if (open.balance().signum() != 0) throw new DomainException("Balance must be zero to close");
+                yield List.of(new AccountEvent.AccountClosed(open.accountId(), c.reason(), now));
+            }
+        };
+    }
+
+    /** Pure. Never validates, never throws for business reasons: the event already happened. */
+    public static AccountState evolve(AccountState state, AccountEvent event) {
+        return switch (event) {
+            case AccountEvent.AccountOpened e  -&gt; new AccountState.Open(e.accountId(), BigDecimal.ZERO);
+            case AccountEvent.MoneyDeposited e -&gt; {
+                var o = (AccountState.Open) state;
+                yield new AccountState.Open(o.accountId(), o.balance().add(e.amount()));
+            }
+            case AccountEvent.MoneyWithdrawn e -&gt; {
+                var o = (AccountState.Open) state;
+                yield new AccountState.Open(o.accountId(), o.balance().subtract(e.amount()));
+            }
+            case AccountEvent.AccountClosed e  -&gt; new AccountState.Closed(e.accountId());
+        };
+    }
+
+    public static AccountState rehydrate(List&lt;AccountEvent&gt; history) {
+        AccountState s = INITIAL;
+        for (var e : history) s = evolve(s, e);
+        return s;
+    }
+
+    private static AccountState.Open requireOpen(AccountState s) {
+        if (s instanceof AccountState.Open o) return o;
+        throw new DomainException("Account is not open");
+    }
+
+    private static void requirePositive(BigDecimal amount) {
+        if (amount.signum() &lt;= 0) throw new DomainException("Amount must be positive");
+    }
+}</code></pre>
+
+<p>
+  Note the cast <code>(AccountState.Open) state</code> in <code>evolve</code>. It is not a validation:
+  a <code>MoneyDeposited</code> can only exist because <code>decide</code> already checked the account was
+  open. If that cast ever fails during replay, you have a <strong>bug or a broken migration</strong>, not
+  a business error &mdash; and failing loudly is exactly right.
+</p>
+
+<h2>3. Watch the fold: evolve as a state machine</h2>
+
+<figure class="anim" data-anim>
+<div class="anim-stage">
+<svg viewBox="0 0 680 220" role="img" aria-label="Step-by-step: evolve folds events through the NotOpened, Open and Closed states">
+  <defs>
+    <marker id="l3b-ind" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#4b3f8f"></path></marker>
+    <marker id="l3b-bad" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#b23b3b"></path></marker>
+  </defs>
+  <g font-family="system-ui, sans-serif" font-size="11">
+    <g class="anim-el" data-from="1">
+      <rect x="20" y="80" width="120" height="50" rx="25" fill="#f6f7f4" stroke="#63625c" stroke-width="1.5"></rect>
+      <text x="80" y="110" text-anchor="middle" font-weight="700" fill="#63625c">NotOpened</text>
+      <text x="80" y="150" text-anchor="middle" fill="#63625c">INITIAL</text>
+    </g>
+    <g class="anim-el" data-from="2">
+      <path d="M142 105 H262" stroke="#4b3f8f" stroke-width="1.6" marker-end="url(#l3b-ind)"></path>
+      <text x="202" y="96" text-anchor="middle" fill="#4b3f8f">AccountOpened</text>
+      <rect x="266" y="80" width="150" height="50" rx="25" fill="#efedf8" stroke="#4b3f8f" stroke-width="1.8"></rect>
+      <text x="341" y="102" text-anchor="middle" font-weight="700" fill="#4b3f8f">Open</text>
+    </g>
+    <g class="anim-el" data-only="2"><text x="341" y="120" text-anchor="middle" fill="#4b3f8f">balance = 0</text></g>
+    <g class="anim-el" data-from="3">
+      <path d="M300 78 C 290 30, 350 30, 340 76" fill="none" stroke="#1f7a5e" stroke-width="1.5" marker-end="url(#l3b-ind)"></path>
+      <text x="300" y="30" text-anchor="middle" fill="#1f7a5e">MoneyDeposited</text>
+    </g>
+    <g class="anim-el" data-only="3"><text x="341" y="120" text-anchor="middle" fill="#1f7a5e" font-weight="700">balance = 100</text></g>
+    <g class="anim-el" data-from="4">
+      <path d="M352 132 C 362 180, 410 180, 396 132" fill="none" stroke="#b23b3b" stroke-width="1.5" marker-end="url(#l3b-ind)"></path>
+      <text x="400" y="196" text-anchor="middle" fill="#b23b3b">MoneyWithdrawn</text>
+    </g>
+    <g class="anim-el" data-from="4" data-to="5"><text x="341" y="120" text-anchor="middle" fill="#b23b3b" font-weight="700">balance = 50</text></g>
+    <g class="anim-el" data-step="5">
+      <rect x="440" y="10" width="230" height="58" rx="6" fill="#f8eaea" stroke="#b23b3b"></rect>
+      <text x="555" y="30" text-anchor="middle" fill="#b23b3b" font-weight="700">decide(CloseAccount) rejects:</text>
+      <text x="555" y="47" text-anchor="middle" fill="#63625c">balance must be zero &mdash; no</text>
+      <text x="555" y="61" text-anchor="middle" fill="#63625c">event, no transition</text>
+    </g>
+    <g class="anim-el" data-from="6">
+      <text x="341" y="120" text-anchor="middle" fill="#63625c">balance = 0</text>
+      <path d="M418 105 H528" stroke="#4b3f8f" stroke-width="1.6" marker-end="url(#l3b-ind)"></path>
+      <text x="473" y="96" text-anchor="middle" fill="#4b3f8f">AccountClosed</text>
+      <rect x="532" y="80" width="130" height="50" rx="25" fill="#fff" stroke="#63625c" stroke-width="1.8"></rect>
+      <text x="597" y="110" text-anchor="middle" font-weight="700" fill="#63625c">Closed</text>
+      <text x="597" y="150" text-anchor="middle" fill="#63625c">terminal</text>
+    </g>
+  </g>
+</svg>
+</div>
+<div class="anim-caps">
+  <p class="anim-cap" data-step="1"><span class="n">1</span>Every replay starts from <code>INITIAL</code> = <code>NotOpened</code>. No database, no defaults from config.</p>
+  <p class="anim-cap" data-step="2"><span class="n">2</span><code>AccountOpened</code> moves to <code>Open(balance=0)</code>. Note: <code>ownerId</code> and <code>currency</code> are in the event but <em>not</em> in state &mdash; no rule needs them.</p>
+  <p class="anim-cap" data-step="3"><span class="n">3</span><code>MoneyDeposited 100</code> is a self-transition: same state type, new balance.</p>
+  <p class="anim-cap" data-step="4"><span class="n">4</span><code>MoneyWithdrawn 50</code>. <code>evolve</code> doesn&rsquo;t re-check funds &mdash; <code>decide</code> did that before the fact was recorded.</p>
+  <p class="anim-cap" data-step="5"><span class="n">5</span>A <code>CloseAccount</code> command with balance 50 is <strong>rejected by decide</strong>. Rejections never reach <code>evolve</code>.</p>
+  <p class="anim-cap" data-step="6"><span class="n">6</span>After a withdrawal to zero, <code>AccountClosed</code> moves to the terminal state. Any later command fails <code>requireOpen</code>.</p>
+</div>
+<figcaption>decide guards the transitions; evolve just walks them.</figcaption>
+</figure>
+
+<h2>4. Why this design is industry-grade</h2>
+
+<table>
+  <thead><tr><th>Property</th><th>What it buys you</th><th>What breaks without it</th></tr></thead>
+  <tbody>
+    <tr><td><strong>decide &amp; evolve are pure</strong></td><td>Tests need no mocks, DB or Spring context; run in ms</td><td>Slow integration tests for every rule; flaky replays</td></tr>
+    <tr><td><strong>Minimal state</strong></td><td>Fast rehydration, tiny snapshots, few reasons to change</td><td>Aggregate becomes a read model; every UI change touches the write side</td></tr>
+    <tr><td><strong>evolve never throws</strong></td><td>Replay always succeeds; history is always loadable</td><td>One bad rule change and old streams can&rsquo;t load</td></tr>
+    <tr><td><strong>Injected <code>Clock</code></strong></td><td>Deterministic timestamps in tests</td><td><code>Instant.now()</code> makes assertions fuzzy</td></tr>
+    <tr><td><strong>Sealed hierarchies</strong></td><td>Compiler-checked exhaustive switches</td><td>New event silently ignored by <code>default -&gt;</code></td></tr>
+  </tbody>
+</table>
+
+<h3>Pure &rArr; Given/When/Then tests</h3>
+<p>Because both functions are pure, a test is just data in, data out:</p>
+
+<pre><code>class AccountTest {
+
+    static final Clock CLOCK = Clock.fixed(Instant.parse("2026-10-22T10:00:00Z"), ZoneOffset.UTC);
+    static final Instant T = CLOCK.instant();
+
+    List&lt;AccountEvent&gt; given(AccountEvent... history) { return List.of(history); }
+
+    List&lt;AccountEvent&gt; when(List&lt;AccountEvent&gt; history, AccountCommand cmd) {
+        return Account.decide(cmd, Account.rehydrate(history), CLOCK);
+    }
+
+    @Test
+    void withdraw_within_balance_emits_MoneyWithdrawn() {
+        var history = given(
+                new AccountOpened("ACC-1", "u-1", "EUR", T),
+                new MoneyDeposited("ACC-1", new BigDecimal("100"), T));
+
+        assertThat(when(history, new Withdraw("ACC-1", new BigDecimal("50"))))
+                .containsExactly(new MoneyWithdrawn("ACC-1", new BigDecimal("50"), T));
+    }
+
+    @Test
+    void withdraw_beyond_balance_is_rejected() {
+        var history = given(new AccountOpened("ACC-1", "u-1", "EUR", T));
+
+        assertThatThrownBy(() -&gt; when(history, new Withdraw("ACC-1", BigDecimal.ONE)))
+                .isInstanceOf(DomainException.class)
+                .hasMessage("Insufficient funds");
+    }
+}</code></pre>
+
+<p>
+  Read those tests aloud: <em>given</em> these facts, <em>when</em> this command, <em>then</em> these
+  facts (or this rejection). That is a spec a product owner can review. Lesson 14 scales this up.
+</p>
+
+<h3>Minimal state</h3>
+<p>
+  The state holds <strong>only fields needed to enforce invariants</strong>. <code>ownerName</code>,
+  <code>transactionHistory</code>, <code>lastLoginAt</code> &mdash; none of those protect a rule, so they
+  belong in <em>read models</em>. A classic smell is an aggregate state class that looks like the API
+  response DTO. If you need a field to <em>display</em> something, project it; if you need it to
+  <em>decide</em> something, keep it.
+</p>
+
+<h3>evolve never throws (for business reasons)</h3>
+
+<table>
+  <thead><tr><th></th><th><code>decide</code></th><th><code>evolve</code></th></tr></thead>
+  <tbody>
+    <tr><td>Input</td><td>command + state</td><td>state + event</td></tr>
+    <tr><td>Contains rules?</td><td>Yes &mdash; all of them</td><td>No &mdash; only transitions</td></tr>
+    <tr><td>May reject?</td><td>Yes (<code>DomainException</code> / result type)</td><td>Never &mdash; the event is a fact</td></tr>
+    <tr><td>Runs during replay?</td><td>No</td><td>Yes, for every event, forever</td></tr>
+    <tr><td>Changing its logic</td><td>Affects future decisions only</td><td>Changes how <em>all of history</em> is interpreted</td></tr>
+  </tbody>
+</table>
+
+<div class="callout warning">
+  <span class="label">The rule that moves into evolve</span>
+  <p>A common mistake: someone adds <code>if (amount &gt; limit) throw</code> inside <code>evolve</code>
+  after the limit is lowered. Now every account that legally withdrew above the new limit in 2024
+  <strong>can&rsquo;t be loaded</strong>. Rules go in <code>decide</code>; history is never re-judged.</p>
+</div>
+
+<h3>Injected clock</h3>
+<p>
+  <code>decide</code> receives a <code>java.time.Clock</code> rather than calling <code>Instant.now()</code>.
+  The same applies to id generators and anything random: inject them, or pass the values in on the
+  command. <code>evolve</code> takes time only from the event (<code>e.at()</code>), never from a clock.
+</p>
+
+<h3>Sealed exhaustiveness</h3>
+<p>
+  Add <code>record AccountFrozen(&hellip;) implements AccountEvent {}</code> to the <code>permits</code>
+  list and every <code>switch (event)</code> without a <code>default</code> branch stops compiling until
+  it handles the new case. That is why the code avoids <code>default -&gt;</code> on event switches:
+  a default turns a compile error into a silent replay bug.
+</p>
+
+<h2>5. Making the shape explicit: a generic Decider</h2>
+
+<p>
+  Many teams capture the pattern as a type, so infrastructure (handlers, test fixtures, snapshotting)
+  can be written once for every aggregate:
+</p>
+
+<pre><code>public record Decider&lt;C, S, E&gt;(
+        S initialState,
+        BiFunction&lt;C, S, List&lt;E&gt;&gt; decide,
+        BiFunction&lt;S, E, S&gt; evolve,
+        Predicate&lt;S&gt; isTerminal) {
+
+    public S fold(List&lt;E&gt; events) {
+        S s = initialState;
+        for (E e : events) s = evolve.apply(s, e);
+        return s;
+    }
+}
+
+// wiring the bank account
+Decider&lt;AccountCommand, AccountState, AccountEvent&gt; account = new Decider&lt;&gt;(
+        Account.INITIAL,
+        (cmd, state) -&gt; Account.decide(cmd, state, clock),
+        Account::evolve,
+        s -&gt; s instanceof AccountState.Closed);</code></pre>
+
+<h2>6. The OO alternative (Axon / Vernon style)</h2>
+
+<p>
+  The classic object-oriented shape &mdash; seen in Axon Framework and Vaughn Vernon&rsquo;s
+  <em>Implementing Domain-Driven Design</em> &mdash; is equivalent: methods for commands, an
+  <code>apply</code> that mutates fields, and a list of <em>uncommitted changes</em> the repository saves.
+</p>
+
+<pre><code>public class AccountAggregate {
+    private String id;
+    private BigDecimal balance = BigDecimal.ZERO;
+    private boolean open;
+    private long version;
+    private final List&lt;AccountEvent&gt; uncommitted = new ArrayList&lt;&gt;();
+
+    public void withdraw(BigDecimal amount, Clock clock) {      // "decide"
+        if (!open) throw new DomainException("Account is not open");
+        if (balance.compareTo(amount) &lt; 0) throw new DomainException("Insufficient funds");
+        raise(new MoneyWithdrawn(id, amount, clock.instant()));
+    }
+
+    private void raise(AccountEvent e) { apply(e); uncommitted.add(e); }
+
+    void apply(AccountEvent e) {                                  // "evolve", mutating
+        switch (e) {
+            case AccountOpened o  -&gt; { id = o.accountId(); open = true; }
+            case MoneyDeposited d -&gt; balance = balance.add(d.amount());
+            case MoneyWithdrawn w -&gt; balance = balance.subtract(w.amount());
+            case AccountClosed c  -&gt; open = false;
+        }
+        version++;
+    }
+
+    public List&lt;AccountEvent&gt; uncommittedChanges() { return List.copyOf(uncommitted); }
+    public void markCommitted() { uncommitted.clear(); }
+}</code></pre>
+
+<table>
+  <thead><tr><th></th><th>Functional Decider</th><th>OO aggregate</th></tr></thead>
+  <tbody>
+    <tr><td>State</td><td>Immutable records</td><td>Mutable fields</td></tr>
+    <tr><td>Output of a command</td><td>Returned <code>List&lt;Event&gt;</code></td><td>Accumulated in <code>uncommittedChanges</code></td></tr>
+    <tr><td>Testing</td><td>Pure functions, trivial</td><td>Easy, but must inspect object + changes</td></tr>
+    <tr><td>Familiarity</td><td>Newer to most Java teams</td><td>Very familiar; framework support (Axon)</td></tr>
+    <tr><td>Pitfall</td><td>Over-generic abstractions</td><td>Forgetting to clear changes; leaking setters</td></tr>
+  </tbody>
+</table>
+
+<p>
+  Both are industry standard. <strong>Pick one style per codebase</strong> and document it; mixing them is
+  what hurts. This course uses the Decider because it&rsquo;s easier to test and reason about.
+</p>
+
+<h2>7. Aggregate = consistency boundary</h2>
+
+<p>
+  An aggregate is not &ldquo;an entity with events&rdquo;. It is the <strong>unit of transactional
+  consistency</strong>: everything inside it is checked and changed atomically by one <code>decide</code>
+  and one append to one stream. Anything outside is <em>eventually</em> consistent.
+</p>
+
+<figure>
+<svg viewBox="0 0 680 210" role="img" aria-label="Aggregate boundaries: invariants inside one aggregate are strongly consistent; across aggregates they are eventually consistent">
+  <defs>
+    <marker id="l3c-warn" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#c98a1a"></path></marker>
+  </defs>
+  <g font-family="system-ui, sans-serif" font-size="11">
+    <rect x="10" y="20" width="250" height="170" rx="12" fill="#efedf8" stroke="#4b3f8f" stroke-width="1.8"></rect>
+    <text x="135" y="42" text-anchor="middle" font-weight="700" fill="#4b3f8f">Account ACC-1 (one stream)</text>
+    <rect x="30" y="58" width="210" height="28" rx="5" fill="#fff" stroke="#4b3f8f"></rect>
+    <text x="135" y="76" text-anchor="middle">balance &ge; &minus;overdraftLimit</text>
+    <rect x="30" y="94" width="210" height="28" rx="5" fill="#fff" stroke="#4b3f8f"></rect>
+    <text x="135" y="112" text-anchor="middle">no deposits after close</text>
+    <rect x="30" y="130" width="210" height="28" rx="5" fill="#fff" stroke="#4b3f8f"></rect>
+    <text x="135" y="148" text-anchor="middle">close only at zero balance</text>
+    <text x="135" y="180" text-anchor="middle" fill="#1f7a5e" font-weight="700">strongly consistent</text>
+    <rect x="420" y="20" width="250" height="170" rx="12" fill="#efedf8" stroke="#4b3f8f" stroke-width="1.8"></rect>
+    <text x="545" y="42" text-anchor="middle" font-weight="700" fill="#4b3f8f">Account ACC-2 (another stream)</text>
+    <rect x="440" y="58" width="210" height="28" rx="5" fill="#fff" stroke="#4b3f8f"></rect>
+    <text x="545" y="76" text-anchor="middle">its own invariants</text>
+    <text x="545" y="180" text-anchor="middle" fill="#1f7a5e" font-weight="700">strongly consistent</text>
+    <path d="M262 105 H416" stroke="#c98a1a" stroke-width="1.6" stroke-dasharray="6 4" marker-end="url(#l3c-warn)"></path>
+    <text x="340" y="95" text-anchor="middle" fill="#c98a1a" font-weight="700">transfer</text>
+    <text x="340" y="125" text-anchor="middle" fill="#c98a1a">eventually consistent</text>
+    <text x="340" y="140" text-anchor="middle" fill="#63625c">(saga / process manager)</text>
+  </g>
+</svg>
+<figcaption>Rules inside the boundary are enforced atomically; rules across boundaries need a process (Lesson 10).</figcaption>
+</figure>
+
+<table>
+  <thead><tr><th>Design choice</th><th>Too big</th><th>Too small</th><th>Right-sized</th></tr></thead>
+  <tbody>
+    <tr><td>Symptom</td><td>Many concurrency conflicts, huge streams</td><td>Invariants need cross-stream transactions</td><td>Each command touches one stream</td></tr>
+    <tr><td>Example</td><td><code>Customer</code> holding all orders</td><td><code>OrderLine</code> as its own aggregate</td><td><code>Order</code> containing its lines</td></tr>
+    <tr><td>Heuristic</td><td colspan="3">Draw the boundary around the <strong>invariant</strong>, not the noun. &ldquo;What must be true <em>immediately</em> after this command?&rdquo;</td></tr>
+  </tbody>
+</table>
+
+<div class="callout insight">
+  <span class="label">Staff instinct</span>
+  <p>When someone asks for a rule spanning many aggregates (&ldquo;usernames must be unique&rdquo;,
+  &ldquo;total stock across warehouses &ge; 0&rdquo;), the answer is rarely &ldquo;make the aggregate
+  bigger&rdquo;. Ask the business how often it is violated and what it costs; usually a reservation, a
+  dedicated uniqueness table, or a compensating process is cheaper. Lesson 10 covers the options, including
+  Dynamic Consistency Boundaries.</p>
+</div>
+
+<div class="primary-source">
+  <span class="label">Read this next (primary source)</span>
+  <p>J&eacute;r&eacute;mie Chassaing &mdash; <a href="https://thinkbeforecoding.com/post/2021/12/17/functional-event-sourcing-decider" target="_blank" rel="noopener"><em>Functional Event Sourcing Decider</em></a>
+  (the original write-up of the pattern). For the OO style, see the
+  <a href="https://docs.axoniq.io/" target="_blank" rel="noopener">Axon Framework docs</a> on event-sourced aggregates.</p>
+</div>
+
+<h2>8. Check yourself</h2>
+<p>Retrieve before revealing.</p>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 1 of 3</p>
+  <p class="quiz-q">The overdraft limit drops from &minus;500 to 0. Where should the new check live?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="Old streams with legal overdrafts would now fail to load.">in evolve, so replaying old events enforces it as well</button></li>
+    <li><button data-correct="true" data-feedback="Right — rules judge future commands; history is never re-judged.">in decide, so it applies only to new withdraw commands</button></li>
+    <li><button data-correct="false" data-feedback="The read side is eventually consistent and can&rsquo;t guard a write.">in the projection that serves the account balance view</button></li>
+    <li><button data-correct="false" data-feedback="A DB constraint over derived balances doesn&rsquo;t exist in an event store.">in a CHECK constraint on the events table in Postgres</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="decide holds all business rules and runs only for new commands. evolve is a pure transition that must accept every historical fact."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 2 of 3</p>
+  <p class="quiz-q">A PR adds <code>ownerName</code>, <code>lastLoginAt</code> and a transaction list to <code>AccountState</code> &ldquo;for the UI&rdquo;. Best response?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="Speed isn&rsquo;t the main issue; the write model is taking on read concerns.">approve, but add a snapshot so rehydration stays fast</button></li>
+    <li><button data-correct="false" data-feedback="Making them nullable keeps the read concern in the write model.">approve if the new fields are nullable for old streams</button></li>
+    <li><button data-correct="true" data-feedback="Right — state holds only what decide needs; display data is projected.">move them to a read model; state keeps only rule inputs</button></li>
+    <li><button data-correct="false" data-feedback="Events already hold the data; duplicating into state is the smell.">add them to the events instead of to the state record</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Aggregate state is minimal: only fields needed to enforce invariants. Everything for display belongs in projections."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 3 of 3</p>
+  <p class="quiz-q">Why do the event switches in <code>evolve</code> deliberately omit a <code>default</code> branch?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="Performance is not affected meaningfully by a default branch.">a default branch makes pattern-matching switches slower</button></li>
+    <li><button data-correct="false" data-feedback="Default branches are legal on sealed types; it&rsquo;s a design choice.">Java forbids default branches on sealed interface types</button></li>
+    <li><button data-correct="false" data-feedback="Serialisation is unrelated to how the switch is written.">Jackson cannot deserialise events matched by default</button></li>
+    <li><button data-correct="true" data-feedback="Right — exhaustiveness turns a forgotten case into a compile error.">so a new event type fails to compile until it is handled</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Sealed hierarchies + exhaustive switches = compile-time safety. A default would silently ignore a new event during replay."></div>
+</div>
+
+<div class="callout tryit">
+  <span class="label">Try it in your own system</span>
+  <ul class="checklist">
+    <li>Implement the <code>Account</code> decider plus an in-memory store (<code>Map&lt;String, List&lt;AccountEvent&gt;&gt;</code> with a version check). Write three Given/When/Then tests.</li>
+    <li>Model a <strong>shopping cart</strong>: <code>CartCreated</code>, <code>ItemAdded</code>, <code>ItemRemoved</code>, <code>CartCheckedOut</code>. Invariants: no changes after checkout; max 50 items. What is the <em>minimal</em> state?</li>
+    <li>Add <code>AccountFrozen</code> to the sealed interface and watch the compiler list every place to update.</li>
+    <li>Pick an entity at work and write its invariants first; then draw the aggregate boundary around them.</li>
+  </ul>
+</div>
+
+<div class="followup">
+  <strong>I&rsquo;m your teacher &mdash; ask me anything.</strong> Torn between Decider and Axon-style
+  aggregates for your team? Want to see the cart decider reviewed, or a result-type alternative to
+  throwing <code>DomainException</code>? Bring it here.
+</div>
+
+<nav class="lesson-nav">
+  <span class="group">
+    <b>Previous</b>
+    <a href="0002-events-commands-designing-events.html">&larr; Lesson 02 · Events &amp; commands</a>
+  </span>
+  <span class="group">
+    <b>Reference</b>
+    <a href="../reference/0003-decider-java-template.html">Decider Java template &rarr;</a>
+  </span>
+  <span class="group">
+    <b>Up next</b>
+    <a href="0004-event-store-optimistic-concurrency.html">Lesson 04 · The event store &amp; optimistic concurrency &rarr;</a>
+  </span>
+</nav>
+
+</body>
+</html>

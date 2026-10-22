@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 16 · Staff Judgement: When (Not) to Event-Source, Anti-Patterns &amp; the ADR</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<script src="../assets/quiz.js" defer></script>
+<script src="../assets/anim.js" defer></script>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Event Sourcing · Lesson 16 · Capstone</p>
+  <h1>Staff Judgement: When (Not) to Event-Source &amp; the ADR</h1>
+  <div class="meta">
+    <span>◷ ~20 min read</span>
+    <span class="dot">•</span>
+    <span>Level 5 · Staff judgement</span>
+    <span class="dot">•</span>
+    <span>Prereq: <a href="0015-migrating-from-crud-and-event-storming.html">Lesson 15 · Migrating from CRUD</a></span>
+  </div>
+</header>
+
+<p class="mission-tie">
+  Everything so far makes you a strong <em>implementer</em>. This lesson is what makes you
+  <strong>Staff</strong>: deciding (often <em>against</em> event sourcing), making trade-offs explicit in
+  business language, writing the ADR reviewers trust, catching anti-patterns in other people&rsquo;s
+  designs, and making a whole organisation effective with the pattern. It closes with the
+  <strong>Ledgerly</strong> capstone, a self-assessment and an 8-week plan.
+</p>
+
+<h2>1. The decision framework</h2>
+
+<figure class="anim" data-anim>
+<div class="anim-stage">
+<svg viewBox="0 0 680 360" role="img" aria-label="Decision flow: history as business requirement, evolving read models, behaviour-rich domain, team accepts eventual consistency; outcomes CRUD, CRUD plus audit, or event-source this bounded context">
+  <defs>
+    <marker id="l16a" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#4b3f8f"></path></marker>
+    <marker id="l16b" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#63625c"></path></marker>
+  </defs>
+  <g font-family="system-ui, sans-serif" font-size="11">
+    <g class="anim-el" data-step="1">
+      <rect x="220" y="8" width="260" height="50" rx="8" fill="#efedf8" stroke="#4b3f8f" stroke-width="1.5"></rect>
+      <text x="350" y="28" text-anchor="middle" font-weight="700" fill="#4b3f8f">Is history / audit a first-class</text>
+      <text x="350" y="44" text-anchor="middle" font-weight="700" fill="#4b3f8f">BUSINESS requirement?</text>
+    </g>
+    <g class="anim-el" data-step="2">
+      <path d="M270 60 L170 98" stroke="#63625c" marker-end="url(#l16b)"></path>
+      <text x="205" y="74" fill="#b23b3b" font-weight="700">No</text>
+      <rect x="20" y="100" width="240" height="50" rx="8" fill="#efedf8" stroke="#4b3f8f"></rect>
+      <text x="140" y="120" text-anchor="middle" fill="#4b3f8f">Many evolving read models /</text>
+      <text x="140" y="136" text-anchor="middle" fill="#4b3f8f">temporal analytics from behaviour?</text>
+    </g>
+    <g class="anim-el" data-step="3">
+      <path d="M110 152 L110 196" stroke="#63625c" marker-end="url(#l16b)"></path>
+      <text x="90" y="180" fill="#b23b3b" font-weight="700">No</text>
+      <rect x="20" y="200" width="200" height="44" rx="8" fill="#f6f7f4" stroke="#63625c" stroke-width="1.5"></rect>
+      <text x="120" y="219" text-anchor="middle" font-weight="700">✅ Plain CRUD</text>
+      <text x="120" y="235" text-anchor="middle" fill="#63625c">(+ outbox / CDC for events)</text>
+      <path d="M262 125 L376 125" stroke="#63625c" marker-end="url(#l16b)"></path>
+      <text x="318" y="118" text-anchor="middle" fill="#1f7a5e" font-weight="700">Yes</text>
+      <rect x="380" y="100" width="260" height="50" rx="8" fill="#efedf8" stroke="#4b3f8f"></rect>
+      <text x="510" y="120" text-anchor="middle" fill="#4b3f8f">Behaviour-rich? (state machine,</text>
+      <text x="510" y="136" text-anchor="middle" fill="#4b3f8f">invariants, long lifecycle)</text>
+    </g>
+    <g class="anim-el" data-step="4">
+      <path d="M430 60 L490 98" stroke="#4b3f8f" stroke-width="1.5" marker-end="url(#l16a)"></path>
+      <text x="472" y="74" fill="#1f7a5e" font-weight="700">Yes</text>
+    </g>
+    <g class="anim-el" data-step="5">
+      <path d="M405 152 L318 296" stroke="#63625c" marker-end="url(#l16b)"></path>
+      <text x="355" y="215" text-anchor="end" fill="#b23b3b" font-weight="700">No — data entry</text>
+      <rect x="180" y="300" width="210" height="48" rx="8" fill="#f6f7f4" stroke="#63625c" stroke-width="1.5"></rect>
+      <text x="285" y="320" text-anchor="middle" font-weight="700">✅ CRUD + audit log /</text>
+      <text x="285" y="336" text-anchor="middle" fill="#63625c">temporal tables / CDC</text>
+    </g>
+    <g class="anim-el" data-step="6">
+      <path d="M520 152 L520 196" stroke="#4b3f8f" stroke-width="1.5" marker-end="url(#l16a)"></path>
+      <text x="530" y="180" fill="#1f7a5e" font-weight="700">Yes</text>
+      <rect x="400" y="200" width="260" height="50" rx="8" fill="#efedf8" stroke="#4b3f8f"></rect>
+      <text x="530" y="220" text-anchor="middle" fill="#4b3f8f">Team &amp; product accept eventual</text>
+      <text x="530" y="236" text-anchor="middle" fill="#4b3f8f">consistency + learning curve?</text>
+    </g>
+    <g class="anim-el" data-step="7">
+      <path d="M440 252 L392 300" stroke="#63625c" marker-end="url(#l16b)"></path>
+      <text x="430" y="288" fill="#b23b3b" font-weight="700">No</text>
+      <path d="M580 252 L580 296" stroke="#1f7a5e" stroke-width="2" marker-end="url(#l16a)"></path>
+      <text x="590" y="280" fill="#1f7a5e" font-weight="700">Yes</text>
+      <rect x="440" y="300" width="230" height="48" rx="8" fill="#e3f3ec" stroke="#1f7a5e" stroke-width="2"></rect>
+      <text x="555" y="320" text-anchor="middle" font-weight="700" fill="#1f7a5e">✅ Event-source THIS</text>
+      <text x="555" y="336" text-anchor="middle" fill="#1f7a5e">bounded context (not the system)</text>
+    </g>
+  </g>
+</svg>
+</div>
+<div class="anim-caps">
+  <p class="anim-cap" data-step="1"><span class="n">1</span>Start with the <strong>business</strong>, not the tech: is history a requirement &mdash; regulation, disputes, &ldquo;why did this happen?&rdquo; &mdash; that someone would pay for?</p>
+  <p class="anim-cap" data-step="2"><span class="n">2</span>If not, there&rsquo;s one other strong reason: many <strong>evolving read models</strong> or temporal analytics derived from the same behaviour.</p>
+  <p class="anim-cap" data-step="3"><span class="n">3</span>Neither? <strong>Plain CRUD</strong> &mdash; add a transactional outbox or CDC if others need events. If yes, continue to the behaviour question.</p>
+  <p class="anim-cap" data-step="4"><span class="n">4</span>History as a business requirement also leads straight to the behaviour question.</p>
+  <p class="anim-cap" data-step="5"><span class="n">5</span>Mostly data entry with few rules? <strong>CRUD + audit table / temporal tables / CDC</strong> captures most of the value at a fraction of the cost.</p>
+  <p class="anim-cap" data-step="6"><span class="n">6</span>Behaviour-rich domains pass the technical bar. The last gate is <strong>people</strong>: will product accept stale reads, and will the team invest in the learning curve?</p>
+  <p class="anim-cap" data-step="7"><span class="n">7</span>Only with every &ldquo;yes&rdquo; do you event-source &mdash; and only <strong>this bounded context</strong>. A &ldquo;no&rdquo; on people is a valid reason to choose CRUD + audit today.</p>
+</div>
+<figcaption>Event sourcing is a per-bounded-context decision with three gates: business value of history, behavioural richness, organisational readiness.</figcaption>
+</figure>
+
+<table>
+  <thead><tr><th>Strong fits</th><th>Poor fits</th></tr></thead>
+  <tbody>
+    <tr><td>Ledgers &amp; payments</td><td>CMS / catalogue CRUD</td></tr>
+    <tr><td>Order / fulfilment lifecycles</td><td>User-profile settings</td></tr>
+    <tr><td>Insurance claims &amp; policies</td><td>Reference data</td></tr>
+    <tr><td>Trading, booking, logistics tracking</td><td>Simple admin back-offices</td></tr>
+    <tr><td>Healthcare records, workflow engines</td><td>Anything where only &ldquo;the latest value&rdquo; matters</td></tr>
+    <tr><td>Collaborative editing, IoT device state, gaming replays, compliance-heavy domains</td><td>Strongly consistent ad-hoc cross-entity queries on the write path</td></tr>
+  </tbody>
+</table>
+
+<h3>Lighter alternatives that capture ~70% of the value</h3>
+<table>
+  <thead><tr><th>Need</th><th>Lighter alternative</th></tr></thead>
+  <tbody>
+    <tr><td>Audit trail</td><td>Audit table written in the same transaction; DB temporal tables (SQL:2011 &mdash; e.g. SQL Server system-versioned, MariaDB)</td></tr>
+    <tr><td>Publish events reliably</td><td>CRUD + <strong>transactional outbox</strong></td></tr>
+    <tr><td>Downstream event stream from legacy DB</td><td><strong>CDC</strong> (Debezium)</td></tr>
+    <tr><td>Undo / history for a document</td><td>Version table / append-only document revisions</td></tr>
+  </tbody>
+</table>
+
+<div class="callout insight">
+  <span class="label">The Staff move is often &ldquo;no&rdquo;</span>
+  <p>Proposing the lighter alternative with a convincing argument is a stronger signal than building
+  an event-sourced system. &ldquo;We need an audit trail&rdquo; is answered by an audit table in the same
+  transaction &mdash; unless the audit must be <em>the</em> truth that can&rsquo;t drift.</p>
+</div>
+
+<h2>2. Anti-patterns to catch in reviews</h2>
+
+<p>The full table (symptom + remedy) is on the <a href="../reference/0012-anti-patterns.html">anti-patterns
+reference sheet</a>. The ones that do the most damage:</p>
+
+<table>
+  <thead><tr><th>Anti-pattern</th><th>Tell-tale symptom</th><th>Remedy</th></tr></thead>
+  <tbody>
+    <tr><td><strong>ES everywhere</strong></td><td>every service event-sourced &ldquo;for consistency&rdquo;</td><td>per bounded context, only where history has value</td></tr>
+    <tr><td><strong>CRUD events</strong></td><td><code>EntityUpdated</code>, <code>FieldChanged</code></td><td>model domain facts; Event Storming</td></tr>
+    <tr><td><strong>Store as integration bus</strong></td><td>other teams read your internal events</td><td>separate domain vs integration events</td></tr>
+    <tr><td><strong>Side effects in <code>evolve</code></strong></td><td>emails re-sent on every replay</td><td>side effects only in reactors</td></tr>
+    <tr><td><strong>Non-deterministic <code>evolve</code></strong></td><td><code>now()</code>, random, lookups during replay</td><td>put the data in the event at decision time</td></tr>
+    <tr><td><strong>Editing events in place</strong></td><td>audit destroyed, projections diverge</td><td>compensating events; governed copy-transform</td></tr>
+    <tr><td><strong>Ignoring the gap problem</strong></td><td>projections silently skip events under load</td><td>commit-ordered reads (Lesson 08)</td></tr>
+  </tbody>
+</table>
+
+<h2>3. Trade-offs you must be able to articulate</h2>
+
+<figure>
+<svg viewBox="0 0 680 380" role="img" aria-label="Quadrant: x axis value of history, y axis behavioural richness; ledger, order lifecycle and claims in event-sourcing quadrant; pricing rules top-left; user profile and catalogue bottom-left; access logs bottom-right">
+  <defs>
+    <marker id="l16c" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#63625c"></path></marker>
+  </defs>
+  <g font-family="system-ui, sans-serif" font-size="11">
+    <rect x="60" y="20" width="280" height="150" fill="#f6f5fb"></rect>
+    <rect x="340" y="20" width="280" height="150" fill="#e3f3ec"></rect>
+    <rect x="60" y="170" width="280" height="150" fill="#f6f7f4"></rect>
+    <rect x="340" y="170" width="280" height="150" fill="#fbf1e7"></rect>
+    <text x="70" y="38" font-weight="700" fill="#5e4fb0">DDD + CRUD, consider ES later</text>
+    <text x="610" y="38" text-anchor="end" font-weight="700" fill="#1f7a5e">Event sourcing shines</text>
+    <text x="70" y="312" font-weight="700" fill="#63625c">Plain CRUD</text>
+    <text x="610" y="312" text-anchor="end" font-weight="700" fill="#c98a1a">CRUD + audit / temporal tables</text>
+    <line x1="60" y1="320" x2="630" y2="320" stroke="#63625c" marker-end="url(#l16c)"></line>
+    <line x1="60" y1="320" x2="60" y2="12" stroke="#63625c" marker-end="url(#l16c)"></line>
+    <line x1="340" y1="20" x2="340" y2="320" stroke="#c9c7bf" stroke-dasharray="4 3"></line>
+    <line x1="60" y1="170" x2="620" y2="170" stroke="#c9c7bf" stroke-dasharray="4 3"></line>
+    <text x="340" y="345" text-anchor="middle" fill="#63625c">value of history →</text>
+    <text x="22" y="170" text-anchor="middle" fill="#63625c" transform="rotate(-90 22 170)">rich behaviour / invariants →</text>
+    <circle cx="575" cy="65" r="6" fill="#1f7a5e"></circle><text x="567" y="58" text-anchor="end">Ledger</text>
+    <circle cx="480" cy="86" r="6" fill="#1f7a5e"></circle><text x="472" y="82" text-anchor="end">Order lifecycle</text>
+    <circle cx="536" cy="110" r="6" fill="#1f7a5e"></circle><text x="546" y="114">Insurance claims</text>
+    <circle cx="256" cy="104" r="6" fill="#5e4fb0"></circle><text x="266" y="108">Pricing rules</text>
+    <circle cx="172" cy="275" r="6" fill="#63625c"></circle><text x="182" y="279">User profile</text>
+    <circle cx="228" cy="245" r="6" fill="#63625c"></circle><text x="238" y="249">Product catalogue</text>
+    <circle cx="508" cy="290" r="6" fill="#c98a1a"></circle><text x="518" y="294">Access logs</text>
+  </g>
+</svg>
+<figcaption>Where each wins. Access logs have high history value but no behaviour &mdash; an append-only table, not an aggregate. Pricing rules are behaviour-rich but nobody needs their history (yet).</figcaption>
+</figure>
+
+<table>
+  <thead><tr><th>Dimension</th><th>Event sourcing</th><th>CRUD</th></tr></thead>
+  <tbody>
+    <tr><td>Audit / history</td><td>Intrinsic, complete</td><td>Bolted on, can drift</td></tr>
+    <tr><td>Write-model queries</td><td>By id only</td><td>Arbitrary SQL</td></tr>
+    <tr><td>Read consistency</td><td>Eventual (unless inline)</td><td>Immediate</td></tr>
+    <tr><td>Schema change</td><td>Upcasters/versioning; history is forever</td><td><code>ALTER TABLE</code> + migrate</td></tr>
+    <tr><td>Debugging</td><td>Replay exact history</td><td>Logs + guesswork</td></tr>
+    <tr><td>New features needing history</td><td>Backfill from day one</td><td>Data not captured</td></tr>
+    <tr><td>Delete (GDPR)</td><td>Hard: crypto-shredding</td><td><code>DELETE</code></td></tr>
+    <tr><td>Team familiarity</td><td>Low</td><td>High</td></tr>
+    <tr><td>Operational parts</td><td>Store, subscriptions, projections, checkpoints, snapshots</td><td>DB</td></tr>
+  </tbody>
+</table>
+
+<div class="callout tryit">
+  <span class="label">Say it in business language</span>
+  <p>&ldquo;We trade <strong>1&ndash;2 seconds of search staleness</strong> for a complete,
+  regulator-grade decision history and the ability to answer new analytics questions
+  <em>retroactively</em>.&rdquo; No mention of aggregates, upcasters or projections &mdash; just what the
+  business gives and gets.</p>
+</div>
+
+<h2>4. Writing the ADR</h2>
+
+<p>A Staff engineer turns a decision into a durable, reviewable artefact. Note especially the
+<strong>exit plan</strong> and <strong>success metrics</strong> &mdash; they&rsquo;re what make reviewers
+trust a bold architecture decision.</p>
+
+<pre><code># ADR-042: Use event sourcing for the Claims bounded context
+
+## Status
+Proposed — 2026-10-22
+
+## Context
+- Regulators (e.g. local insurance authority) require full reconstruction of every claim decision.
+- Current CRUD + audit table drifted from reality in 3 incidents in 2025 (links).
+- Product wants 4 new analytics views on claim handling behaviour; data is not captured today.
+- Team: 6 engineers, 1 with prior ES experience. Postgres is our standard datastore.
+
+## Decision
+- Event-source the Claim aggregate only. Policy, Customer and Document contexts stay CRUD.
+- Event store: Postgres `events` table (append-only, optimistic concurrency via unique (stream, version)),
+  global ordering via tx-id visibility filter.
+- Read models: async projections in Postgres; one inline projection (ClaimStatus) for read-your-writes.
+- Integration: public `claims.v1` Avro events on Kafka via store subscription; internal events never exposed.
+- PII: no PII in events; reference CustomerId. Free-text notes encrypted with per-claim key (crypto-shredding).
+
+## Consequences
++ Complete audit; temporal queries; new projections backfillable.
+− Learning curve: 2-day workshop + pairing; ES champions in team.
+− Eventual consistency in claim search (SLO: projection lag p99 &lt; 2s).
+− Must maintain upcasters; CI corpus of historic events.
+
+## Alternatives considered
+1. CRUD + transactional outbox + audit table — rejected: audit drift risk, no behavioural history.
+2. Axon Framework/Server — deferred: adds framework + infra lock-in; revisit if throughput &gt; 2k cmds/s.
+3. KurrentDB — deferred: new infra to operate; revisit if subscription management becomes a burden.
+
+## Reversibility / exit plan
+Projections can materialise full current state into CRUD tables; we can stop appending and switch writes
+to those tables if ES is abandoned (estimated 3–4 weeks).
+
+## Success metrics (review in 6 months)
+- Projection lag p99 &lt; 2 s; rehydration p99 &lt; 20 ms; zero parked events.
+- Time to add a new read model &lt; 1 sprint.
+- Audit requests answered from projections, no engineer involvement.</code></pre>
+
+<table>
+  <thead><tr><th>ADR section</th><th>What reviewers look for</th></tr></thead>
+  <tbody>
+    <tr><td>Context</td><td>Business drivers with evidence (incidents, regulation), team reality</td></tr>
+    <tr><td>Decision</td><td>Narrow scope (one context), concrete store/projection/integration/PII choices</td></tr>
+    <tr><td>Consequences</td><td>Honest minuses, each with a mitigation or SLO</td></tr>
+    <tr><td>Alternatives</td><td>The lighter option seriously considered, with <em>why not</em></td></tr>
+    <tr><td>Exit plan</td><td>How expensive is being wrong? (Projections make exit cheap.)</td></tr>
+    <tr><td>Success metrics</td><td>Measurable, with a review date &mdash; and the courage to act on them</td></tr>
+  </tbody>
+</table>
+
+<h2>5. Design-review question bank</h2>
+
+<p>Use these when <em>reviewing</em> someone else&rsquo;s ES design &mdash; or to pre-empt them in your own.</p>
+
+<table>
+  <thead><tr><th>Area</th><th>Questions</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Domain &amp; boundaries</strong></td><td>1. Why does <em>this</em> context need ES? What business question does history answer?<br>2. Aggregates and invariants? Expected events-per-stream over the lifetime?<br>3. Which invariants span aggregates; how are they enforced (saga, reservation, DCB, accepted risk)?</td></tr>
+    <tr><td><strong>Events</strong></td><td>4. Show me five event names. Do they read like the business narrative?<br>5. Versioning strategy? Where do upcasters live? How is compatibility tested in CI?<br>6. Where is PII; how is erasure honoured across store, projections, snapshots, Kafka, backups?</td></tr>
+    <tr><td><strong>Consistency &amp; ordering</strong></td><td>7. How is optimistic concurrency enforced? Retry policy for conflicts?<br>8. How is the global order gap-free / commit-ordered for subscribers?<br>9. Which reads need read-your-writes, and how is it provided?</td></tr>
+    <tr><td><strong>Operations</strong></td><td>10. How long does the largest projection take to rebuild? Procedure? Who&rsquo;s on call?<br>11. SLOs for projection lag? Which alerts exist?<br>12. Poison event: where is it parked, who&rsquo;s paged?<br>13. Can we restore the store <em>and</em> rebuild all projections consistently? Drilled?</td></tr>
+    <tr><td><strong>Integration &amp; evolution</strong></td><td>14. Which events are public? Contract format and compatibility mode?<br>15. What&rsquo;s the exit strategy if ES turns out to be wrong?</td></tr>
+  </tbody>
+</table>
+
+<h2>6. Organisational &amp; people aspects (the actual Staff job)</h2>
+
+<table>
+  <thead><tr><th>Lever</th><th>What you actually do</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Scope it deliberately</strong></td><td>Write the ADR; get explicit buy-in from product (eventual consistency) and compliance (GDPR approach).</td></tr>
+    <tr><td><strong>Create a paved road</strong></td><td>A small internal library: event-store client, decider base types, projection runner, upcaster registry, test DSL &mdash; so teams don&rsquo;t each reinvent the gap bug.</td></tr>
+    <tr><td><strong>Grow champions</strong></td><td>Run Event Storming workshops; pair on the first aggregates; write a &ldquo;how we do ES here&rdquo; guide with examples from <em>your</em> domain.</td></tr>
+    <tr><td><strong>Operational ownership</strong></td><td>Projections, rebuilds and subscriptions get runbooks and on-call ownership like any database.</td></tr>
+    <tr><td><strong>Measure success honestly</strong></td><td>If after 6 months nobody uses history, temporal queries or new projections &mdash; be the one who says &ldquo;we should simplify&rdquo;.</td></tr>
+    <tr><td><strong>Business language</strong></td><td>Communicate trade-offs as staleness vs history vs cost, never as framework features.</td></tr>
+  </tbody>
+</table>
+
+<h2>7. Real-world references worth studying</h2>
+
+<ul>
+  <li><strong>Accounting / banking cores</strong> &mdash; double-entry ledgers are the archetype; many modern core-banking and payments platforms are event-sourced or ledger-based.</li>
+  <li><strong>LMAX architecture</strong> &mdash; an in-memory business logic processor that recovers state by replaying an input event log: ES for extreme low latency (<a href="https://martinfowler.com/articles/lmax.html" target="_blank" rel="noopener">Fowler&rsquo;s write-up</a>).</li>
+  <li><strong>Git</strong> &mdash; content-addressed history plus a derived working tree; branches are alternative histories.</li>
+  <li><strong>Kafka Streams / ksqlDB changelogs, database WALs</strong> &mdash; event sourcing at the infrastructure level.</li>
+  <li><strong>Axon Framework and KurrentDB (EventStoreDB) case studies</strong> &mdash; vendor material; read critically. They show <em>possibility</em>, not proof that ES is right for you.</li>
+</ul>
+
+<h2>8. Capstone: build &ldquo;Ledgerly&rdquo;</h2>
+
+<p>An event-sourced wallet service. Aim for <strong>production shape, not features</strong>. Start from the
+Postgres event store in the <a href="../assets/lab/README.md">lab README</a> and grow it into Ledgerly.</p>
+
+<figure class="anim" data-anim>
+<div class="anim-stage">
+<svg viewBox="0 0 680 300" role="img" aria-label="Ledgerly architecture: REST API, command handlers with Wallet decider and Transfer process manager, Postgres event store, three projections, publisher to Kafka, fraud consumer">
+  <defs>
+    <marker id="l16d" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#4b3f8f"></path></marker>
+    <marker id="l16e" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#1f7a5e"></path></marker>
+  </defs>
+  <g font-family="system-ui, sans-serif" font-size="11">
+    <g class="anim-el" data-step="1">
+      <rect x="10" y="120" width="130" height="60" rx="6" fill="#fff" stroke="#4b3f8f" stroke-width="1.5"></rect>
+      <text x="75" y="140" text-anchor="middle" font-weight="700" fill="#4b3f8f">Spring Boot API</text>
+      <text x="75" y="156" text-anchor="middle" fill="#63625c">POST /wallets, /deposit</text>
+      <text x="75" y="170" text-anchor="middle" fill="#63625c">/withdraw, /transfer</text>
+    </g>
+    <g class="anim-el" data-step="2">
+      <path d="M142 150 H168" stroke="#4b3f8f" marker-end="url(#l16d)"></path>
+      <rect x="172" y="110" width="130" height="80" rx="6" fill="#efedf8" stroke="#4b3f8f" stroke-width="1.5"></rect>
+      <text x="237" y="132" text-anchor="middle" font-weight="700" fill="#4b3f8f">Command handlers</text>
+      <text x="237" y="150" text-anchor="middle">Wallet decider</text>
+      <text x="237" y="166" text-anchor="middle">Transfer PM</text>
+      <text x="237" y="182" text-anchor="middle" fill="#63625c">(compensation, timeout)</text>
+    </g>
+    <g class="anim-el" data-step="3">
+      <path d="M304 150 H330" stroke="#4b3f8f" marker-end="url(#l16d)"></path>
+      <ellipse cx="400" cy="112" rx="66" ry="10" fill="#efedf8" stroke="#4b3f8f" stroke-width="1.5"></ellipse>
+      <path d="M334 112 V188 A66 10 0 0 0 466 188 V112" fill="#efedf8" stroke="#4b3f8f" stroke-width="1.5"></path>
+      <text x="400" y="140" text-anchor="middle" font-weight="700" fill="#4b3f8f">Postgres</text>
+      <text x="400" y="156" text-anchor="middle" fill="#4b3f8f">events · snapshots</text>
+      <text x="400" y="172" text-anchor="middle" fill="#4b3f8f">checkpoints</text>
+    </g>
+    <g class="anim-el" data-step="4">
+      <path d="M468 120 L516 34" stroke="#1f7a5e" marker-end="url(#l16e)"></path>
+      <path d="M468 135 L516 82" stroke="#1f7a5e" marker-end="url(#l16e)"></path>
+      <path d="M468 150 L516 130" stroke="#1f7a5e" marker-end="url(#l16e)"></path>
+      <rect x="520" y="14" width="150" height="36" rx="5" fill="#fff" stroke="#1f7a5e"></rect>
+      <text x="595" y="36" text-anchor="middle">WalletBalance (inline)</text>
+      <rect x="520" y="62" width="150" height="36" rx="5" fill="#fff" stroke="#1f7a5e"></rect>
+      <text x="595" y="84" text-anchor="middle">Statement (async)</text>
+      <rect x="520" y="110" width="150" height="36" rx="5" fill="#fff" stroke="#1f7a5e"></rect>
+      <text x="595" y="126" text-anchor="middle">DailyVolume (async)</text>
+      <text x="595" y="140" text-anchor="middle" fill="#63625c" font-size="10">blue/green v1 → v2</text>
+    </g>
+    <g class="anim-el" data-step="5">
+      <path d="M468 175 L516 210" stroke="#c98a1a" marker-end="url(#l16d)"></path>
+      <rect x="520" y="196" width="150" height="36" rx="5" fill="#fff" stroke="#c98a1a" stroke-width="1.5"></rect>
+      <text x="595" y="212" text-anchor="middle">Publisher → Kafka</text>
+      <text x="595" y="226" text-anchor="middle" fill="#63625c" font-size="10">wallet.public.v1 (Avro)</text>
+      <path d="M595 234 V252" stroke="#c98a1a" marker-end="url(#l16d)"></path>
+      <rect x="520" y="256" width="150" height="34" rx="5" fill="#fff" stroke="#c98a1a"></rect>
+      <text x="595" y="277" text-anchor="middle">Fraud consumer (idempotent)</text>
+    </g>
+    <g class="anim-el" data-step="6">
+      <rect x="10" y="230" width="460" height="60" rx="6" fill="#fbf1e7" stroke="#c98a1a"></rect>
+      <text x="240" y="250" text-anchor="middle" font-weight="700" fill="#c98a1a">Operate it</text>
+      <text x="240" y="266" text-anchor="middle">Micrometer → Prometheus: projection lag · append latency · conflict rate · events/stream</text>
+      <text x="240" y="282" text-anchor="middle">ADR · 1-page runbook · podman compose up · Testcontainers on the Podman socket</text>
+    </g>
+  </g>
+</svg>
+</div>
+<div class="anim-caps">
+  <p class="anim-cap" data-step="1"><span class="n">1</span>A thin REST API. Each endpoint maps to one command; idempotency keys on every POST.</p>
+  <p class="anim-cap" data-step="2"><span class="n">2</span>A pure <strong>Wallet decider</strong> (Lessons 03, 14) and an event-sourced <strong>Transfer process manager</strong> with compensation and timeout (Lesson 10).</p>
+  <p class="anim-cap" data-step="3"><span class="n">3</span>A Postgres event store with optimistic concurrency and gap-safe global reads (Lessons 04, 08). Snapshots only if measurement says so (Lesson 07).</p>
+  <p class="anim-cap" data-step="4"><span class="n">4</span>Three projections: one inline for read-your-writes, two async with checkpoints in the same transaction; <strong>DailyVolume</strong> rebuilt blue/green (Lessons 05&ndash;06).</p>
+  <p class="anim-cap" data-step="5"><span class="n">5</span>Integration events published from a store subscription &mdash; no dual writes &mdash; to an idempotent consumer (Lesson 09).</p>
+  <p class="anim-cap" data-step="6"><span class="n">6</span>Then make it operable: metrics, an ADR, a runbook, all running locally on Podman (Lessons 11, 16).</p>
+</div>
+<figcaption>Ledgerly: every box maps to a lesson. Production shape, not features.</figcaption>
+</figure>
+
+<pre><code># run locally (Podman, not Docker)
+cd ../assets/lab &amp;&amp; podman compose up -d   # the lab's Postgres event store (port 55432)
+# for Ledgerly, extend your own compose.yml with Kafka (+ Schema Registry for Avro)
+export DOCKER_HOST="unix://$(podman machine inspect --format '{{.ConnectionInfo.PodmanSocket.Path}}')"
+./mvnw verify                              # Testcontainers against the Podman socket</code></pre>
+
+<div class="callout tryit">
+  <span class="label">Ledgerly requirements &mdash; tick each off</span>
+  <ul class="checklist">
+    <li><code>Wallet</code> decider with Given/When/Then tests and a jqwik property test (balance never negative).</li>
+    <li>Postgres event store with optimistic concurrency; concurrent-withdraw test passes.</li>
+    <li><code>Transfer</code> between two wallets via an <strong>event-sourced process manager</strong> with compensation and timeout.</li>
+    <li>Three projections; checkpoint in same transaction; idempotency test (replay duplicates).</li>
+    <li>Gap-safe global reads (tx-id visibility filter) + a test with interleaved transactions.</li>
+    <li>Blue/green rebuild of <code>DailyVolume</code> v1 &rarr; v2 with alias swap.</li>
+    <li>Read-your-writes via position token on <code>GET /wallets/{id}/statement</code>.</li>
+    <li>Upcaster: change <code>MoneyDeposited.amount</code> from number to <code>{value, currency}</code>; historical-event corpus test.</li>
+    <li>Crypto-shredding of a <code>memo</code> field; erasure endpoint.</li>
+    <li>Publisher to Kafka with idempotent producer, keyed by wallet id.</li>
+    <li>Snapshots &mdash; only after you measure rehydration time with 100k events and decide it&rsquo;s needed.</li>
+    <li>Metrics: projection lag, append latency, conflict rate, events per stream (Micrometer &rarr; Prometheus).</li>
+    <li>An ADR for the project and a 1-page runbook (&ldquo;projection stuck&rdquo;, &ldquo;rebuild&rdquo;, &ldquo;poison event&rdquo;).</li>
+    <li>Run everything locally with <strong>Podman</strong> (<code>podman compose up</code>) and Testcontainers against the Podman socket.</li>
+  </ul>
+  <p><strong>Stretch:</strong> implement the same <code>Transfer</code> invariant with <strong>DCB</strong> (a single append with a tag-based condition) and write a one-page comparison note.</p>
+</div>
+
+<h2>9. Self-assessment: are you Staff on this topic?</h2>
+
+<p>You&rsquo;re there when you can, <strong>without notes</strong>:</p>
+
+<ul class="checklist">
+  <li>Explain ES, CQRS and EDA and how they differ, in two minutes, to a product manager.</li>
+  <li>Write a decider for a new domain with pure <code>decide</code>/<code>evolve</code> and full GWT tests.</li>
+  <li>Design an event store schema that provides optimistic concurrency <strong>and</strong> gap-free global ordering.</li>
+  <li>Explain why Kafka is (usually) not your event store, and when it can be.</li>
+  <li>Design projections that are idempotent, checkpointed and rebuildable; run a zero-downtime rebuild.</li>
+  <li>Offer at least four UX/API strategies for eventual consistency.</li>
+  <li>Choose between weak schema, upcasting, new event type and copy-transform for a given change.</li>
+  <li>Design GDPR erasure for an event-sourced system end-to-end.</li>
+  <li>Spot ten anti-patterns in a design doc.</li>
+  <li>Decide <em>not</em> to use ES, and propose the lighter alternative, with a convincing argument.</li>
+  <li>Write an ADR with alternatives, consequences, exit plan and success metrics.</li>
+  <li>Facilitate an Event Storming session that produces aggregate boundaries.</li>
+</ul>
+
+<h2>10. Study plan: 8 weeks, ~4&ndash;5 h/week</h2>
+
+<table>
+  <thead><tr><th>Week</th><th>Focus</th><th>Lessons</th><th>Output</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Foundations; Fowler + Young articles</td><td>01&ndash;03</td><td>In-memory Account decider + tests</td></tr>
+    <tr><td>2</td><td>Postgres event store; optimistic concurrency</td><td>04</td><td>Concurrent-withdraw test passing</td></tr>
+    <tr><td>3</td><td>Projections, checkpoints, rebuild</td><td>05&ndash;06</td><td>2 projections + idempotency test</td></tr>
+    <tr><td>4</td><td>Subscriptions, gap problem, outbox to Kafka</td><td>07&ndash;09</td><td>Gap-safe reader + Kafka publisher</td></tr>
+    <tr><td>5</td><td>Sagas/process managers; Kafka-as-store debate</td><td>10&ndash;11</td><td>Transfer PM with compensation</td></tr>
+    <tr><td>6</td><td>Versioning, GDPR, testing</td><td>12&ndash;14</td><td>Upcaster + corpus test + crypto-shredding</td></tr>
+    <tr><td>7</td><td>Migration, Event Storming, DCB</td><td>15</td><td>Run an Event Storming on a real domain at work</td></tr>
+    <tr><td>8</td><td>ADR + design review</td><td>16</td><td>ADR for a real system; present it to your team</td></tr>
+  </tbody>
+</table>
+
+<div class="callout insight">
+  <span class="label">Final advice</span>
+  <p>The Staff signal is not &ldquo;I built an event-sourced system&rdquo;. It&rsquo;s &ldquo;I understood
+  <em>why</em> our domain needed (or didn&rsquo;t need) it, made the trade-offs explicit, made it safe to
+  operate, and made other engineers effective with it.&rdquo;</p>
+</div>
+
+<div class="primary-source">
+  <span class="label">Read this next (primary sources)</span>
+  <p>Microsoft &mdash; <a href="https://learn.microsoft.com/azure/architecture/patterns/event-sourcing" target="_blank" rel="noopener"><em>Event Sourcing pattern</em></a>
+  (its &ldquo;when to use / not use&rdquo; section is a good second opinion);
+  <a href="https://adr.github.io/" target="_blank" rel="noopener"><em>adr.github.io</em></a> (ADR templates and practice);
+  Martin Fowler &mdash; <a href="https://martinfowler.com/articles/lmax.html" target="_blank" rel="noopener"><em>The LMAX Architecture</em></a>.</p>
+</div>
+
+<h2>11. Check yourself</h2>
+<p>Retrieve before revealing.</p>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 1 of 3</p>
+  <p class="quiz-q">A team wants ES for an admin back-office &ldquo;because we need an audit trail&rdquo;. Your recommendation is&hellip;</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="Audit alone, with no rich behaviour, rarely justifies the full cost.">event-source it; an audit trail is exactly what ES gives</button></li>
+    <li><button data-correct="true" data-feedback="Right — the lighter alternative captures most of the value.">CRUD with an audit table written in the same transaction</button></li>
+    <li><button data-correct="false" data-feedback="CDC is for streaming changes out, and isn&rsquo;t an audit of intent.">CRUD plus Debezium CDC acting as the audit trail store</button></li>
+    <li><button data-correct="false" data-feedback="The audit need is real; ignoring it isn&rsquo;t the answer.">plain CRUD; audit trails are rarely worth the effort</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Simple data entry + audit need → CRUD + audit/temporal tables. Event sourcing earns its cost when behaviour is rich AND history has business value."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 2 of 3</p>
+  <p class="quiz-q">Which ADR section most builds reviewers&rsquo; trust in a bold decision like adopting ES?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="Necessary, but context alone doesn&rsquo;t de-risk the decision.">a detailed context section listing all business drivers</button></li>
+    <li><button data-correct="false" data-feedback="Useful, but tech detail doesn&rsquo;t address &ldquo;what if we&rsquo;re wrong?&rdquo;.">a precise description of the event store table schema</button></li>
+    <li><button data-correct="false" data-feedback="Vendor stories show possibility, not fit for your context.">a list of well-known companies that use event sourcing</button></li>
+    <li><button data-correct="true" data-feedback="Right — they bound the cost of being wrong and define &ldquo;working&rdquo;.">an exit plan plus measurable success metrics and review</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Exit plan + success metrics make a decision reversible and accountable. Projections that materialise current state make the ES exit plan cheap."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 3 of 3</p>
+  <p class="quiz-q">Six months in, nobody has used temporal queries, history or a new projection. The Staff move is to&hellip;</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="Right — measure honestly and be the one who proposes simplifying.">revisit the ADR&rsquo;s metrics and propose simplifying</button></li>
+    <li><button data-correct="false" data-feedback="Expanding scope doubles down on an unproven bet.">roll ES out to more services to get more value from it</button></li>
+    <li><button data-correct="false" data-feedback="Usage of history is the value; tooling doesn&rsquo;t change that.">invest in better tooling so teams find history useful</button></li>
+    <li><button data-correct="false" data-feedback="Sunk cost isn&rsquo;t a reason to keep complexity.">keep it; the migration cost is already fully paid off</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Measure success honestly. If the benefits aren&rsquo;t being used, the cost of ES isn&rsquo;t justified — use the exit plan."></div>
+</div>
+
+<div class="callout tryit">
+  <span class="label">Try it in your own system</span>
+  <ul class="checklist">
+    <li>Run the decision flow on three contexts at work. Write one sentence per gate.</li>
+    <li>Place them on the quadrant. Does any &ldquo;ES shines&rdquo; context currently run on CRUD?</li>
+    <li>Write a real ADR (use the template) for one of them &mdash; including the lighter alternative and exit plan.</li>
+    <li>Review a colleague&rsquo;s design with five questions from the question bank.</li>
+  </ul>
+</div>
+
+<div class="followup">
+  <strong>I&rsquo;m your teacher &mdash; ask me anything.</strong> Bring a draft ADR and I&rsquo;ll review
+  it like a principal engineer would &mdash; or we can role-play the design review where someone
+  pushes back on your exit plan.
+</div>
+
+<nav class="lesson-nav">
+  <span class="group">
+    <b>Reference</b>
+    <a href="../reference/0011-adr-template-and-review-questions.html">ADR template &amp; review questions &rarr;</a>
+    <a href="../reference/0012-anti-patterns.html">Anti-patterns &rarr;</a>
+  </span>
+  <span class="group">
+    <b>Previous</b>
+    <a href="0015-migrating-from-crud-and-event-storming.html">&larr; Lesson 15 · Migrating from CRUD &amp; Event Storming</a>
+  </span>
+  <span class="group">
+    <b>Up next</b>
+    <a href="../index.html">Course map &uarr;</a>
+  </span>
+</nav>
+
+</body>
+</html>

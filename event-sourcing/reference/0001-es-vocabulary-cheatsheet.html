@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cheat Sheet · Event Sourcing Vocabulary</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<style>
+  body { max-width: 52rem; }
+  @media print { body { margin: 0; } h2 { margin-top: 1.1rem; } }
+</style>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Event Sourcing · Reference 01</p>
+  <h1>Vocabulary Cheat Sheet</h1>
+  <div class="meta"><span>Compressed from Lessons 01 &amp; 02</span><span class="dot">•</span><span>Print-friendly</span></div>
+</header>
+
+<div class="callout insight">
+  <span class="label">The one equation</span>
+  <p><code>state = events.foldLeft(initial, evolve)</code> &nbsp;·&nbsp; <code>newEvents = decide(command, state)</code>.
+  Events are the truth; state, snapshots and read models are caches.</p>
+</div>
+
+<h2>Core terms</h2>
+<table>
+  <thead><tr><th>Term</th><th>One-line definition</th><th>Example</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Event</strong></td><td>Immutable fact that happened; past tense</td><td><code>OrderPlaced</code></td></tr>
+    <tr><td><strong>Command</strong></td><td>Intent to change; imperative; can be rejected</td><td><code>PlaceOrder</code></td></tr>
+    <tr><td><strong>Query</strong></td><td>Request to read; never changes state</td><td><code>GetOrderSummary</code></td></tr>
+    <tr><td><strong>Aggregate</strong></td><td>Consistency boundary; validates commands, emits events</td><td><code>Order</code></td></tr>
+    <tr><td><strong>Decider</strong></td><td><code>initialState</code> + pure <code>decide</code> + pure <code>evolve</code></td><td><code>Account.decide(&hellip;)</code></td></tr>
+    <tr><td><strong>Stream</strong></td><td>Ordered events of one aggregate instance</td><td><code>order-8f2c</code></td></tr>
+    <tr><td><strong>Stream version</strong></td><td>Position in one stream; dense; drives OCC</td><td><code>v4</code></td></tr>
+    <tr><td><strong>Global position</strong></td><td>Position across all streams; may have gaps; drives projections</td><td><code>#1,204,889</code></td></tr>
+    <tr><td><strong>Expected version</strong></td><td>&ldquo;Append only if the stream is still at N&rdquo;</td><td><code>NoStream</code>, <code>Exact(3)</code></td></tr>
+    <tr><td><strong>Event store</strong></td><td>Append to streams; read a stream; read all in order</td><td>KurrentDB, Postgres table</td></tr>
+    <tr><td><strong>Rehydration</strong></td><td>Rebuild aggregate state by replaying its stream</td><td><code>load("order-8f2c")</code></td></tr>
+    <tr><td><strong>Envelope</strong></td><td>Event + ids, type, schema version, timestamps, metadata</td><td><code>EventEnvelope</code></td></tr>
+    <tr><td><strong>Correlation id</strong></td><td>Same for every message in one business flow</td><td><code>req-77a1</code></td></tr>
+    <tr><td><strong>Causation id</strong></td><td>Id of the message that directly caused this one</td><td><code>cmd-1f3e</code></td></tr>
+    <tr><td><strong>Projection</strong></td><td>Process that reads events and builds a read model</td><td>orders-by-customer</td></tr>
+    <tr><td><strong>Read model / view</strong></td><td>Query-optimised, disposable, derived data</td><td>Elasticsearch index</td></tr>
+    <tr><td><strong>Checkpoint</strong></td><td>Last global position a projection processed</td><td><code>projection_checkpoints</code></td></tr>
+    <tr><td><strong>Subscription</strong></td><td>Delivery of events to a handler (catch-up / persistent)</td><td>&mdash;</td></tr>
+    <tr><td><strong>Snapshot</strong></td><td>Cached state at version N; replay from N+1</td><td><code>{balance:70}@v4000</code></td></tr>
+    <tr><td><strong>Upcaster</strong></td><td>Transforms old event shape to new at read time</td><td><code>V1 &rarr; V2</code></td></tr>
+    <tr><td><strong>CQRS</strong></td><td>Separate write model from read model(s); independent of ES</td><td>&mdash;</td></tr>
+    <tr><td><strong>Process manager / saga</strong></td><td>Reacts to events, issues commands across aggregates</td><td>transfer flow</td></tr>
+    <tr><td><strong>Integration event</strong></td><td>Public, stable event published to other services</td><td><code>OrderConfirmed.v1</code></td></tr>
+  </tbody>
+</table>
+
+<h2>Command vs event vs query</h2>
+<table>
+  <thead><tr><th></th><th>Command</th><th>Event</th><th>Query</th></tr></thead>
+  <tbody>
+    <tr><td>Tense</td><td>Imperative</td><td>Past</td><td>Question</td></tr>
+    <tr><td>Can be rejected</td><td>Yes</td><td>No</td><td>&mdash;</td></tr>
+    <tr><td>Receivers</td><td>Exactly one</td><td>0..N</td><td>One</td></tr>
+    <tr><td>Changes state</td><td>May cause events</td><td>Is the change</td><td>Never</td></tr>
+  </tbody>
+</table>
+
+<h2>ES vs EDA vs CQRS vs CDC</h2>
+<table>
+  <thead><tr><th>Pattern</th><th>What it is about</th><th>Unit</th><th>Works without ES?</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Event sourcing</strong></td><td>How <em>one</em> service persists its own state</td><td>Domain event in a stream</td><td>&mdash;</td></tr>
+    <tr><td><strong>Event-driven arch.</strong></td><td>How <em>services communicate</em></td><td>Notification / integration event</td><td>Yes</td></tr>
+    <tr><td><strong>CQRS</strong></td><td>Separate models for writes and reads</td><td>Command / query / read model</td><td>Yes</td></tr>
+    <tr><td><strong>CDC</strong></td><td>Streaming row changes out of a DB log</td><td>Data diff (<code>status 2&rarr;3</code>)</td><td>Yes &mdash; and CDC rows aren&rsquo;t domain events</td></tr>
+  </tbody>
+</table>
+
+<div class="callout warning">
+  <span class="label">Common confusions</span>
+  <p>ES &ne; Kafka (no per-entity streams with OCC). Snapshots and read models are never the source of
+  truth. Fix mistakes with compensating events &mdash; never UPDATE/DELETE an event.</p>
+</div>
+
+<nav class="lesson-nav">
+  <span class="group"><b>From</b><a href="../lessons/0001-state-vs-history-mental-model.html">&larr; Lesson 01 · State vs history</a><a href="../lessons/0002-events-commands-designing-events.html">&larr; Lesson 02 · Events &amp; commands</a></span>
+  <span class="group"><b>Canonical terms</b><a href="../GLOSSARY.md">GLOSSARY.md</a></span>
+  <span class="group"><b>Primary source</b><a href="https://martinfowler.com/eaaDev/EventSourcing.html" target="_blank" rel="noopener">Fowler · Event Sourcing</a></span>
+</nav>
+
+</body>
+</html>

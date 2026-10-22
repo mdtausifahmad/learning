@@ -31,6 +31,15 @@ Verified live on 2026-07-24 where marked ✅.
   Use for: the AMQP model — exchanges, bindings, routing keys, acknowledgements, quorum queues.
 - [Martin Fowler — "What do you mean by Event-Driven?"](https://martinfowler.com/articles/201701-event-driven.html)
   Use for: precise EDA vocabulary (event notification, event-carried state transfer, sourcing, CQRS).
+- [PostgreSQL Documentation — Write-Ahead Logging & Logical Decoding](https://www.postgresql.org/docs/current/logicaldecoding-explanation.html)
+  Primary documentation for WAL, logical replication slots, publications, REPLICA IDENTITY, and LSN-based CDC.
+  Use for: the database side of PostgreSQL change data capture and its retention/failover trade-offs.
+- [Debezium Documentation — PostgreSQL Connector](https://debezium.io/documentation/reference/stable/connectors/postgresql.html)
+  Official reference for connector lifecycle, snapshots, offsets, event envelopes, heartbeats, monitoring, and recovery.
+  Use for: implementing and operating a PostgreSQL CDC pipeline.
+- [Debezium Documentation — Outbox Event Router](https://debezium.io/documentation/reference/stable/transformations/outbox-event-router.html)
+  Official configuration and behavior of the Debezium SMT for transactional-outbox rows.
+  Use for: routing a database outbox reliably into event topics.
 
 ## Wisdom (Communities)
 

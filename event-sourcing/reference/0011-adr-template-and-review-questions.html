@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cheat Sheet · ADR Template &amp; Design-Review Questions</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<style>
+  body { max-width: 52rem; }
+  @media print { body { margin: 0; } h2 { margin-top: 1.1rem; } }
+</style>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Event Sourcing · Reference 11</p>
+  <h1>ADR Template &amp; Design-Review Questions</h1>
+  <div class="meta"><span>Compressed from Lessons 15 &amp; 16</span><span class="dot">•</span><span>Print-friendly</span></div>
+</header>
+
+<h2>Decide first</h2>
+<p>History a <strong>business</strong> requirement (or many evolving read models)? &rarr; behaviour-rich? &rarr; team &amp; product accept eventual consistency + learning curve? All yes &rArr; event-source <strong>this bounded context</strong>. Otherwise: CRUD (+ outbox/CDC) or CRUD + audit/temporal tables.</p>
+
+<h2>ADR skeleton</h2>
+<pre><code># ADR-NNN: Use event sourcing for the &lt;X&gt; bounded context
+## Status        Proposed — YYYY-MM-DD
+## Context       business drivers + evidence (regulation, incidents, analytics asks); team reality
+## Decision      scope (this context only); event store; ordering/concurrency; projections
+                 (which inline); integration events &amp; format; PII approach
+## Consequences  + audit, temporal queries, backfillable views
+                 − learning curve (plan), eventual consistency (SLO), upcasters + CI corpus
+## Alternatives  CRUD + outbox + audit table; framework (Axon); dedicated store (KurrentDB) — why not
+## Exit plan     projections materialise current state into CRUD tables; est. effort
+## Success       projection lag p99, rehydration p99, parked events = 0,
+## metrics       time-to-new-read-model, audit answered without engineers; review date</code></pre>
+
+<h2>Design-review question bank</h2>
+<table>
+  <thead><tr><th>Area</th><th>Ask</th></tr></thead>
+  <tbody>
+    <tr><td>Domain</td><td>1 What business question does history answer? 2 Aggregates, invariants, events per stream over lifetime? 3 Cross-aggregate invariants: saga, reservation, DCB, accepted risk?</td></tr>
+    <tr><td>Events</td><td>4 Five event names &mdash; business narrative? 5 Versioning, upcasters, CI compatibility? 6 Where is PII; erasure across store, projections, snapshots, Kafka, backups?</td></tr>
+    <tr><td>Consistency</td><td>7 Optimistic concurrency + retry policy? 8 Gap-free, commit-ordered global reads? 9 Which reads need read-your-writes, how?</td></tr>
+    <tr><td>Operations</td><td>10 Largest rebuild time, procedure, on-call? 11 Lag SLOs &amp; alerts? 12 Poison events parked where, who&rsquo;s paged? 13 Restore store + rebuild projections &mdash; drilled?</td></tr>
+    <tr><td>Evolution</td><td>14 Public events, contract format, compatibility mode? 15 Exit strategy?</td></tr>
+  </tbody>
+</table>
+
+<h2>Migration from CRUD (strangler)</h2>
+<p>1 one context &rarr; 2 seed honest <code>AccountImported</code> &rarr; 3 route writes (single writer; shadow mode first) &rarr; 4 project back into legacy tables &rarr; 5 move readers one by one &rarr; 6 decommission. CDC change events &ne; domain events.</p>
+
+<h2>Organisational levers</h2>
+<ul>
+  <li><strong>Scope</strong> via ADR; buy-in from product (staleness) and compliance (GDPR).</li>
+  <li><strong>Paved road</strong>: store client, decider types, projection runner, upcaster registry, test DSL.</li>
+  <li><strong>Champions</strong>: Event Storming, pairing, &ldquo;how we do ES here&rdquo; guide.</li>
+  <li><strong>Ownership</strong>: runbooks + on-call for projections and subscriptions.</li>
+  <li><strong>Honest metrics</strong>: unused history after 6 months &rArr; propose simplifying.</li>
+  <li><strong>Business language</strong>: &ldquo;1&ndash;2 s staleness for regulator-grade history.&rdquo;</li>
+</ul>
+
+<nav class="lesson-nav">
+  <span class="group"><b>From</b><a href="../lessons/0016-staff-judgement-when-not-to-and-the-adr.html">&larr; Lesson 16 · Staff judgement</a><a href="../lessons/0015-migrating-from-crud-and-event-storming.html">&larr; Lesson 15 · Migration</a></span>
+  <span class="group"><b>Canonical terms</b><a href="../GLOSSARY.md">GLOSSARY.md</a></span>
+  <span class="group"><b>Primary source</b><a href="https://adr.github.io/" target="_blank" rel="noopener">adr.github.io</a></span>
+</nav>
+
+</body>
+</html>

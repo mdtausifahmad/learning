@@ -1,0 +1,22 @@
+# Event-sourcing lab: a PostgreSQL event store you can poke with psql.
+# Run with Podman:  podman compose up -d
+services:
+  eventstore:
+    image: docker.io/library/postgres:16
+    container_name: es-lab-postgres
+    environment:
+      POSTGRES_USER: es
+      POSTGRES_PASSWORD: es
+      POSTGRES_DB: eventstore
+    ports:
+      - "55432:5432"
+    volumes:
+      - ./sql/01-schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro,Z
+      - ./sql/02-functions.sql:/docker-entrypoint-initdb.d/02-functions.sql:ro,Z
+      - ./sql/03-projection.sql:/docker-entrypoint-initdb.d/03-projection.sql:ro,Z
+      - ./sql:/lab:ro,Z
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U es -d eventstore"]
+      interval: 2s
+      timeout: 3s
+      retries: 20

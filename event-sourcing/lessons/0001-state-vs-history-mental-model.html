@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 01 · State vs History: the Event-Sourcing Mental Model</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<script src="../assets/quiz.js" defer></script>
+<script src="../assets/anim.js" defer></script>
+<script src="../assets/es-sim.js" defer></script>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Event Sourcing · Lesson 01</p>
+  <h1>State vs History: the Mental Model</h1>
+  <div class="meta">
+    <span>◷ ~12 min read</span>
+    <span class="dot">•</span>
+    <span>Level 0 · Foundations</span>
+    <span class="dot">•</span>
+    <span>Prereq: none</span>
+  </div>
+</header>
+
+<p class="mission-tie">
+  Almost every system you have built stores <em>the current state</em> and overwrites it on every change.
+  Event sourcing flips that: you store <strong>the facts that happened</strong>, and treat every state as
+  something you <em>derive</em>. Before any code, you need that inversion to feel natural &mdash; it
+  answers most of the design questions you&rsquo;ll meet later.
+</p>
+
+<h2>1. Two ways to remember a bank account</h2>
+
+<p>
+  <strong>State-oriented (CRUD):</strong> one row, <code>balance = 70</code>. Every
+  <code>UPDATE</code> destroys the previous value. <strong>Event-sourced:</strong> an append-only list of
+  facts &mdash; <span class="term">AccountOpened</span>, <span class="term">MoneyDeposited 100</span>,
+  <span class="term">MoneyWithdrawn 50</span>, <span class="term">MoneyDeposited 20</span>. Both say the
+  balance is 70. Only one can tell you <em>why</em>, <em>when</em>, and <em>what it was last Tuesday</em>.
+</p>
+
+<figure class="anim" data-anim>
+<div class="anim-stage">
+<svg viewBox="0 0 660 230" role="img" aria-label="Step-by-step: CRUD overwrites state while event sourcing appends facts and folds them into state">
+  <g font-family="system-ui, sans-serif" font-size="11">
+    <g class="anim-el" data-step="1">
+      <text x="10" y="22" font-weight="700" fill="#63625c">CRUD</text>
+      <rect x="70" y="8" width="120" height="26" rx="5" fill="#f6f7f4" stroke="#999"></rect>
+      <text x="130" y="25" text-anchor="middle">balance = 100</text>
+    </g>
+    <g class="anim-el" data-step="2">
+      <path d="M192 21 H226" stroke="#999" marker-end="url(#a1)"></path>
+      <rect x="230" y="8" width="120" height="26" rx="5" fill="#f6f7f4" stroke="#999"></rect>
+      <text x="290" y="25" text-anchor="middle">balance = 50</text>
+      <path d="M352 21 H386" stroke="#999" marker-end="url(#a1)"></path>
+      <rect x="390" y="8" width="120" height="26" rx="5" fill="#f6f7f4" stroke="#999"></rect>
+      <text x="450" y="25" text-anchor="middle">balance = 70</text>
+      <text x="530" y="25" fill="#b23b3b" font-weight="700">history lost</text>
+      <line x1="70" y1="21" x2="190" y2="21" stroke="#b23b3b" stroke-width="2"></line>
+      <line x1="230" y1="21" x2="350" y2="21" stroke="#b23b3b" stroke-width="2"></line>
+    </g>
+    <g class="anim-el" data-step="3">
+      <text x="10" y="92" font-weight="700" fill="#4b3f8f">ES</text>
+      <rect x="70" y="76" width="120" height="30" rx="5" fill="#fff" stroke="#4b3f8f" stroke-width="1.5"></rect>
+      <text x="130" y="95" text-anchor="middle">AccountOpened</text>
+      <rect x="200" y="76" width="120" height="30" rx="5" fill="#fff" stroke="#1f7a5e" stroke-width="1.5"></rect>
+      <text x="260" y="95" text-anchor="middle">Deposited 100</text>
+      <rect x="330" y="76" width="120" height="30" rx="5" fill="#fff" stroke="#b23b3b" stroke-width="1.5"></rect>
+      <text x="390" y="95" text-anchor="middle">Withdrawn 50</text>
+      <rect x="460" y="76" width="120" height="30" rx="5" fill="#fff" stroke="#1f7a5e" stroke-width="1.5"></rect>
+      <text x="520" y="95" text-anchor="middle">Deposited 20</text>
+      <text x="600" y="95" fill="#63625c">append →</text>
+    </g>
+    <g class="anim-el" data-step="4">
+      <path d="M325 110 V150" stroke="#4b3f8f" stroke-width="2" marker-end="url(#a2)"></path>
+      <text x="335" y="135" fill="#4b3f8f" font-weight="700">fold(evolve)</text>
+      <rect x="255" y="155" width="140" height="32" rx="6" fill="#efedf8" stroke="#4b3f8f" stroke-width="1.5"></rect>
+      <text x="325" y="176" text-anchor="middle" font-weight="700" fill="#4b3f8f">state: balance = 70</text>
+    </g>
+    <g class="anim-el" data-step="5">
+      <rect x="60" y="196" width="170" height="28" rx="6" fill="#fff" stroke="#c98a1a"></rect>
+      <text x="145" y="214" text-anchor="middle">Projection: statement</text>
+      <rect x="245" y="196" width="160" height="28" rx="6" fill="#fff" stroke="#c98a1a"></rect>
+      <text x="325" y="214" text-anchor="middle">Projection: fraud score</text>
+      <rect x="420" y="196" width="170" height="28" rx="6" fill="#fff" stroke="#c98a1a"></rect>
+      <text x="505" y="214" text-anchor="middle">Balance @ last Tuesday</text>
+    </g>
+  </g>
+  <defs>
+    <marker id="a1" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#999"></path></marker>
+    <marker id="a2" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#4b3f8f"></path></marker>
+  </defs>
+</svg>
+</div>
+<div class="anim-caps">
+  <p class="anim-cap" data-step="1"><span class="n">1</span>CRUD stores <strong>one value</strong>: the current state.</p>
+  <p class="anim-cap" data-step="2"><span class="n">2</span>Every <code>UPDATE</code> overwrites the past. The answer to &ldquo;how did we get to 70?&rdquo; is gone unless someone bolted on an audit table &mdash; which can drift from the truth.</p>
+  <p class="anim-cap" data-step="3"><span class="n">3</span>Event sourcing stores <strong>facts</strong>, in order, and only ever <em>appends</em>. Nothing is updated or deleted.</p>
+  <p class="anim-cap" data-step="4"><span class="n">4</span>Current state is a <strong>left fold</strong> over the facts. It&rsquo;s a cache: throw it away and recompute it any time.</p>
+  <p class="anim-cap" data-step="5"><span class="n">5</span>Because the facts are kept, you can derive <strong>any</strong> view &mdash; including ones nobody thought of when the system was built &mdash; and replay to any point in time.</p>
+</div>
+<figcaption>The inversion: in CRUD, state is the truth and history is a side-effect. In ES, history is the truth and state is a side-effect.</figcaption>
+</figure>
+
+<h2>2. Play with it: replay &amp; time travel</h2>
+
+<div class="sim" data-sim="replay"></div>
+
+<p>
+  Notice three things while you play. <strong>(1)</strong> The slider never changes the events &mdash; it
+  just folds fewer of them. <strong>(2)</strong> A rejected withdrawal appends <em>nothing</em>: commands
+  can fail, events cannot. <strong>(3)</strong> The CRUD row can only ever answer questions about now.
+</p>
+
+<h2>3. The one equation</h2>
+
+<pre><code>state     = events.foldLeft(initialState, evolve)   // evolve(state, event) → state   (pure)
+newEvents = decide(command, state)                   // business rules; may reject</code></pre>
+
+<p>
+  That&rsquo;s the whole pattern. Everything else in this course &mdash; snapshots, projections,
+  versioning, sagas &mdash; is engineering around these two functions. They answer two
+  different questions:
+</p>
+
+<table>
+  <thead><tr><th>Line</th><th>Question it answers</th><th>Direction</th></tr></thead>
+  <tbody>
+    <tr><td><code>state = fold(&hellip;evolve)</code></td><td>&ldquo;Where are we <em>now</em>?&rdquo;</td><td>past events &rarr; current state (read)</td></tr>
+    <tr><td><code>newEvents = decide(&hellip;)</code></td><td>&ldquo;What should happen <em>next</em>?&rdquo;</td><td>request + current state &rarr; new events (write)</td></tr>
+  </tbody>
+</table>
+
+<h3>The three ingredients</h3>
+<ul>
+  <li><strong><code>initialState</code></strong> is the state <em>before any event</em>. It is
+    <strong>not</strong> the first event. For an account it is &ldquo;doesn&rsquo;t exist yet,
+    balance 0&rdquo;. It&rsquo;s the starting value, like <code>sum = 0</code> before a loop.</li>
+  <li><strong><code>evolve(state, event) &rarr; state</code></strong> answers: &ldquo;given
+    the state so far and one more fact, what is the state now?&rdquo; It only <em>applies</em>
+    facts. It never checks rules, because the event already happened and can&rsquo;t be refused.
+    It is pure: no DB, no clock, no I/O.</li>
+  <li><strong><code>decide(command, state) &rarr; events</code></strong> holds the business rules.
+    A command is a <em>request</em> (&ldquo;withdraw 80&rdquo;). <code>decide</code> checks it
+    against the current state. If the rules pass, it returns the events to record. If they
+    fail, it <strong>rejects</strong> the command: it throws or returns an error, and
+    <strong>nothing is stored</strong>.</li>
+</ul>
+
+<h3>Worked example: account <code>acc-42</code></h3>
+<p>The stored stream is <code>[AccountOpened, MoneyDeposited(100), MoneyWithdrawn(30)]</code>.
+  <code>foldLeft</code> walks it left to right and carries the state along:</p>
+
+<table>
+  <thead><tr><th>Step</th><th>State before</th><th>Event</th><th><code>evolve</code> returns</th></tr></thead>
+  <tbody>
+    <tr><td>start</td><td colspan="3"><code>initialState</code> = { open: false, balance: 0 }</td></tr>
+    <tr><td>1</td><td>{ open: false, balance: 0 }</td><td><code>AccountOpened</code></td><td>{ open: true, balance: 0 }</td></tr>
+    <tr><td>2</td><td>{ open: true, balance: 0 }</td><td><code>MoneyDeposited(100)</code></td><td>{ open: true, balance: 100 }</td></tr>
+    <tr><td>3</td><td>{ open: true, balance: 100 }</td><td><code>MoneyWithdrawn(30)</code></td><td>{ open: true, balance: <strong>70</strong> }</td></tr>
+  </tbody>
+</table>
+
+<p>Now two commands arrive, and <code>decide</code> sees state <code>{ open: true, balance: 70 }</code>:</p>
+<ul>
+  <li><code>Withdraw(50)</code>: 50 &le; 70, so it is <strong>accepted</strong> and returns <code>[MoneyWithdrawn(50)]</code>.
+    That event is appended, and the next fold gives balance 20.</li>
+  <li><code>Withdraw(500)</code>: 500 &gt; 70, so it is <strong>rejected</strong> with &ldquo;insufficient funds&rdquo;.
+    It returns no events and the stream is unchanged. That is what &ldquo;business rules; may reject&rdquo; means.</li>
+</ul>
+
+<pre><code>// Java 21: the same thing as code
+record Account(boolean open, long balance) {
+  static final Account INITIAL = new Account(false, 0);       // initialState
+}
+
+static Account evolve(Account s, Event e) {                     // apply a fact; no rules
+  return switch (e) {
+    case AccountOpened o   -&gt; new Account(true, s.balance());
+    case MoneyDeposited d  -&gt; new Account(s.open(), s.balance() + d.amount());
+    case MoneyWithdrawn w  -&gt; new Account(s.open(), s.balance() - w.amount());
+  };
+}
+
+static List&lt;Event&gt; decide(Command c, Account s) {             // rules live here
+  return switch (c) {
+    case Withdraw w when !s.open()               -&gt; throw new DomainException("account closed");
+    case Withdraw w when w.amount() &gt; s.balance() -&gt; throw new DomainException("insufficient funds");
+    case Withdraw w                              -&gt; List.of(new MoneyWithdrawn(w.amount()));
+    // … Open, Deposit
+  };
+}
+
+// The full loop for one request:
+Account state = events.stream().reduce(Account.INITIAL, Domain::evolve, (a, b) -&gt; b); // 1. rebuild
+List&lt;Event&gt; newEvents = decide(new Withdraw(50), state);                             // 2. decide
+store.append("acc-42", expectedVersion, newEvents);                                   // 3. record</code></pre>
+
+<div class="callout insight">
+  <span class="label">Why split them?</span>
+  <p><code>decide</code> runs <em>once</em>, when the request arrives, and may say no.
+  <code>evolve</code> runs <em>every time</em> state is rebuilt, possibly years later, and must
+  always say yes. If you put a rule like &ldquo;balance can&rsquo;t go negative&rdquo; in
+  <code>evolve</code>, then changing that rule next year would make old history fail to load.
+  Rules go in <code>decide</code>. <code>evolve</code> only records facts.</p>
+</div>
+
+<p>Try it in the simulator below: move the slider to watch the fold, then send a
+  withdrawal that is too big and watch <code>decide</code> reject it.</p>
+
+<h2>4. You already use event-sourced systems</h2>
+
+<table>
+  <thead><tr><th>System</th><th>The events</th><th>The derived state</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Accounting ledger</strong></td><td>journal entries (never erased)</td><td>balances, P&amp;L</td></tr>
+    <tr><td><strong>Git</strong></td><td>commits</td><td>your working tree</td></tr>
+    <tr><td><strong>Database WAL</strong></td><td>log records</td><td>tables &amp; indexes</td></tr>
+    <tr><td><strong>Chess notation</strong></td><td><code>1. e4 e5 2. Nf3 &hellip;</code></td><td>the board</td></tr>
+    <tr><td><strong>Redux</strong></td><td>actions</td><td><code>state = reduce(state, action)</code></td></tr>
+  </tbody>
+</table>
+
+<div class="callout insight">
+  <span class="label">The accountant&rsquo;s rule</span>
+  <p>Accountants have done event sourcing for 500 years: <strong>you never use an eraser on a
+  ledger</strong>. A mistake is fixed with a new, <em>compensating</em> entry. Keep this image &mdash;
+  &ldquo;how do I fix bad data?&rdquo;, &ldquo;how do I undo?&rdquo;, &ldquo;can I edit an event?&rdquo;
+  all have the accountant&rsquo;s answer.</p>
+</div>
+
+<h2>5. Why bother? The honest ledger</h2>
+
+<table>
+  <thead><tr><th>You gain</th><th>You pay</th></tr></thead>
+  <tbody>
+    <tr><td>A complete audit trail that <em>is</em> the data, not a copy that drifts</td><td>A steep learning curve &mdash; onboarding &amp; hiring tax</td></tr>
+    <tr><td>Time travel: state at any point; debug by replaying prod history</td><td>Eventually consistent reads (projections lag)</td></tr>
+    <tr><td>New read models backfilled from day one</td><td>Event schemas are forever &rarr; versioning work</td></tr>
+    <tr><td>Business <em>intent</em> captured (<code>AddressCorrected</code> &ne; <code>CustomerMoved</code>)</td><td>&ldquo;Delete&rdquo; is hard (GDPR)</td></tr>
+    <tr><td>Events ready to publish to other services</td><td>More moving parts: projections, checkpoints, rebuilds</td></tr>
+    <tr><td>Cheap, contention-free appends</td><td>No ad-hoc queries on the write side</td></tr>
+  </tbody>
+</table>
+
+<div class="callout warning">
+  <span class="label">The #1 failure mode</span>
+  <p>Applying event sourcing to <em>a whole system</em>. It is a <strong>per-bounded-context</strong>
+  decision. Successful adopters event-source the 1&ndash;3 domains where history has business value
+  (ledger, order lifecycle, claims) and use plain CRUD everywhere else.</p>
+</div>
+
+<h2>6. What event sourcing is <em>not</em></h2>
+
+<table>
+  <thead><tr><th>Misconception</th><th>Reality</th></tr></thead>
+  <tbody>
+    <tr><td>&ldquo;ES = using Kafka&rdquo;</td><td>Kafka distributes events well but lacks per-entity streams with optimistic concurrency. (Lesson 09.)</td></tr>
+    <tr><td>&ldquo;ES = event-driven architecture&rdquo;</td><td>EDA is how <em>services talk</em>. ES is how <em>one service stores its own state</em>. Either works without the other.</td></tr>
+    <tr><td>&ldquo;ES requires CQRS&rdquo;</td><td>ES practically needs read models, but CQRS is a separate pattern usable without ES.</td></tr>
+    <tr><td>&ldquo;CDC rows are events&rdquo;</td><td><code>status 2&rarr;3</code> is a data diff. A domain event carries business meaning.</td></tr>
+  </tbody>
+</table>
+
+<div class="primary-source">
+  <span class="label">Read this next (primary source)</span>
+  <p>Martin Fowler &mdash; <a href="https://martinfowler.com/eaaDev/EventSourcing.html" target="_blank" rel="noopener"><em>Event Sourcing</em></a>
+  (the original write-up) and <a href="https://martinfowler.com/articles/201701-event-driven.html" target="_blank" rel="noopener"><em>What do you mean by &ldquo;Event-Driven&rdquo;?</em></a>
+  (separates ES from event notification, event-carried state transfer and CQRS).</p>
+</div>
+
+<h2>7. Check yourself</h2>
+<p>Retrieve before revealing.</p>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 1 of 3</p>
+  <p class="quiz-q">In an event-sourced system, what is the source of truth?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="Read models are derived and disposable — rebuildable from events.">the read-model tables the query API serves from</button></li>
+    <li><button data-correct="true" data-feedback="Right — the ordered, immutable events; every state is derived from them.">the append-only sequence of immutable domain events</button></li>
+    <li><button data-correct="false" data-feedback="Snapshots are a performance cache, never the truth.">the latest snapshot of each aggregate&rsquo;s state</button></li>
+    <li><button data-correct="false" data-feedback="Kafka may carry events onward, but it isn&rsquo;t the source of truth here.">the Kafka topic the service publishes events onto</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Events are the truth; state, snapshots and read models are all caches derived by folding events."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 2 of 3</p>
+  <p class="quiz-q">A deposit of €500 was recorded by mistake. The event-sourcing way to fix it is&hellip;</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="Events are immutable; editing destroys the audit trail and desyncs projections.">UPDATE the event row so the amount reads €50</button></li>
+    <li><button data-correct="false" data-feedback="Deleting history is exactly what the ledger rule forbids.">DELETE the wrong event and append the right one</button></li>
+    <li><button data-correct="true" data-feedback="Right — the accountant&rsquo;s way: a compensating fact, history intact.">append a compensating event, e.g. DepositCorrected</button></li>
+    <li><button data-correct="false" data-feedback="The read model is derived — the next rebuild would undo your fix.">patch the balance directly in the read model</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Never use an eraser on the ledger. Mistakes are corrected with new events that carry their own meaning (and audit trail)."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 3 of 3</p>
+  <p class="quiz-q">Your org asks: &ldquo;Should we event-source all 14 microservices?&rdquo; The Staff answer is&hellip;</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="Consistency of style isn&rsquo;t worth the cost in CRUD-shaped domains.">yes — one consistent architecture across every service</button></li>
+    <li><button data-correct="true" data-feedback="Right — it&rsquo;s a per-bounded-context decision driven by business value of history.">only the contexts where history has real business value</button></li>
+    <li><button data-correct="false" data-feedback="Blanket rejection ignores domains (ledgers, claims) where it clearly pays off.">never — it is too complex for any production system</button></li>
+    <li><button data-correct="false" data-feedback="Kafka usage doesn&rsquo;t determine whether a domain should be event-sourced.">only the services that already publish to Kafka</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Event sourcing is chosen per bounded context. Ask: what business question does the history answer?"></div>
+</div>
+
+<div class="callout tryit">
+  <span class="label">Try it in your own system</span>
+  <ul class="checklist">
+    <li>Pick one table at work that gets frequent <code>UPDATE</code>s. List three business questions you <em>can&rsquo;t</em> answer today because history is overwritten.</li>
+    <li>Write the 5&ndash;8 past-tense <strong>events</strong> that would tell that entity&rsquo;s story.</li>
+    <li>Decide honestly: would anyone pay for those answers? That&rsquo;s your first ES fit/no-fit judgement.</li>
+  </ul>
+</div>
+
+<div class="followup">
+  <strong>I&rsquo;m your teacher &mdash; ask me anything.</strong> Unsure whether your domain is a fit? Want the
+  difference between ES and temporal tables? Bring your table and we&rsquo;ll model its events together.
+</div>
+
+<nav class="lesson-nav">
+  <span class="group">
+    <b>Reference</b>
+    <a href="../reference/0001-es-vocabulary-cheatsheet.html">Vocabulary cheat sheet &rarr;</a>
+  </span>
+  <span class="group">
+    <b>Course map</b>
+    <a href="../index.html">&uarr; All lessons</a>
+  </span>
+  <span class="group">
+    <b>Up next</b>
+    <a href="0002-events-commands-designing-events.html">Lesson 02 · Events, commands &amp; designing good events &rarr;</a>
+  </span>
+</nav>
+
+</body>
+</html>

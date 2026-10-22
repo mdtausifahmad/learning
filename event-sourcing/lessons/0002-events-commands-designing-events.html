@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 02 · Events, Commands &amp; Designing Good Events</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<script src="../assets/quiz.js" defer></script>
+<script src="../assets/anim.js" defer></script>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Event Sourcing · Lesson 02</p>
+  <h1>Events, Commands &amp; Designing Good Events</h1>
+  <div class="meta">
+    <span>◷ ~15 min read</span>
+    <span class="dot">•</span>
+    <span>Level 0&ndash;1 · Foundations &rarr; Core mechanics</span>
+    <span class="dot">•</span>
+    <span>Prereq: <a href="0001-state-vs-history-mental-model.html">Lesson 01</a></span>
+  </div>
+</header>
+
+<p class="mission-tie">
+  In event sourcing, events are not log lines or integration messages you can tweak next sprint &mdash;
+  they are <strong>your permanent public contract with the future</strong>. Every projection, every
+  replay, every auditor and every downstream team will read them for years. This lesson gives you the
+  vocabulary to talk precisely about them, and the design rules that separate a living domain record
+  from a slow, expensive audit table.
+</p>
+
+<h2>1. The vocabulary, learned cold</h2>
+
+<p>
+  Staff-level design reviews go wrong when people use the same word for different things. These are the
+  terms you will use for the rest of the course. Learn them until you can define each in one sentence.
+</p>
+
+<table>
+  <thead><tr><th>Term</th><th>Meaning</th><th>Example</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Event</strong></td><td>An immutable fact that <em>happened</em>. Past tense.</td><td><code>OrderPlaced</code>, <code>PaymentCaptured</code></td></tr>
+    <tr><td><strong>Command</strong></td><td>A request / intent to change something. Imperative. Can be rejected.</td><td><code>PlaceOrder</code>, <code>CapturePayment</code></td></tr>
+    <tr><td><strong>Query</strong></td><td>A request to read. Never changes state.</td><td><code>GetOrderSummary</code></td></tr>
+    <tr><td><strong>Aggregate</strong></td><td>A DDD consistency boundary: validates commands, emits events.</td><td><code>Order</code>, <code>BankAccount</code></td></tr>
+    <tr><td><strong>Stream</strong></td><td>The ordered events of <em>one</em> aggregate instance.</td><td><code>order-8f2c&hellip;</code></td></tr>
+    <tr><td><strong>Stream version</strong></td><td>Position of the last event in a stream; used for optimistic concurrency.</td><td><code>version = 4</code></td></tr>
+    <tr><td><strong>Global position</strong></td><td>Position of an event across <em>all</em> streams; used by projections.</td><td><code>1,204,889</code></td></tr>
+    <tr><td><strong>Event store</strong></td><td>A database optimised to append to streams and read them back in order.</td><td>KurrentDB, a Postgres table, Axon Server</td></tr>
+    <tr><td><strong>Rehydration</strong></td><td>Rebuilding aggregate state by replaying its stream.</td><td><code>load("order-8f2c")</code></td></tr>
+    <tr><td><strong>Projection</strong></td><td>A process that reads events and builds a <em>read model</em>.</td><td>&ldquo;orders by customer&rdquo; table</td></tr>
+    <tr><td><strong>Read model / view</strong></td><td>Denormalised, query-optimised data derived from events.</td><td>Elasticsearch index, Redis hash</td></tr>
+    <tr><td><strong>Snapshot</strong></td><td>Cached state at version N, so you only replay from N+1.</td><td><code>{balance: 70} @ v4000</code></td></tr>
+    <tr><td><strong>Subscription</strong></td><td>How a projection/handler receives events (catch-up, persistent).</td><td>&mdash;</td></tr>
+    <tr><td><strong>Upcaster</strong></td><td>Transforms an old event version into the new shape at read time.</td><td><code>V1 &rarr; V2</code></td></tr>
+    <tr><td><strong>CQRS</strong></td><td>Separate write model from read model(s). Often paired with ES, but independent.</td><td>&mdash;</td></tr>
+  </tbody>
+</table>
+
+<h2>2. Event vs command vs query &mdash; the interview trap</h2>
+
+<p>
+  &ldquo;What&rsquo;s the difference between a command and an event?&rdquo; sounds trivial and is where
+  many candidates wobble. The cleanest answer is about <strong>time, authority and audience</strong>:
+</p>
+
+<table>
+  <thead><tr><th></th><th>Command</th><th>Event</th><th>Query</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Grammar</strong></td><td>Imperative: <code>ShipOrder</code></td><td>Past tense: <code>OrderShipped</code></td><td>Question: <code>GetOrder</code></td></tr>
+    <tr><td><strong>Time</strong></td><td>Future &mdash; a wish</td><td>Past &mdash; a fact</td><td>Present &mdash; a look</td></tr>
+    <tr><td><strong>Can it fail?</strong></td><td>Yes, it can be rejected</td><td>No &mdash; it already happened</td><td>Can fail technically, not by rule</td></tr>
+    <tr><td><strong>Audience</strong></td><td>Exactly one intended handler</td><td>0..N subscribers, unknown to sender</td><td>One handler (read side)</td></tr>
+    <tr><td><strong>Changes state?</strong></td><td>May cause events</td><td><em>Is</em> the state change</td><td>Never</td></tr>
+    <tr><td><strong>Coupling</strong></td><td>Sender knows the receiver</td><td>Publisher doesn&rsquo;t know consumers</td><td>Caller knows the read API</td></tr>
+  </tbody>
+</table>
+
+<figure class="anim" data-anim>
+<div class="anim-stage">
+<svg viewBox="0 0 680 260" role="img" aria-label="Step-by-step: a command is decided by the aggregate, which either rejects it or emits events that fan out to many subscribers">
+  <defs>
+    <marker id="l2a-ind" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#4b3f8f"></path></marker>
+    <marker id="l2a-bad" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#b23b3b"></path></marker>
+    <marker id="l2a-good" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#1f7a5e"></path></marker>
+    <marker id="l2a-warn" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#c98a1a"></path></marker>
+  </defs>
+  <g font-family="system-ui, sans-serif" font-size="11">
+    <g class="anim-el" data-step="1">
+      <rect x="10" y="105" width="130" height="46" rx="6" fill="#fff" stroke="#5e4fb0" stroke-width="1.5" stroke-dasharray="5 3"></rect>
+      <text x="75" y="124" text-anchor="middle" font-weight="700" fill="#5e4fb0">ShipOrder</text>
+      <text x="75" y="140" text-anchor="middle" fill="#63625c">command · imperative</text>
+    </g>
+    <g class="anim-el" data-step="2">
+      <path d="M142 128 H210" stroke="#4b3f8f" stroke-width="1.6" marker-end="url(#l2a-ind)"></path>
+      <rect x="214" y="92" width="150" height="72" rx="8" fill="#efedf8" stroke="#4b3f8f" stroke-width="1.6"></rect>
+      <text x="289" y="115" text-anchor="middle" font-weight="700" fill="#4b3f8f">Order aggregate</text>
+      <text x="289" y="133" text-anchor="middle" fill="#4b3f8f">decide(cmd, state)</text>
+      <text x="289" y="150" text-anchor="middle" fill="#63625c">one handler</text>
+    </g>
+    <g class="anim-el" data-only="3">
+      <path d="M289 166 V206" stroke="#b23b3b" stroke-width="1.6" marker-end="url(#l2a-bad)"></path>
+      <rect x="204" y="210" width="170" height="34" rx="6" fill="#fff" stroke="#b23b3b" stroke-width="1.5"></rect>
+      <text x="289" y="231" text-anchor="middle" fill="#b23b3b" font-weight="700">Rejected: not paid yet</text>
+      <text x="400" y="231" fill="#63625c">nothing appended</text>
+    </g>
+    <g class="anim-el" data-from="4">
+      <path d="M366 128 H420" stroke="#1f7a5e" stroke-width="1.6" marker-end="url(#l2a-good)"></path>
+      <rect x="424" y="105" width="120" height="46" rx="6" fill="#fff" stroke="#1f7a5e" stroke-width="1.8"></rect>
+      <text x="484" y="124" text-anchor="middle" font-weight="700" fill="#1f7a5e">OrderShipped</text>
+      <text x="484" y="140" text-anchor="middle" fill="#63625c">event · fact</text>
+    </g>
+    <g class="anim-el" data-from="5">
+      <path d="M546 120 L600 40" stroke="#c98a1a" stroke-width="1.4" marker-end="url(#l2a-warn)"></path>
+      <path d="M546 128 L600 128" stroke="#c98a1a" stroke-width="1.4" marker-end="url(#l2a-warn)"></path>
+      <path d="M546 136 L600 216" stroke="#c98a1a" stroke-width="1.4" marker-end="url(#l2a-warn)"></path>
+      <rect x="560" y="18" width="112" height="26" rx="5" fill="#fff" stroke="#c98a1a"></rect>
+      <text x="616" y="35" text-anchor="middle">Order view</text>
+      <rect x="604" y="115" width="70" height="26" rx="5" fill="#fff" stroke="#c98a1a"></rect>
+      <text x="639" y="132" text-anchor="middle">Email</text>
+      <rect x="560" y="212" width="112" height="26" rx="5" fill="#fff" stroke="#c98a1a"></rect>
+      <text x="616" y="229" text-anchor="middle">Billing service</text>
+    </g>
+    <g class="anim-el" data-step="6">
+      <rect x="10" y="10" width="300" height="56" rx="6" fill="#efedf8" stroke="#4b3f8f"></rect>
+      <text x="20" y="30" fill="#4b3f8f" font-weight="700">Query: GetOrder(42)</text>
+      <text x="20" y="48" fill="#63625c">reads a projection &mdash; never touches decide()</text>
+      <text x="20" y="60" fill="#63625c">and never produces events</text>
+    </g>
+  </g>
+</svg>
+</div>
+<div class="anim-caps">
+  <p class="anim-cap" data-step="1"><span class="n">1</span>A <strong>command</strong> arrives: <code>ShipOrder</code>. It&rsquo;s a <em>request</em>, phrased in the imperative, aimed at the future.</p>
+  <p class="anim-cap" data-step="2"><span class="n">2</span>Exactly <strong>one</strong> handler owns it: the aggregate, which checks the command against its current state.</p>
+  <p class="anim-cap" data-step="3"><span class="n">3</span>Commands can be <strong>rejected</strong> (&ldquo;order not paid&rdquo;). A rejection appends nothing &mdash; the history stays clean.</p>
+  <p class="anim-cap" data-step="4"><span class="n">4</span>If accepted, the aggregate emits an <strong>event</strong>: <code>OrderShipped</code>. It is now a fact; nobody downstream may &ldquo;reject&rdquo; it.</p>
+  <p class="anim-cap" data-step="5"><span class="n">5</span>Events fan out to <strong>0..N</strong> subscribers the aggregate doesn&rsquo;t know about. Adding a consumer next year needs no change here.</p>
+  <p class="anim-cap" data-step="6"><span class="n">6</span>A <strong>query</strong> is the third verb: it reads a derived view and has no effect on state at all.</p>
+</div>
+<figcaption>Commands ask, events tell, queries look. Only commands can fail for business reasons.</figcaption>
+</figure>
+
+<div class="callout insight">
+  <span class="label">Why the distinction matters in code</span>
+  <p>If a consumer can &ldquo;reject&rdquo; your event, it wasn&rsquo;t an event &mdash; it was a command
+  in disguise, and you just built a distributed transaction with no coordinator. When downstream needs
+  a say, model it explicitly: a command they handle, and a <em>new</em> event they emit
+  (<code>ShipmentRefused</code>). Lesson 10 builds sagas on exactly this.</p>
+</div>
+
+<h2>3. Seven rules for good events</h2>
+
+<table>
+  <thead><tr><th>#</th><th>Rule</th><th>Bad</th><th>Good</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td><strong>Past tense, business language</strong></td><td><code>SetInvoiceStatus</code>, <code>InvoiceUpdated</code></td><td><code>InvoiceIssued</code></td></tr>
+    <tr><td>2</td><td><strong>Intent, not diffs</strong></td><td><code>AddressChanged{old,new}</code></td><td><code>ShippingAddressCorrected</code> vs <code>CustomerRelocated</code></td></tr>
+    <tr><td>3</td><td><strong>Applicable without lookups</strong> &mdash; <code>apply</code> is pure</td><td>evolve calls the price service</td><td>event carries the price that was charged</td></tr>
+    <tr><td>4</td><td><strong>Store derived values only if the derivation can change</strong></td><td>store only <code>net</code>, recompute tax on replay</td><td>store <code>taxRate</code> used at the time</td></tr>
+    <tr><td>5</td><td><strong>No CRUD events</strong></td><td><code>OrderUpdated{ all 30 fields }</code></td><td><code>ItemAdded</code>, <code>DiscountApplied</code></td></tr>
+    <tr><td>6</td><td><strong>One event per business fact</strong></td><td>one blob for &ldquo;checkout&rdquo;</td><td><code>OrderPlaced</code> + <code>CouponRedeemed</code>, appended atomically</td></tr>
+    <tr><td>7</td><td><strong>Business data in payload, technical context in metadata</strong></td><td><code>traceId</code> inside <code>data</code></td><td><code>traceparent</code> in <code>metadata</code></td></tr>
+  </tbody>
+</table>
+
+<h3>Rule 1 &mdash; past tense, business language</h3>
+<p>
+  Event names are the <em>ubiquitous language</em> made permanent. Ask a domain expert to read only the
+  event names of a stream: <span class="term">InvoiceDrafted</span> &rarr; <span class="term">InvoiceIssued</span>
+  &rarr; <span class="term">PaymentReminderSent</span> &rarr; <span class="term">InvoicePaid</span> tells the
+  story. <span class="term">InvoiceCreated</span> &rarr; <span class="term">InvoiceUpdated</span> &times; 4 tells
+  nothing. Avoid technical verbs (<em>Created / Updated / Deleted / Set</em>) unless they <em>are</em> the
+  business word.
+</p>
+
+<h2>4. Intent, not diffs: the same column, two different facts</h2>
+
+<p>
+  A customer&rsquo;s address changes. In CRUD both cases are <code>UPDATE customer SET address = ?</code>.
+  In the business they are completely different things, and they trigger different behaviour.
+</p>
+
+<figure>
+<svg viewBox="0 0 680 250" role="img" aria-label="Two different events produce the same column diff but trigger different downstream behaviour">
+  <defs>
+    <marker id="l2b-ind" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#4b3f8f"></path></marker>
+    <marker id="l2b-mut" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#63625c"></path></marker>
+  </defs>
+  <g font-family="system-ui, sans-serif" font-size="11">
+    <rect x="10" y="20" width="200" height="50" rx="6" fill="#fff" stroke="#4b3f8f" stroke-width="1.6"></rect>
+    <text x="110" y="40" text-anchor="middle" font-weight="700" fill="#4b3f8f">ShippingAddressCorrected</text>
+    <text x="110" y="58" text-anchor="middle" fill="#63625c">"Mian St" &rarr; "Main St" (typo)</text>
+    <rect x="10" y="170" width="200" height="50" rx="6" fill="#fff" stroke="#4b3f8f" stroke-width="1.6"></rect>
+    <text x="110" y="190" text-anchor="middle" font-weight="700" fill="#4b3f8f">CustomerRelocated</text>
+    <text x="110" y="208" text-anchor="middle" fill="#63625c">Berlin &rarr; Munich (moved house)</text>
+    <path d="M212 50 L268 110" stroke="#63625c" marker-end="url(#l2b-mut)"></path>
+    <path d="M212 190 L268 132" stroke="#63625c" marker-end="url(#l2b-mut)"></path>
+    <rect x="272" y="100" width="150" height="44" rx="6" fill="#f6f7f4" stroke="#999"></rect>
+    <text x="347" y="118" text-anchor="middle" fill="#63625c">CRUD sees only:</text>
+    <text x="347" y="134" text-anchor="middle" font-family="ui-monospace, Menlo, monospace">address: A &rarr; B</text>
+    <path d="M212 45 H470" stroke="#4b3f8f" stroke-dasharray="4 3" marker-end="url(#l2b-ind)"></path>
+    <rect x="474" y="22" width="196" height="46" rx="6" fill="#e3f3ec" stroke="#1f7a5e"></rect>
+    <text x="572" y="41" text-anchor="middle" fill="#1f7a5e">fix label · no other effect</text>
+    <text x="572" y="57" text-anchor="middle" fill="#63625c">historic invoices untouched</text>
+    <path d="M212 195 H470" stroke="#4b3f8f" stroke-dasharray="4 3" marker-end="url(#l2b-ind)"></path>
+    <rect x="474" y="160" width="196" height="76" rx="6" fill="#fbf1e7" stroke="#c98a1a"></rect>
+    <text x="572" y="179" text-anchor="middle" fill="#c98a1a" font-weight="700">recalculate tax region</text>
+    <text x="572" y="196" text-anchor="middle" fill="#63625c">reassign sales territory</text>
+    <text x="572" y="212" text-anchor="middle" fill="#63625c">send &ldquo;welcome to Munich&rdquo;</text>
+    <text x="572" y="228" text-anchor="middle" fill="#63625c">churn-risk model signal</text>
+  </g>
+</svg>
+<figcaption>Same diff, different facts. A diff-shaped event forces every consumer to <em>guess</em> the intent &mdash; and they will guess differently.</figcaption>
+</figure>
+
+<pre><code>// ❌ Diff-shaped: every consumer must reverse-engineer the business meaning
+record CustomerUpdated(String customerId, Map&lt;String, Object&gt; changedFields) implements CustomerEvent {}
+
+// ✅ Intent-shaped: the business fact is the type
+record ShippingAddressCorrected(String customerId, Address corrected, String correctedBy) implements CustomerEvent {}
+record CustomerRelocated(String customerId, Address newAddress, LocalDate movedOn)      implements CustomerEvent {}</code></pre>
+
+<p>
+  A useful test: <strong>could a consumer want to react to one but not the other?</strong> If yes, they
+  are two event types. Intent is also what you can never recover later &mdash; you can always derive
+  &ldquo;the address changed&rdquo; from <code>CustomerRelocated</code>, but never the reverse.
+</p>
+
+<h2>5. Pure apply &amp; historical inputs</h2>
+
+<p>
+  Replay runs <code>evolve</code> over years-old events. If <code>evolve</code> reads the clock, a
+  random number, a database or a config table, replay produces a <em>different past</em> than the one
+  that actually happened. So an event must carry <strong>everything needed to apply it</strong>.
+</p>
+
+<p>
+  The subtle case is <strong>derived values whose derivation can change</strong>. VAT is 19% today; in
+  2027 it might be 21%. If <code>OrderPlaced</code> stores only the net amount and <code>evolve</code>
+  recomputes tax from the current table, every replay silently rewrites historical totals.
+</p>
+
+<pre><code>// ❌ evolve depends on a mutable lookup — replay is no longer deterministic
+case OrderPlaced e -&gt; state.withTotal(e.net().multiply(taxTable.currentRate(e.country())));
+
+// ✅ the decision captured its inputs; evolve is pure arithmetic over the fact
+record OrderPlaced(String orderId, Money net, BigDecimal taxRate, Money tax, Money gross,
+                   String taxRuleVersion, Instant placedAt) implements OrderEvent {}
+
+case OrderPlaced e -&gt; state.withTotal(e.gross());</code></pre>
+
+<table>
+  <thead><tr><th>Store in the event&hellip;</th><th>Why</th></tr></thead>
+  <tbody>
+    <tr><td>The exchange / tax / discount <strong>rate used</strong></td><td>Tables change; history must not.</td></tr>
+    <tr><td>The <strong>price charged</strong>, not the product id alone</td><td>The catalogue price will change next week.</td></tr>
+    <tr><td>The <strong>rule or policy version</strong> applied</td><td>Explains &ldquo;why was this approved?&rdquo; years later.</td></tr>
+    <tr><td><strong>Not</strong> the running balance</td><td>Derivable by fold and the derivation (addition) never changes; storing it invites inconsistency.</td></tr>
+  </tbody>
+</table>
+
+<div class="callout warning">
+  <span class="label">Don&rsquo;t overcorrect into fat events</span>
+  <p>&ldquo;Self-contained&rdquo; means <em>enough to apply and to understand the fact</em>, not
+  &ldquo;copy the entire customer record into every event&rdquo;. Fat events leak PII into a store you
+  can&rsquo;t easily delete from (Lesson 13) and couple consumers to fields they shouldn&rsquo;t use.
+  Carry ids for reference data that is stable; carry values for inputs that can change.</p>
+</div>
+
+<h2>6. CRUD events &amp; granularity</h2>
+
+<p>
+  <code>OrderUpdated { status, items, address, total, &hellip; }</code> is the most common way teams
+  accidentally build an expensive audit table and call it event sourcing. Symptoms: one event type per
+  aggregate, a <code>status</code> field that consumers switch on, and projections that diff
+  before/after snapshots to work out what happened.
+</p>
+
+<p>
+  The opposite failure is too fine: <code>OrderLineQuantityFieldSet</code> on every keystroke. The right
+  grain is <strong>one event per business fact</strong> &mdash; something a domain expert would name.
+  When one command produces several facts, emit several events and <strong>append them atomically</strong>
+  in one call:
+</p>
+
+<pre><code>// One command, two facts, one atomic append (same stream, consecutive versions)
+case PlaceOrder c -&gt; List.of(
+        new OrderPlaced(c.orderId(), c.lines(), net, rate, tax, gross, now),
+        new CouponRedeemed(c.orderId(), c.couponCode(), discount, now));</code></pre>
+
+<table>
+  <thead><tr><th>Smell</th><th>Grain</th><th>Fix</th></tr></thead>
+  <tbody>
+    <tr><td><code>OrderUpdated</code> with all fields</td><td>too coarse</td><td>split by intent: <code>ItemAdded</code>, <code>AddressCorrected</code>&hellip;</td></tr>
+    <tr><td><code>StatusChanged{from,to}</code></td><td>coarse, diff-shaped</td><td>one event per transition: <code>OrderShipped</code>, <code>OrderCancelled</code></td></tr>
+    <tr><td><code>FieldXSet</code> per UI widget</td><td>too fine</td><td>group by what the user <em>accomplished</em></td></tr>
+    <tr><td>Checkout as one mega-event</td><td>conflated facts</td><td>several events, one atomic append</td></tr>
+  </tbody>
+</table>
+
+<h2>7. The envelope: data vs metadata</h2>
+
+<p>
+  Every stored event is wrapped in an <strong>envelope</strong>. The payload (<code>data</code>) holds the
+  business fact and is what <code>evolve</code> uses. The <code>metadata</code> holds technical context
+  that infrastructure, tracing and auditing need but the domain logic must not depend on.
+</p>
+
+<pre><code>{
+  "eventId":        "0b6f9a8e-7d6c-4b1f-9a3e-2f0c1d8e9a11",   // unique; idempotency key
+  "streamId":       "account-ACC-1",
+  "streamVersion":  3,                                       // position in this stream (OCC)
+  "globalPosition": 1204889,                                 // position in the whole store
+  "eventType":      "MoneyWithdrawn",
+  "schemaVersion":  2,                                       // for upcasting (Lesson 12)
+  "occurredAt":     "2026-10-22T12:01:33.120Z",
+  "data": {
+    "amount":  { "value": "50.00", "currency": "EUR" },
+    "channel": "ATM"
+  },
+  "metadata": {
+    "correlationId": "req-77a1",
+    "causationId":   "cmd-1f3e",
+    "userId":        "user-42",
+    "tenantId":      "tenant-eu-1",
+    "traceparent":   "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+  }
+}</code></pre>
+
+<pre><code>public record EventEnvelope(
+        UUID eventId,
+        String streamId,
+        long streamVersion,
+        long globalPosition,      // assigned by the store on append
+        String eventType,
+        int schemaVersion,
+        Instant occurredAt,
+        Object data,              // the domain event record
+        Map&lt;String, String&gt; metadata) {}</code></pre>
+
+<table>
+  <thead><tr><th>Field</th><th>Data or metadata?</th><th>Reason</th></tr></thead>
+  <tbody>
+    <tr><td>amount, currency, channel</td><td><strong>data</strong></td><td>Part of the business fact; evolve needs it.</td></tr>
+    <tr><td>userId (who did it)</td><td>usually <strong>metadata</strong></td><td>Audit context. Promote to data if the domain cares (&ldquo;approvedBy&rdquo;).</td></tr>
+    <tr><td>correlationId, causationId, traceparent</td><td><strong>metadata</strong></td><td>Infrastructure; never branch domain logic on them.</td></tr>
+    <tr><td>tenantId</td><td><strong>metadata</strong> (+ often a column)</td><td>Routing/partitioning; may also be an indexed column.</td></tr>
+    <tr><td>occurredAt</td><td>envelope</td><td>Business time; distinct from <code>recorded_at</code> (store time).</td></tr>
+  </tbody>
+</table>
+
+<h2>8. Correlation &amp; causation: drawing the causal graph</h2>
+
+<p>
+  Two ids, two different questions. <strong>correlationId</strong>: &ldquo;which business flow does this
+  belong to?&rdquo; &mdash; identical for every message spawned by one user request.
+  <strong>causationId</strong>: &ldquo;what <em>directly</em> caused this?&rdquo; &mdash; the id of the
+  parent message. The rule is mechanical: when handling message <em>M</em>, every message you emit gets
+  <code>correlationId = M.correlationId</code> and <code>causationId = M.id</code>.
+</p>
+
+<figure class="anim" data-anim>
+<div class="anim-stage">
+<svg viewBox="0 0 680 270" role="img" aria-label="Step-by-step: correlation id stays constant across a flow while causation id points at the direct parent message">
+  <defs>
+    <marker id="l2c-ind" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#4b3f8f"></path></marker>
+    <marker id="l2c-warn" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#c98a1a"></path></marker>
+  </defs>
+  <g font-family="system-ui, sans-serif" font-size="11">
+    <g class="anim-el" data-step="1">
+      <rect x="10" y="20" width="140" height="48" rx="6" fill="#efedf8" stroke="#4b3f8f" stroke-width="1.5"></rect>
+      <text x="80" y="39" text-anchor="middle" font-weight="700" fill="#4b3f8f">HTTP POST /orders</text>
+      <text x="80" y="57" text-anchor="middle" fill="#63625c">corr = C1</text>
+    </g>
+    <g class="anim-el" data-step="2">
+      <path d="M152 44 H190" stroke="#4b3f8f" marker-end="url(#l2c-ind)"></path>
+      <rect x="194" y="20" width="140" height="48" rx="6" fill="#fff" stroke="#5e4fb0" stroke-width="1.5" stroke-dasharray="5 3"></rect>
+      <text x="264" y="39" text-anchor="middle" font-weight="700" fill="#5e4fb0">PlaceOrder · M1</text>
+      <text x="264" y="57" text-anchor="middle" fill="#63625c">corr=C1 · cause=&mdash;</text>
+    </g>
+    <g class="anim-el" data-step="3">
+      <path d="M336 44 H374" stroke="#4b3f8f" marker-end="url(#l2c-ind)"></path>
+      <rect x="378" y="20" width="150" height="48" rx="6" fill="#fff" stroke="#1f7a5e" stroke-width="1.8"></rect>
+      <text x="453" y="39" text-anchor="middle" font-weight="700" fill="#1f7a5e">OrderPlaced · M2</text>
+      <text x="453" y="57" text-anchor="middle" fill="#63625c">corr=C1 · cause=M1</text>
+    </g>
+    <g class="anim-el" data-step="4">
+      <path d="M453 70 V108" stroke="#4b3f8f" marker-end="url(#l2c-ind)"></path>
+      <rect x="378" y="112" width="150" height="48" rx="6" fill="#fff" stroke="#5e4fb0" stroke-width="1.5" stroke-dasharray="5 3"></rect>
+      <text x="453" y="131" text-anchor="middle" font-weight="700" fill="#5e4fb0">ReserveStock · M3</text>
+      <text x="453" y="149" text-anchor="middle" fill="#63625c">corr=C1 · cause=M2</text>
+      <path d="M453 162 V200" stroke="#4b3f8f" marker-end="url(#l2c-ind)"></path>
+      <rect x="378" y="204" width="150" height="48" rx="6" fill="#fff" stroke="#1f7a5e" stroke-width="1.8"></rect>
+      <text x="453" y="223" text-anchor="middle" font-weight="700" fill="#1f7a5e">StockReserved · M4</text>
+      <text x="453" y="241" text-anchor="middle" fill="#63625c">corr=C1 · cause=M3</text>
+    </g>
+    <g class="anim-el" data-step="5">
+      <path d="M376 50 L300 112" stroke="#4b3f8f" marker-end="url(#l2c-ind)"></path>
+      <rect x="160" y="116" width="170" height="48" rx="6" fill="#fff" stroke="#5e4fb0" stroke-width="1.5" stroke-dasharray="5 3"></rect>
+      <text x="245" y="135" text-anchor="middle" font-weight="700" fill="#5e4fb0">SendConfirmation · M5</text>
+      <text x="245" y="153" text-anchor="middle" fill="#63625c">corr=C1 · cause=M2</text>
+      <text x="10" y="140" fill="#63625c">siblings:</text>
+      <text x="10" y="154" fill="#63625c">same cause</text>
+    </g>
+    <g class="anim-el" data-step="6">
+      <rect x="548" y="20" width="124" height="232" rx="8" fill="#fbf1e7" stroke="#c98a1a"></rect>
+      <text x="610" y="42" text-anchor="middle" font-weight="700" fill="#c98a1a">Questions answered</text>
+      <text x="558" y="70" fill="#1a1a1a">WHERE corr = C1</text>
+      <text x="558" y="86" fill="#63625c">&rarr; whole flow</text>
+      <text x="558" y="116" fill="#1a1a1a">follow cause</text>
+      <text x="558" y="132" fill="#63625c">&rarr; exact chain:</text>
+      <text x="558" y="148" fill="#63625c">M4&larr;M3&larr;M2&larr;M1</text>
+      <text x="558" y="178" fill="#1a1a1a">loop detection</text>
+      <text x="558" y="194" fill="#63625c">&rarr; cycle in cause</text>
+      <text x="558" y="224" fill="#1a1a1a">audit: &ldquo;why did</text>
+      <text x="558" y="240" fill="#1a1a1a">stock move?&rdquo;</text>
+    </g>
+  </g>
+</svg>
+</div>
+<div class="anim-caps">
+  <p class="anim-cap" data-step="1"><span class="n">1</span>A user request enters. The edge assigns (or propagates) a <strong>correlationId</strong> <code>C1</code>.</p>
+  <p class="anim-cap" data-step="2"><span class="n">2</span>The API issues command <code>PlaceOrder</code> with id <code>M1</code>. It is the root, so it has no causation (or the request id).</p>
+  <p class="anim-cap" data-step="3"><span class="n">3</span>The aggregate emits <code>OrderPlaced</code> (<code>M2</code>): same correlation, <strong>causation = M1</strong>.</p>
+  <p class="anim-cap" data-step="4"><span class="n">4</span>A process manager reacts with <code>ReserveStock</code> (cause M2), which yields <code>StockReserved</code> (cause M3). Correlation never changes.</p>
+  <p class="anim-cap" data-step="5"><span class="n">5</span>One message can cause many: <code>SendConfirmation</code> is also caused by M2. Causation forms a <strong>tree</strong>, not a line.</p>
+  <p class="anim-cap" data-step="6"><span class="n">6</span>Correlation groups the flow; causation reconstructs the exact chain. Together they turn &ldquo;why did this happen?&rdquo; into a query.</p>
+</div>
+<figcaption>Correlation = which story. Causation = which sentence caused this sentence.</figcaption>
+</figure>
+
+<pre><code>public record MessageContext(String messageId, String correlationId) {
+
+    /** Metadata for every message emitted while handling this one. */
+    public Map&lt;String, String&gt; childMetadata() {
+        return Map.of("correlationId", correlationId,
+                      "causationId",   messageId);
+    }
+}</code></pre>
+
+<div class="callout insight">
+  <span class="label">Correlation id vs trace id</span>
+  <p>They overlap but aren&rsquo;t the same. A W3C <code>traceparent</code> lives for one distributed
+  trace and is often sampled; a correlationId must survive days-long sagas, retries and replays and is
+  never sampled. Store both: the trace links you to latency data, the correlation links you to the
+  business flow.</p>
+</div>
+
+<div class="primary-source">
+  <span class="label">Read this next (primary source)</span>
+  <p>Martin Fowler &mdash; <a href="https://martinfowler.com/articles/201701-event-driven.html" target="_blank" rel="noopener"><em>What do you mean by &ldquo;Event-Driven&rdquo;?</em></a>
+  (events vs commands, notification vs state transfer) and Oskar Dudycz &mdash;
+  <a href="https://event-driven.io/en/" target="_blank" rel="noopener">event-driven.io</a> (many short,
+  practical articles on event naming, CRUD events and metadata). For the long view on events as a
+  contract: Greg Young, <a href="https://leanpub.com/esversioning" target="_blank" rel="noopener"><em>Versioning in an Event Sourced System</em></a>.</p>
+</div>
+
+<h2>9. Check yourself</h2>
+<p>Retrieve before revealing.</p>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 1 of 3</p>
+  <p class="quiz-q">A teammate proposes <code>CustomerUpdated { changedFields }</code> to cover both typo fixes and house moves. Your review comment:</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="Fewer types is not the goal; consumers would have to guess intent from field diffs.">fine &mdash; fewer event types make the model easier to evolve</button></li>
+    <li><button data-correct="false" data-feedback="Adding old values keeps it a diff; the business intent is still missing.">add the old values too so consumers can compute the diff</button></li>
+    <li><button data-correct="false" data-feedback="A reason string is unstructured intent; consumers end up parsing text.">keep one event but add a free-text reason field to it</button></li>
+    <li><button data-correct="true" data-feedback="Right — the two facts trigger different behaviour, so they are different event types.">split into AddressCorrected and CustomerRelocated events</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Capture intent, not diffs. If a consumer could react to one fact but not the other, they are distinct events."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 2 of 3</p>
+  <p class="quiz-q">After a VAT change, replaying old orders produces different totals. The root cause is most likely&hellip;</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="Right — evolve depended on a mutable lookup; the event should carry the rate used.">evolve looks up the current tax rate instead of using the event&rsquo;s</button></li>
+    <li><button data-correct="false" data-feedback="Ordering affects totals only if events are misordered within a stream, which the store prevents.">the events were replayed in global order instead of stream order</button></li>
+    <li><button data-correct="false" data-feedback="A snapshot cache would hide, not cause, the difference on replay.">a stale snapshot was used as the starting point for the replay</button></li>
+    <li><button data-correct="false" data-feedback="Upcasters change shape, and wouldn&rsquo;t explain a dependency on the new VAT rate.">an upcaster rewrote the old events into the new schema version</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Store historical inputs whose derivation can change (taxRate, price, policy version). evolve must be pure: no clock, DB or config lookups."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 3 of 3</p>
+  <p class="quiz-q">While handling event <code>M7</code> (correlation <code>C3</code>), a process manager emits a command. Its metadata should be&hellip;</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="A new correlation breaks the flow into two unrelated stories.">correlationId = new id, causationId = M7</button></li>
+    <li><button data-correct="true" data-feedback="Right — keep the flow&rsquo;s correlation; point causation at the direct parent.">correlationId = C3, causationId = M7</button></li>
+    <li><button data-correct="false" data-feedback="Causation must point to the direct parent message, not the flow.">correlationId = C3, causationId = C3</button></li>
+    <li><button data-correct="false" data-feedback="Swapped: correlation is the flow, causation is the direct parent.">correlationId = M7, causationId = C3</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Child metadata: correlationId = parent.correlationId; causationId = parent.messageId."></div>
+</div>
+
+<div class="callout tryit">
+  <span class="label">Try it in your own system</span>
+  <ul class="checklist">
+    <li>Take the busiest <code>UPDATE</code> endpoint in a service you own. List each distinct <em>reason</em> a user calls it &mdash; each reason is a candidate event name.</li>
+    <li>For each candidate, mark which fields could change meaning over time (rates, prices, policies) and must be captured in the event.</li>
+    <li>Check your logs and Kafka headers: do you propagate a correlationId <em>and</em> a causationId? If only one, which question can&rsquo;t you answer today?</li>
+    <li>Read just your event names aloud to a product owner. Do they recognise the story?</li>
+  </ul>
+</div>
+
+<div class="followup">
+  <strong>I&rsquo;m your teacher &mdash; ask me anything.</strong> Bring an event list from your domain and
+  we&rsquo;ll review it against the seven rules &mdash; or argue about whether <code>userId</code> belongs
+  in data or metadata for your case.
+</div>
+
+<nav class="lesson-nav">
+  <span class="group">
+    <b>Previous</b>
+    <a href="0001-state-vs-history-mental-model.html">&larr; Lesson 01 · State vs history</a>
+  </span>
+  <span class="group">
+    <b>Reference</b>
+    <a href="../reference/0002-event-design-checklist.html">Event design checklist &rarr;</a>
+    <a href="../reference/0001-es-vocabulary-cheatsheet.html">Vocabulary cheat sheet &rarr;</a>
+  </span>
+  <span class="group">
+    <b>Up next</b>
+    <a href="0003-decider-aggregates-in-java.html">Lesson 03 · The Decider: aggregates in Java 21 &rarr;</a>
+  </span>
+</nav>
+
+</body>
+</html>

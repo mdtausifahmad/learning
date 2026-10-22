@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cheat Sheet · Production Readiness</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<style>
+  body { max-width: 52rem; }
+  @media print { body { margin: 0; } h2 { margin-top: 1.1rem; } }
+</style>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Event Sourcing · Reference 07</p>
+  <h1>Production Readiness Checklist</h1>
+  <div class="meta"><span>Compressed from Lessons 07 &amp; 08</span><span class="dot">•</span><span>Print-friendly</span></div>
+</header>
+
+<h2>Snapshots</h2>
+<ul class="checklist">
+  <li>A <strong>cache, never truth</strong>: truncate <code>snapshots</code> and everything still works.</li>
+  <li>Added only after <strong>measuring</strong> rehydration p99.</li>
+  <li><code>schema_version</code> checked on load; mismatch &rarr; full replay.</li>
+  <li>Written <strong>asynchronously</strong> every N events; upsert only if newer.</li>
+  <li>Long streams? First look for a lifecycle to <strong>close the books</strong> on.</li>
+</ul>
+
+<h2>Stream lifecycle</h2>
+<ul class="checklist">
+  <li>Natural period identified (day, shift, billing cycle, term) &rarr; <code>&hellip;Closed</code> / <code>&hellip;Opened</code> carrying state forward.</li>
+  <li>Opening the next stream is idempotent (expected version = no stream).</li>
+  <li>Closed streams archived to object storage and <strong>still replayable</strong>.</li>
+  <li>Hot aggregates: shard, commutative events with <code>expectedVersion=Any</code>, or queue.</li>
+</ul>
+
+<h2>Subscriptions</h2>
+<ul class="checklist">
+  <li><strong>One active instance</strong> per projection/partition (advisory lock on a <em>dedicated</em> connection, K8s Lease, ShedLock).</li>
+  <li>Lost leadership connection &rArr; stop processing immediately.</li>
+  <li><code>LISTEN/NOTIFY</code> is a wake-up hint; always poll as well.</li>
+  <li>Retries with backoff &rarr; park poison events &rarr; alert.</li>
+</ul>
+
+<h2>Global ordering gaps</h2>
+<table>
+  <thead><tr><th>Fix</th><th>Cost</th></tr></thead>
+  <tbody>
+    <tr><td>Tx-id visibility filter (checkpoint on <code>(tx_id, global_position)</code>)</td><td>Lag bounded by oldest open write tx</td></tr>
+    <tr><td>Gap detection + timeout (high-water mark)</td><td>Tx slower than timeout is lost &rarr; alert on skips</td></tr>
+    <tr><td>Serialised appends (<code>pg_advisory_xact_lock</code>)</td><td>Caps append throughput</td></tr>
+    <tr><td>Purpose-built store (KurrentDB, Axon Server)</td><td>Another system to run</td></tr>
+  </tbody>
+</table>
+<pre><code>SELECT * FROM events
+ WHERE (tx_id, global_position) &gt; (:ckpt_tx, :ckpt_pos)
+   AND tx_id &lt; pg_snapshot_xmin(pg_current_snapshot())
+ ORDER BY tx_id, global_position LIMIT 500;</code></pre>
+
+<h2>Observability &mdash; measure from day one</h2>
+<table>
+  <thead><tr><th>Metric</th><th>Why</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Projection lag</strong> (<code>head &minus; checkpoint</code>, and seconds)</td><td>Primary read-side SLO; alert on it</td></tr>
+    <tr><td><strong>Append latency &amp; conflict rate</strong></td><td>High conflicts &rarr; aggregate too coarse / hot spot</td></tr>
+    <tr><td><strong>Events per stream</strong> (p50/p99/max)</td><td>Catch unbounded streams early</td></tr>
+    <tr><td><strong>Rehydration time</strong> (p99)</td><td>Tells you if/when snapshots are needed</td></tr>
+    <tr><td><strong>Parked / poison events</strong></td><td>Should be zero; non-zero is an incident</td></tr>
+    <tr><td><strong>Rebuild duration</strong> per projection</td><td>Operational readiness</td></tr>
+    <tr><td>Skipped gaps &middot; oldest open tx age</td><td>Gap-fix health</td></tr>
+  </tbody>
+</table>
+<p>Propagate <code>correlationId</code>, <code>causationId</code> and W3C <code>traceparent</code> in event
+metadata so traces span command &rarr; append &rarr; projection &rarr; Kafka.</p>
+
+<nav class="lesson-nav">
+  <span class="group"><b>From</b><a href="../lessons/0007-snapshots-and-closing-the-books.html">&larr; Lesson 07 · Snapshots</a><a href="../lessons/0008-subscriptions-and-the-gap-problem.html">&larr; Lesson 08 · Subscriptions &amp; gaps</a></span>
+  <span class="group"><b>Canonical terms</b><a href="../GLOSSARY.md">GLOSSARY.md</a></span>
+  <span class="group"><b>Primary source</b><a href="https://event-driven.io/en/ordering_in_postgres_outbox/" target="_blank" rel="noopener">Dudycz · Postgres sequence gaps</a></span>
+</nav>
+
+</body>
+</html>

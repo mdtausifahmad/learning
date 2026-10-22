@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cheat Sheet · Debezium ⇄ PostgreSQL CDC</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<style>
+  body { max-width: 54rem; }
+  @media print { body { margin: 0; } h2 { margin-top: 1.1rem; } }
+</style>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Async &amp; Messaging · Reference 19</p>
+  <h1>Debezium ⇄ PostgreSQL CDC — Cheat Sheet</h1>
+  <div class="meta"><span>Compressed from Lesson 19</span><span class="dot">•</span><span>Print-friendly</span></div>
+</header>
+
+<div class="callout insight">
+  <span class="label">The whole mechanism in one line</span>
+  <p><strong>Commit → WAL LSN → logical decoding → pgoutput/publication → logical slot → Debezium → sink/offset commit → flush LSN feedback → slot advances.</strong>
+     Debezium tails PostgreSQL&rsquo;s WAL; it does not poll tables or depend on triggers.</p>
+</div>
+
+<h2>Position is the correctness currency</h2>
+<table>
+  <thead><tr><th>Position</th><th>Meaning</th><th>Why it matters</th></tr></thead>
+  <tbody>
+    <tr><td><strong>LSN</strong></td><td>64-bit monotonically increasing byte offset into WAL; displayed as hex <code>X/X</code></td><td>Common position for WAL, slots, and Debezium source offsets</td></tr>
+    <tr><td><code>restart_lsn</code></td><td>Oldest WAL a slot might still require</td><td>Prevents recycling WAL before the connector can read it</td></tr>
+    <tr><td><code>confirmed_flush_lsn</code></td><td>Position the consumer has confirmed received</td><td>Moves only after safe downstream delivery/offset commit feedback</td></tr>
+    <tr><td>Debezium offset</td><td>Stored source LSN plus processing/commit fields</td><td>Lets a restart resume or safely replay records</td></tr>
+  </tbody>
+</table>
+
+<h2>PostgreSQL: what must be true</h2>
+<table>
+  <thead><tr><th>Mechanism</th><th>Under the hood</th><th>CDC consequence</th></tr></thead>
+  <tbody>
+    <tr><td>WAL</td><td>Redo log written before changed data pages; <code>XLogRecord</code> has length, xid, prior-LSN link, and resource-manager id; normally 16 MB <code>pg_wal</code> segments</td><td>CDC follows durable committed history</td></tr>
+    <tr><td><code>wal_level</code></td><td><code>minimal</code> = recovery; <code>replica</code> = physical replication; <code>logical</code> = logical row-change metadata</td><td>Debezium requires <code>logical</code>; broader old-row logging increases WAL</td></tr>
+    <tr><td><code>decode.c</code></td><td>Decodes INSERT / UPDATE / DELETE WAL tuple data</td><td>Produces the raw facts for event <code>after</code>/<code>before</code></td></tr>
+    <tr><td><code>reorderbuffer.c</code></td><td>Reassembles top-level transactions in commit order; joins subtransactions; spills large transactions; reconstructs TOAST</td><td>Only committed whole transactions reach Debezium; rollback is absent</td></tr>
+    <tr><td><code>snapbuild.c</code></td><td>Builds historic catalog snapshots: START → BUILDING → FULL → CONSISTENT</td><td>Gives logical decoding correct schema meaning and an exported-snapshot anchor</td></tr>
+    <tr><td>Logical slot</td><td>One database; holds WAL/catalog retention state and an output-plugin identity</td><td>Reliable restart point, but a stalled/abandoned slot retains WAL and catalog tuples</td></tr>
+  </tbody>
+</table>
+
+<h3>Slots: logical versus physical</h3>
+<table>
+  <thead><tr><th></th><th>Physical</th><th>Logical</th></tr></thead>
+  <tbody>
+    <tr><td>Tracks</td><td><code>restart_lsn</code></td><td><code>restart_lsn</code> + <code>confirmed_flush_lsn</code> + catalog state</td></tr>
+    <tr><td>Used by</td><td>Streaming standbys</td><td>Debezium / logical-replication consumers</td></tr>
+    <tr><td>Output plugin</td><td>None</td><td>Required</td></tr>
+    <tr><td>Failure risk</td><td>Replica lag</td><td>WAL and catalog bloat if consumer stops</td></tr>
+  </tbody>
+</table>
+
+<h3>Output / filtering / old row</h3>
+<table>
+  <thead><tr><th>Choice</th><th>Behavior</th><th>Trade-off</th></tr></thead>
+  <tbody>
+    <tr><td><code>pgoutput</code></td><td>Built-in PostgreSQL 10+ binary plugin; publication-driven; supports truncate and logical messages</td><td>Practical modern standard; publication must exist</td></tr>
+    <tr><td><code>decoderbufs</code></td><td>Protobuf plugin maintained by Debezium</td><td>Needs extension / preload configuration</td></tr>
+    <tr><td><code>wal2json</code></td><td>Human-readable JSON plugin</td><td>Large payloads; removed from the pinned current Debezium code</td></tr>
+    <tr><td>Publication</td><td>Named per-database tables + allowed DML; can add row filters / column lists</td><td>UPDATE/DELETE tables require a usable replica identity</td></tr>
+    <tr><td>DEFAULT identity</td><td>Logs primary-key old columns</td><td>Small WAL; partial <code>before</code>; no UPDATE/DELETE output without a key</td></tr>
+    <tr><td>USING INDEX</td><td>Logs named unique-index columns</td><td>Alternative stable identity</td></tr>
+    <tr><td>FULL identity</td><td>Logs full old row</td><td>Full <code>before</code> and TOAST values; expensive WAL on update/delete</td></tr>
+    <tr><td>NOTHING</td><td>Logs no old identity</td><td>UPDATE/DELETE cannot be published</td></tr>
+  </tbody>
+</table>
+
+<pre><code># PostgreSQL configuration (restart required)
+wal_level = logical
+max_replication_slots = 10
+max_wal_senders = 10
+# max_slot_wal_keep_size = 10GB    # guard against unbounded retention
+
+SELECT * FROM pg_create_logical_replication_slot('debezium', 'pgoutput');
+CREATE PUBLICATION dbz_publication FOR ALL TABLES;
+ALTER TABLE public.customers REPLICA IDENTITY FULL;
+SELECT slot_name, plugin, restart_lsn, confirmed_flush_lsn, wal_status
+  FROM pg_replication_slots;</code></pre>
+
+<h2>Debezium PostgreSQL connector anatomy</h2>
+<p>
+  Primary classes in the pinned source: <code>PostgresConnector</code>, <code>PostgresConnectorTask</code>,
+  <code>PostgresChangeEventSourceCoordinator</code>, <code>PostgresSnapshotChangeEventSource</code>,
+  <code>PostgresStreamingChangeEventSource</code>, <code>PostgresReplicationConnection</code>,
+  <code>PostgresOffsetContext</code>, and <code>SourceInfo</code>.
+</p>
+<ol>
+  <li>Kafka Connect starts the task; it validates/creates slot and publication.</li>
+  <li>The coordinator performs pre-snapshot catch-up, snapshot, then streaming on a background executor.</li>
+  <li>The snapshot source emits READ records; streaming opens <code>START_REPLICATION SLOT … LOGICAL</code>.</li>
+  <li>JDBC <code>PGReplicationStream.readPending()</code> sends bytes to a pluggable decoder.</li>
+  <li>Decoder handles BEGIN, COMMIT, RELATION, ORIGIN, MESSAGE, INSERT, UPDATE, DELETE, TRUNCATE.</li>
+  <li>Records enter bounded <code>ChangeEventQueue</code>; Kafka Connect drains it via <code>poll()</code>.</li>
+  <li>After delivery and offset commit, <code>flushLsn()</code> sends standby-status feedback, advancing the slot.</li>
+</ol>
+
+<table class="config-table">
+  <thead><tr><th>Property</th><th>Default in source</th><th>Maps to / decision</th></tr></thead>
+  <tbody>
+    <tr><td>plugin.name</td><td><code>decoderbufs</code> in pinned code</td><td>Logical output plugin; set explicit <code>pgoutput</code> for the modern standard</td></tr>
+    <tr><td>slot.name</td><td><code>debezium</code></td><td>One unique persistent logical slot</td></tr>
+    <tr><td>publication.name</td><td><code>dbz_publication</code></td><td>pgoutput publication and its <code>publication_names</code> option</td></tr>
+    <tr><td>publication.autocreate.mode</td><td><code>all_tables</code></td><td>Prefer <code>filtered</code> where broad privileges are inappropriate</td></tr>
+    <tr><td>slot.drop.on.stop</td><td><code>false</code></td><td>Keep false in production</td></tr>
+    <tr><td>slot.failover</td><td><code>false</code></td><td>PG 17+ failover-slot option</td></tr>
+    <tr><td>flush.lsn.source</td><td><code>true</code></td><td>Gate for source LSN acknowledgement</td></tr>
+  </tbody>
+</table>
+
+<div class="callout warning">
+  <span class="label">Ordering and task count</span>
+  <p>The PostgreSQL connector creates one task because slot streaming is serial. That makes its source-task
+     emission serial; topic keys then preserve Kafka ordering <strong>per key/partition</strong>, not as a
+     global order across tables, topics, or keys. Do not attempt to scale a single slot by increasing
+     <code>tasks.max</code>.</p>
+</div>
+
+<h2>Snapshots</h2>
+<p>
+  A new slot cannot see rows that existed beforehand. The initial snapshot opens a consistent transaction,
+  captures the start LSN, scans rows as <code>op: r</code>, then streams WAL starting at that captured LSN.
+  Changes made during the scan therefore appear in the subsequent live stream, not in a gap.
+</p>
+<table>
+  <thead><tr><th>Mode</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><code>initial</code></td><td>Snapshot only without prior offsets, then stream</td></tr>
+    <tr><td><code>initial_only</code></td><td>Snapshot then stop</td></tr>
+    <tr><td><code>always</code></td><td>Snapshot each start; useful after loss/failover re-baseline</td></tr>
+    <tr><td><code>no_data</code></td><td>Do not snapshot rows</td></tr>
+    <tr><td><code>when_needed</code></td><td>Snapshot when offsets are missing or recorded WAL is unavailable</td></tr>
+    <tr><td><code>configuration_based</code> / <code>custom</code></td><td>Fine-grained community configuration / custom Snapshotter SPI</td></tr>
+  </tbody>
+</table>
+<ul>
+  <li>New slots use exported snapshot + <code>REPEATABLE READ</code>; <code>ACCESS SHARE</code> blocks DDL, not writes.</li>
+  <li>Incremental snapshots are on-demand/resumable: signal table → PK-sorted chunks → low watermark → buffered READs → high watermark.</li>
+  <li>If a concurrent streamed change shares a key with a buffered READ, the streamed change wins and the READ is discarded.</li>
+  <li>Read-only incremental snapshots on PostgreSQL 13+ can use in-progress transaction IDs as watermarks.</li>
+</ul>
+
+<h2>Event contract</h2>
+<pre><code>{
+  "before": { "id": 42 },       // null for create; old key/row on update/delete
+  "after":  { "id": 42, "status": "PAID" }, // null for delete
+  "op": "u",                    // r / c / u / d / t / m
+  "source": { "db": "…", "schema": "…", "table": "…", "txId": 7,
+              "lsn": "16/B374D848", "snapshot": false, "sequence": "[…]" },
+  "transaction": { "…": "…" },
+  "ts_ms": 0                     // also ts_us / ts_ns
+}</code></pre>
+<ul>
+  <li>Key = primary key, or an equivalent unique identity; otherwise null.</li>
+  <li>DELETE emits <code>op:d</code> then, by default, a same-key null-value tombstone for compaction.</li>
+  <li>Primary-key update = DELETE + tombstone under old key, then CREATE under new key.</li>
+  <li>Under DEFAULT identity, unchanged TOAST values may become <code>__debezium_unavailable_value</code>.</li>
+  <li>Data mapping depends on decimal, time-precision, hstore, and related connector options.</li>
+</ul>
+
+<h2>Runtimes, transforms, topics, delivery</h2>
+<table>
+  <thead><tr><th>Runtime</th><th>Offsets / sink</th><th>Responsibility</th></tr></thead>
+  <tbody>
+    <tr><td>Kafka Connect</td><td>Internal compacted Kafka topics / Kafka topics</td><td>Recommended for Kafka; workers redistribute on failure</td></tr>
+    <tr><td>Debezium Server</td><td>Pluggable store (file default, or e.g. Redis/Iceberg) / chosen sink</td><td>Standalone Quarkus bridge for non-Kafka sinks</td></tr>
+    <tr><td>Embedded Engine</td><td>Application-owned / callback</td><td>Application owns fault tolerance and operations</td></tr>
+  </tbody>
+</table>
+<ul>
+  <li>Normal promise: <strong>at-least-once</strong>. A crash after sink delivery but before offset flush replays records; deduplicate with source position / idempotent effects.</li>
+  <li>Kafka Connect optional exactly-once-source support is a separate, configured worker capability; do not assume it from ordinary CDC behavior.</li>
+  <li>Outbox Event Router maps outbox id/type/aggregate id/payload to headers, topic, key, and value; it ignores outbox DELETEs.</li>
+  <li>Extract New Record State unwraps <code>after</code> for sinks; retain fields such as <code>op</code>, table, LSN, and source time when needed.</li>
+  <li>Default topic form = <code>topic.prefix.schema.table</code>; prefix also scopes source name and transaction metadata topic.</li>
+</ul>
+
+<h2>Operate it</h2>
+<table>
+  <thead><tr><th>Symptom / metric</th><th>Interpretation</th><th>Response</th></tr></thead>
+  <tbody>
+    <tr><td><code>MilliSecondsBehindSource</code></td><td>Primary source-to-processing lag</td><td>Inspect DB/connector/sink throughput and errors</td></tr>
+    <tr><td><code>QueueRemainingCapacity</code></td><td>Backpressure / impending bounded-queue saturation</td><td>Size queue/batch/bytes and fix downstream pressure</td></tr>
+    <tr><td><code>SourceEventPosition</code></td><td>Last source LSN</td><td>Correlate with slot position and recovery point</td></tr>
+    <tr><td>Filtered-event count</td><td>May hide the only opportunities for slot flush</td><td>Set heartbeat / inspect filters</td></tr>
+    <tr><td>Snapshot rows/time</td><td>Snapshot progress and duration</td><td>Capacity-plan large initial scans</td></tr>
+    <tr><td>Growing retained WAL</td><td>Slot has not advanced</td><td>Restore consumer progress; do not casually delete a live slot</td></tr>
+  </tbody>
+</table>
+<ul>
+  <li><code>heartbeat.interval.ms</code> helps when captured tables are quiet in an otherwise active captured database.</li>
+  <li>For a cross-database idle captured DB, use <code>heartbeat.action.query</code> to write a heartbeat inside it, and include that table in the publication.</li>
+  <li>Restart normally resumes from stored LSN if the slot and WAL remain. If unavailable, <code>when_needed</code> / <code>always</code> re-snapshots.</li>
+  <li>Retry controls include <code>retriable.restart.connector.wait.ms</code>, <code>errors.max.retries</code>, <code>slot.max.retries</code>, <code>slot.retry.delay.ms</code>, <code>status.update.interval.ms</code>, and <code>offset.mismatch.strategy</code>.</li>
+  <li>PostgreSQL ≤15 logical slots are not natively propagated on failover. PG 17+ failover slots, managed services, and Patroni permanent-slot workflows have different recovery designs.</li>
+</ul>
+
+<h2>Outbox and Zalando FES case study</h2>
+<p>
+  Transactional outbox: write business state and an outbox row in one local transaction; Debezium tails
+  the committed outbox WAL record; the relay may duplicate only on crash recovery, so consumers remain
+  idempotent. A same-transaction INSERT then DELETE can leave the outbox table empty while WAL still
+  preserves the INSERT; Debezium&rsquo;s Outbox Event Router ignores the DELETE.
+</p>
+<p>
+  The supplied report describes Zalando FES as: service/outbox → <code>wal_level=logical</code> +
+  pgoutput/publication/permanent slot → <code>fes-debezium-connector</code> → jq or
+  <code>PostgresWalToGenericNakadiEvent</code> transform → Nakadi event type, with SQS/Nakadi DLQ
+  on failure. The report names <code>customs-data-checker</code> as a concrete internal instance
+  (<code>fes_cdc</code> slot, replication user, named publication, jq transform, SQS DLQ) and says
+  the customs meta-repo itself contains no Debezium implementation. Those are internal, deployment-specific claims.
+</p>
+
+<div class="callout warning">
+  <span class="label">Version and evidence note</span>
+  <p>The source lesson was based on a pinned PostgreSQL development commit / current PostgreSQL docs and
+     a Debezium 3.7.0-SNAPSHOT-era commit. Plugin defaults, legacy snapshot mode names, metrics, and
+     failover capabilities can drift. Recheck the official documentation against the exact version you deploy.</p>
+</div>
+
+<h2>Primary sources</h2>
+<ul>
+  <li><a href="https://www.postgresql.org/docs/current/wal-intro.html">PostgreSQL WAL</a>, <a href="https://www.postgresql.org/docs/current/runtime-config-wal.html">wal_level</a>, <a href="https://www.postgresql.org/docs/current/logicaldecoding-explanation.html">logical decoding / slots</a>, <a href="https://www.postgresql.org/docs/current/logical-replication-publication.html">publications</a>, <a href="https://www.postgresql.org/docs/current/sql-altertable.html">REPLICA IDENTITY</a>.</li>
+  <li><a href="https://debezium.io/documentation/reference/stable/connectors/postgresql.html">Debezium PostgreSQL Connector</a>, <a href="https://github.com/debezium/debezium-design-documents/blob/main/DDD-3.md">DDD-3 Incremental Snapshots</a>, <a href="https://debezium.io/documentation/reference/stable/transformations/outbox-event-router.html">Outbox Event Router</a>.</li>
+  <li><a href="https://github.com/zalando/postgres-operator">Zalando postgres-operator</a> for the public platform context; internal FES details remain source-provided evidence.</li>
+</ul>
+
+<nav class="lesson-nav">
+  <span class="group"><b>From</b><a href="../lessons/0019-debezium-postgresql-cdc-atlas.html">← Lesson 19 · Animated PostgreSQL CDC Atlas</a></span>
+  <span class="group"><b>Related</b><a href="../lessons/0014-transactional-outbox.html">Lesson 14 · Transactional Outbox</a></span>
+  <span class="group"><b>Canonical terms</b><a href="../GLOSSARY.md">GLOSSARY.md</a></span>
+</nav>
+
+</body>
+</html>

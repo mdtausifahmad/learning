@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 08 · Subscriptions &amp; the Global-Ordering Gap</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<script src="../assets/quiz.js" defer></script>
+<script src="../assets/anim.js" defer></script>
+<script src="../assets/es-sim.js" defer></script>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Event Sourcing · Lesson 08</p>
+  <h1>Subscriptions &amp; the Global-Ordering Gap</h1>
+  <div class="meta">
+    <span>◷ ~16 min read</span>
+    <span class="dot">•</span>
+    <span>Level 3 · Production engineering</span>
+    <span class="dot">•</span>
+    <span>Prereq: <a href="0007-snapshots-and-closing-the-books.html">Lesson 07</a></span>
+  </div>
+</header>
+
+<p class="mission-tie">
+  Projections, snapshotters and Kafka publishers all share one hidden dependency: a <strong>subscription</strong>
+  that hands them every event, in order, exactly as many times as they can cope with. On a home-grown
+  Postgres store, that innocent <code>SELECT &hellip; WHERE global_position &gt; :checkpoint</code> hides a
+  bug that <strong>skips events forever</strong>, silently, under load. Asking &ldquo;how do you guarantee
+  global ordering and visibility?&rdquo; in a design review separates people who have run event sourcing
+  in production from people who have read about it.
+</p>
+
+<h2>1. How events reach projections and handlers</h2>
+
+<table>
+  <thead><tr><th>Model</th><th>Description</th><th>Examples</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Polling catch-up</strong></td><td>Consumer polls <code>readAll(fromPosition)</code> in a loop, tracks its own checkpoint</td><td>Simple Postgres stores, Marten async daemon</td></tr>
+    <tr><td><strong>Push catch-up</strong></td><td>Store pushes from a position; consumer tracks its checkpoint</td><td>EventStoreDB / KurrentDB catch-up subscriptions</td></tr>
+    <tr><td><strong>Persistent / competing consumers</strong></td><td>Server tracks the checkpoint and load-balances events across consumers &mdash; <em>ordering weakened</em></td><td>EventStoreDB persistent subscriptions</td></tr>
+    <tr><td><strong>Via a broker</strong></td><td>Events forwarded to Kafka; consumers use consumer groups</td><td>Common in microservice estates</td></tr>
+    <tr><td><strong>LISTEN/NOTIFY + poll</strong></td><td>Postgres <code>NOTIFY</code> as a wake-up signal, then poll</td><td>Lowers latency of polling</td></tr>
+  </tbody>
+</table>
+
+<p>
+  Two axes matter when choosing. <strong>Who owns the checkpoint</strong> (consumer vs server) decides how
+  you make processing atomic &mdash; a consumer-owned checkpoint can live in the read-model database, in
+  the same transaction (Lesson 05). <strong>Ordering</strong> decides what you can build: projections that
+  fold state need strict order; independent side-effects (send an email per event) can tolerate competing
+  consumers.
+</p>
+
+<h2>2. Exactly one active instance per projection</h2>
+
+<p>
+  You run three replicas of your service for availability. If all three run the
+  <code>account-balance-v1</code> projection, they read the same events, race on the same rows and the same
+  checkpoint, and can apply events <strong>out of order</strong>: pod A handles #501 while pod B, slightly
+  ahead, already wrote checkpoint 503. Run <strong>exactly one active instance per projection</strong>
+  (or per partition of a projection); the others stand by.
+</p>
+
+<figure>
+<svg viewBox="0 0 660 200" role="img" aria-label="Three pods; only the one holding the advisory lock for a projection runs it; the others stand by">
+  <g font-family="system-ui, sans-serif" font-size="11">
+    <rect x="250" y="10" width="160" height="36" rx="8" fill="#fff" stroke="#4b3f8f" stroke-width="2"></rect>
+    <text x="330" y="27" text-anchor="middle" font-weight="700" fill="#4b3f8f">Event store</text>
+    <text x="330" y="40" text-anchor="middle" fill="#63625c" font-size="9.5">global log</text>
+    <rect x="30" y="90" width="170" height="56" rx="8" fill="#e3f3ec" stroke="#1f7a5e" stroke-width="1.8"></rect>
+    <text x="115" y="110" text-anchor="middle" font-weight="700" fill="#1f7a5e">pod-a &middot; ACTIVE</text>
+    <text x="115" y="126" text-anchor="middle" font-size="10">holds advisory lock</text>
+    <text x="115" y="140" text-anchor="middle" font-size="10" fill="#63625c">account-balance-v1</text>
+    <rect x="245" y="90" width="170" height="56" rx="8" fill="#fff" stroke="#63625c" stroke-dasharray="4 3"></rect>
+    <text x="330" y="110" text-anchor="middle" font-weight="700" fill="#63625c">pod-b &middot; standby</text>
+    <text x="330" y="126" text-anchor="middle" font-size="10">pg_try_advisory_lock &rarr; false</text>
+    <text x="330" y="140" text-anchor="middle" font-size="10" fill="#63625c">retry every 5 s</text>
+    <rect x="460" y="90" width="170" height="56" rx="8" fill="#fff" stroke="#63625c" stroke-dasharray="4 3"></rect>
+    <text x="545" y="110" text-anchor="middle" font-weight="700" fill="#63625c">pod-c &middot; standby</text>
+    <text x="545" y="126" text-anchor="middle" font-size="10">pg_try_advisory_lock &rarr; false</text>
+    <text x="545" y="140" text-anchor="middle" font-size="10" fill="#63625c">retry every 5 s</text>
+    <path d="M290 46 L130 86" stroke="#1f7a5e" stroke-width="2" marker-end="url(#l8s1)"></path>
+    <text x="180" y="62" fill="#1f7a5e" font-size="10">poll from checkpoint</text>
+    <rect x="200" y="164" width="260" height="28" rx="12" fill="#efedf8" stroke="#2e5a7a"></rect>
+    <text x="330" y="182" text-anchor="middle">projection_checkpoints &middot; rm_account_balance</text>
+    <path d="M115 146 V176 H196" stroke="#1f7a5e" stroke-width="1.5" fill="none" marker-end="url(#l8s1)"></path>
+  </g>
+  <defs>
+    <marker id="l8s1" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#1f7a5e"></path></marker>
+  </defs>
+</svg>
+<figcaption>Leader election per projection. If pod-a dies, its DB session ends, the lock is released and a standby takes over from the checkpoint.</figcaption>
+</figure>
+
+<pre><code>// Single active instance per projection using a Postgres advisory lock
+boolean leader = jdbc.queryForObject(
+    "SELECT pg_try_advisory_lock(hashtext(?))", Boolean.class, projection.name());
+if (!leader) return;   // another pod owns it; try again later</code></pre>
+
+<div class="callout warning">
+  <span class="label">The connection-pool trap</span>
+  <p><code>pg_try_advisory_lock</code> is a <strong>session-level</strong> lock: it belongs to the database
+  <em>connection</em>, not your thread. With HikariCP, the <code>JdbcTemplate</code> call above borrows a
+  connection, takes the lock, and returns the connection to the pool &mdash; still holding the lock, now
+  owned by whatever request borrows it next. Hold leadership on a <strong>dedicated, long-lived
+  connection</strong> outside the pool, keep it alive with a heartbeat query, and <em>stop processing
+  immediately</em> if that connection drops (the lock is gone and another pod may already be running).
+  Alternatives: Kubernetes <code>Lease</code>, ShedLock, or the store&rsquo;s built-in coordination
+  (Marten&rsquo;s async daemon, Axon&rsquo;s token claims).</p>
+</div>
+
+<pre><code>try (Connection leaderConn = DriverManager.getConnection(url, user, pwd)) {   // NOT from the pool
+    var ps = leaderConn.prepareStatement("SELECT pg_try_advisory_lock(hashtext(?))");
+    ps.setString(1, projection.name());
+    try (var rs = ps.executeQuery()) { rs.next(); if (!rs.getBoolean(1)) return; }
+    while (running &amp;&amp; leaderConn.isValid(2)) {   // lost the session? lost the lock.
+        projection.runOnce();                        // its own pooled connections for work
+    }
+}   // closing the session releases the lock</code></pre>
+
+<h3>Lower latency: LISTEN/NOTIFY + poll</h3>
+<p>
+  Polling every 500 ms adds up to 500 ms of lag; polling every 10 ms hammers the database. Instead, have the
+  append transaction <code>NOTIFY</code> and let workers sleep until woken (or a fallback timeout).
+  Postgres delivers notifications <strong>only when the transaction commits</strong>, so a wake-up never
+  arrives before the data is visible.
+</p>
+
+<pre><code>-- inside the append transaction
+SELECT pg_notify('events_appended', '');
+
+// worker loop (pgjdbc)
+PGConnection pg = listenConn.unwrap(PGConnection.class);
+listenConn.createStatement().execute("LISTEN events_appended");
+while (running) {
+    pg.getNotifications(1_000);   // block up to 1 s; a missed NOTIFY just means we wait 1 s
+    projection.runOnce();         // ALWAYS poll — the notification is a hint, not the data
+}</code></pre>
+
+<h2>3. The gap problem</h2>
+
+<p>
+  With a Postgres <code>IDENTITY</code>/<code>SEQUENCE</code> as the global position, <strong>positions are
+  assigned at insert time but become visible at commit time</strong>. Transactions commit out of order.
+  Watch what a naive poller does:
+</p>
+
+<figure class="anim" data-anim>
+<div class="anim-stage">
+<svg viewBox="0 0 680 330" role="img" aria-label="Sequence diagram of the gap problem: transaction A takes position 101, transaction B takes 102 and commits first, the poller reads 102 and checkpoints it, then A commits and event 101 is skipped forever">
+  <g font-family="system-ui, sans-serif" font-size="11">
+    <g class="anim-el" data-step="1">
+      <rect x="20" y="10" width="100" height="28" rx="5" fill="#efedf8" stroke="#4b3f8f"></rect>
+      <text x="70" y="28" text-anchor="middle" font-weight="700" fill="#4b3f8f">Tx A</text>
+      <rect x="190" y="10" width="100" height="28" rx="5" fill="#efedf8" stroke="#4b3f8f"></rect>
+      <text x="240" y="28" text-anchor="middle" font-weight="700" fill="#4b3f8f">Tx B</text>
+      <rect x="360" y="10" width="120" height="28" rx="5" fill="#fff" stroke="#4b3f8f" stroke-width="1.5"></rect>
+      <text x="420" y="28" text-anchor="middle" font-weight="700" fill="#4b3f8f">events table</text>
+      <rect x="540" y="10" width="120" height="28" rx="5" fill="#fff" stroke="#c98a1a" stroke-width="1.5"></rect>
+      <text x="600" y="28" text-anchor="middle" font-weight="700" fill="#b5651d">Poller</text>
+      <line x1="70" y1="38" x2="70" y2="320" stroke="#e2e2da" stroke-dasharray="3 3"></line>
+      <line x1="240" y1="38" x2="240" y2="320" stroke="#e2e2da" stroke-dasharray="3 3"></line>
+      <line x1="420" y1="38" x2="420" y2="320" stroke="#e2e2da" stroke-dasharray="3 3"></line>
+      <line x1="600" y1="38" x2="600" y2="320" stroke="#e2e2da" stroke-dasharray="3 3"></line>
+      <text x="606" y="58" fill="#63625c" font-size="10">checkpoint = 100</text>
+      <path d="M70 66 H416" stroke="#4b3f8f" stroke-width="1.5" marker-end="url(#l8a1)"></path>
+      <text x="240" y="61" text-anchor="middle" fill="#4b3f8f">INSERT &rarr; position 101 (not committed)</text>
+    </g>
+    <g class="anim-el" data-step="2">
+      <path d="M240 96 H416" stroke="#4b3f8f" stroke-width="1.5" marker-end="url(#l8a1)"></path>
+      <text x="328" y="91" text-anchor="middle" fill="#4b3f8f">INSERT &rarr; position 102</text>
+    </g>
+    <g class="anim-el" data-step="3">
+      <path d="M240 124 H416" stroke="#1f7a5e" stroke-width="1.5" marker-end="url(#l8a2)"></path>
+      <text x="328" y="119" text-anchor="middle" fill="#1f7a5e" font-weight="700">COMMIT (102 visible)</text>
+    </g>
+    <g class="anim-el" data-step="4">
+      <path d="M600 154 H424" stroke="#c98a1a" stroke-width="1.5" marker-end="url(#l8a3)"></path>
+      <text x="512" y="149" text-anchor="middle" fill="#b5651d">SELECT &hellip; WHERE position &gt; 100</text>
+      <path d="M420 178 H596" stroke="#c98a1a" stroke-width="1.5" stroke-dasharray="4 2" marker-end="url(#l8a3)"></path>
+      <text x="512" y="173" text-anchor="middle" fill="#b5651d" font-weight="700">[102] &mdash; 101 is invisible!</text>
+    </g>
+    <g class="anim-el" data-step="5">
+      <rect x="546" y="190" width="108" height="24" rx="4" fill="#fbf1e7" stroke="#c98a1a"></rect>
+      <text x="600" y="206" text-anchor="middle" fill="#b5651d" font-weight="700">checkpoint = 102</text>
+    </g>
+    <g class="anim-el" data-step="6">
+      <path d="M70 236 H416" stroke="#1f7a5e" stroke-width="1.5" marker-end="url(#l8a2)"></path>
+      <text x="240" y="231" text-anchor="middle" fill="#1f7a5e" font-weight="700">COMMIT (101 now visible)</text>
+    </g>
+    <g class="anim-el" data-step="7">
+      <path d="M600 264 H424" stroke="#c98a1a" stroke-width="1.5" marker-end="url(#l8a3)"></path>
+      <text x="512" y="259" text-anchor="middle" fill="#b5651d">SELECT &hellip; WHERE position &gt; 102</text>
+      <path d="M420 284 H596" stroke="#c98a1a" stroke-width="1.5" stroke-dasharray="4 2" marker-end="url(#l8a3)"></path>
+      <text x="512" y="279" text-anchor="middle" fill="#b5651d">[ ] &mdash; nothing new</text>
+    </g>
+    <g class="anim-el" data-step="8">
+      <rect x="140" y="294" width="400" height="30" rx="6" fill="#f8eaea" stroke="#b23b3b" stroke-width="1.5"></rect>
+      <text x="340" y="314" text-anchor="middle" fill="#b23b3b" font-weight="700">Event 101 is SKIPPED FOREVER &#10007; &mdash; no error, no log line</text>
+    </g>
+  </g>
+  <defs>
+    <marker id="l8a1" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#4b3f8f"></path></marker>
+    <marker id="l8a2" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#1f7a5e"></path></marker>
+    <marker id="l8a3" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#c98a1a"></path></marker>
+  </defs>
+</svg>
+</div>
+<div class="anim-caps">
+  <p class="anim-cap" data-step="1"><span class="n">1</span>Tx A (say, a deposit with a slow fraud check) inserts its event. The sequence hands out <strong>101 immediately</strong>, but the row is invisible to everyone else until A commits.</p>
+  <p class="anim-cap" data-step="2"><span class="n">2</span>Tx B starts a moment later and gets <strong>102</strong>. Sequences are non-transactional: numbers are handed out in call order, never rolled back.</p>
+  <p class="anim-cap" data-step="3"><span class="n">3</span>B is fast and <strong>commits first</strong>. Row 102 is now visible; row 101 still isn&rsquo;t.</p>
+  <p class="anim-cap" data-step="4"><span class="n">4</span>The poller asks for everything after its checkpoint (100) and gets <strong>[102]</strong>. From its point of view, the log is perfectly consistent.</p>
+  <p class="anim-cap" data-step="5"><span class="n">5</span>It handles 102 and moves its checkpoint to <strong>102</strong> &mdash; exactly as Lesson 05 taught it to.</p>
+  <p class="anim-cap" data-step="6"><span class="n">6</span>A finally commits. Row 101 appears &mdash; <em>behind</em> the checkpoint.</p>
+  <p class="anim-cap" data-step="7"><span class="n">7</span>Next poll: <code>WHERE position &gt; 102</code>. 101 will never match again.</p>
+  <p class="anim-cap" data-step="8"><span class="n">8</span>A deposit is missing from the balance projection, the Kafka publisher never sent it, the search index never saw it. Nothing errored. It only shows up under concurrent load &mdash; i.e. in production, not in your tests.</p>
+</div>
+<figcaption>The gap problem: sequence order is insert order; visibility order is commit order. They differ.</figcaption>
+</figure>
+
+<p>Now reproduce it yourself, then fix it:</p>
+
+<div class="sim" data-sim="gap"></div>
+
+<p>
+  Note the second kind of gap the simulator lets you create: <strong>Rollback</strong>. A rolled-back
+  transaction consumed a sequence number that will <em>never</em> appear. So &ldquo;wait until there are
+  no holes&rdquo; can&rsquo;t be the rule on its own &mdash; some holes are permanent.
+</p>
+
+<h2>4. Fixes used in practice</h2>
+
+<table>
+  <thead><tr><th>#</th><th>Fix</th><th>Idea</th><th>Trade-off</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td><strong>Transaction-id visibility filter</strong></td><td>Only read rows written by transactions older than the oldest still-running transaction</td><td>Lag bounded by your longest open transaction</td></tr>
+    <tr><td>2</td><td><strong>Gap detection with timeout</strong></td><td>On a hole, wait a few seconds for it to fill; if it doesn&rsquo;t, assume rollback and skip (Marten&rsquo;s &ldquo;high-water mark&rdquo;)</td><td>A transaction slower than the timeout is lost</td></tr>
+    <tr><td>3</td><td><strong>Serialise appends</strong></td><td>Single writer / lock, so commit order = sequence order</td><td>Simple; caps append throughput</td></tr>
+    <tr><td>4</td><td><strong>Purpose-built store</strong></td><td>KurrentDB/EventStoreDB, Axon Server guarantee a gap-free, commit-ordered <code>$all</code></td><td>Another database to operate</td></tr>
+  </tbody>
+</table>
+
+<h3>Fix 1 &mdash; the transaction-id visibility filter</h3>
+<p>
+  The events table from Lesson 04 already stores <code>tx_id XID8 DEFAULT pg_current_xact_id()</code> per
+  row. <code>pg_snapshot_xmin(pg_current_snapshot())</code> is the oldest transaction id still in flight;
+  every transaction below it has finished (committed or rolled back). Read only those rows:
+</p>
+
+<pre><code>SELECT * FROM events
+ WHERE global_position &gt; :checkpoint
+   AND tx_id &lt; pg_snapshot_xmin(pg_current_snapshot())
+ ORDER BY global_position
+ LIMIT 500;</code></pre>
+
+<p>
+  In the animation, at step 4 Tx A is still in flight, so <code>xmin</code> &le; A&rsquo;s id and row 102 (from
+  the younger B) is held back. Nothing is read past the in-flight transaction.
+</p>
+
+<div class="callout warning">
+  <span class="label">The Staff-level refinement: checkpoint on (tx_id, position)</span>
+  <p>Transaction ids and sequence values are allocated independently. A transaction with a <em>younger</em>
+  id can still obtain a <em>lower</em> position (e.g. if it inserted its event first). If that older-id
+  transaction commits first, the filter releases its higher position, the checkpoint jumps past it, and the
+  lower one is skipped when it commits. The robust form orders and checkpoints by the pair:</p>
+<pre><code>SELECT * FROM events
+ WHERE (tx_id, global_position) &gt; (:ckpt_tx, :ckpt_pos)
+   AND tx_id &lt; pg_snapshot_xmin(pg_current_snapshot())
+ ORDER BY tx_id, global_position
+ LIMIT 500;
+-- index: CREATE INDEX ix_events_tx_pos ON events (tx_id, global_position);</code></pre>
+  <p>Every transaction that can still commit has an id &ge; xmin &gt; your checkpoint&rsquo;s tx_id, so
+  nothing can land behind it. (The simulator above simplifies by assuming ids and positions are allocated in
+  the same order.)</p>
+</div>
+
+<p>
+  Operational consequence of fix 1: <strong>one long-running writing transaction stalls every subscription</strong>
+  &mdash; even one touching unrelated tables, because transaction ids (and so <code>xmin</code>) are shared across the whole Postgres instance.
+  Set <code>idle_in_transaction_session_timeout</code> and keep reporting jobs off the primary.
+</p>
+
+<h3>Fix 2 &mdash; gap detection with a timeout (high-water mark)</h3>
+<pre><code>// Highest position P such that every position &lt;= P is either visible or declared dead
+long highWaterMark(long checkpoint, List&lt;Long&gt; visiblePositions, Clock clock) {
+    long hwm = checkpoint;
+    for (long p : visiblePositions) {                // sorted ascending
+        if (p == hwm + 1) { hwm = p; continue; }     // contiguous: advance
+        Instant firstSeen = gaps.computeIfAbsent(hwm + 1, k -&gt; clock.instant());
+        if (Duration.between(firstSeen, clock.instant()).compareTo(GAP_TIMEOUT) &gt; 0) {
+            log.warn("skipping gap {}..{} (assumed rolled back)", hwm + 1, p - 1);
+            hwm = p;                                  // give up on the hole
+        } else break;                                 // wait for it to fill
+    }
+    return hwm;   // projections only read up to here
+}</code></pre>
+<p>
+  This is conceptually how Marten&rsquo;s async daemon works: it computes a <strong>high-water mark</strong>
+  &mdash; the highest sequence with no outstanding gaps &mdash; and only lets projections advance to it,
+  skipping a gap once it has been stale long enough. The timeout must exceed your longest legitimate append
+  transaction; enforce that with a statement timeout on appends, and <strong>alert on every skipped
+  gap</strong>.
+</p>
+
+<h3>Fix 3 &mdash; serialise appends</h3>
+<pre><code>BEGIN;
+SELECT pg_advisory_xact_lock(42);   -- one appender at a time, released at COMMIT/ROLLBACK
+INSERT INTO events (...) VALUES (...);
+COMMIT;</code></pre>
+<p>
+  The next appender can&rsquo;t take a sequence value until the previous transaction has committed, so
+  sequence order equals commit order. Rollbacks still leave holes, but no hole can ever be filled later, so a
+  plain <code>&gt; checkpoint</code> poll is safe. Throughput is now bounded by one append transaction at a
+  time &mdash; fine for many line-of-business systems, a ceiling for high-volume ones.
+</p>
+
+<h3>Fix 4 &mdash; let the store own it</h3>
+<p>
+  Purpose-built stores (KurrentDB/EventStoreDB, Axon Server) assign the global position at commit, so the
+  <code>$all</code> stream is gap-free and commit-ordered by construction. This is one of the concrete
+  reasons to graduate from a home-grown Postgres store (Lesson 11).
+</p>
+
+<div class="callout insight">
+  <span class="label">The design-review question</span>
+  <p>&ldquo;<strong>How is global ordering and visibility guaranteed for your subscribers?</strong>&rdquo;
+  Good answers name one of the four fixes and its operational consequence. &ldquo;We use a
+  <code>BIGSERIAL</code>&rdquo; with nothing else is the bug, waiting for load. The same question applies
+  to <em>any</em> table-based outbox polled by sequence &mdash; not just event stores.</p>
+</div>
+
+<div class="primary-source">
+  <span class="label">Read this next (primary source)</span>
+  <p>Oskar Dudycz &mdash; <a href="https://event-driven.io/en/ordering_in_postgres_outbox/" target="_blank" rel="noopener"><em>How Postgres sequences issues can impact your messaging guarantees</em></a>
+  (the gap problem and the transaction-id fix, step by step), and the Marten docs on the
+  <a href="https://martendb.io/events/projections/async-daemon.html" target="_blank" rel="noopener"><em>async daemon</em></a>
+  (high-water mark, gap skipping, and leader election for projections).</p>
+</div>
+
+<h2>5. Check yourself</h2>
+<p>Retrieve before revealing.</p>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 1 of 3</p>
+  <p class="quiz-q">Why does <code>WHERE global_position &gt; :checkpoint</code> on a Postgres sequence skip events?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="Sequences can have holes, but uniqueness isn&rsquo;t the issue here.">sequences can hand the same value to two transactions</button></li>
+    <li><button data-correct="false" data-feedback="Under READ COMMITTED each poll sees all committed rows; the issue is timing, not caching.">the poller&rsquo;s snapshot caches rows from earlier polls</button></li>
+    <li><button data-correct="true" data-feedback="Right — positions follow insert order, visibility follows commit order.">positions are assigned at insert but visible at commit</button></li>
+    <li><button data-correct="false" data-feedback="Rollbacks cause permanent holes, but those aren&rsquo;t lost events.">rolled-back transactions renumber the later positions</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="A lower position can become visible after a higher one has been read and checkpointed — it then sits behind the checkpoint forever."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 2 of 3</p>
+  <p class="quiz-q">Three pods each acquire leadership for a projection with <code>pg_try_advisory_lock</code> via a pooled <code>JdbcTemplate</code>. What goes wrong?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="Session locks do stay held after the query; that&rsquo;s exactly the problem.">the lock is released as soon as the query completes</button></li>
+    <li><button data-correct="true" data-feedback="Right — session-level lock lives on a pooled connection; ownership and liveness are unclear.">the lock stays on a pooled connection you don&rsquo;t own</button></li>
+    <li><button data-correct="false" data-feedback="Advisory locks don&rsquo;t touch table rows at all.">the lock blocks every write to the events table</button></li>
+    <li><button data-correct="false" data-feedback="hashtext is deterministic; the same name yields the same key.">hashtext gives each pod a different lock key</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Advisory locks are per session. Hold leadership on a dedicated connection, check it is alive, and stop work the moment it drops."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 3 of 3</p>
+  <p class="quiz-q">You use the tx-id visibility filter. Projections across the service suddenly lag by 40 minutes. The most likely cause is&hellip;</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="Advisory locks gate which pod runs, not how far it can read.">a stale advisory lock held by a crashed projector pod</button></li>
+    <li><button data-correct="false" data-feedback="NOTIFY only wakes workers early; polling still advances them.">LISTEN/NOTIFY messages being dropped by the database</button></li>
+    <li><button data-correct="false" data-feedback="Snapshots affect rehydration on the write side, not subscription reads.">snapshots holding back the aggregates being projected</button></li>
+    <li><button data-correct="true" data-feedback="Right — xmin can&rsquo;t advance past the oldest open transaction.">a long-running write transaction is pinning xmin</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="The visibility filter trades lag for safety: subscribers can&rsquo;t read past the oldest in-flight transaction. Bound transaction duration and alert on it."></div>
+</div>
+
+<div class="callout tryit">
+  <span class="label">Try it in your own system</span>
+  <ul class="checklist">
+    <li>Reproduce the gap on a real Postgres (<code>podman run -d -p 5432:5432 -e POSTGRES_PASSWORD=pw postgres:16</code>): two <code>psql</code> sessions, <code>BEGIN; INSERT</code> in both, commit the second, poll, commit the first.</li>
+    <li>Find every table at work polled by a sequence/ID (outboxes, job tables, CDC-ish feeds). Which of the four fixes does each use?</li>
+    <li>Write an integration test (Testcontainers on the Podman socket) that runs 50 concurrent appenders and asserts the projection saw <em>every</em> event id.</li>
+    <li>Add a metric for skipped gaps and for the age of the oldest open transaction; alert on both.</li>
+  </ul>
+</div>
+
+<div class="followup">
+  <strong>I&rsquo;m your teacher &mdash; ask me anything.</strong> How does this interact with logical
+  replication or Debezium? How do you partition a projection across pods and keep per-partition leadership?
+  What exactly does KurrentDB do differently at commit time? Bring your polling query and we&rsquo;ll audit it.
+</div>
+
+<nav class="lesson-nav">
+  <span class="group">
+    <b>Reference</b>
+    <a href="../reference/0007-production-readiness-checklist.html">Production readiness checklist &rarr;</a>
+  </span>
+  <span class="group">
+    <b>Previous</b>
+    <a href="0007-snapshots-and-closing-the-books.html">&larr; Lesson 07 · Snapshots &amp; closing the books</a>
+  </span>
+  <span class="group">
+    <b>Up next</b>
+    <a href="0009-publishing-integration-events-and-kafka.html">Lesson 09 · Publishing: integration events &amp; Kafka &rarr;</a>
+  </span>
+</nav>
+
+</body>
+</html>

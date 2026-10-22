@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 09 · Publishing: Integration Events &amp; Kafka</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<script src="../assets/quiz.js" defer></script>
+<script src="../assets/anim.js" defer></script>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Event Sourcing · Lesson 09</p>
+  <h1>Publishing: Integration Events &amp; Kafka</h1>
+  <div class="meta">
+    <span>◷ ~15 min read</span>
+    <span class="dot">•</span>
+    <span>Level 3 · Production engineering</span>
+    <span class="dot">•</span>
+    <span>Prereq: <a href="0008-subscriptions-and-the-gap-problem.html">Lesson 08 · Subscriptions &amp; the gap</a></span>
+  </div>
+</header>
+
+<p class="mission-tie">
+  Your event store now holds the truth, and subscriptions can read it reliably. The next question every
+  real system faces is: <em>how do other teams find out?</em> This lesson is where most event-sourced
+  systems either stay clean or quietly turn into a distributed monolith. You&rsquo;ll learn to make
+  commands safe to retry, to separate <strong>private domain events</strong> from a <strong>public
+  integration contract</strong>, to publish to Kafka <strong>without dual writes</strong>, and to give a
+  crisp, defensible answer to the Staff-interview favourite: <em>&ldquo;Can Kafka be my event store?&rdquo;</em>
+</p>
+
+<h2>1. Idempotency starts on the command side</h2>
+
+<p>
+  Clients retry. Load balancers retry. Users double-click. Your mobile app re-sends a request after a
+  flaky 4G timeout that actually <em>succeeded</em>. If a retried command appends the same facts twice,
+  every downstream consumer &mdash; projections, Kafka, other services &mdash; will faithfully process the
+  duplicate. Fix it at the source, with three complementary tools:
+</p>
+
+<table>
+  <thead><tr><th>Command kind</th><th>Technique</th><th>What happens on retry</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Create</strong> (<code>OpenAccount</code>)</td><td>Client-supplied id + <code>expectedVersion = NoStream</code></td><td>Second append finds the stream exists &rarr; fails safely; return the existing resource</td></tr>
+    <tr><td><strong>Any other</strong> (<code>Withdraw</code>)</td><td><code>Idempotency-Key</code> header stored with the result (event metadata or a dedupe table)</td><td>Key already seen &rarr; return the <em>original</em> response, append nothing</td></tr>
+    <tr><td><strong>Every append</strong></td><td>Deterministic <code>eventId = UUIDv5(commandId + index)</code></td><td>Retried insert hits <code>UNIQUE(event_id)</code> &rarr; no duplicate fact, even if the first attempt&rsquo;s response was lost</td></tr>
+  </tbody>
+</table>
+
+<p>
+  The last one is the cheapest and most underused. A random <code>UUID.randomUUID()</code> per attempt
+  makes every retry look like a <em>new</em> fact; a name-based UUIDv5 makes the same command always
+  produce the same event ids. Java&rsquo;s standard library only ships v3 (MD5)
+  via <code>UUID.nameUUIDFromBytes</code>, so v5 (SHA-1) is a ten-line helper:
+</p>
+
+<pre><code>public final class Uuids {
+    // Any fixed UUID works as a namespace; keep it constant forever.
+    private static final UUID EVENT_NS = UUID.fromString("6f1c2b1e-5a8e-4c43-9a43-0b7d6a7d9e10");
+
+    public static UUID v5(UUID namespace, String name) {
+        try {
+            var sha1 = MessageDigest.getInstance("SHA-1");
+            sha1.update(toBytes(namespace));
+            byte[] h = sha1.digest(name.getBytes(StandardCharsets.UTF_8));
+            h[6] = (byte) ((h[6] &amp; 0x0f) | 0x50);   // version 5
+            h[8] = (byte) ((h[8] &amp; 0x3f) | 0x80);   // IETF variant
+            var bb = ByteBuffer.wrap(h, 0, 16);
+            return new UUID(bb.getLong(), bb.getLong());
+        } catch (NoSuchAlgorithmException e) { throw new IllegalStateException(e); }
+    }
+
+    public static UUID eventId(UUID commandId, int index) {
+        return v5(EVENT_NS, commandId + ":" + index);
+    }
+
+    private static byte[] toBytes(UUID u) {
+        return ByteBuffer.allocate(16).putLong(u.getMostSignificantBits())
+                                      .putLong(u.getLeastSignificantBits()).array();
+    }
+}</code></pre>
+
+<div class="callout warning">
+  <span class="label">One unique-violation, two meanings</span>
+  <p>With deterministic ids, Postgres error <code>23505</code> can now mean two different things.
+  A clash on <code>uq_stream_version</code> is a genuine <strong>concurrency conflict</strong> (reload and
+  retry the decision). A clash on the <code>event_id</code> constraint is a <strong>duplicate
+  command</strong> &mdash; treat it as success and return the original result. Inspect the constraint
+  name (<code>PSQLException.getServerErrorMessage().getConstraint()</code>) instead of mapping every
+  <code>23505</code> to <code>ConcurrencyException</code>.</p>
+</div>
+
+<pre><code>-- Idempotency-Key store for non-create commands (same transaction as the append)
+CREATE TABLE command_dedupe (
+    idempotency_key  TEXT        PRIMARY KEY,
+    stream_id        TEXT        NOT NULL,
+    result_version   BIGINT      NOT NULL,
+    response         JSONB       NOT NULL,
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+-- Expire rows after the client retry window (e.g. 24-72 h) with a scheduled DELETE.</code></pre>
+
+<h2>2. Domain events vs integration events</h2>
+
+<p>
+  This is one of the most important &mdash; and most commonly botched &mdash; distinctions in the whole
+  course. Your event store is optimised for <strong>you</strong>: fine-grained facts shaped exactly for
+  rebuilding your aggregate&rsquo;s state. Other teams need something else: a small number of
+  <strong>stable, coarse, well-documented</strong> facts they can build on for years.
+</p>
+
+<table>
+  <thead><tr><th></th><th>Domain events (internal)</th><th>Integration events (public)</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Audience</strong></td><td>Your own bounded context</td><td>Other teams / services</td></tr>
+    <tr><td><strong>Stored in</strong></td><td>Event store (source of truth)</td><td>Kafka topic / broker</td></tr>
+    <tr><td><strong>Granularity</strong></td><td>Fine (<code>ItemAddedToCart</code>)</td><td>Coarse, stable (<code>OrderSubmitted</code> with full summary)</td></tr>
+    <tr><td><strong>Change frequency</strong></td><td>Evolves with your model</td><td>Versioned contract; changes need consumer coordination</td></tr>
+    <tr><td><strong>Contains</strong></td><td>Exactly what&rsquo;s needed to rebuild state</td><td>What consumers need (often enriched)</td></tr>
+    <tr><td><strong>Typical format</strong></td><td>JSON/JSONB (debuggable, weak schema)</td><td>Avro / Protobuf + schema registry (enforced contract)</td></tr>
+  </tbody>
+</table>
+
+<figure>
+<svg viewBox="0 0 660 230" role="img" aria-label="Domain events flow through a translator into a public Kafka topic consumed by other teams">
+  <defs>
+    <marker id="l9s-ar" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#4b3f8f"></path></marker>
+  </defs>
+  <g font-family="system-ui, sans-serif" font-size="11">
+    <rect x="8" y="10" width="370" height="210" rx="10" fill="#efedf8" stroke="#4b3f8f" stroke-dasharray="5 4"></rect>
+    <text x="20" y="30" font-weight="700" fill="#4b3f8f">Ordering bounded context (private)</text>
+    <rect x="24" y="45" width="170" height="160" rx="8" fill="#fff" stroke="#4b3f8f" stroke-width="1.5"></rect>
+    <text x="109" y="64" text-anchor="middle" font-weight="700" fill="#4b3f8f">Event store</text>
+    <text x="109" y="88" text-anchor="middle">ItemAdded</text>
+    <text x="109" y="106" text-anchor="middle">ItemRemoved</text>
+    <text x="109" y="124" text-anchor="middle">ItemAdded</text>
+    <text x="109" y="142" text-anchor="middle">ShippingAddressSet</text>
+    <text x="109" y="160" text-anchor="middle">DiscountApplied</text>
+    <text x="109" y="178" text-anchor="middle" font-weight="700">OrderSubmitted</text>
+    <text x="109" y="198" text-anchor="middle" fill="#63625c">fine-grained, may change</text>
+    <path d="M196 125 H234" stroke="#4b3f8f" stroke-width="1.5" marker-end="url(#l9s-ar)"></path>
+    <rect x="238" y="90" width="128" height="70" rx="8" fill="#fff" stroke="#c98a1a" stroke-width="1.5"></rect>
+    <text x="302" y="112" text-anchor="middle" font-weight="700">Translator</text>
+    <text x="302" y="129" text-anchor="middle" fill="#63625c">anti-corruption</text>
+    <text x="302" y="145" text-anchor="middle" fill="#63625c">filter · enrich · map</text>
+    <path d="M368 125 H408" stroke="#4b3f8f" stroke-width="1.5" marker-end="url(#l9s-ar)"></path>
+    <rect x="412" y="88" width="120" height="74" rx="8" fill="#fff" stroke="#1f7a5e" stroke-width="1.5"></rect>
+    <text x="472" y="110" text-anchor="middle" font-weight="700" fill="#1f7a5e">orders.public</text>
+    <text x="472" y="127" text-anchor="middle">OrderSubmitted.v1</text>
+    <text x="472" y="144" text-anchor="middle" fill="#63625c">Avro · versioned</text>
+    <path d="M534 110 L568 60" stroke="#4b3f8f" marker-end="url(#l9s-ar)"></path>
+    <path d="M534 125 H568" stroke="#4b3f8f" marker-end="url(#l9s-ar)"></path>
+    <path d="M534 140 L568 190" stroke="#4b3f8f" marker-end="url(#l9s-ar)"></path>
+    <text x="574" y="60" fill="#4b3f8f">Payments</text>
+    <text x="574" y="129" fill="#4b3f8f">Shipping</text>
+    <text x="574" y="196" fill="#4b3f8f">Data platform</text>
+  </g>
+</svg>
+<figcaption>Six private facts become one public contract. The translator is your anti-corruption layer &mdash; refactor freely behind it.</figcaption>
+</figure>
+
+<p>The translator is just another subscription with a pure mapping function at its core:</p>
+
+<pre><code>sealed interface OrderEvent permits ItemAdded, ItemRemoved, ShippingAddressSet,
+                                    DiscountApplied, OrderSubmitted {}
+
+/** Public, versioned contract. Lives in a shared schema module, NOT in the domain package. */
+record OrderSubmittedV1(String orderId, String customerId, List&lt;Line&gt; lines,
+                        String currency, String totalAmount, Address shipTo, Instant submittedAt) {}
+
+final class OrderIntegrationTranslator {
+    private final OrderReadModel orders;   // enrichment from our own projection
+
+    Optional&lt;OrderSubmittedV1&gt; translate(StoredEvent&lt;OrderEvent&gt; e) {
+        return switch (e.data()) {
+            case OrderSubmitted s -&gt; {
+                var o = orders.get(s.orderId());                 // full summary for consumers
+                yield Optional.of(new OrderSubmittedV1(s.orderId(), o.customerId(), o.lines(),
+                        o.currency(), o.total().toPlainString(), o.shipTo(), e.occurredAt()));
+            }
+            case ItemAdded a          -&gt; Optional.empty();       // internal detail: not published
+            case ItemRemoved r        -&gt; Optional.empty();
+            case ShippingAddressSet a -&gt; Optional.empty();
+            case DiscountApplied d    -&gt; Optional.empty();
+        };
+    }
+}</code></pre>
+
+<p>
+  Because the switch is exhaustive over a sealed interface, adding a new domain event forces a
+  compile-time decision: <em>is this public?</em> That&rsquo;s exactly the conversation you want to be
+  forced to have. One subtlety: enrichment from a projection must read a model that is at least as
+  fresh as the event you are translating (e.g. an inline projection, or state carried in the event
+  itself) &mdash; otherwise you publish stale summaries.
+</p>
+
+<div class="callout warning">
+  <span class="label">Anti-pattern: publishing the raw event store to the company</span>
+  <p>It feels efficient: &ldquo;we already have events, just mirror the <code>events</code> table to
+  Kafka with Debezium.&rdquo; You have now made your <strong>internal model a public API</strong>. Every
+  rename, every split aggregate, every upcaster becomes a cross-team migration, and consumers start
+  re-implementing your <code>evolve</code> to reconstruct state. Publish <em>integration</em> events
+  through an anti-corruption layer; treat the event store as private as your database schema.</p>
+</div>
+
+<h2>3. No dual writes: the event store <em>is</em> your outbox</h2>
+
+<p>The tempting code is two lines, and it is wrong:</p>
+
+<pre><code>store.append(stream, v, events);   // ✅ committed
+kafka.send(topic, events);         // 💥 crash, timeout or broker outage here → consumers never hear about it</code></pre>
+
+<p>
+  Two systems, no shared transaction: one write can succeed while the other fails. Flip the order and
+  you get the opposite bug &mdash; consumers react to events that were never committed (&ldquo;phantom
+  messages&rdquo;). In a CRUD service the fix is the <strong>transactional outbox</strong>: write an
+  <code>outbox</code> row in the same transaction as the business change, then relay it. In an
+  event-sourced service you get that for free: <strong>the event store already is the outbox</strong>.
+  A publisher is just a subscription (Lesson 08) that reads the global log from a checkpoint and
+  produces to Kafka.
+</p>
+
+<figure class="anim" data-anim>
+<div class="anim-stage">
+<svg viewBox="0 0 660 290" role="img" aria-label="Step-by-step: why dual writes lose messages and how a checkpointed publisher with consumer dedupe gives effectively-once delivery">
+  <defs>
+    <marker id="l9a-ink" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#4b3f8f"></path></marker>
+    <marker id="l9a-bad" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#b23b3b"></path></marker>
+    <marker id="l9a-good" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#1f7a5e"></path></marker>
+  </defs>
+  <g font-family="system-ui, sans-serif" font-size="11">
+    <g class="anim-el" data-step="1">
+      <rect x="10" y="40" width="110" height="50" rx="7" fill="#fff" stroke="#63625c" stroke-width="1.5"></rect>
+      <text x="65" y="62" text-anchor="middle" font-weight="700">Command</text>
+      <text x="65" y="78" text-anchor="middle">handler</text>
+      <path d="M122 65 H168" stroke="#4b3f8f" stroke-width="1.5" marker-end="url(#l9a-ink)"></path>
+      <text x="145" y="56" text-anchor="middle" fill="#4b3f8f">append</text>
+      <rect x="172" y="30" width="140" height="140" rx="8" fill="#efedf8" stroke="#4b3f8f" stroke-width="1.5"></rect>
+      <text x="242" y="50" text-anchor="middle" font-weight="700" fill="#4b3f8f">Event store</text>
+      <text x="242" y="72" text-anchor="middle">#41 OrderPlaced</text>
+      <text x="242" y="90" text-anchor="middle">#42 ItemAdded</text>
+      <text x="242" y="108" text-anchor="middle">#43 OrderSubmitted</text>
+      <text x="242" y="126" text-anchor="middle">#44 OrderPaid</text>
+      <text x="242" y="155" text-anchor="middle" fill="#1f7a5e" font-weight="700">1 atomic write</text>
+    </g>
+    <g class="anim-el" data-only="2">
+      <path d="M65 92 C 65 250, 480 250, 520 172" stroke="#b23b3b" stroke-width="1.5" stroke-dasharray="5 4" fill="none" marker-end="url(#l9a-bad)"></path>
+      <text x="300" y="232" text-anchor="middle" fill="#b23b3b" font-weight="700">✗ kafka.send() after commit &mdash; process dies</text>
+      <text x="300" y="250" text-anchor="middle" fill="#b23b3b">event is in the store, Kafka never hears about it</text>
+    </g>
+    <g class="anim-el" data-step="3">
+      <rect x="340" y="40" width="120" height="70" rx="7" fill="#fff" stroke="#c98a1a" stroke-width="1.5"></rect>
+      <text x="400" y="60" text-anchor="middle" font-weight="700">Publisher</text>
+      <text x="400" y="76" text-anchor="middle" fill="#63625c">(a subscription)</text>
+      <rect x="360" y="84" width="80" height="18" rx="4" fill="#efedf8" stroke="#4b3f8f"></rect>
+      <text class="anim-el" data-from="3" data-to="4" x="400" y="97" text-anchor="middle" font-weight="700">checkpoint 42</text>
+      <text class="anim-el" data-only="5" x="400" y="97" text-anchor="middle" font-weight="700" fill="#1f7a5e">checkpoint 44</text>
+      <text class="anim-el" data-only="6" x="400" y="97" text-anchor="middle" font-weight="700" fill="#b23b3b">checkpoint 42</text>
+      <text class="anim-el" data-from="7" x="400" y="97" text-anchor="middle" font-weight="700" fill="#1f7a5e">checkpoint 44</text>
+      <path d="M314 75 H336" stroke="#4b3f8f" stroke-width="1.5" marker-end="url(#l9a-ink)"></path>
+      <text x="400" y="128" text-anchor="middle" fill="#4b3f8f">readAll(after 42)</text>
+    </g>
+    <g class="anim-el" data-step="4">
+      <rect x="490" y="30" width="160" height="140" rx="8" fill="#fff" stroke="#1f7a5e" stroke-width="1.5"></rect>
+      <text x="570" y="50" text-anchor="middle" font-weight="700" fill="#1f7a5e">Kafka: orders.public</text>
+      <rect x="500" y="62" width="140" height="26" rx="4" fill="#f6f7f4" stroke="#999"></rect>
+      <text x="508" y="79" fill="#63625c">P0</text>
+      <rect x="500" y="96" width="140" height="26" rx="4" fill="#f6f7f4" stroke="#999"></rect>
+      <text x="508" y="113" fill="#63625c">P1</text>
+      <rect x="526" y="100" width="36" height="18" rx="3" fill="#fff" stroke="#4b3f8f"></rect>
+      <text x="544" y="113" text-anchor="middle">#43</text>
+      <rect x="564" y="100" width="36" height="18" rx="3" fill="#fff" stroke="#4b3f8f"></rect>
+      <text x="582" y="113" text-anchor="middle">#44</text>
+      <rect x="500" y="130" width="140" height="26" rx="4" fill="#f6f7f4" stroke="#999"></rect>
+      <text x="508" y="147" fill="#63625c">P2</text>
+      <path d="M462 70 H486" stroke="#4b3f8f" stroke-width="1.5" marker-end="url(#l9a-ink)"></path>
+      <text x="475" y="190" text-anchor="middle" fill="#4b3f8f">key = orderId &rarr; same partition &rarr; ordered</text>
+    </g>
+    <g class="anim-el" data-from="5" data-to="5">
+      <path d="M488 92 H464" stroke="#1f7a5e" stroke-width="1.5" marker-end="url(#l9a-good)"></path>
+      <text x="400" y="150" text-anchor="middle" fill="#1f7a5e" font-weight="700">ack(acks=all) &rarr; save checkpoint</text>
+    </g>
+    <g class="anim-el" data-only="6">
+      <text x="400" y="150" text-anchor="middle" fill="#b23b3b" font-weight="700">✗ crash after ack, before checkpoint</text>
+      <text x="400" y="166" text-anchor="middle" fill="#b23b3b">restart from 42 &rarr; #43, #44 sent again</text>
+      <rect x="602" y="100" width="36" height="18" rx="3" fill="#fff" stroke="#b23b3b" stroke-dasharray="3 2"></rect>
+      <text x="620" y="113" text-anchor="middle" fill="#b23b3b">#43′</text>
+    </g>
+    <g class="anim-el" data-step="7">
+      <rect x="490" y="210" width="160" height="66" rx="8" fill="#fff" stroke="#4b3f8f" stroke-width="1.5"></rect>
+      <text x="570" y="229" text-anchor="middle" font-weight="700" fill="#4b3f8f">Consumer (Payments)</text>
+      <text x="570" y="246" text-anchor="middle">processed_events PK(eventId)</text>
+      <text x="570" y="264" text-anchor="middle" fill="#1f7a5e" font-weight="700">duplicate &rarr; skipped</text>
+      <path d="M570 172 V206" stroke="#4b3f8f" stroke-width="1.5" marker-end="url(#l9a-ink)"></path>
+      <text x="250" y="250" text-anchor="middle" fill="#1f7a5e" font-weight="700">at-least-once + idempotent consumer</text>
+      <text x="250" y="268" text-anchor="middle" fill="#1f7a5e" font-weight="700">= effectively-once</text>
+    </g>
+  </g>
+</svg>
+</div>
+<div class="anim-caps">
+  <p class="anim-cap" data-step="1"><span class="n">1</span>The command handler does <strong>one</strong> atomic write: append to the event store. That&rsquo;s the only commit that matters.</p>
+  <p class="anim-cap" data-step="2"><span class="n">2</span>The dual-write trap: calling <code>kafka.send()</code> after the commit. A crash, deploy or broker outage in between and the fact is stored but never published. No retry loop can close this window.</p>
+  <p class="anim-cap" data-step="3"><span class="n">3</span>Instead, a <strong>publisher subscription</strong> reads the global log after its checkpoint &mdash; exactly like a projection, with the same gap-safe reading from Lesson 08.</p>
+  <p class="anim-cap" data-step="4"><span class="n">4</span>It produces with <strong>key = aggregate id</strong>. Kafka orders only within a partition, so keying by aggregate keeps each order&rsquo;s events in sequence downstream.</p>
+  <p class="anim-cap" data-step="5"><span class="n">5</span>After Kafka acknowledges (with <code>acks=all</code>), the publisher advances its checkpoint. Store is the outbox; checkpoint is the relay&rsquo;s bookmark.</p>
+  <p class="anim-cap" data-step="6"><span class="n">6</span>The unavoidable window: crash <em>after</em> the ack but <em>before</em> saving the checkpoint. On restart, #43 and #44 are published again. This is <strong>at-least-once</strong> &mdash; by design.</p>
+  <p class="anim-cap" data-step="7"><span class="n">7</span>Consumers dedupe on the stable <code>eventId</code>. At-least-once delivery plus idempotent consumers gives <strong>effectively-once</strong> processing.</p>
+</div>
+<figcaption>The event store as outbox: one atomic write, a checkpointed relay, and dedupe at the edge. Duplicates are expected; loss is not.</figcaption>
+</figure>
+
+<h3>The producer side</h3>
+
+<pre><code># Kafka producer for the integration publisher
+bootstrap.servers=kafka:9092
+key.serializer=org.apache.kafka.common.serialization.StringSerializer
+value.serializer=io.confluent.kafka.serializers.KafkaAvroSerializer
+enable.idempotence=true                     # broker dedupes retries within this producer session
+acks=all                                    # required by idempotence; wait for in-sync replicas
+max.in.flight.requests.per.connection=5     # &lt;= 5 keeps ordering with idempotence on
+retries=2147483647
+delivery.timeout.ms=120000
+compression.type=zstd</code></pre>
+
+<pre><code>void publishBatch(List&lt;StoredEvent&lt;OrderEvent&gt;&gt; batch) throws Exception {
+    var futures = new ArrayList&lt;Future&lt;RecordMetadata&gt;&gt;();
+    for (var e : batch) {
+        translator.translate(e).ifPresent(msg -&gt; {
+            var rec = new ProducerRecord&lt;String, Object&gt;("orders.public", e.streamId(), msg);
+            rec.headers().add("eventId", e.eventId().toString().getBytes(UTF_8))
+                         .add("traceparent", e.metadata().traceparent().getBytes(UTF_8));
+            futures.add(producer.send(rec));
+        });
+    }
+    for (var f : futures) f.get();                      // all acked (or throw → retry batch)
+    checkpoints.save("orders-publisher", batch.getLast().globalPosition());
+}</code></pre>
+
+<div class="callout insight">
+  <span class="label">Know what the idempotent producer does &mdash; and doesn&rsquo;t</span>
+  <p><code>enable.idempotence=true</code> stops the <em>broker</em> from writing duplicates when the
+  producer retries an in-flight send within one producer session (producer id + sequence numbers). It
+  does <strong>not</strong> help when your publisher process restarts and re-reads from its last
+  checkpoint &mdash; that&rsquo;s a brand-new send. Hence the end-to-end rule: <strong>consumers must
+  dedupe on <code>eventId</code></strong>. Kafka transactions don&rsquo;t remove that need either,
+  because your checkpoint lives in Postgres, not in Kafka.</p>
+</div>
+
+<h3>The consumer side</h3>
+
+<pre><code>CREATE TABLE processed_events (
+    event_id      UUID        PRIMARY KEY,
+    processed_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Inside ONE local transaction with the side effect:
+INSERT INTO processed_events (event_id) VALUES (:eventId)
+ON CONFLICT (event_id) DO NOTHING;           -- 0 rows → duplicate: skip the side effect
+-- … apply side effect (insert payment request, update read model) …
+COMMIT;                                      -- then commit the Kafka offset</code></pre>
+
+<table>
+  <thead><tr><th>Design choice</th><th>Do</th><th>Why</th></tr></thead>
+  <tbody>
+    <tr><td>Partition key</td><td>Aggregate id (<code>orderId</code>)</td><td>Per-aggregate ordering survives; parallelism across aggregates</td></tr>
+    <tr><td>Message id</td><td>Event store <code>eventId</code> in a header</td><td>Stable across re-publishes &rarr; dedupe key</td></tr>
+    <tr><td>Checkpoint</td><td>Advance only after acks</td><td>Never skip; duplicates instead of loss</td></tr>
+    <tr><td>Poison event</td><td>Park to a DLQ table and alert</td><td>Don&rsquo;t block the whole publisher on one bad translation</td></tr>
+    <tr><td>Changing partition count</td><td>Avoid; plan it like a migration</td><td>Key&rarr;partition mapping changes, so ordering breaks during the switch</td></tr>
+  </tbody>
+</table>
+
+<h2>4. &ldquo;Can Kafka be my event store?&rdquo;</h2>
+
+<p>
+  A favourite Staff interview question. The short, defensible answer: <strong>Kafka is an excellent
+  event <em>log</em> for distribution, but a poor <em>event store</em> for aggregate write models.</strong>
+  The reason is not &ldquo;Kafka loses data&rdquo; &mdash; it&rsquo;s that the write model needs two
+  operations Kafka doesn&rsquo;t offer: <em>read one entity&rsquo;s history cheaply</em> and
+  <em>append only if nobody else appended first</em>.
+</p>
+
+<table>
+  <thead><tr><th>Requirement</th><th>Purpose-built event store</th><th>Kafka</th></tr></thead>
+  <tbody>
+    <tr><td>Read one aggregate&rsquo;s events quickly</td><td>✅ indexed by stream</td><td>❌ a partition holds many aggregates; scan, or keep a separate state store</td></tr>
+    <tr><td>Optimistic concurrency per aggregate (<code>expectedVersion</code>)</td><td>✅</td><td>❌ no conditional append per key</td></tr>
+    <tr><td>Millions of tiny streams</td><td>✅</td><td>❌ topic-per-aggregate doesn&rsquo;t scale</td></tr>
+    <tr><td>Infinite retention as source of truth</td><td>✅</td><td>⚠️ possible (retention <code>-1</code>, tiered storage), but compaction keeps the latest value per key, not history</td></tr>
+    <tr><td>Fan-out to many consumers, high throughput</td><td>⚠️ ok</td><td>✅ excellent</td></tr>
+  </tbody>
+</table>
+
+<h3>When it does work</h3>
+<p>
+  Teams <em>do</em> build event sourcing on Kafka with <strong>Kafka Streams</strong>: commands are
+  produced to a topic keyed by aggregate id, a single stream task owns each partition, it validates the
+  command against current state held in a local <strong>state store</strong> (RocksDB, backed by a
+  changelog topic) and emits events. Because exactly one writer processes each partition sequentially,
+  there is no concurrent append to guard against &mdash; <strong>single-writer-per-partition sidesteps
+  optimistic concurrency</strong>. It works, but notice what you just built: a stream index, a
+  concurrency model, rehydration, and rebalancing semantics. You are building an event store yourself,
+  and synchronous &ldquo;did my command succeed?&rdquo; responses become an async request/reply problem.
+</p>
+
+<div class="callout insight">
+  <span class="label">The well-trodden architecture</span>
+  <p><strong>Event store (Postgres, KurrentDB, Axon Server, DynamoDB&hellip;) as the source of truth
+  &rarr; publisher subscription &rarr; Kafka for integration.</strong> Each tool does what it&rsquo;s best
+  at: the store gives per-stream reads and conditional appends; Kafka gives durable, scalable fan-out to
+  the rest of the company.</p>
+</div>
+
+<div class="primary-source">
+  <span class="label">Read this next (primary source)</span>
+  <p>Chris Richardson &mdash; <a href="https://microservices.io/patterns/data/transactional-outbox.html" target="_blank" rel="noopener"><em>Pattern: Transactional outbox</em></a>
+  (the dual-write problem and relay options), and Martin Fowler &mdash;
+  <a href="https://martinfowler.com/articles/201701-event-driven.html" target="_blank" rel="noopener"><em>What do you mean by &ldquo;Event-Driven&rdquo;?</em></a>
+  (why event sourcing and event notification are different patterns). Oskar Dudycz&rsquo;s
+  <a href="https://event-driven.io/" target="_blank" rel="noopener">event-driven.io</a> has practical
+  articles on internal vs external events.</p>
+</div>
+
+<h2>5. Check yourself</h2>
+<p>Retrieve before revealing.</p>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 1 of 3</p>
+  <p class="quiz-q">After appending, the handler calls <code>kafka.send()</code>. What is the core problem?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="Latency is a minor concern; the real issue is atomicity across two systems.">Kafka adds too much latency to the command path</button></li>
+    <li><button data-correct="false" data-feedback="Ordering per key can be preserved; the problem is losing messages entirely.">messages would arrive out of order on every partition</button></li>
+    <li><button data-correct="true" data-feedback="Right — a dual write. A crash between commit and send loses the message forever.">two writes, no shared transaction: one can be lost</button></li>
+    <li><button data-correct="false" data-feedback="Idempotent producers dedupe retries; they cannot recover a send that never happened.">the idempotent producer will reject the second send</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Never dual-write. The event store is already the outbox: publish from a checkpointed subscription."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 2 of 3</p>
+  <p class="quiz-q">With <code>enable.idempotence=true</code> and <code>acks=all</code>, why must Payments still dedupe on <code>eventId</code>?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="acks=all is about durability across replicas, not duplicates from restarts.">acks=all makes replicas deliver each message twice</button></li>
+    <li><button data-correct="false" data-feedback="Idempotence works with any partitioner; this isn&rsquo;t the reason.">idempotence only works with a round-robin partitioner</button></li>
+    <li><button data-correct="false" data-feedback="Consumers reading committed data don&rsquo;t see aborted sends; that isn&rsquo;t the main issue.">consumers always see uncommitted producer retries</button></li>
+    <li><button data-correct="true" data-feedback="Right — a restarted publisher re-reads from its checkpoint and sends again as a new session.">a publisher restart re-sends events as fresh messages</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="The idempotent producer dedupes in-session retries only. Crash-after-ack-before-checkpoint creates genuine re-publishes, so consumers dedupe on the stable eventId."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 3 of 3</p>
+  <p class="quiz-q">Which capability is the strongest reason Kafka alone is a poor aggregate event store?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="Right — no per-key expectedVersion; you need single-writer-per-partition to compensate.">no conditional append per key (expectedVersion)</button></li>
+    <li><button data-correct="false" data-feedback="Kafka is very durable with replication and acks=all.">it cannot durably persist events across broker failures</button></li>
+    <li><button data-correct="false" data-feedback="Kafka handles high throughput extremely well — that&rsquo;s its strength.">it cannot sustain high write throughput for events</button></li>
+    <li><button data-correct="false" data-feedback="Kafka supports long or infinite retention; compaction is the caveat, not retention.">it always deletes messages after seven days</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="The write model needs per-stream reads and conditional appends. Kafka offers neither, so you&rsquo;d rebuild them yourself (e.g. Kafka Streams + single writer per partition)."></div>
+</div>
+
+<div class="callout tryit">
+  <span class="label">Try it in your own system</span>
+  <ul class="checklist">
+    <li>Grep your services for a DB commit followed by <code>kafkaTemplate.send(</code>. Each hit is a dual write; sketch its outbox/subscription replacement.</li>
+    <li>Pick one topic another team consumes. List which fields are your <em>internal</em> model leaking. What would a coarse <code>.v1</code> integration event look like?</li>
+    <li>Check your consumers: do they dedupe on a stable id, or on the Kafka offset (which changes on re-publish)?</li>
+    <li>Write your 90-second answer to &ldquo;Can Kafka be our event store?&rdquo; using the comparison table.</li>
+  </ul>
+</div>
+
+<div class="followup">
+  <strong>I&rsquo;m your teacher &mdash; ask me anything.</strong> Want to compare Debezium-based outbox
+  relays with a subscription publisher, or design the <code>.v1</code> contract for one of your real
+  topics? Bring the schema and we&rsquo;ll draw the anti-corruption layer together.
+</div>
+
+<nav class="lesson-nav">
+  <span class="group">
+    <b>Reference</b>
+    <a href="../reference/0008-integration-and-saga-patterns.html">Integration &amp; saga patterns &rarr;</a>
+  </span>
+  <span class="group">
+    <b>Previous</b>
+    <a href="0008-subscriptions-and-the-gap-problem.html">&larr; Lesson 08 · Subscriptions &amp; the gap</a>
+  </span>
+  <span class="group">
+    <b>Up next</b>
+    <a href="0010-sagas-process-managers-and-invariants.html">Lesson 10 · Sagas, process managers &amp; invariants &rarr;</a>
+  </span>
+</nav>
+
+</body>
+</html>

@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cheat Sheet · Schema Evolution Decision Tree</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<style>
+  body { max-width: 52rem; }
+  @media print { body { margin: 0; } h2 { margin-top: 1.1rem; } }
+</style>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Event Sourcing · Reference 09</p>
+  <h1>Schema Evolution Decision Tree</h1>
+  <div class="meta"><span>Compressed from Lesson 12</span><span class="dot">•</span><span>Print-friendly</span></div>
+</header>
+
+<h2>What changed? &rarr; strategy (cheapest first)</h2>
+<table>
+  <thead><tr><th>Change</th><th>Strategy</th><th>Notes</th></tr></thead>
+  <tbody>
+    <tr><td>Added optional field</td><td><strong>Tolerant reader</strong></td><td>Default the missing field; no version bump. Never remove or repurpose fields.</td></tr>
+    <tr><td>Renamed / restructured, same meaning</td><td><strong>Upcaster</strong></td><td>Raw v1 &rarr; v2 on read; pure, one step per version; same chain everywhere.</td></tr>
+    <tr><td>Meaning genuinely different</td><td><strong>New event type</strong></td><td>Keep handling the old type in <code>evolve</code> forever (or upcast if historically true).</td></tr>
+    <tr><td>History structurally wrong / aggregate split</td><td><strong>Copy-and-transform</strong></td><td>Last resort; ADR, dry-run, archive the original read-only.</td></tr>
+    <tr><td>Business mistake</td><td><strong>Compensating event</strong></td><td>Not a schema problem. Never <code>UPDATE events</code>.</td></tr>
+  </tbody>
+</table>
+
+<h2>Tolerant reader (Jackson)</h2>
+<pre><code>mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+record MoneyDeposited(String accountId, BigDecimal amount, Instant at, String channel) {
+    MoneyDeposited { if (channel == null) channel = "UNKNOWN"; }
+}
+// Pin wire names with @JsonProperty; prefer boxed types over primitives.</code></pre>
+
+<h2>Upcaster</h2>
+<pre><code>interface Upcaster { boolean canUpcast(String type, int v); RawEvent upcast(RawEvent raw); }
+readStream → v1→v2 → v2→v3 → deserialise(latest) → decider / projections</code></pre>
+
+<h2>Formats &amp; registry modes</h2>
+<table>
+  <thead><tr><th>Mode</th><th>Guarantee</th><th>Allowed (Avro)</th><th>Upgrade first</th></tr></thead>
+  <tbody>
+    <tr><td>BACKWARD</td><td>new reads old</td><td>delete fields; add with default</td><td>consumers</td></tr>
+    <tr><td>FORWARD</td><td>old reads new</td><td>add fields; delete with default</td><td>producers</td></tr>
+    <tr><td>FULL</td><td>both</td><td>add/delete with default only</td><td>any</td></tr>
+    <tr><td>*_TRANSITIVE</td><td>against all versions</td><td>as above</td><td>&mdash;</td></tr>
+  </tbody>
+</table>
+<p>Common mix: <strong>JSON in the store</strong>, <strong>Avro/Protobuf on Kafka</strong>. The store
+replays every version ever written &mdash; think transitively. Protobuf: never reuse field numbers.</p>
+
+<div class="callout warning">
+  <span class="label">CI safety net</span>
+  <p>Keep a corpus of real historical samples (type &times; version, PII-scrubbed). On every build:
+  upcast + deserialise each; replay a golden stream to an expected state; fail if any registered
+  type/version has no sample. Catches record-component renames before prod.</p>
+</div>
+
+<nav class="lesson-nav">
+  <span class="group"><b>From</b><a href="../lessons/0012-event-schema-evolution.html">&larr; Lesson 12 · Schema evolution</a></span>
+  <span class="group"><b>Canonical terms</b><a href="../GLOSSARY.md">GLOSSARY.md</a></span>
+  <span class="group"><b>Primary source</b><a href="https://leanpub.com/esversioning" target="_blank" rel="noopener">Greg Young · Versioning in an ES System</a></span>
+</nav>
+
+</body>
+</html>

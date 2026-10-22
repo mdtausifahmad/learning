@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 06 · Rebuilds &amp; Living with Eventual Consistency</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<script src="../assets/quiz.js" defer></script>
+<script src="../assets/anim.js" defer></script>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Event Sourcing · Lesson 06</p>
+  <h1>Rebuilds &amp; Living with Eventual Consistency</h1>
+  <div class="meta">
+    <span>◷ ~14 min read</span>
+    <span class="dot">•</span>
+    <span>Level 2 · The read side</span>
+    <span class="dot">•</span>
+    <span>Prereq: <a href="0005-cqrs-and-projections.html">Lesson 05</a></span>
+  </div>
+</header>
+
+<p class="mission-tie">
+  Two things make or break an event-sourced read side in production. First: can you change a projection
+  and <strong>rebuild it without downtime</strong>? If not, you&rsquo;ve thrown away one of the main reasons
+  you chose event sourcing. Second: can you answer the product team&rsquo;s inevitable &ldquo;I clicked
+  save and the list doesn&rsquo;t show my change&rdquo; with a <strong>concrete technique</strong> rather
+  than a shrug? This lesson gives you both.
+</p>
+
+<h2>1. Changing a projection means rebuilding it</h2>
+
+<p>
+  A read model is a pure function of the log: <code>readModel = fold(projectionLogic, allEvents)</code>.
+  Change the logic &mdash; fix a rounding bug, add a column, split a table &mdash; and the existing rows are
+  now the output of the <em>old</em> function. The only correct fix is to <strong>re-run the new
+  function over all events</strong>. Hand-written <code>UPDATE</code> migrations on a read model are a smell:
+  they produce a state that no version of your code would ever have produced.
+</p>
+
+<p>
+  Rebuilding in place (truncate, reset checkpoint to 0, replay) works on a laptop. In production it means
+  an empty or half-filled table for minutes or hours. The production pattern is
+  <strong>blue/green</strong>: build the new version <em>beside</em> the old one, verify it, then swap
+  atomically.
+</p>
+
+<figure class="anim" data-anim>
+<div class="anim-stage">
+<svg viewBox="0 0 680 290" role="img" aria-label="Step-by-step: blue/green projection rebuild with versioned tables and an alias swap">
+  <g font-family="system-ui, sans-serif" font-size="11">
+    <g class="anim-el" data-step="1">
+      <rect x="250" y="10" width="180" height="40" rx="8" fill="#fff" stroke="#4b3f8f" stroke-width="2"></rect>
+      <text x="340" y="28" text-anchor="middle" font-weight="700" fill="#4b3f8f">Event store</text>
+      <text x="340" y="42" text-anchor="middle" fill="#63625c" font-size="10">head = 4,812,330</text>
+      <path d="M290 50 L150 92" stroke="#5e4fb0" stroke-width="1.5" marker-end="url(#l6a1)"></path>
+      <rect x="40" y="96" width="200" height="42" rx="6" fill="#e3f3ec" stroke="#1f7a5e" stroke-width="1.5"></rect>
+      <text x="140" y="114" text-anchor="middle" font-weight="700" fill="#1f7a5e">orders-summary-v1</text>
+      <text x="140" y="129" text-anchor="middle" fill="#63625c" font-size="10">Live &middot; ckpt 4,812,330</text>
+      <rect x="60" y="160" width="160" height="30" rx="12" fill="#efedf8" stroke="#2e5a7a"></rect>
+      <text x="140" y="179" text-anchor="middle">table rm_orders_v1</text>
+      <path d="M140 138 V156" stroke="#1f7a5e" stroke-width="1.5" marker-end="url(#l6a2)"></path>
+      <rect x="250" y="230" width="180" height="40" rx="8" fill="#fff" stroke="#2e5a7a" stroke-width="1.5"></rect>
+      <text x="340" y="248" text-anchor="middle" font-weight="700" fill="#2e5a7a">Query API</text>
+      <text x="340" y="262" text-anchor="middle" fill="#63625c" font-size="10">SELECT &hellip; FROM rm_orders</text>
+    </g>
+    <g class="anim-el" data-from="1" data-to="4">
+      <path d="M290 230 L190 194" stroke="#2e5a7a" stroke-width="1.8" marker-end="url(#l6a3)"></path>
+      <text x="200" y="222" fill="#2e5a7a" font-size="10" font-weight="700">view rm_orders &rarr; v1</text>
+    </g>
+    <g class="anim-el" data-step="2">
+      <path d="M390 50 L530 92" stroke="#5e4fb0" stroke-width="1.5" stroke-dasharray="5 3" marker-end="url(#l6a1)"></path>
+      <text x="470" y="62" fill="#5e4fb0" font-size="9.5">replay from 0</text>
+      <rect x="440" y="96" width="200" height="42" rx="6" fill="#efedf8" stroke="#5e4fb0" stroke-width="1.5" stroke-dasharray="4 3"></rect>
+      <text x="540" y="114" text-anchor="middle" font-weight="700" fill="#5e4fb0">orders-summary-v2</text>
+      <rect x="460" y="160" width="160" height="30" rx="12" fill="#fff" stroke="#2e5a7a" stroke-dasharray="4 3"></rect>
+      <text x="540" y="179" text-anchor="middle">table rm_orders_v2</text>
+      <path d="M540 138 V156" stroke="#5e4fb0" stroke-width="1.5" marker-end="url(#l6a1)"></path>
+    </g>
+    <g class="anim-el" data-only="2">
+      <text x="540" y="129" text-anchor="middle" fill="#63625c" font-size="10">CatchingUp &middot; ckpt 0</text>
+    </g>
+    <g class="anim-el" data-only="3">
+      <text x="540" y="129" text-anchor="middle" fill="#c98a1a" font-size="10" font-weight="700">CatchingUp &middot; ckpt 2,950,000 (61%)</text>
+      <rect x="460" y="196" width="160" height="8" rx="4" fill="#efedf8"></rect>
+      <rect x="460" y="196" width="98" height="8" rx="4" fill="#c98a1a"></rect>
+    </g>
+    <g class="anim-el" data-from="4">
+      <text x="540" y="129" text-anchor="middle" fill="#1f7a5e" font-size="10" font-weight="700">Live &middot; ckpt 4,812,330</text>
+    </g>
+    <g class="anim-el" data-only="4">
+      <rect x="455" y="200" width="200" height="26" rx="5" fill="#fbf1e7" stroke="#c98a1a"></rect>
+      <text x="555" y="217" text-anchor="middle" fill="#b5651d" font-size="10" font-weight="700">verify: counts &middot; sample diff &middot; checksums</text>
+    </g>
+    <g class="anim-el" data-from="5">
+      <path d="M390 230 L490 194" stroke="#1f7a5e" stroke-width="2.2" marker-end="url(#l6a2)"></path>
+      <text x="430" y="222" fill="#1f7a5e" font-size="10" font-weight="700">view rm_orders &rarr; v2</text>
+    </g>
+    <g class="anim-el" data-only="5">
+      <text x="340" y="215" text-anchor="middle" fill="#1f7a5e" font-size="10" font-weight="700">atomic swap (1 tx)</text>
+    </g>
+    <g class="anim-el" data-from="6">
+      <line x1="40" y1="96" x2="240" y2="138" stroke="#b23b3b" stroke-width="2"></line>
+      <line x1="240" y1="96" x2="40" y2="138" stroke="#b23b3b" stroke-width="2"></line>
+      <text x="140" y="88" text-anchor="middle" fill="#b23b3b" font-size="10" font-weight="700">v1 stopped</text>
+    </g>
+    <g class="anim-el" data-step="7">
+      <rect x="55" y="155" width="170" height="40" rx="12" fill="#f8eaea" opacity=".85"></rect>
+      <text x="140" y="179" text-anchor="middle" fill="#b23b3b" font-weight="700">DROP after grace period</text>
+    </g>
+  </g>
+  <defs>
+    <marker id="l6a1" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#5e4fb0"></path></marker>
+    <marker id="l6a2" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#1f7a5e"></path></marker>
+    <marker id="l6a3" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#2e5a7a"></path></marker>
+  </defs>
+</svg>
+</div>
+<div class="anim-caps">
+  <p class="anim-cap" data-step="1"><span class="n">1</span>Today: projection <code>orders-summary-v1</code> is Live, writing <code>rm_orders_v1</code>. The query API reads a stable name, the <strong>view</strong> <code>rm_orders</code>, which points at v1.</p>
+  <p class="anim-cap" data-step="2"><span class="n">2</span>Deploy <code>orders-summary-v2</code> with the new logic. It has its <strong>own name, own checkpoint (0) and own table</strong>. It starts replaying the whole log in the background. v1 is untouched.</p>
+  <p class="anim-cap" data-step="3"><span class="n">3</span>Catch-up runs for minutes to hours. Users see v1 the whole time &mdash; no empty table, no partial data. You track progress as <code>ckpt / head</code>.</p>
+  <p class="anim-cap" data-step="4"><span class="n">4</span>v2 reaches head and goes Live (it now processes new events too). Before trusting it, <strong>verify</strong>: row counts, a sampled diff against v1 for columns that shouldn&rsquo;t have changed, checksums.</p>
+  <p class="anim-cap" data-step="5"><span class="n">5</span>Swap the view (or search alias) to v2 in a <strong>single transaction</strong>. Queries flip atomically from v1 to v2.</p>
+  <p class="anim-cap" data-step="6"><span class="n">6</span>Stop v1. Rollback is still trivial: point the view back at <code>rm_orders_v1</code> (restart v1 first so it catches up the events it missed).</p>
+  <p class="anim-cap" data-step="7"><span class="n">7</span>After a grace period with no rollback, drop <code>rm_orders_v1</code> and its checkpoint row.</p>
+</div>
+<figcaption>Blue/green projection rebuild. Versioned names let v1 and v2 run side by side with separate checkpoints.</figcaption>
+</figure>
+
+<h2>2. The mechanics of a blue/green rebuild</h2>
+
+<h3>Versioned names everywhere</h3>
+<p>
+  Name the projection <em>and</em> its storage with a version: <code>orders-summary-v2</code> &rarr;
+  checkpoint row <code>orders-summary-v2</code> &rarr; table <code>rm_orders_v2</code>. That&rsquo;s what lets
+  two versions coexist. Bump the version for any logic change that alters output; leave it alone for pure
+  refactors.
+</p>
+
+<h3>The swap: Postgres</h3>
+<p>Postgres DDL is transactional, so a view swap is atomic even if v2 changed the columns:</p>
+
+<pre><code>BEGIN;
+DROP VIEW IF EXISTS rm_orders;
+CREATE VIEW rm_orders AS SELECT * FROM rm_orders_v2;
+COMMIT;
+-- CREATE OR REPLACE VIEW also works, but only if v2 keeps v1's columns
+-- (same names/types/order; new columns may be appended at the end).</code></pre>
+
+<p>
+  Alternatives: keep each version in its own schema (<code>orders_v1</code>, <code>orders_v2</code>) and
+  swap the API&rsquo;s <code>search_path</code>, or <code>ALTER TABLE &hellip; RENAME</code> both tables
+  inside one transaction.
+</p>
+
+<h3>The swap: OpenSearch / Elasticsearch</h3>
+<p>Use an <strong>index alias</strong>; the <code>_aliases</code> API applies remove + add atomically:</p>
+
+<pre><code>POST /_aliases
+{ "actions": [
+    { "remove": { "index": "orders_v1", "alias": "orders" } },
+    { "add":    { "index": "orders_v2", "alias": "orders" } }
+] }</code></pre>
+
+<h3>Verify before you swap</h3>
+<pre><code>-- 1. Same population?
+SELECT (SELECT count(*) FROM rm_orders_v1) AS v1, (SELECT count(*) FROM rm_orders_v2) AS v2;
+
+-- 2. Rows whose unchanged columns differ (should be empty)
+SELECT order_id, customer_id, status FROM rm_orders_v1
+EXCEPT
+SELECT order_id, customer_id, status FROM rm_orders_v2;
+
+-- 3. Spot-check the columns you DID change, on a random sample
+SELECT v1.order_id, v1.total AS old_total, v2.total AS new_total
+  FROM rm_orders_v1 AS v1 TABLESAMPLE SYSTEM (1)   -- ~1% of v1's pages
+  JOIN rm_orders_v2 AS v2 USING (order_id);</code></pre>
+
+<p>
+  Compare at a moment when both checkpoints are equal (or stop v1 first), otherwise in-flight events show
+  up as false differences.
+</p>
+
+<h2>3. Rebuild speed &mdash; and why it is an SLO</h2>
+
+<table>
+  <thead><tr><th>Technique</th><th>How</th><th>Watch out for</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Batch writes</strong></td><td>Apply hundreds/thousands of events per transaction; use <code>COPY</code> or JDBC batch for Postgres, the bulk API for search</td><td>Checkpoint once per batch, in the same tx</td></tr>
+    <tr><td><strong>Defer indexes</strong></td><td>Create only the primary key during catch-up; build secondary indexes once near head</td><td>Create them <em>before</em> the swap, or queries crawl</td></tr>
+    <tr><td><strong>Parallelise by stream</strong></td><td>For per-entity projections, split by <code>hash(stream_id) % N</code>; each partition has its own checkpoint</td><td>Not valid for cross-stream joins or ordered aggregations</td></tr>
+    <tr><td><strong>Cheap durability while rebuilding</strong></td><td>Postgres <code>UNLOGGED</code> table during catch-up, <code>ALTER TABLE &hellip; SET LOGGED</code> before swap</td><td>A crash empties an unlogged table &rarr; restart from 0</td></tr>
+    <tr><td><strong>Read in big pages</strong></td><td>Fetch 1&ndash;10k events per read; stream with a cursor</td><td>Memory; keep deserialisation off the hot path</td></tr>
+    <tr><td><strong>Isolate the load</strong></td><td>Read from a replica; write to a separate read-model database</td><td>Replica lag; don&rsquo;t starve live projections</td></tr>
+  </tbody>
+</table>
+
+<div class="callout insight">
+  <span class="label">Rebuild time is an operational SLO</span>
+  <p>&ldquo;How long to rebuild the slowest projection from zero?&rdquo; Measure it, publish it, alert when
+  it trends up. If the answer is <strong>days</strong>, you&rsquo;ve lost one of event sourcing&rsquo;s main
+  benefits: fixing a read-model bug becomes a multi-day incident, so teams start patching rows by hand
+  &mdash; and the read model silently drifts from the log. Typical fixes: faster rebuild techniques above,
+  narrower projections, or closing the books so history is shorter (Lesson 07).</p>
+</div>
+
+<h2>4. Eventual consistency: the product conversation</h2>
+
+<p>
+  The #1 objection from product teams: <em>&ldquo;I clicked save and the list doesn&rsquo;t show my
+  change.&rdquo;</em> The lag is real (milliseconds to seconds; much longer during an incident), and
+  &ldquo;it&rsquo;s eventually consistent&rdquo; is not an answer a PM can ship. Staff engineers solve it
+  pragmatically with a menu of techniques:
+</p>
+
+<table>
+  <thead><tr><th>Technique</th><th>How</th><th>Trade-off</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Return the result from the command</strong></td><td>Command handler returns new version / computed values; UI updates optimistically</td><td>Simplest; covers most cases</td></tr>
+    <tr><td><strong>Read-your-writes via position token</strong></td><td>Command returns <code>globalPosition</code>; query passes <code>?minPosition=&hellip;</code>; API waits (bounded, e.g. 2 s) until checkpoint &ge; token</td><td>Strong UX, small latency cost</td></tr>
+    <tr><td><strong>Inline / synchronous projection</strong></td><td>Update the critical read model in the <strong>same transaction</strong> as the append (store and read model share Postgres; Marten calls these &ldquo;inline projections&rdquo;)</td><td>Couples write latency &amp; failures to the projection; fine for 1&ndash;2 critical views</td></tr>
+    <tr><td><strong>Read from the aggregate</strong></td><td>For &ldquo;get by id&rdquo;, just rehydrate the stream</td><td>Always consistent; only works by id</td></tr>
+    <tr><td><strong>Push to the client</strong></td><td>WebSocket/SSE notification when the projection has caught up</td><td>Best UX, more infrastructure</td></tr>
+    <tr><td><strong>Design the UI</strong></td><td>&ldquo;Your order is being processed&rdquo;</td><td>Often the business is fine with it &mdash; <em>ask</em></td></tr>
+  </tbody>
+</table>
+
+<h2>5. Read-your-writes with a position token</h2>
+
+<p>
+  The insight: the global position is a <strong>logical clock</strong> shared by every projection. If your
+  write landed at position 1,042, then any projection whose checkpoint is &ge; 1,042 has already seen it.
+  So the client carries that number from the command response to the next query.
+</p>
+
+<figure class="anim" data-anim>
+<div class="anim-stage">
+<svg viewBox="0 0 660 270" role="img" aria-label="Step-by-step sequence: read-your-writes using a global position token">
+  <g font-family="system-ui, sans-serif" font-size="11">
+    <g class="anim-el" data-step="1">
+      <rect x="20" y="10" width="100" height="28" rx="5" fill="#fff" stroke="#63625c"></rect>
+      <text x="70" y="28" text-anchor="middle" font-weight="700">Client</text>
+      <rect x="170" y="10" width="120" height="28" rx="5" fill="#efedf8" stroke="#4b3f8f"></rect>
+      <text x="230" y="28" text-anchor="middle" font-weight="700" fill="#4b3f8f">Command API</text>
+      <rect x="340" y="10" width="120" height="28" rx="5" fill="#fff" stroke="#4b3f8f" stroke-width="1.5"></rect>
+      <text x="400" y="28" text-anchor="middle" font-weight="700" fill="#4b3f8f">Event store</text>
+      <rect x="510" y="10" width="130" height="28" rx="5" fill="#fff" stroke="#2e5a7a"></rect>
+      <text x="575" y="28" text-anchor="middle" font-weight="700" fill="#2e5a7a">Query API + RM</text>
+      <line x1="70" y1="38" x2="70" y2="260" stroke="#e2e2da" stroke-dasharray="3 3"></line>
+      <line x1="230" y1="38" x2="230" y2="260" stroke="#e2e2da" stroke-dasharray="3 3"></line>
+      <line x1="400" y1="38" x2="400" y2="260" stroke="#e2e2da" stroke-dasharray="3 3"></line>
+      <line x1="575" y1="38" x2="575" y2="260" stroke="#e2e2da" stroke-dasharray="3 3"></line>
+      <path d="M70 60 H226" stroke="#4b3f8f" stroke-width="1.5" marker-end="url(#l6b1)"></path>
+      <text x="148" y="54" text-anchor="middle" fill="#4b3f8f">POST /orders/7/items</text>
+    </g>
+    <g class="anim-el" data-step="2">
+      <path d="M230 82 H396" stroke="#4b3f8f" stroke-width="1.5" marker-end="url(#l6b1)"></path>
+      <text x="313" y="76" text-anchor="middle" fill="#4b3f8f">append (expectedVersion)</text>
+      <path d="M400 100 H234" stroke="#1f7a5e" stroke-width="1.5" stroke-dasharray="4 2" marker-end="url(#l6b2)"></path>
+      <text x="317" y="114" text-anchor="middle" fill="#1f7a5e" font-weight="700">globalPosition = 1042</text>
+    </g>
+    <g class="anim-el" data-step="3">
+      <path d="M230 130 H74" stroke="#1f7a5e" stroke-width="1.5" stroke-dasharray="4 2" marker-end="url(#l6b2)"></path>
+      <text x="150" y="125" text-anchor="middle" fill="#1f7a5e">202 &#123;position: 1042&#125;</text>
+    </g>
+    <g class="anim-el" data-step="4">
+      <path d="M70 158 H571" stroke="#2e5a7a" stroke-width="1.5" marker-end="url(#l6b3)"></path>
+      <text x="320" y="152" text-anchor="middle" fill="#2e5a7a" font-weight="700">GET /orders/7?minPosition=1042</text>
+    </g>
+    <g class="anim-el" data-only="5">
+      <rect x="585" y="168" width="70" height="40" rx="5" fill="#fbf1e7" stroke="#c98a1a"></rect>
+      <text x="620" y="184" text-anchor="middle" fill="#b5651d" font-size="9.5" font-weight="700">ckpt 1039</text>
+      <text x="620" y="199" text-anchor="middle" fill="#b5651d" font-size="9.5">wait&hellip;</text>
+    </g>
+    <g class="anim-el" data-from="6">
+      <rect x="585" y="168" width="70" height="40" rx="5" fill="#e3f3ec" stroke="#1f7a5e"></rect>
+      <text x="620" y="184" text-anchor="middle" fill="#1f7a5e" font-size="9.5" font-weight="700">ckpt 1043</text>
+      <text x="620" y="199" text-anchor="middle" fill="#1f7a5e" font-size="9.5">&ge; 1042 &#10003;</text>
+    </g>
+    <g class="anim-el" data-step="6">
+      <path d="M575 228 H74" stroke="#1f7a5e" stroke-width="1.5" stroke-dasharray="4 2" marker-end="url(#l6b2)"></path>
+      <text x="320" y="222" text-anchor="middle" fill="#1f7a5e">200 &middot; order incl. the new item (after ~40 ms)</text>
+    </g>
+    <g class="anim-el" data-only="7">
+      <path d="M575 252 H74" stroke="#c98a1a" stroke-width="1.5" stroke-dasharray="4 2" marker-end="url(#l6b4)"></path>
+      <text x="320" y="246" text-anchor="middle" fill="#b5651d">timeout after 2 s &rarr; 200 + X-Read-Model-Fresh: false (UI shows &ldquo;updating&hellip;&rdquo;)</text>
+    </g>
+  </g>
+  <defs>
+    <marker id="l6b1" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#4b3f8f"></path></marker>
+    <marker id="l6b2" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#1f7a5e"></path></marker>
+    <marker id="l6b3" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#2e5a7a"></path></marker>
+    <marker id="l6b4" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#c98a1a"></path></marker>
+  </defs>
+</svg>
+</div>
+<div class="anim-caps">
+  <p class="anim-cap" data-step="1"><span class="n">1</span>The client sends a command (add an item to order 7).</p>
+  <p class="anim-cap" data-step="2"><span class="n">2</span>The handler appends; the store returns the <strong>global position</strong> of the last appended event: 1042.</p>
+  <p class="anim-cap" data-step="3"><span class="n">3</span>The command response carries that position as a <strong>consistency token</strong> (body field, header, or ETag-like value).</p>
+  <p class="anim-cap" data-step="4"><span class="n">4</span>The client&rsquo;s next query sends it back: &ldquo;don&rsquo;t answer from a read model older than 1042&rdquo;.</p>
+  <p class="anim-cap" data-step="5"><span class="n">5</span>The projection is at 1039 &mdash; three events behind. The query API waits, polling the checkpoint (or woken by <code>LISTEN/NOTIFY</code>).</p>
+  <p class="anim-cap" data-step="6"><span class="n">6</span>Checkpoint passes 1042 a few ms later; the API answers from the read model and the user sees their own write.</p>
+  <p class="anim-cap" data-step="7"><span class="n">7</span>The wait is <strong>bounded</strong>. If the projection is badly lagging, return what you have and say so &mdash; never block a request thread indefinitely on a stuck projection.</p>
+</div>
+<figcaption>Read-your-writes: the global position works as a logical clock across every projection.</figcaption>
+</figure>
+
+<pre><code>// Command side: return the token
+public record CommandResult(String streamId, long newVersion, long globalPosition) { }
+
+// Query side: wait (bounded) until the projection has caught up to the caller's write
+public OrderView getOrder(String orderId, Optional&lt;Long&gt; minPosition) {
+    minPosition.ifPresent(p -&gt; checkpoints.awaitAtLeast("orders-summary-v2", p, Duration.ofSeconds(2)));
+    return repo.findById(orderId).orElseThrow(NotFound::new);
+}
+
+// A simple, honest implementation
+public boolean awaitAtLeast(String projection, long position, Duration timeout) {
+    long deadline = System.nanoTime() + timeout.toNanos();
+    while (true) {
+        Long current = jdbc.queryForObject(
+            "SELECT position FROM projection_checkpoints WHERE name = ?", Long.class, projection);
+        if (current != null &amp;&amp; current &gt;= position) return true;
+        if (System.nanoTime() &gt;= deadline) return false;   // caller decides: stale-but-flagged
+        LockSupport.parkNanos(Duration.ofMillis(20).toNanos());
+    }
+}</code></pre>
+
+<div class="callout warning">
+  <span class="label">Details that matter in production</span>
+  <ul>
+    <li><strong>Don&rsquo;t hard-code the projection version</strong> in the query path. Resolve &ldquo;the
+    projection currently behind the <code>rm_orders</code> alias&rdquo; so a blue/green swap doesn&rsquo;t
+    silently make you wait on the retired v1.</li>
+    <li><strong>The token is only as good as the checkpoint.</strong> If your poller can skip events (the
+    gap problem, <a href="0008-subscriptions-and-the-gap-problem.html">Lesson 08</a>), &ldquo;checkpoint &ge;
+    token&rdquo; doesn&rsquo;t prove your event was applied.</li>
+    <li><strong>Polling the checkpoint table from every request</strong> is fine at modest QPS; at scale,
+    cache the checkpoint in memory and refresh it from <code>LISTEN/NOTIFY</code>.</li>
+  </ul>
+</div>
+
+<h2>6. Inline projections: when consistency must be immediate</h2>
+
+<p>
+  When the event store and the read model share one Postgres database, you can update a critical read model
+  <strong>in the same transaction as the append</strong>. Marten calls these <em>inline projections</em>; the
+  read model is then strongly consistent with the write.
+</p>
+
+<pre><code>@Transactional
+public CommandResult handle(AddItem cmd) {
+    var state  = load(cmd.orderId());
+    var events = Order.decide(cmd, state);
+    long pos   = store.append(cmd.orderId(), state.version(), events);
+    inlineOrderSummary.apply(events, pos);   // same tx: both commit or neither
+    return new CommandResult(cmd.orderId(), state.version() + events.size(), pos);
+}</code></pre>
+
+<table>
+  <thead><tr><th>You get</th><th>You pay</th></tr></thead>
+  <tbody>
+    <tr><td>Zero lag for that view</td><td>Every append now waits for the projection&rsquo;s writes</td></tr>
+    <tr><td>No position tokens needed</td><td>A projection bug now <strong>fails the command</strong></td></tr>
+    <tr><td>Simple mental model for the UI</td><td>Row locks on read-model rows add write contention</td></tr>
+    <tr><td></td><td>Still needs an async path for rebuilds (replaying from 0)</td></tr>
+  </tbody>
+</table>
+
+<p>Rule of thumb: inline for <strong>one or two</strong> views that genuinely need it; async for everything else.</p>
+
+<h2>7. Choosing a strategy</h2>
+
+<table>
+  <thead><tr><th>Situation</th><th>Reach for</th></tr></thead>
+  <tbody>
+    <tr><td>The user needs to see the effect of their own action</td><td>Return the result from the command; optimistic UI</td></tr>
+    <tr><td>The next screen is a list/search including the user&rsquo;s change</td><td>Position token + bounded wait</td></tr>
+    <tr><td>A detail page by id</td><td>Read from the aggregate (rehydrate)</td></tr>
+    <tr><td>Other users must see changes quickly (dashboards, collaboration)</td><td>Push (SSE/WebSocket) on checkpoint advance</td></tr>
+    <tr><td>A single view must be transactionally exact (e.g. available balance shown at checkout)</td><td>Inline projection</td></tr>
+    <tr><td>Back-office reports, analytics</td><td>Plain eventual consistency &mdash; agree the freshness SLO with the business</td></tr>
+  </tbody>
+</table>
+
+<div class="callout insight">
+  <span class="label">Ask the business before you engineer</span>
+  <p>&ldquo;How stale can this screen be before someone makes a wrong decision?&rdquo; is a product question.
+  Many teams spend weeks on strong consistency for a report read once a day. Turn the answer into an
+  explicit <strong>freshness SLO</strong> per read model (&ldquo;p99 projection lag &lt; 2 s&rdquo;) and alert
+  on it.</p>
+</div>
+
+<div class="primary-source">
+  <span class="label">Read this next (primary source)</span>
+  <p>Marten docs &mdash; <a href="https://martendb.io/events/projections/" target="_blank" rel="noopener"><em>Projections</em></a>
+  (inline vs async vs live lifecycles, and the async daemon&rsquo;s rebuild support), and Microsoft&rsquo;s
+  <a href="https://learn.microsoft.com/azure/architecture/patterns/cqrs" target="_blank" rel="noopener"><em>CQRS pattern</em></a>
+  on eventual consistency between write and read stores.</p>
+</div>
+
+<h2>8. Check yourself</h2>
+<p>Retrieve before revealing.</p>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 1 of 3</p>
+  <p class="quiz-q">You fixed a bug in <code>orders-summary-v1</code>&rsquo;s total calculation. The zero-downtime way to ship it is to&hellip;</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="Users see an empty/partial table for the whole replay.">truncate rm_orders_v1, reset its checkpoint, replay</button></li>
+    <li><button data-correct="true" data-feedback="Right — v2 builds beside v1 with its own checkpoint; swap atomically after verifying.">deploy v2 into a new table, catch up, verify, swap</button></li>
+    <li><button data-correct="false" data-feedback="That produces state no version of your code would produce, and drifts from the log.">write a SQL UPDATE that fixes the existing totals</button></li>
+    <li><button data-correct="false" data-feedback="Old rows keep the wrong totals forever — the read model disagrees with itself.">deploy the fix in place and let new events correct it</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Logic change = rebuild. Blue/green: versioned projection + table, catch up in the background, verify, atomic alias/view swap, drop v1 later."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 2 of 3</p>
+  <p class="quiz-q">Why does a global position work as a read-your-writes token across <em>any</em> projection?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="Stream versions are per stream; they don&rsquo;t compare across projections.">each stream version is unique across the store</button></li>
+    <li><button data-correct="false" data-feedback="Timestamps can skew between nodes and say nothing about what a projection has applied.">it doubles as a precise wall-clock timestamp</button></li>
+    <li><button data-correct="true" data-feedback="Right — one total order; checkpoint ≥ token means the write has been processed.">all projections consume the same ordered log</button></li>
+    <li><button data-correct="false" data-feedback="Projections are deliberately independent; they don&rsquo;t share checkpoints.">every projection shares a single checkpoint row</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="The global position is a logical clock over one total order. Any projection whose checkpoint has reached the token has seen the write (assuming no skipped gaps)."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 3 of 3</p>
+  <p class="quiz-q">The main cost of making a read model an <em>inline</em> projection is that&hellip;</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="Inline projections are still derived from events and can be rebuilt.">the read model can no longer be rebuilt from events</button></li>
+    <li><button data-correct="false" data-feedback="Inline means the same tx — it removes lag rather than adding it.">the read model becomes more eventually consistent</button></li>
+    <li><button data-correct="false" data-feedback="It only requires that the read model shares a database with the store.">it forces you to run a separate event store cluster</button></li>
+    <li><button data-correct="true" data-feedback="Right — write latency and failures are now coupled to the projection.">every command now pays for and can fail on its writes</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Inline projections trade write-path latency and failure isolation for zero lag. Use them for 1–2 critical views only."></div>
+</div>
+
+<div class="callout tryit">
+  <span class="label">Try it in your own system</span>
+  <ul class="checklist">
+    <li>Change your <code>TransactionsByDay</code> logic, deploy it as <code>v2</code>, rebuild side by side, verify with <code>EXCEPT</code>, and swap a view in one transaction.</li>
+    <li>Time a full rebuild of your largest projection. Write the number down; that&rsquo;s your rebuild SLO baseline.</li>
+    <li>Implement <code>?minPosition=</code> on one endpoint with a 2 s bounded wait and a freshness header. Kill the projector and confirm the endpoint degrades gracefully.</li>
+    <li>For one screen your PM cares about, ask: &ldquo;how stale is acceptable?&rdquo; Record the answer as a freshness SLO.</li>
+  </ul>
+</div>
+
+<div class="followup">
+  <strong>I&rsquo;m your teacher &mdash; ask me anything.</strong> Wondering how to rebuild a 2-billion-event
+  projection in hours, how to do blue/green with Kafka-fed read models, or how to explain eventual consistency
+  to a sceptical PM? Bring the concrete case.
+</div>
+
+<nav class="lesson-nav">
+  <span class="group">
+    <b>Reference</b>
+    <a href="../reference/0006-consistency-ux-strategies.html">Eventual-consistency strategies &rarr;</a>
+  </span>
+  <span class="group">
+    <b>Previous</b>
+    <a href="0005-cqrs-and-projections.html">&larr; Lesson 05 · CQRS &amp; projections</a>
+  </span>
+  <span class="group">
+    <b>Up next</b>
+    <a href="0007-snapshots-and-closing-the-books.html">Lesson 07 · Snapshots &amp; closing the books &rarr;</a>
+  </span>
+</nav>
+
+</body>
+</html>

@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 07 · Snapshots &amp; Closing the Books</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<script src="../assets/quiz.js" defer></script>
+<script src="../assets/anim.js" defer></script>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Event Sourcing · Lesson 07</p>
+  <h1>Snapshots &amp; Closing the Books</h1>
+  <div class="meta">
+    <span>◷ ~14 min read</span>
+    <span class="dot">•</span>
+    <span>Level 3 · Production engineering</span>
+    <span class="dot">•</span>
+    <span>Prereq: <a href="0006-rebuilds-and-eventual-consistency.html">Lesson 06</a></span>
+  </div>
+</header>
+
+<p class="mission-tie">
+  Every command rehydrates its aggregate by folding the stream. Fifty events: microseconds. Five hundred
+  thousand: your p99 is now a problem. The junior reflex is &ldquo;add snapshots&rdquo;. The Staff reflex
+  is to ask first <em>why the stream is that long</em> &mdash; and very often the answer is a missing
+  business event that would let you <strong>close the books</strong> and start a fresh, short stream.
+  This lesson gives you both tools and the judgement to pick between them.
+</p>
+
+<h2>1. The cost you&rsquo;re fighting: rehydration</h2>
+
+<p>
+  Loading an aggregate is <code>readStream(id)</code> + <code>fold(evolve)</code>. Its cost grows linearly
+  with stream length: rows read, bytes transferred, JSON deserialised, <code>evolve</code> calls. For most
+  aggregates &mdash; an order, a claim, a booking &mdash; streams stay in the tens or low hundreds of
+  events and none of this matters. It starts to matter for <em>long-lived</em> entities: a bank account
+  over ten years, a warehouse bin, a loyalty card, an IoT device.
+</p>
+
+<table>
+  <thead><tr><th>Stream shape</th><th>Typical length</th><th>Rehydration</th><th>Action</th></tr></thead>
+  <tbody>
+    <tr><td>Short lifecycle (order, booking, claim)</td><td>10&ndash;200 events</td><td>negligible</td><td>Nothing. Don&rsquo;t snapshot.</td></tr>
+    <tr><td>Long-lived, natural periods (account, subscription)</td><td>grows forever</td><td>degrades slowly</td><td><strong>Close the books</strong> per period</td></tr>
+    <tr><td>Long-lived, no natural period, read-heavy</td><td>thousands+</td><td>measurable</td><td><strong>Snapshot</strong> (after measuring)</td></tr>
+    <tr><td>Very high write rate on one id</td><td>huge, fast</td><td>bad <em>and</em> conflicts</td><td>Re-model: <strong>hot aggregate</strong> (&sect;6)</td></tr>
+  </tbody>
+</table>
+
+<h2>2. Snapshots: a cache of folded state</h2>
+
+<p>
+  A <strong>snapshot</strong> stores the aggregate&rsquo;s state at version N. Loading becomes: read the
+  snapshot, then fold only the events after N.
+</p>
+
+<figure class="anim" data-anim>
+<div class="anim-stage">
+<svg viewBox="0 0 680 280" role="img" aria-label="Step-by-step: loading an aggregate with a snapshot, falling back to full replay when the snapshot schema is stale, and a background snapshotter">
+  <g font-family="system-ui, sans-serif" font-size="11">
+    <g class="anim-el" data-step="1">
+      <text x="14" y="22" font-weight="700" fill="#4b3f8f" font-size="10" letter-spacing="1">STREAM account-A1 &middot; 10,042 events</text>
+      <rect x="14" y="32" width="652" height="30" rx="4" fill="#efedf8" stroke="#5e4fb0"></rect>
+      <text x="40" y="51" fill="#63625c" font-size="10">v1</text>
+      <text x="610" y="51" fill="#63625c" font-size="10">v10,042</text>
+    </g>
+    <g class="anim-el" data-only="1">
+      <path d="M20 72 H660" stroke="#b23b3b" stroke-width="2" marker-end="url(#l7a3)"></path>
+      <text x="340" y="88" text-anchor="middle" fill="#b23b3b" font-weight="700">without snapshot: fold all 10,042 events on every command</text>
+    </g>
+    <g class="anim-el" data-step="2">
+      <rect x="14" y="110" width="200" height="54" rx="8" fill="#fff" stroke="#c98a1a" stroke-width="1.8"></rect>
+      <text x="114" y="128" text-anchor="middle" font-weight="700" fill="#b5651d">snapshots row</text>
+      <text x="114" y="143" text-anchor="middle" font-size="10">stream_version = 10,000</text>
+      <text x="114" y="157" text-anchor="middle" font-size="10">schema_version = 3</text>
+    </g>
+    <g class="anim-el" data-step="3">
+      <rect x="250" y="110" width="160" height="54" rx="8" fill="#fff" stroke="#4b3f8f"></rect>
+      <text x="330" y="130" text-anchor="middle" font-weight="700" fill="#4b3f8f">schema 3 == current 3?</text>
+      <path d="M214 137 H246" stroke="#4b3f8f" stroke-width="1.5" marker-end="url(#l7a1)"></path>
+    </g>
+    <g class="anim-el" data-from="3" data-to="4">
+      <text x="330" y="150" text-anchor="middle" fill="#1f7a5e" font-weight="700">&#10003; use it</text>
+    </g>
+    <g class="anim-el" data-from="4" data-to="4">
+      <rect x="612" y="32" width="54" height="30" rx="4" fill="#5e4fb0"></rect>
+      <text x="639" y="51" text-anchor="middle" fill="#fff" font-size="10">42 new</text>
+      <rect x="14" y="32" width="598" height="30" rx="4" fill="#fcfcfa" opacity=".75"></rect>
+      <text x="300" y="51" text-anchor="middle" fill="#63625c" font-size="10">skipped &mdash; covered by snapshot</text>
+      <path d="M639 66 V180 H560" stroke="#5e4fb0" stroke-width="1.5" fill="none" marker-end="url(#l7a1)"></path>
+      <path d="M410 137 H460 V180 H476" stroke="#1f7a5e" stroke-width="1.5" fill="none" marker-end="url(#l7a2)"></path>
+      <rect x="480" y="168" width="78" height="26" rx="5" fill="#efedf8" stroke="#4b3f8f"></rect>
+      <text x="519" y="185" text-anchor="middle" font-weight="700" fill="#4b3f8f">fold 42</text>
+      <rect x="440" y="210" width="160" height="30" rx="6" fill="#e3f3ec" stroke="#1f7a5e" stroke-width="1.5"></rect>
+      <text x="520" y="229" text-anchor="middle" font-weight="700" fill="#1f7a5e">state @ v10,042</text>
+      <path d="M519 194 V206" stroke="#1f7a5e" stroke-width="1.5" marker-end="url(#l7a2)"></path>
+    </g>
+    <g class="anim-el" data-only="5">
+      <text x="330" y="150" text-anchor="middle" fill="#b23b3b" font-weight="700">&#10007; snapshot is v2-shaped</text>
+      <line x1="14" y1="110" x2="214" y2="164" stroke="#b23b3b" stroke-width="2"></line>
+      <path d="M20 72 H660" stroke="#c98a1a" stroke-width="2" marker-end="url(#l7a4)"></path>
+      <text x="340" y="88" text-anchor="middle" fill="#b5651d" font-weight="700">ignore it &rarr; full replay from v1 (slower, still correct)</text>
+    </g>
+    <g class="anim-el" data-step="6">
+      <rect x="14" y="200" width="250" height="60" rx="8" fill="#fff" stroke="#63625c" stroke-dasharray="4 3"></rect>
+      <text x="139" y="220" text-anchor="middle" font-weight="700" fill="#63625c">Background snapshotter</text>
+      <text x="139" y="236" text-anchor="middle" font-size="10">subscribes to events; every N per stream:</text>
+      <text x="139" y="251" text-anchor="middle" font-size="10">load &rarr; UPSERT snapshot (only if newer)</text>
+      <path d="M114 200 V168" stroke="#63625c" stroke-dasharray="3 3" marker-end="url(#l7a5)"></path>
+    </g>
+    <g class="anim-el" data-only="7">
+      <rect x="300" y="244" width="366" height="30" rx="6" fill="#efedf8" stroke="#5e4fb0"></rect>
+      <text x="483" y="263" text-anchor="middle" fill="#4b3f8f" font-weight="700">DELETE FROM snapshots; &rarr; system still works, only slower</text>
+    </g>
+  </g>
+  <defs>
+    <marker id="l7a1" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#4b3f8f"></path></marker>
+    <marker id="l7a2" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#1f7a5e"></path></marker>
+    <marker id="l7a3" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#b23b3b"></path></marker>
+    <marker id="l7a4" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#c98a1a"></path></marker>
+    <marker id="l7a5" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#63625c"></path></marker>
+  </defs>
+</svg>
+</div>
+<div class="anim-caps">
+  <p class="anim-cap" data-step="1"><span class="n">1</span>A long-lived account stream with 10,042 events. Without a snapshot, every command folds all of them.</p>
+  <p class="anim-cap" data-step="2"><span class="n">2</span>A <strong>snapshot</strong> row holds the folded state at <code>stream_version = 10,000</code>, tagged with the <strong>shape</strong> of that state: <code>schema_version = 3</code>.</p>
+  <p class="anim-cap" data-step="3"><span class="n">3</span>Before trusting it, check the shape. If the snapshot was written by code with the current state schema, use it.</p>
+  <p class="anim-cap" data-step="4"><span class="n">4</span>Start from the snapshot state and fold only events <strong>after</strong> v10,000 &mdash; 42 instead of 10,042. Same final state, a fraction of the work.</p>
+  <p class="anim-cap" data-step="5"><span class="n">5</span>Shape changed (you added a field to <code>AccountState</code>)? <strong>Ignore</strong> the stale snapshot and replay from v1. Correctness never depends on the snapshot.</p>
+  <p class="anim-cap" data-step="6"><span class="n">6</span>Snapshots are written <strong>asynchronously</strong> by a background subscriber every N events &mdash; never on the command path, so writes don&rsquo;t slow down.</p>
+  <p class="anim-cap" data-step="7"><span class="n">7</span>The acid test: delete every snapshot. The system must still work, only slower. If it doesn&rsquo;t, a cache has become your source of truth.</p>
+</div>
+<figcaption>Snapshot-assisted rehydration, the stale-shape fallback, and the asynchronous snapshotter.</figcaption>
+</figure>
+
+<h3>Schema</h3>
+<pre><code>CREATE TABLE snapshots (
+    stream_id       TEXT PRIMARY KEY,
+    stream_version  BIGINT NOT NULL,
+    schema_version  INT    NOT NULL,   -- snapshot SHAPE version!
+    state           JSONB  NOT NULL,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);</code></pre>
+
+<h3>Loading with a snapshot</h3>
+<pre><code>static final int CURRENT_SNAPSHOT_SCHEMA = 3;
+
+AccountState load(String streamId) {
+    var snap = snapshots.find(streamId)
+            .filter(s -&gt; s.schemaVersion() == CURRENT_SNAPSHOT_SCHEMA);   // stale shape? ignore it
+    AccountState state = snap.map(Snapshot::state).orElse(Account.INITIAL);
+    long from = snap.map(Snapshot::streamVersion).orElse(0L);
+    for (var e : store.readStream(streamId, from)) state = Account.evolve(state, e);  // events after 'from'
+    return state;
+}</code></pre>
+
+<h3>Writing snapshots asynchronously</h3>
+<pre><code>public record Snapshot(String streamId, long streamVersion, int schemaVersion, AccountState state) { }
+
+// A subscriber, like a projection. Runs off the command path.
+public void onEvent(EventEnvelope env) {
+    if (env.streamVersion() % 500 != 0) return;            // every N events per stream
+    AccountState state = load(env.streamId());              // uses the previous snapshot
+    jdbc.update("""
+        INSERT INTO snapshots (stream_id, stream_version, schema_version, state)
+        VALUES (?, ?, ?, ?::jsonb)
+        ON CONFLICT (stream_id) DO UPDATE
+           SET stream_version = EXCLUDED.stream_version,
+               schema_version = EXCLUDED.schema_version,
+               state          = EXCLUDED.state,
+               created_at     = now()
+         WHERE snapshots.stream_version &lt; EXCLUDED.stream_version   -- never go backwards
+        """, env.streamId(), state.version(), CURRENT_SNAPSHOT_SCHEMA, json.write(state));
+}</code></pre>
+
+<p>
+  Note that <code>load</code> may already be past <code>env.streamVersion()</code> by the time it runs; storing
+  <code>state.version()</code> (not the triggering event&rsquo;s version) keeps the snapshot honest.
+</p>
+
+<h2>3. Five Staff-level rules for snapshots</h2>
+
+<table>
+  <thead><tr><th>#</th><th>Rule</th><th>Why it matters</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td><strong>Snapshots are a cache, never a source of truth.</strong></td><td>Delete them all and the system must still work (slower). No business logic may read them except <code>load</code>.</td></tr>
+    <tr><td>2</td><td><strong>Don&rsquo;t add them until you measure a need.</strong></td><td>Many aggregates never exceed ~100 events. A premature snapshot is one more schema to version, test and migrate.</td></tr>
+    <tr><td>3</td><td><strong>Version the snapshot schema.</strong></td><td>When state changes shape, ignore old snapshots and rebuild from events. Otherwise you deserialise yesterday&rsquo;s shape into today&rsquo;s record and get silent nulls.</td></tr>
+    <tr><td>4</td><td><strong>Take snapshots asynchronously.</strong></td><td>Every N events, by a background process &mdash; don&rsquo;t add a write to the command path.</td></tr>
+    <tr><td>5</td><td><strong>Huge streams? First question the aggregate boundary.</strong></td><td>&ldquo;Snapshot because the stream is big&rdquo; often means &ldquo;you missed a lifecycle event&rdquo; (&sect;4).</td></tr>
+  </tbody>
+</table>
+
+<div class="callout warning">
+  <span class="label">The bug that rule 3 prevents</span>
+  <p>You add <code>overdraftLimit</code> to <code>AccountState</code>. Old snapshots deserialise with
+  <code>overdraftLimit = null</code> (or 0) &mdash; but the events that set it were folded <em>into</em> the
+  snapshot and are now skipped. Commands run against a state no replay would ever produce. Bump
+  <code>CURRENT_SNAPSHOT_SCHEMA</code> with every shape change and let stale snapshots fall through to full
+  replay; the background snapshotter will refresh them.</p>
+</div>
+
+<h2>4. Closing the books</h2>
+
+<p>
+  Accountants close the books every period and <em>carry the balance forward</em>. They don&rsquo;t open a
+  ten-year ledger to answer &ldquo;what&rsquo;s the balance today?&rdquo;. Do the same: model the period end
+  as a real business event, and start a new stream for the next period whose first event carries the
+  opening state.
+</p>
+
+<figure>
+<svg viewBox="0 0 680 190" role="img" aria-label="Closing the books: stream account-A1-2025 ends with AccountingPeriodClosed; stream account-A1-2026 starts with AccountingPeriodOpened carrying the balance forward">
+  <g font-family="system-ui, sans-serif" font-size="11">
+    <rect x="10" y="20" width="330" height="110" rx="10" fill="#fcfcfa" stroke="#63625c" stroke-dasharray="4 3"></rect>
+    <text x="20" y="38" font-weight="700" fill="#63625c">stream: account-A1-2025</text>
+    <rect x="22" y="54" width="130" height="50" rx="6" fill="#efedf8" stroke="#5e4fb0"></rect>
+    <text x="87" y="76" text-anchor="middle">&hellip; 12,000 events &hellip;</text>
+    <text x="87" y="92" text-anchor="middle" fill="#63625c" font-size="10">deposits, withdrawals</text>
+    <path d="M152 79 H180" stroke="#4b3f8f" stroke-width="1.5" marker-end="url(#l7b1)"></path>
+    <rect x="184" y="54" width="146" height="50" rx="6" fill="#fff" stroke="#b23b3b" stroke-width="1.8"></rect>
+    <text x="257" y="74" text-anchor="middle" font-weight="700" fill="#b23b3b">AccountingPeriodClosed</text>
+    <text x="257" y="91" text-anchor="middle" font-size="10">closingBalance = 8,412.00</text>
+    <text x="175" y="122" text-anchor="middle" fill="#63625c" font-size="10">closed &rarr; read-only &rarr; archivable to object storage</text>
+    <rect x="370" y="20" width="300" height="110" rx="10" fill="#fff" stroke="#4b3f8f" stroke-width="1.5"></rect>
+    <text x="380" y="38" font-weight="700" fill="#4b3f8f">stream: account-A1-2026</text>
+    <rect x="382" y="54" width="150" height="50" rx="6" fill="#fff" stroke="#1f7a5e" stroke-width="1.8"></rect>
+    <text x="457" y="74" text-anchor="middle" font-weight="700" fill="#1f7a5e">AccountingPeriodOpened</text>
+    <text x="457" y="91" text-anchor="middle" font-size="10">openingBalance = 8,412.00</text>
+    <path d="M532 79 H560" stroke="#4b3f8f" stroke-width="1.5" marker-end="url(#l7b1)"></path>
+    <rect x="564" y="54" width="96" height="50" rx="6" fill="#efedf8" stroke="#5e4fb0"></rect>
+    <text x="612" y="83" text-anchor="middle">new events&hellip;</text>
+    <text x="520" y="122" text-anchor="middle" fill="#63625c" font-size="10">short stream &rarr; fast rehydration, no snapshot</text>
+    <path d="M330 79 C 350 79, 350 79, 378 79" stroke="#c98a1a" stroke-width="2.2" marker-end="url(#l7b2)"></path>
+    <text x="355" y="160" text-anchor="middle" fill="#b5651d" font-weight="700">carry forward: the closing fact becomes the opening fact</text>
+    <path d="M355 150 V96" stroke="#c98a1a" stroke-dasharray="3 3"></path>
+  </g>
+  <defs>
+    <marker id="l7b1" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#4b3f8f"></path></marker>
+    <marker id="l7b2" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#c98a1a"></path></marker>
+  </defs>
+</svg>
+<figcaption>Lifecycle streams: one stream per period, linked by a closing and an opening event.</figcaption>
+</figure>
+
+<h3>What you gain</h3>
+<ul>
+  <li><strong>Short streams</strong> &rarr; fast rehydration, <em>no snapshots needed</em>, and no snapshot schema to version.</li>
+  <li><strong>Archiving</strong>: closed streams are immutable and read-only, so they can move to cheap storage (S3/Glacier-class object storage) while remaining replayable for audits and rebuilds.</li>
+  <li><strong>Better domain language</strong>: &ldquo;year-end close&rdquo;, &ldquo;shift handover&rdquo;, &ldquo;billing cycle closed&rdquo; are things the business already talks about &mdash; and often wants to report on.</li>
+</ul>
+
+<h3>Implementing the hand-over</h3>
+<p>
+  One command changes one stream. So the close and the open are two steps: the close is decided by the
+  old-period aggregate; a small handler reacts and opens the next period. Making the open
+  <strong>idempotent</strong> (expected version &ldquo;no stream&rdquo;) makes retries safe.
+</p>
+
+<pre><code>public sealed interface AccountEvent permits /* … */ AccountingPeriodClosed, AccountingPeriodOpened { }
+public record AccountingPeriodClosed(String accountId, Year period, BigDecimal closingBalance) implements AccountEvent { }
+public record AccountingPeriodOpened(String accountId, Year period, BigDecimal openingBalance) implements AccountEvent { }
+
+static String streamId(String accountId, Year period) { return "account-" + accountId + "-" + period; }
+
+// Reacts to the close; safe to run twice.
+public void on(AccountingPeriodClosed e) {
+    Year next = e.period().plusYears(1);
+    try {
+        store.append(streamId(e.accountId(), next), ExpectedVersion.NO_STREAM,
+                     List.of(new AccountingPeriodOpened(e.accountId(), next, e.closingBalance())));
+    } catch (ConcurrencyException alreadyOpened) {
+        // retry after crash: the next period already exists — nothing to do
+    }
+}</code></pre>
+
+<div class="callout insight">
+  <span class="label">Find the natural lifecycle</span>
+  <p>Most domains have one; it&rsquo;s usually a word the business already uses.</p>
+</div>
+
+<table>
+  <thead><tr><th>Domain</th><th>Long-lived entity</th><th>Natural period / stream</th></tr></thead>
+  <tbody>
+    <tr><td>Banking / ledger</td><td>Account</td><td>Accounting period (month, year)</td></tr>
+    <tr><td>Retail</td><td>Cash register</td><td>Shift or business day</td></tr>
+    <tr><td>Telco / SaaS</td><td>Subscription</td><td>Billing cycle</td></tr>
+    <tr><td>Insurance</td><td>Policy</td><td>Policy term / renewal</td></tr>
+    <tr><td>Warehouse</td><td>Stock location</td><td>Stock-take (inventory count)</td></tr>
+    <tr><td>Sports / gaming</td><td>League table</td><td>Season</td></tr>
+  </tbody>
+</table>
+
+<h2>5. Archiving closed streams</h2>
+
+<p>
+  Once a stream is closed, nothing will ever append to it. That gives you options for storage growth:
+</p>
+<ul>
+  <li>Mark it in the <code>streams</code> table (<code>archived = true</code>) and reject appends to it at the store level.</li>
+  <li>Copy its events to object storage (e.g. Parquet/JSON lines per stream or per period), verify, then delete or detach the hot rows. Partitioning the <code>events</code> table by time or <code>global_position</code> range makes this a cheap <code>DETACH PARTITION</code>.</li>
+  <li>Keep the archive <strong>replayable</strong>: your rebuild tooling must be able to read archived periods, or new projections can&rsquo;t backfill history.</li>
+</ul>
+
+<div class="callout warning">
+  <span class="label">Archiving is not deleting</span>
+  <p>Moving events to cold storage changes <em>where</em> they live, not whether they exist. Removing events
+  for legal reasons (GDPR) is a different problem with different tools &mdash; crypto-shredding, covered in
+  Lesson 13.</p>
+</div>
+
+<h2>6. Briefly: hot aggregates</h2>
+
+<p>
+  A <strong>hot aggregate</strong> is a single stream receiving a very high write rate &mdash; a global stock
+  counter, a popular auction, a platform-wide &ldquo;likes&rdquo; total. You&rsquo;ll see it first as a
+  high <strong>concurrency-conflict rate</strong>, then as a long stream. Snapshots don&rsquo;t help: the
+  problem is contention, not rehydration.
+</p>
+
+<table>
+  <thead><tr><th>Technique</th><th>How</th><th>Trade-off</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Split the aggregate</strong></td><td>Per-shard counters (<code>stock-sku42-shard-0..7</code>); sum in a projection</td><td>Invariants across shards become harder</td></tr>
+    <tr><td><strong>Commutative events, <code>expectedVersion = Any</code></strong></td><td>If order doesn&rsquo;t matter (<code>LikeAdded</code>), skip the concurrency check</td><td>Only when no invariant depends on current state</td></tr>
+    <tr><td><strong>Model it as a queue</strong></td><td>Accept requests as events, process them sequentially downstream</td><td>Async result; needs a UX for &ldquo;pending&rdquo;</td></tr>
+    <tr><td><strong>In-memory aggregate cache</strong></td><td>Keep hot state in memory keyed by stream id, validated by version</td><td>Needs single-writer routing (sticky sessions or a partitioned actor)</td></tr>
+  </tbody>
+</table>
+
+<div class="primary-source">
+  <span class="label">Read this next (primary source)</span>
+  <p>Kurrent &mdash; <a href="https://www.kurrent.io/blog/snapshots-in-event-sourcing" target="_blank" rel="noopener"><em>Snapshots in Event Sourcing</em></a>
+  and <a href="https://www.kurrent.io/blog/keep-your-streams-short-temporal-modelling-for-fast-reads-and-optimal-data-retention" target="_blank" rel="noopener"><em>Keep your streams short! Temporal modeling for fast reads and optimal data retention</em></a>;
+  then Oskar Dudycz &mdash; <a href="https://event-driven.io/en/closing_the_books_in_practice/" target="_blank" rel="noopener"><em>Implementing Closing the Books pattern</em></a>.</p>
+</div>
+
+<h2>7. Check yourself</h2>
+<p>Retrieve before revealing.</p>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 1 of 3</p>
+  <p class="quiz-q">You added a field to <code>AccountState</code>. What should happen to existing snapshots?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="The skipped events that set that field are never re-folded — silently wrong state.">keep using them; the new field just defaults to null</button></li>
+    <li><button data-correct="false" data-feedback="Snapshots are a cache; a blocking migration is unnecessary work and risk.">run a blocking migration that rewrites every snapshot</button></li>
+    <li><button data-correct="true" data-feedback="Right — bump the schema version; stale snapshots fall through to full replay.">ignore them via schema_version and replay from events</button></li>
+    <li><button data-correct="false" data-feedback="Events are the truth and must not change because a cache did.">rewrite the stored events to match the new state shape</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Snapshots are versioned caches. On a shape change, ignore old ones, replay from events, and let the async snapshotter refresh them."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 2 of 3</p>
+  <p class="quiz-q">A teammate proposes snapshots because account streams reach 200k events. The Staff first question is&hellip;</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="Snapshot frequency is a tuning detail — it doesn&rsquo;t question the model.">&ldquo;How often should we write a new snapshot?&rdquo;</button></li>
+    <li><button data-correct="true" data-feedback="Right — a missing lifecycle event (period close) often removes the need entirely.">&ldquo;Is there a natural period to close the books on?&rdquo;</button></li>
+    <li><button data-correct="false" data-feedback="Changing stores doesn&rsquo;t fix an unbounded stream.">&ldquo;Should we move to a dedicated event store DB?&rdquo;</button></li>
+    <li><button data-correct="false" data-feedback="Compression shaves bytes; the fold still grows forever.">&ldquo;Can we compress the event payloads further?&rdquo;</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Rule 5: huge streams usually mean a wrong aggregate boundary or a missing lifecycle event. Close the books first; snapshot only if measurement still says so."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 3 of 3</p>
+  <p class="quiz-q">A global &ldquo;likes&rdquo; counter stream shows a 40% concurrency-conflict rate. Which fix targets the actual problem?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="Snapshots speed up loading; conflicts come from contention, not load time.">add snapshots every 100 events on the stream</button></li>
+    <li><button data-correct="false" data-feedback="More retries on a hot stream just amplify the contention.">raise the command handler&rsquo;s retry count to 20</button></li>
+    <li><button data-correct="false" data-feedback="Closing periods shortens streams but doesn&rsquo;t reduce concurrent writers.">close the books on the counter once every hour</button></li>
+    <li><button data-correct="true" data-feedback="Right — likes commute and have no invariant; shard or append with expectedVersion=Any.">shard it, or append commutative events unchecked</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Hot aggregates are a contention problem. Split the aggregate, or use commutative events with expectedVersion=Any when no invariant depends on order."></div>
+</div>
+
+<div class="callout tryit">
+  <span class="label">Try it in your own system</span>
+  <ul class="checklist">
+    <li>Query your store: <code>SELECT stream_id, count(*) FROM events GROUP BY 1 ORDER BY 2 DESC LIMIT 20;</code> &mdash; what does the long tail look like?</li>
+    <li>Add a Micrometer timer around <code>load()</code> and record rehydration p99 per aggregate type. Decide on snapshots from that number, not intuition.</li>
+    <li>For your longest-lived aggregate, name its natural period and sketch the <code>&hellip;Closed</code> / <code>&hellip;Opened</code> pair.</li>
+    <li>If you do add snapshots: run your test suite once with <code>snapshots</code> truncated before every test. It must stay green.</li>
+  </ul>
+</div>
+
+<div class="followup">
+  <strong>I&rsquo;m your teacher &mdash; ask me anything.</strong> How do projections handle the period hand-over?
+  How do you close the books when a late correction arrives for last year? How does Axon&rsquo;s snapshot
+  trigger compare to the async snapshotter here? Bring your aggregate and we&rsquo;ll find its lifecycle.
+</div>
+
+<nav class="lesson-nav">
+  <span class="group">
+    <b>Reference</b>
+    <a href="../reference/0007-production-readiness-checklist.html">Production readiness checklist &rarr;</a>
+  </span>
+  <span class="group">
+    <b>Previous</b>
+    <a href="0006-rebuilds-and-eventual-consistency.html">&larr; Lesson 06 · Rebuilds &amp; eventual consistency</a>
+  </span>
+  <span class="group">
+    <b>Up next</b>
+    <a href="0008-subscriptions-and-the-gap-problem.html">Lesson 08 · Subscriptions &amp; the gap problem &rarr;</a>
+  </span>
+</nav>
+
+</body>
+</html>

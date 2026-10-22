@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 19 · Debezium ⇄ PostgreSQL CDC, Animated</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<script src="../assets/quiz.js" defer></script>
+<script src="../assets/stepflow.js" defer></script>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Async &amp; Messaging · Lesson 19 · Tool Deep Dive</p>
+  <h1>PostgreSQL CDC with Debezium — an Animated Atlas</h1>
+  <div class="meta">
+    <span>◷ ~35 min · eight replayable scenes</span>
+    <span class="dot">•</span>
+    <span>Level: Staff / Internals</span>
+    <span class="dot">•</span>
+    <span>Builds on <a href="0014-transactional-outbox.html">Lesson 14</a></span>
+  </div>
+</header>
+
+<p class="mission-tie">
+  An outbox fixes the dual write only once something can reliably relay the committed row. This lesson
+  opens that relay up: PostgreSQL writes a durable log; Debezium follows it without polling tables;
+  offsets flow back to PostgreSQL; and a downstream event becomes safe to consume. The goal is the
+  staff-level version of &ldquo;we use Debezium&rdquo;: you can predict what happens during snapshots,
+  restarts, idle databases, and failover.
+</p>
+
+<div class="callout insight">
+  <span class="label">How to use this atlas</span>
+  <p>Each illustration is a small, independently replayable animation. Use <kbd>←</kbd>/<kbd>→</kbd>
+     while a scene is focused, or press <strong>Play</strong>. The recurring moving dot is an
+     <strong>LSN</strong>: the WAL byte-position that connects PostgreSQL, the replication slot, and
+     Debezium&rsquo;s offset.</p>
+</div>
+
+<nav class="chapter-index" aria-label="Animated CDC chapters">
+  <a href="#journey"><b>01 · One committed write</b><span>WAL → event → feedback</span></a>
+  <a href="#postgres"><b>02 · PostgreSQL mechanics</b><span>decoding, slots, identity</span></a>
+  <a href="#connector"><b>03 · Debezium runtime</b><span>task, queue, stream, commit</span></a>
+  <a href="#snapshot"><b>04 · Snapshots</b><span>initial state with no gap</span></a>
+  <a href="#event"><b>05 · Change events</b><span>envelope, deletes, TOAST</span></a>
+  <a href="#delivery"><b>06 · Runtimes &amp; semantics</b><span>Connect, Server, Engine</span></a>
+  <a href="#operations"><b>07 · Production operation</b><span>heartbeats, recovery, failover</span></a>
+  <a href="#fes"><b>08 · Outbox &amp; FES</b><span>Zalando platform flow</span></a>
+</nav>
+
+<p class="scene-kicker">Scene 01 · End to end</p>
+<h2 id="journey">1. Follow one committed write all the way out</h2>
+<p>
+  CDC is not a query loop and it is not a database trigger. The application commits normally; PostgreSQL
+  records the change in its <span class="term">write-ahead log (WAL)</span>; logical decoding turns
+  that internal record into a row change; and Debezium turns it into a source record. Then the direction
+  reverses: after Kafka Connect has committed the record, Debezium confirms an LSN back to PostgreSQL so
+  the slot can eventually release old WAL.
+</p>
+
+<div class="stepflow" data-token="journey-token" role="group" aria-label="Animated end-to-end PostgreSQL CDC flow">
+  <div class="sf-stage">
+    <svg viewBox="0 0 720 330" role="img" aria-label="An application commit becomes a WAL record, is logically decoded, reaches Debezium and Kafka, then its confirmed LSN flows back to the logical replication slot">
+      <defs>
+        <marker id="j-arr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#6b6459"></path></marker>
+        <marker id="j-green" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#3f7a3f"></path></marker>
+      </defs>
+      <rect id="j-app" class="sf-actor" x="18" y="130" width="102" height="58" rx="9" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.5"></rect>
+      <text x="69" y="154" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" font-weight="700">App</text>
+      <text x="69" y="171" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9">COMMIT order + outbox</text>
+      <rect id="j-pg" class="sf-actor" x="152" y="36" width="250" height="258" rx="12" fill="#f7f4ec" stroke="#2e5a7a" stroke-width="1.5"></rect>
+      <text x="277" y="60" text-anchor="middle" font-family="system-ui,sans-serif" font-size="13" font-weight="700">PostgreSQL</text>
+      <rect id="j-wal" x="174" y="81" width="206" height="39" rx="6" fill="#eef1f6" stroke="#2e5a7a"></rect>
+      <text x="277" y="105" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11">WAL · pg_wal · LSN 16/B3…</text>
+      <rect id="j-decode" x="174" y="141" width="96" height="65" rx="6" fill="#f3f0e8" stroke="#a98b3f"></rect>
+      <text x="222" y="166" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" font-weight="700">logical</text>
+      <text x="222" y="181" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10">decoding</text>
+      <rect id="j-slot" x="286" y="141" width="94" height="65" rx="6" fill="#fbf1e7" stroke="#b5651d"></rect>
+      <text x="333" y="166" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" font-weight="700">logical slot</text>
+      <text x="333" y="181" text-anchor="middle" font-family="system-ui,sans-serif" font-size="8.5">restart / flush LSN</text>
+      <rect id="j-plugin" x="174" y="229" width="206" height="39" rx="6" fill="#eef4ee" stroke="#3f7a3f"></rect>
+      <text x="277" y="253" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11">pgoutput + publication filter</text>
+      <rect id="j-dbz" class="sf-actor" x="451" y="79" width="112" height="70" rx="10" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.5"></rect>
+      <text x="507" y="108" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" font-weight="700">Debezium</text>
+      <text x="507" y="125" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9">PGReplicationStream</text>
+      <rect id="j-queue" class="sf-actor" x="451" y="184" width="112" height="52" rx="10" fill="#eef1f6" stroke="#2e5a7a" stroke-width="1.5"></rect>
+      <text x="507" y="205" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" font-weight="700">ChangeEventQueue</text>
+      <text x="507" y="220" text-anchor="middle" font-family="system-ui,sans-serif" font-size="8.5">bounded buffer</text>
+      <rect id="j-kc" class="sf-actor" x="598" y="120" width="104" height="75" rx="10" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.5"></rect>
+      <text x="650" y="148" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" font-weight="700">Kafka Connect</text>
+      <text x="650" y="165" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9">poll() → topic</text>
+      <text x="650" y="179" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9">commit offset</text>
+      <g id="j-write" style="display:none"><line x1="121" y1="159" x2="150" y2="159" stroke="#6b6459" stroke-width="1.5" marker-end="url(#j-arr)"></line></g>
+      <g id="j-wal-arrow" style="display:none"><line x1="277" y1="121" x2="277" y2="139" stroke="#6b6459" stroke-width="1.5" marker-end="url(#j-arr)"></line></g>
+      <g id="j-decode-arrow" style="display:none"><line x1="271" y1="173" x2="284" y2="173" stroke="#6b6459" stroke-width="1.5" marker-end="url(#j-arr)"></line></g>
+      <g id="j-plugin-arrow" style="display:none"><line x1="333" y1="207" x2="310" y2="227" stroke="#6b6459" stroke-width="1.5" marker-end="url(#j-arr)"></line></g>
+      <g id="j-stream" style="display:none"><line x1="381" y1="249" x2="448" y2="126" stroke="#3f7a3f" stroke-width="1.8" marker-end="url(#j-green)"></line><text x="418" y="180" text-anchor="middle" font-family="system-ui,sans-serif" font-size="8.5" fill="#3f7a3f">logical stream</text></g>
+      <g id="j-queue-arrow" style="display:none"><line x1="507" y1="151" x2="507" y2="182" stroke="#6b6459" stroke-width="1.5" marker-end="url(#j-arr)"></line></g>
+      <g id="j-poll-arrow" style="display:none"><line x1="565" y1="210" x2="596" y2="178" stroke="#6b6459" stroke-width="1.5" marker-end="url(#j-arr)"></line></g>
+      <g id="j-feedback" style="display:none"><path d="M598,202 C530,292 417,306 332,208" fill="none" stroke="#3f7a3f" stroke-width="1.8" stroke-dasharray="5 3" marker-end="url(#j-green)"></path><text x="484" y="302" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9" fill="#3f7a3f">confirmed flush LSN → slot advances</text></g>
+      <text id="j-warning" x="277" y="316" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" font-weight="700" fill="#a32f2f" style="display:none">no feedback = slot pins WAL = disk risk</text>
+      <text id="j-done" x="503" y="274" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" font-weight="700" fill="#1f4a29" style="display:none">one committed change, safely exported</text>
+      <g id="journey-token" class="sf-token" style="display:none"><circle r="15" fill="#7a2e2e" stroke="#fff" stroke-width="1.5"></circle><text class="sf-token-label" x="0" y="4" text-anchor="middle" font-family="system-ui,sans-serif" font-size="8" font-weight="700" fill="#fff">LSN</text></g>
+    </svg>
+  </div>
+  <div class="sf-caption" aria-live="polite" aria-atomic="true"><p class="sf-title"></p><p class="sf-desc"></p></div>
+  <div class="sf-controls"><button class="sf-btn sf-prev" type="button">◀ Prev</button><button class="sf-btn sf-next" type="button">Next ▶</button><button class="sf-btn sf-reset" type="button">↺ Reset</button><button class="sf-btn sf-play" type="button">▶ Play</button><span class="sf-counter"></span></div>
+  <script type="application/json" class="sf-steps">
+  [
+    {"title":"One normal database transaction","desc":"The application writes a business row and, for the outbox pattern, an event row in <strong>one local ACID transaction</strong>. CDC begins only after that transaction commits.","token":{"x":69,"y":159},"tokenLabel":"TX","visible":[],"highlight":["j-app"]},
+    {"title":"Commit enters the WAL first","desc":"PostgreSQL makes the change durable through the <strong>write-ahead log</strong>: it logs the change before data pages may be written. WAL lives in <code>pg_wal</code> segments; each byte position is an LSN.","token":{"x":277,"y":101},"tokenLabel":"LSN","visible":["j-write"],"highlight":["j-app","j-pg","j-wal"]},
+    {"title":"Logical WAL has enough meaning","desc":"With <code>wal_level=logical</code>, WAL includes the metadata needed to reconstruct row changes. <code>replica</code> is enough for standbys, but not for Debezium.","token":{"x":277,"y":101},"tokenLabel":"LSN","visible":["j-write"],"highlight":["j-wal"]},
+    {"title":"PostgreSQL decodes the WAL","desc":"The logical-decoding pipeline reads internal WAL records and reconstructs INSERT, UPDATE, and DELETE changes rather than querying the current table state.","token":{"x":222,"y":173},"tokenLabel":"row","visible":["j-write","j-wal-arrow"],"highlight":["j-decode"]},
+    {"title":"Committed transaction order wins","desc":"The reorder buffer assembles transaction pieces and calls the output plugin only at COMMIT. Rolled-back work never becomes a Debezium event.","token":{"x":333,"y":173},"tokenLabel":"commit","visible":["j-write","j-wal-arrow","j-decode-arrow"],"highlight":["j-decode","j-slot"]},
+    {"title":"The logical slot remembers the reader","desc":"A logical replication slot holds the reader&rsquo;s durable position. Its <code>restart_lsn</code> prevents PostgreSQL from recycling WAL the connector may still need.","token":{"x":333,"y":173},"tokenLabel":"slot","visible":["j-write","j-wal-arrow","j-decode-arrow"],"highlight":["j-slot"]},
+    {"title":"pgoutput serializes permitted changes","desc":"The output plugin calls <code>begin</code>, <code>change</code>, and <code>commit</code>. <code>pgoutput</code> applies its publication filter before it sends a row change.","token":{"x":277,"y":249},"tokenLabel":"row","visible":["j-write","j-wal-arrow","j-decode-arrow","j-plugin-arrow"],"highlight":["j-plugin"]},
+    {"title":"Debezium reads the replication stream","desc":"Debezium opens PostgreSQL JDBC&rsquo;s <code>PGReplicationStream</code> against that slot. It is a WAL stream, not table polling.","token":{"x":507,"y":126},"tokenLabel":"row","visible":["j-write","j-wal-arrow","j-decode-arrow","j-plugin-arrow","j-stream"],"highlight":["j-dbz"]},
+    {"title":"A bounded queue separates threads","desc":"The streaming thread decodes a message and places a change record on <code>ChangeEventQueue</code>. The bounded queue is a backpressure boundary.","token":{"x":507,"y":210},"tokenLabel":"event","visible":["j-write","j-wal-arrow","j-decode-arrow","j-plugin-arrow","j-stream","j-queue-arrow"],"highlight":["j-queue"]},
+    {"title":"Kafka Connect polls a source record","desc":"Kafka Connect calls the task&rsquo;s <code>poll()</code>, drains the queue, and writes the event to its topic, usually <code>prefix.schema.table</code>.","token":{"x":650,"y":158},"tokenLabel":"event","visible":["j-write","j-wal-arrow","j-decode-arrow","j-plugin-arrow","j-stream","j-queue-arrow","j-poll-arrow"],"highlight":["j-kc"]},
+    {"title":"Commit before acknowledgement","desc":"Only after the event is sent and the connector offset is committed may Debezium send its <strong>flush LSN</strong> acknowledgement back to PostgreSQL. That order is the at-least-once safety invariant.","token":{"x":443,"y":288},"tokenLabel":"flush","visible":["j-write","j-wal-arrow","j-decode-arrow","j-plugin-arrow","j-stream","j-queue-arrow","j-poll-arrow","j-feedback"],"highlight":["j-kc","j-slot"]},
+    {"title":"The slot can release old WAL","desc":"The slot moves forward after feedback, eventually releasing no-longer-needed WAL. If filtered or idle work prevents feedback, the slot can pin WAL until disk fills — a major operational risk.","token":{"x":333,"y":207},"tokenLabel":"✓","visible":["j-write","j-wal-arrow","j-decode-arrow","j-plugin-arrow","j-stream","j-queue-arrow","j-poll-arrow","j-feedback","j-done"],"highlight":["j-slot"]}
+  ]
+  </script>
+</div>
+
+<div class="fact-grid">
+  <div><strong>WAL</strong><p>Durable physical log. Its LSN is the position CDC follows.</p></div>
+  <div><strong>Logical decoding</strong><p>Reconstructs committed row changes from WAL records.</p></div>
+  <div><strong>Replication slot</strong><p>Stores position and retains necessary WAL for this reader.</p></div>
+  <div><strong>Debezium offset</strong><p>Records the source LSN so recovery can restart safely.</p></div>
+</div>
+
+<p class="scene-kicker">Scene 02 · PostgreSQL under the hood</p>
+<h2 id="postgres">2. What PostgreSQL must provide before Debezium can work</h2>
+<p>
+  Debezium relies on native PostgreSQL machinery. This matters because it tells you which database knobs
+  change correctness, latency, WAL volume, and recovery behavior. The connector consumes what
+  PostgreSQL makes visible; it does not magically reconstruct data PostgreSQL did not log.
+</p>
+
+<div class="stepflow" data-token="pg-token" role="group" aria-label="Animated PostgreSQL logical decoding flow">
+  <div class="sf-stage">
+    <svg viewBox="0 0 720 340" role="img" aria-label="PostgreSQL WAL records are decoded, transactions are reordered at commit, catalog snapshots resolve schemas, and a publication plus replica identity control what pgoutput gives a logical replication slot">
+      <defs><marker id="p-arr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#6b6459"></path></marker></defs>
+      <rect id="p-wal" class="sf-actor" x="24" y="120" width="120" height="85" rx="10" fill="#eef1f6" stroke="#2e5a7a" stroke-width="1.5"></rect>
+      <text x="84" y="149" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" font-weight="700">WAL records</text><text x="84" y="167" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9">XLogRecord</text><text x="84" y="181" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9">xid · prev · rmid</text>
+      <rect id="p-decode" class="sf-actor" x="190" y="71" width="140" height="62" rx="9" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.5"></rect>
+      <text x="260" y="98" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" font-weight="700">decode.c</text><text x="260" y="115" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9">I / U / D tuples</text>
+      <rect id="p-reorder" class="sf-actor" x="190" y="183" width="140" height="72" rx="9" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.5"></rect>
+      <text x="260" y="211" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" font-weight="700">reorderbuffer</text><text x="260" y="228" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9">whole txns at COMMIT</text><text x="260" y="242" text-anchor="middle" font-family="system-ui,sans-serif" font-size="8.5">spills large txns</text>
+      <rect id="p-snap" class="sf-actor" x="190" y="282" width="140" height="38" rx="8" fill="#f3f0e8" stroke="#a98b3f" stroke-width="1.2"></rect>
+      <text x="260" y="305" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9.5">snapbuild · historic catalog</text>
+      <rect id="p-identity" class="sf-actor" x="388" y="47" width="134" height="66" rx="9" fill="#fbf1e7" stroke="#b5651d" stroke-width="1.5"></rect>
+      <text x="455" y="74" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="700">REPLICA IDENTITY</text><text x="455" y="91" text-anchor="middle" font-family="system-ui,sans-serif" font-size="8.5">old tuple / key / full</text>
+      <rect id="p-pub" class="sf-actor" x="388" y="149" width="134" height="66" rx="9" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.5"></rect>
+      <text x="455" y="176" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" font-weight="700">publication</text><text x="455" y="193" text-anchor="middle" font-family="system-ui,sans-serif" font-size="8.5">tables + operations filter</text>
+      <rect id="p-output" class="sf-actor" x="388" y="251" width="134" height="50" rx="9" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.5"></rect>
+      <text x="455" y="273" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" font-weight="700">pgoutput</text><text x="455" y="288" text-anchor="middle" font-family="system-ui,sans-serif" font-size="8.5">begin / change / commit</text>
+      <rect id="p-slot" class="sf-actor" x="579" y="127" width="118" height="90" rx="10" fill="#fbf1e7" stroke="#b5651d" stroke-width="1.5"></rect>
+      <text x="638" y="157" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" font-weight="700">logical slot</text><text x="638" y="175" text-anchor="middle" font-family="system-ui,sans-serif" font-size="8.5">restart_lsn</text><text x="638" y="189" text-anchor="middle" font-family="system-ui,sans-serif" font-size="8.5">confirmed_flush_lsn</text>
+      <g id="p-a1" style="display:none"><line x1="146" y1="150" x2="188" y2="108" stroke="#6b6459" stroke-width="1.5" marker-end="url(#p-arr)"></line></g>
+      <g id="p-a2" style="display:none"><line x1="260" y1="134" x2="260" y2="181" stroke="#6b6459" stroke-width="1.5" marker-end="url(#p-arr)"></line></g>
+      <g id="p-a3" style="display:none"><line x1="330" y1="219" x2="386" y2="182" stroke="#6b6459" stroke-width="1.5" marker-end="url(#p-arr)"></line></g>
+      <g id="p-a4" style="display:none"><line x1="455" y1="216" x2="455" y2="249" stroke="#6b6459" stroke-width="1.5" marker-end="url(#p-arr)"></line></g>
+      <g id="p-a5" style="display:none"><line x1="524" y1="276" x2="577" y2="201" stroke="#6b6459" stroke-width="1.5" marker-end="url(#p-arr)"></line></g>
+      <g id="p-a6" style="display:none"><line x1="260" y1="281" x2="260" y2="257" stroke="#a98b3f" stroke-width="1.3" stroke-dasharray="4 3" marker-end="url(#p-arr)"></line></g>
+      <text id="p-rollback" x="260" y="55" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9.5" font-weight="700" fill="#a32f2f" style="display:none">ROLLBACK is discarded</text>
+      <text id="p-pin" x="638" y="242" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9.5" font-weight="700" fill="#a32f2f" style="display:none">slot pins old WAL</text>
+      <g id="pg-token" class="sf-token" style="display:none"><circle r="15" fill="#7a2e2e" stroke="#fff" stroke-width="1.5"></circle><text class="sf-token-label" x="0" y="4" text-anchor="middle" font-family="system-ui,sans-serif" font-size="8" font-weight="700" fill="#fff">LSN</text></g>
+    </svg>
+  </div>
+  <div class="sf-caption" aria-live="polite" aria-atomic="true"><p class="sf-title"></p><p class="sf-desc"></p></div>
+  <div class="sf-controls"><button class="sf-btn sf-prev" type="button">◀ Prev</button><button class="sf-btn sf-next" type="button">Next ▶</button><button class="sf-btn sf-reset" type="button">↺ Reset</button><button class="sf-btn sf-play" type="button">▶ Play</button><span class="sf-counter"></span></div>
+  <script type="application/json" class="sf-steps">
+  [
+    {"title":"A WAL record is still physical","desc":"A WAL <code>XLogRecord</code> contains length, transaction id, a previous-record link, and a resource-manager id. It is a recovery record, not yet a JSON event.","token":{"x":84,"y":162},"tokenLabel":"LSN","visible":[],"highlight":["p-wal"]},
+    {"title":"wal_level chooses what can be recovered","desc":"<code>minimal</code> supports crash recovery; <code>replica</code> adds physical replication; <code>logical</code> adds the metadata required to rebuild row changes. CDC requires <code>logical</code>.","token":{"x":84,"y":162},"tokenLabel":"LSN","visible":[],"highlight":["p-wal"]},
+    {"title":"decode.c extracts tuple facts","desc":"Logical decoding dispatches by WAL record type. INSERT supplies a new tuple; UPDATE may supply new and old data; DELETE supplies old data when PostgreSQL logged it.","token":{"x":260,"y":108},"tokenLabel":"I/U/D","visible":["p-a1"],"highlight":["p-decode"]},
+    {"title":"Old data is a database decision","desc":"The presence of an old tuple depends on <strong>REPLICA IDENTITY</strong>, not on a Debezium option. It directly determines what can appear in an event&rsquo;s <code>before</code> field.","token":{"x":455,"y":80},"tokenLabel":"before","visible":["p-a1"],"highlight":["p-identity"]},
+    {"title":"Transaction fragments wait for COMMIT","desc":"The reorder buffer reassembles WAL fragments into top-level transactions, including subtransactions, then replays them to the plugin in <strong>commit order</strong>.","token":{"x":260,"y":218},"tokenLabel":"tx","visible":["p-a1","p-a2"],"highlight":["p-reorder"]},
+    {"title":"No committed event for a rollback","desc":"Because plugin callbacks happen once the COMMIT record is read, rolled-back work never reaches Debezium. This is why CDC reflects committed database history.","token":{"x":260,"y":218},"tokenLabel":"commit","visible":["p-a1","p-a2","p-rollback"],"highlight":["p-reorder"]},
+    {"title":"Large and TOASTed work is still reassembled","desc":"The reorder buffer can spill large transactions past <code>logical_decoding_work_mem</code> and reassemble out-of-line TOAST values before the output plugin sees the change.","token":{"x":260,"y":232},"tokenLabel":"spill","visible":["p-a1","p-a2"],"highlight":["p-reorder"]},
+    {"title":"snapbuild resolves historical schema","desc":"The snapshot builder creates historic catalog snapshots so changes can be interpreted with the table definition that was valid at that WAL point. It reaches a CONSISTENT state before replay begins.","token":{"x":260,"y":302},"tokenLabel":"schema","visible":["p-a1","p-a2","p-a6"],"highlight":["p-snap"]},
+    {"title":"A publication says what may leave","desc":"For <code>pgoutput</code>, a named publication selects tables and operations such as insert, update, delete, and truncate. Row filters and column lists can narrow it further.","token":{"x":455,"y":182},"tokenLabel":"filter","visible":["p-a1","p-a2","p-a3"],"highlight":["p-pub"]},
+    {"title":"The plugin serializes row changes","desc":"<code>pgoutput</code> is built into PostgreSQL 10+. Its begin/change/commit callbacks serialize only permitted changes; a DELETE without old-row data cannot be sent.","token":{"x":455,"y":276},"tokenLabel":"row","visible":["p-a1","p-a2","p-a3","p-a4"],"highlight":["p-output"]},
+    {"title":"The logical slot is a durable bookmark","desc":"A logical slot is bound to one database and keeps <code>restart_lsn</code>, <code>confirmed_flush_lsn</code>, and catalog state. A physical slot only tracks a WAL position for a standby.","token":{"x":638,"y":170},"tokenLabel":"slot","visible":["p-a1","p-a2","p-a3","p-a4","p-a5"],"highlight":["p-slot"]},
+    {"title":"Retention is both reliability and danger","desc":"PostgreSQL takes the oldest required <code>restart_lsn</code> across slots and will not recycle older WAL. An abandoned slot therefore retains WAL and catalog tuples until fixed or dropped.","token":{"x":638,"y":204},"tokenLabel":"pin","visible":["p-a1","p-a2","p-a3","p-a4","p-a5","p-pin"],"highlight":["p-slot"]}
+  ]
+  </script>
+</div>
+
+<table>
+  <thead><tr><th>PostgreSQL choice</th><th>CDC consequence</th><th>Staff-level trade-off</th></tr></thead>
+  <tbody>
+    <tr><td><code>wal_level=logical</code></td><td>Enables row-change decoding</td><td>More WAL, especially with broad old-row logging</td></tr>
+    <tr><td>Publication</td><td>Filters table / operation / row / column output</td><td>Publish only what downstream needs; validate UPDATE/DELETE identity</td></tr>
+    <tr><td><code>REPLICA IDENTITY DEFAULT</code></td><td>Old primary-key columns only</td><td>Small WAL; insufficient for a full <code>before</code></td></tr>
+    <tr><td><code>REPLICA IDENTITY FULL</code></td><td>Full old row for UPDATE/DELETE</td><td>More WAL per update; useful for CDC and unchanged TOAST values</td></tr>
+  </tbody>
+</table>
+
+<table>
+  <thead><tr><th>Output plugin</th><th>Wire format / capability</th><th>Source-report status</th></tr></thead>
+  <tbody>
+    <tr><td><code>pgoutput</code></td><td>Built-in compact binary protocol; publication-driven; truncate and logical messages</td><td>Practical modern Debezium standard</td></tr>
+    <tr><td><code>decoderbufs</code></td><td>Protobuf binary output</td><td>Debezium-maintained alternative; needs preload setup</td></tr>
+    <tr><td><code>wal2json</code></td><td>Human-readable JSON but larger payloads</td><td>Removed from the pinned connector code</td></tr>
+  </tbody>
+</table>
+
+<pre><code># postgresql.conf — restart required
+wal_level = logical
+max_replication_slots = 10
+max_wal_senders = 10
+# max_slot_wal_keep_size = 10GB  # guard, not a cure for a stalled slot
+
+CREATE PUBLICATION dbz_publication FOR ALL TABLES;
+ALTER TABLE public.customers REPLICA IDENTITY FULL;</code></pre>
+
+<p class="scene-kicker">Scene 03 · Debezium as a Kafka Connect source</p>
+<h2 id="connector">3. The connector is a single ordered reader with two loops</h2>
+<p>
+  The connector is a Kafka Connect <code>SourceConnector</code>/<code>SourceTask</code>. Its streaming
+  reader runs in the background; Connect drains a queue through <code>poll()</code>. That deliberate
+  separation is why you can reason about backpressure and why the connector&rsquo;s offset acknowledgement
+  occurs only after Connect has made progress.
+</p>
+
+<div class="stepflow" data-token="c-token" role="group" aria-label="Animated Debezium Kafka Connect lifecycle">
+  <div class="sf-stage">
+    <svg viewBox="0 0 720 330" role="img" aria-label="Kafka Connect starts a single Postgres connector task, which coordinates snapshot then streaming, reads a PostgreSQL replication stream, fills a bounded queue, and commits offsets back to the slot">
+      <defs><marker id="c-arr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#6b6459"></path></marker><marker id="c-green" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#3f7a3f"></path></marker></defs>
+      <rect id="c-kc" class="sf-actor" x="24" y="75" width="128" height="75" rx="10" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.5"></rect><text x="88" y="103" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" font-weight="700">Kafka Connect</text><text x="88" y="120" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9">start · poll · commit</text>
+      <rect id="c-task" class="sf-actor" x="202" y="75" width="132" height="75" rx="10" fill="#eef1f6" stroke="#2e5a7a" stroke-width="1.5"></rect><text x="268" y="102" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" font-weight="700">PostgresConnectorTask</text><text x="268" y="120" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9">exactly one task</text>
+      <rect id="c-coord" class="sf-actor" x="391" y="42" width="135" height="65" rx="10" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.5"></rect><text x="458" y="68" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="700">Coordinator</text><text x="458" y="85" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9">snapshot → stream</text>
+      <rect id="c-snapshot" class="sf-actor" x="390" y="151" width="95" height="62" rx="9" fill="#f3f0e8" stroke="#a98b3f" stroke-width="1.4"></rect><text x="437" y="176" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="700">Snapshot</text><text x="437" y="193" text-anchor="middle" font-family="system-ui,sans-serif" font-size="8.5">READ events</text>
+      <rect id="c-stream" class="sf-actor" x="536" y="151" width="96" height="62" rx="9" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.4"></rect><text x="584" y="176" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="700">Streaming</text><text x="584" y="193" text-anchor="middle" font-family="system-ui,sans-serif" font-size="8.5">PGReplicationStream</text>
+      <rect id="c-pg" class="sf-actor" x="565" y="261" width="128" height="48" rx="10" fill="#f7f4ec" stroke="#2e5a7a" stroke-width="1.5"></rect><text x="629" y="290" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11.5" font-weight="700">PostgreSQL slot</text>
+      <rect id="c-queue" class="sf-actor" x="202" y="235" width="132" height="58" rx="10" fill="#eef1f6" stroke="#2e5a7a" stroke-width="1.5"></rect><text x="268" y="259" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" font-weight="700">ChangeEventQueue</text><text x="268" y="276" text-anchor="middle" font-family="system-ui,sans-serif" font-size="8.5">bounded</text>
+      <rect id="c-topic" class="sf-actor" x="24" y="235" width="128" height="58" rx="10" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.5"></rect><text x="88" y="259" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" font-weight="700">Kafka topic</text><text x="88" y="276" text-anchor="middle" font-family="system-ui,sans-serif" font-size="8.5">prefix.schema.table</text>
+      <g id="c-a1" style="display:none"><line x1="154" y1="112" x2="200" y2="112" stroke="#6b6459" stroke-width="1.5" marker-end="url(#c-arr)"></line></g>
+      <g id="c-a2" style="display:none"><line x1="335" y1="104" x2="389" y2="78" stroke="#6b6459" stroke-width="1.5" marker-end="url(#c-arr)"></line></g>
+      <g id="c-a3" style="display:none"><line x1="458" y1="109" x2="438" y2="149" stroke="#6b6459" stroke-width="1.5" marker-end="url(#c-arr)"></line></g>
+      <g id="c-a4" style="display:none"><line x1="485" y1="182" x2="534" y2="182" stroke="#6b6459" stroke-width="1.5" marker-end="url(#c-arr)"></line></g>
+      <g id="c-a5" style="display:none"><line x1="584" y1="215" x2="620" y2="259" stroke="#3f7a3f" stroke-width="1.7" marker-end="url(#c-green)"></line></g>
+      <g id="c-a6" style="display:none"><line x1="536" y1="197" x2="335" y2="246" stroke="#6b6459" stroke-width="1.5" marker-end="url(#c-arr)"></line></g>
+      <g id="c-a7" style="display:none"><line x1="200" y1="265" x2="154" y2="265" stroke="#6b6459" stroke-width="1.5" marker-end="url(#c-arr)"></line></g>
+      <g id="c-feedback" style="display:none"><path d="M150,304 C280,327 500,332 604,311" fill="none" stroke="#3f7a3f" stroke-width="1.7" stroke-dasharray="5 3" marker-end="url(#c-green)"></path><text x="375" y="326" text-anchor="middle" font-family="system-ui,sans-serif" font-size="8.5" fill="#3f7a3f">commit offset → async flush LSN feedback</text></g>
+      <g id="c-token" class="sf-token" style="display:none"><circle r="15" fill="#7a2e2e" stroke="#fff" stroke-width="1.5"></circle><text class="sf-token-label" x="0" y="4" text-anchor="middle" font-family="system-ui,sans-serif" font-size="8" font-weight="700" fill="#fff">row</text></g>
+    </svg>
+  </div>
+  <div class="sf-caption" aria-live="polite" aria-atomic="true"><p class="sf-title"></p><p class="sf-desc"></p></div>
+  <div class="sf-controls"><button class="sf-btn sf-prev" type="button">◀ Prev</button><button class="sf-btn sf-next" type="button">Next ▶</button><button class="sf-btn sf-reset" type="button">↺ Reset</button><button class="sf-btn sf-play" type="button">▶ Play</button><span class="sf-counter"></span></div>
+  <script type="application/json" class="sf-steps">
+  [
+    {"title":"Connect starts one task","desc":"<code>PostgresConnector.taskConfigs()</code> produces one task. PostgreSQL streams a slot serially, so the task emits its source records serially; downstream Kafka ordering is still only per keyed partition, not global across topics or keys.","token":{"x":88,"y":112},"tokenLabel":"start","visible":[],"highlight":["c-kc","c-task"]},
+    {"title":"Startup validates database objects","desc":"The task creates or validates its slot and publication, then starts the coordinator on a background executor.","token":{"x":268,"y":112},"tokenLabel":"task","visible":["c-a1"],"highlight":["c-task"]},
+    {"title":"The coordinator owns the phase change","desc":"The coordinator executes the snapshot phase first, then streaming. PostgreSQL adds a pre-snapshot catch-up phase so changes are not missed around slot creation.","token":{"x":458,"y":78},"tokenLabel":"coord","visible":["c-a1","c-a2"],"highlight":["c-coord"]},
+    {"title":"Snapshot source emits READ records","desc":"The snapshot reader produces <code>op: r</code> events from a consistent database view. The exact consistency protocol appears in the next scene.","token":{"x":437,"y":182},"tokenLabel":"READ","visible":["c-a1","c-a2","c-a3"],"highlight":["c-snapshot"]},
+    {"title":"Streaming begins at a known LSN","desc":"<code>PostgresStreamingChangeEventSource</code> opens a replication stream from the stored or snapshot LSN using the JDBC replication API.","token":{"x":584,"y":182},"tokenLabel":"LSN","visible":["c-a1","c-a2","c-a3","c-a4"],"highlight":["c-stream"]},
+    {"title":"START_REPLICATION opens a binary stream","desc":"Underneath, Debezium sends a logical <code>START_REPLICATION SLOT …</code> command with plugin options such as <code>publication_names</code> for pgoutput.","token":{"x":629,"y":285},"tokenLabel":"stream","visible":["c-a1","c-a2","c-a3","c-a4","c-a5"],"highlight":["c-stream","c-pg"]},
+    {"title":"The decoder reads message types","desc":"<code>readPending()</code> supplies a ByteBuffer to the logical decoder. pgoutput dispatches BEGIN, COMMIT, RELATION, INSERT, UPDATE, DELETE, TRUNCATE, MESSAGE, and more.","token":{"x":584,"y":198},"tokenLabel":"I/U/D","visible":["c-a1","c-a2","c-a3","c-a4","c-a5"],"highlight":["c-stream"]},
+    {"title":"Streaming thread enqueues records","desc":"A decoded change becomes a source record and enters the bounded queue. If the consumer side cannot keep up, available queue capacity is the immediate pressure signal.","token":{"x":268,"y":263},"tokenLabel":"event","visible":["c-a1","c-a2","c-a3","c-a4","c-a5","c-a6"],"highlight":["c-queue"]},
+    {"title":"poll() drains it to Kafka","desc":"Kafka Connect calls the task&rsquo;s <code>poll()</code>, which drains <code>ChangeEventQueue</code> into <code>SourceRecord</code>s for the destination topic.","token":{"x":88,"y":264},"tokenLabel":"event","visible":["c-a1","c-a2","c-a3","c-a4","c-a5","c-a6","c-a7"],"highlight":["c-kc","c-topic"]},
+    {"title":"The commit is deliberately decoupled","desc":"Connect&rsquo;s <code>commit()</code> marks a pending commit. The task performs the real coordinator commit inside a later <code>poll()</code>, then sends asynchronous LSN feedback.","token":{"x":370,"y":318},"tokenLabel":"flush","visible":["c-a1","c-a2","c-a3","c-a4","c-a5","c-a6","c-a7","c-feedback"],"highlight":["c-kc","c-pg"]}
+  ]
+  </script>
+</div>
+
+<table class="config-table">
+  <thead><tr><th>Connector property</th><th>Maps to / controls</th><th>Production reading</th></tr></thead>
+  <tbody>
+    <tr><td>slot.name</td><td>Logical replication slot</td><td>Unique per connector and database; never share it</td></tr>
+    <tr><td>publication.name</td><td>pgoutput publication</td><td>Must exist before the pgoutput slot is usable</td></tr>
+    <tr><td>publication.autocreate.mode</td><td>Publication creation scope</td><td>Prefer <code>filtered</code> when broad privileges are undesirable</td></tr>
+    <tr><td>flush.lsn.source</td><td>Slot-advancement feedback</td><td>Default true; its ordering protects at-least-once recovery</td></tr>
+    <tr><td>slot.drop.on.stop</td><td>Orderly slot deletion</td><td>Keep false in production or a restart can lose the read position</td></tr>
+    <tr><td>slot.failover</td><td>PG 17+ failover slots</td><td>Pair with PostgreSQL standby-slot configuration when supported</td></tr>
+  </tbody>
+</table>
+
+<div class="callout warning">
+  <span class="label">Version-specific source caveat</span>
+  <p>The source report verified a surprising code default of <code>plugin.name=decoderbufs</code> at its
+     pinned Debezium snapshot, while <code>pgoutput</code> is the practical modern standard. Treat
+     defaults as versioned configuration, inspect your deployed connector, and set the plugin explicitly.</p>
+</div>
+
+<p>
+  The report&rsquo;s pinned <code>LogicalDecoder</code> supports <code>PGOUTPUT</code> and
+  <code>DECODERBUFS</code>. The decoder also processes relation metadata so it can turn compact wire
+  tuples into named columns. Treat both the supported plugin set and defaults as deployment-version facts.
+</p>
+
+<p class="scene-kicker">Scene 04 · Snapshot then stream</p>
+<h2 id="snapshot">4. An initial snapshot gives history without losing concurrent changes</h2>
+<p>
+  A logical slot only receives changes that commit after the slot exists. Debezium&rsquo;s initial snapshot
+  supplies existing rows as <code>READ</code> events, but it must also join the live WAL stream at the
+  right LSN. The point is not merely a consistent query; it is a handoff with no blind spot.
+</p>
+
+<div class="stepflow" data-token="s-token" role="group" aria-label="Animated snapshot and streaming handoff">
+  <div class="sf-stage">
+    <svg viewBox="0 0 720 350" role="img" aria-label="A logical replication slot exports a snapshot, Debezium scans rows at a captured LSN while changes accumulate in WAL, then begins streaming at that LSN so there is no gap. An incremental snapshot window uses low and high watermarks to deduplicate concurrent reads.">
+      <defs><marker id="s-arr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#6b6459"></path></marker><marker id="s-green" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#3f7a3f"></path></marker></defs>
+      <rect id="s-slot" class="sf-actor" x="30" y="52" width="132" height="65" rx="10" fill="#fbf1e7" stroke="#b5651d" stroke-width="1.5"></rect><text x="96" y="79" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" font-weight="700">new logical slot</text><text x="96" y="96" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9">exported snapshot + LSN</text>
+      <rect id="s-db" class="sf-actor" x="224" y="35" width="168" height="111" rx="10" fill="#f7f4ec" stroke="#2e5a7a" stroke-width="1.5"></rect><text x="308" y="62" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" font-weight="700">PostgreSQL tables</text><rect x="243" y="75" width="130" height="20" rx="4" fill="#eef1f6"></rect><text x="308" y="89" text-anchor="middle" font-family="system-ui,sans-serif" font-size="8.5">customers: existing rows</text><rect x="243" y="105" width="130" height="20" rx="4" fill="#eef1f6"></rect><text x="308" y="119" text-anchor="middle" font-family="system-ui,sans-serif" font-size="8.5">orders: existing rows</text>
+      <rect id="s-snap" class="sf-actor" x="464" y="35" width="132" height="111" rx="10" fill="#f3f0e8" stroke="#a98b3f" stroke-width="1.5"></rect><text x="530" y="62" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" font-weight="700">Snapshot reader</text><text x="530" y="83" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9">REPEATABLE READ</text><text x="530" y="98" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9">ACCESS SHARE lock</text><text x="530" y="119" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9">emits op: r</text>
+      <rect id="s-wal" class="sf-actor" x="224" y="204" width="168" height="55" rx="10" fill="#eef1f6" stroke="#2e5a7a" stroke-width="1.5"></rect><text x="308" y="229" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" font-weight="700">WAL after snapshot LSN</text><text x="308" y="246" text-anchor="middle" font-family="system-ui,sans-serif" font-size="8.5">concurrent commits wait here</text>
+      <rect id="s-stream" class="sf-actor" x="464" y="198" width="132" height="65" rx="10" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.5"></rect><text x="530" y="225" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" font-weight="700">Streaming reader</text><text x="530" y="243" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9">starts at captured LSN</text>
+      <rect id="s-window" class="sf-actor" x="97" y="292" width="496" height="36" rx="8" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.3"></rect><text x="345" y="315" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10">incremental snapshot chunk · low watermark → buffered READs → high watermark</text>
+      <g id="s-a1" style="display:none"><line x1="163" y1="85" x2="222" y2="85" stroke="#6b6459" stroke-width="1.5" marker-end="url(#s-arr)"></line></g>
+      <g id="s-a2" style="display:none"><line x1="393" y1="85" x2="462" y2="85" stroke="#6b6459" stroke-width="1.5" marker-end="url(#s-arr)"></line></g>
+      <g id="s-a3" style="display:none"><line x1="308" y1="147" x2="308" y2="202" stroke="#6b6459" stroke-width="1.5" marker-end="url(#s-arr)"></line></g>
+      <g id="s-a4" style="display:none"><line x1="393" y1="230" x2="462" y2="230" stroke="#3f7a3f" stroke-width="1.7" marker-end="url(#s-green)"></line></g>
+      <g id="s-a5" style="display:none"><line x1="530" y1="146" x2="530" y2="196" stroke="#6b6459" stroke-width="1.5" marker-end="url(#s-arr)"></line></g>
+      <text id="s-gap" x="530" y="280" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" font-weight="700" fill="#1f4a29" style="display:none">✓ snapshot rows + later WAL = no missed change</text>
+      <text id="s-dedup" x="345" y="343" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9.5" font-weight="700" fill="#3f7a3f" style="display:none">same key streams during open window → discard its buffered READ</text>
+      <g id="s-token" class="sf-token" style="display:none"><circle r="15" fill="#7a2e2e" stroke="#fff" stroke-width="1.5"></circle><text class="sf-token-label" x="0" y="4" text-anchor="middle" font-family="system-ui,sans-serif" font-size="8" font-weight="700" fill="#fff">LSN</text></g>
+    </svg>
+  </div>
+  <div class="sf-caption" aria-live="polite" aria-atomic="true"><p class="sf-title"></p><p class="sf-desc"></p></div>
+  <div class="sf-controls"><button class="sf-btn sf-prev" type="button">◀ Prev</button><button class="sf-btn sf-next" type="button">Next ▶</button><button class="sf-btn sf-reset" type="button">↺ Reset</button><button class="sf-btn sf-play" type="button">▶ Play</button><span class="sf-counter"></span></div>
+  <script type="application/json" class="sf-steps">
+  [
+    {"title":"A stream alone has no old rows","desc":"A slot only emits changes committed after it was created. Existing table rows are invisible to streaming, so a fresh consumer needs a snapshot.","token":{"x":308,"y":85},"tokenLabel":"old","visible":[],"highlight":["s-db"]},
+    {"title":"Create a slot and an anchor","desc":"When Debezium creates a new logical slot, PostgreSQL can export a snapshot name and a consistent starting LSN. They identify one point in database history.","token":{"x":96,"y":85},"tokenLabel":"LSN","visible":[],"highlight":["s-slot"]},
+    {"title":"Read a consistent view","desc":"Debezium reuses the exported snapshot with <code>SET TRANSACTION SNAPSHOT</code>, typically under REPEATABLE READ. ACCESS SHARE prevents conflicting schema changes, not ordinary writes.","token":{"x":530,"y":85},"tokenLabel":"READ","visible":["s-a1","s-a2"],"highlight":["s-snap","s-db"]},
+    {"title":"Emit existing rows as READ events","desc":"The snapshot scans captured tables and emits current rows as <code>op: r</code>. The base snapshot algorithm prepares, locks, captures the offset, reads schema, writes history, then scans data.","token":{"x":530,"y":119},"tokenLabel":"r","visible":["s-a1","s-a2"],"highlight":["s-snap"]},
+    {"title":"Writes keep committing meanwhile","desc":"A concurrent insert or update does not wait for the snapshot. It is written after the anchor LSN into WAL, ready for the streaming reader.","token":{"x":308,"y":230},"tokenLabel":"new","visible":["s-a1","s-a2","s-a3"],"highlight":["s-db","s-wal"]},
+    {"title":"Start streaming at the anchor","desc":"Once the scan finishes, streaming begins from the LSN captured before the scan. It consumes the concurrent changes that happened while the snapshot ran.","token":{"x":530,"y":230},"tokenLabel":"LSN","visible":["s-a1","s-a2","s-a3","s-a4","s-a5"],"highlight":["s-stream","s-wal"]},
+    {"title":"The handoff has no gap","desc":"Rows existing at the anchor arrived as READs; commits after that anchor arrive from WAL. The two sources meet at the same LSN boundary.","token":{"x":530,"y":272},"tokenLabel":"✓","visible":["s-a1","s-a2","s-a3","s-a4","s-a5","s-gap"],"highlight":["s-snap","s-stream"]},
+    {"title":"Choose snapshot.mode deliberately","desc":"<code>initial</code> snapshots only without offsets; <code>initial_only</code> stops afterward; <code>always</code> snapshots each start; <code>no_data</code> skips data; <code>when_needed</code> self-heals unavailable LSNs.","token":null,"tokenLabel":"","visible":["s-a1","s-a2","s-a3","s-a4","s-a5","s-gap"],"highlight":[]},
+    {"title":"Incremental snapshots are a second tool","desc":"An on-demand incremental snapshot runs concurrently with streaming. A signal-table command selects tables, which are read in primary-key chunks rather than one long blocking scan.","token":{"x":97,"y":310},"tokenLabel":"low","visible":["s-window"],"highlight":["s-window"]},
+    {"title":"Low and high watermarks bracket one chunk","desc":"Debezium opens a window, buffers READ rows for a chunk, then closes the window. Watermarks tell it exactly which streamed changes overlap that chunk.","token":{"x":345,"y":310},"tokenLabel":"READ","visible":["s-window"],"highlight":["s-window"]},
+    {"title":"A streamed row wins over a duplicate READ","desc":"If a row with the same key arrives from the live stream while its snapshot window is open, Debezium removes the buffered READ. This prevents the incremental snapshot from overwriting newer reality.","token":{"x":593,"y":310},"tokenLabel":"high","visible":["s-window","s-dedup"],"highlight":["s-window","s-stream"]}
+  ]
+  </script>
+</div>
+
+<table>
+  <thead><tr><th>Snapshot strategy</th><th>Use when</th><th>Cost / caveat</th></tr></thead>
+  <tbody>
+    <tr><td><code>initial</code></td><td>First deployment needs current state and live changes</td><td>One initial table scan</td></tr>
+    <tr><td><code>when_needed</code></td><td>Recorded offset may no longer be retained in WAL</td><td>Self-heals by re-snapshotting; downstream must tolerate READs</td></tr>
+    <tr><td><code>always</code></td><td>Deliberately re-baselining after loss or failover</td><td>Re-emits current state at every start</td></tr>
+    <tr><td>Incremental</td><td>Large / ad-hoc backfill alongside live traffic</td><td>Signalling and watermarking complexity; needs an identity key</td></tr>
+  </tbody>
+</table>
+
+<div class="callout insight">
+  <span class="label">Read-only incremental snapshots</span>
+  <p>On PostgreSQL 13+, the source report notes a read-only incremental option that uses in-progress
+     transaction IDs as watermarks rather than a signalling-table write. It keeps the same principle:
+     streamed changes win over buffered snapshot reads.</p>
+</div>
+
+<p class="scene-kicker">Scene 05 · The record a consumer receives</p>
+<h2 id="event">5. Read Debezium events as a contract, not as opaque JSON</h2>
+<p>
+  A change event is an envelope around a row transition. The envelope keeps the data state separate from
+  source position and operation type—so a consumer can distinguish a snapshot READ from a new insert,
+  reconstruct a delete, and deduplicate a replay without guessing from the payload.
+</p>
+
+<div class="stepflow" data-token="e-token" role="group" aria-label="Animated Debezium event envelope">
+  <div class="sf-stage">
+    <svg viewBox="0 0 720 350" role="img" aria-label="A Debezium event envelope displays before, after, operation, source LSN, Kafka key, delete tombstone, and TOAST placeholder behavior">
+      <rect id="e-key" class="sf-actor" x="28" y="42" width="138" height="48" rx="9" fill="#eef1f6" stroke="#2e5a7a" stroke-width="1.5"></rect><text x="97" y="63" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" font-weight="700">Kafka key</text><text x="97" y="78" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9">id: 42</text>
+      <rect id="e-envelope" class="sf-actor" x="204" y="28" width="488" height="269" rx="12" fill="#fdfcf9" stroke="#2e5a7a" stroke-width="1.6"></rect><text x="448" y="55" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" font-weight="700">Debezium Envelope · schema version 2</text>
+      <rect id="e-before" x="226" y="79" width="195" height="82" rx="7" fill="#fbf1e7" stroke="#b5651d"></rect><text x="323" y="104" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" font-weight="700">before</text>
+      <rect id="e-after" x="475" y="79" width="195" height="82" rx="7" fill="#eef4ee" stroke="#3f7a3f"></rect><text x="572" y="104" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" font-weight="700">after</text>
+      <rect id="e-op" x="226" y="185" width="99" height="48" rx="7" fill="#f3f0e8" stroke="#a98b3f"></rect><text x="275" y="205" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" font-weight="700">op</text>
+      <g id="e-state-c"><text x="323" y="127" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9">null</text><text x="323" y="143" text-anchor="middle" font-family="system-ui,sans-serif" font-size="8">new record</text><text x="572" y="127" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9">{ id:42, status:&quot;PAID&quot; }</text><text x="572" y="143" text-anchor="middle" font-family="system-ui,sans-serif" font-size="8">new row</text><text x="275" y="221" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10">c</text></g>
+      <g id="e-state-u-default" style="display:none"><text x="323" y="127" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9">{ id:42 }</text><text x="323" y="143" text-anchor="middle" font-family="system-ui,sans-serif" font-size="8">DEFAULT identity</text><text x="572" y="127" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9">{ id:42, status:&quot;PAID&quot; }</text><text x="572" y="143" text-anchor="middle" font-family="system-ui,sans-serif" font-size="8">new row</text><text x="275" y="221" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10">u</text></g>
+      <g id="e-state-u-full" style="display:none"><text x="323" y="127" text-anchor="middle" font-family="system-ui,sans-serif" font-size="8.5">{ id:42, status:&quot;PENDING&quot; }</text><text x="323" y="143" text-anchor="middle" font-family="system-ui,sans-serif" font-size="8">FULL identity</text><text x="572" y="127" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9">{ id:42, status:&quot;PAID&quot; }</text><text x="572" y="143" text-anchor="middle" font-family="system-ui,sans-serif" font-size="8">new row</text><text x="275" y="221" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10">u</text></g>
+      <g id="e-state-d" style="display:none"><text x="323" y="127" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9">{ id:42 }</text><text x="323" y="143" text-anchor="middle" font-family="system-ui,sans-serif" font-size="8">old row / key</text><text x="572" y="127" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9">null</text><text x="572" y="143" text-anchor="middle" font-family="system-ui,sans-serif" font-size="8">row removed</text><text x="275" y="221" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10">d</text></g>
+      <g id="e-state-r" style="display:none"><text x="323" y="127" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9">null</text><text x="323" y="143" text-anchor="middle" font-family="system-ui,sans-serif" font-size="8">snapshot read</text><text x="572" y="127" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9">{ id:42, status:&quot;PAID&quot; }</text><text x="572" y="143" text-anchor="middle" font-family="system-ui,sans-serif" font-size="8">current row</text><text x="275" y="221" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10">r</text></g>
+      <rect id="e-source" x="343" y="185" width="202" height="72" rx="7" fill="#eef1f6" stroke="#2e5a7a"></rect><text x="444" y="205" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" font-weight="700">source</text><text x="444" y="222" text-anchor="middle" font-family="system-ui,sans-serif" font-size="8.5">db · schema · table · txId</text><text id="e-lsn" x="444" y="240" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9" font-weight="700">lsn: 16/B374D848</text>
+      <rect id="e-time" x="564" y="185" width="106" height="72" rx="7" fill="#f3f0e8" stroke="#a98b3f"></rect><text x="617" y="207" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9.5" font-weight="700">timestamps</text><text x="617" y="225" text-anchor="middle" font-family="system-ui,sans-serif" font-size="8">ts_ms / us / ns</text><text x="617" y="240" text-anchor="middle" font-family="system-ui,sans-serif" font-size="8">transaction</text>
+      <g id="e-tomb" style="display:none"><rect x="28" y="116" width="138" height="42" rx="8" fill="#fbf1e7" stroke="#b5651d"></rect><text x="97" y="141" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9.5" font-weight="700">then: value = null</text></g>
+      <g id="e-pk" style="display:none"><rect x="28" y="180" width="138" height="65" rx="8" fill="#fbf1e7" stroke="#b5651d"></rect><text x="97" y="202" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9" font-weight="700">PK update</text><text x="97" y="218" text-anchor="middle" font-family="system-ui,sans-serif" font-size="8">delete + tombstone</text><text x="97" y="233" text-anchor="middle" font-family="system-ui,sans-serif" font-size="8">+ create</text></g>
+      <text id="e-toast" x="448" y="326" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" font-weight="700" fill="#a32f2f" style="display:none">unchanged TOAST under DEFAULT → __debezium_unavailable_value</text>
+      <g id="e-token" class="sf-token" style="display:none"><circle r="15" fill="#7a2e2e" stroke="#fff" stroke-width="1.5"></circle><text class="sf-token-label" x="0" y="4" text-anchor="middle" font-family="system-ui,sans-serif" font-size="8" font-weight="700" fill="#fff">LSN</text></g>
+    </svg>
+  </div>
+  <div class="sf-caption" aria-live="polite" aria-atomic="true"><p class="sf-title"></p><p class="sf-desc"></p></div>
+  <div class="sf-controls"><button class="sf-btn sf-prev" type="button">◀ Prev</button><button class="sf-btn sf-next" type="button">Next ▶</button><button class="sf-btn sf-reset" type="button">↺ Reset</button><button class="sf-btn sf-play" type="button">▶ Play</button><span class="sf-counter"></span></div>
+  <script type="application/json" class="sf-steps">
+  [
+    {"title":"The key chooses the Kafka partition","desc":"The Kafka message key comes from the primary key (or a suitable unique identity). A key gives per-key partition ordering; without one, the key is null.","token":{"x":97,"y":67},"tokenLabel":"key","visible":["e-state-c"],"highlight":["e-key"]},
+    {"title":"The envelope separates state and provenance","desc":"The value is an <code>Envelope</code> with <code>before</code>, <code>after</code>, <code>op</code>, <code>source</code>, transaction information, and timestamps—not merely a serialized row.","token":{"x":448,"y":55},"tokenLabel":"event","visible":["e-state-c"],"highlight":["e-envelope"]},
+    {"title":"INSERT is a create event","desc":"For <code>op: c</code>, <code>before</code> is null and <code>after</code> is the new row. An initial snapshot instead uses <code>op: r</code> for a current-state READ.","token":{"x":572,"y":121},"tokenLabel":"c","visible":["e-state-c"],"highlight":["e-after","e-op"]},
+    {"title":"UPDATE reveals what identity logged","desc":"For <code>op: u</code>, <code>after</code> is the new row. With REPLICA IDENTITY DEFAULT, <code>before</code> commonly contains only the primary key—not the complete old row.","token":{"x":323,"y":121},"tokenLabel":"before","visible":["e-state-u-default"],"highlight":["e-before","e-after"]},
+    {"title":"FULL buys a complete before image","desc":"With <code>REPLICA IDENTITY FULL</code>, the old row can populate <code>before</code> completely. It costs more WAL for every update and delete.","token":{"x":323,"y":121},"tokenLabel":"FULL","visible":["e-state-u-full"],"highlight":["e-before"]},
+    {"title":"DELETE is followed by a tombstone","desc":"A delete is <code>op: d</code>: old data in <code>before</code>, <code>after: null</code>. By default Debezium then emits a separate same-key null-value tombstone for Kafka log compaction.","token":{"x":97,"y":137},"tokenLabel":"null","visible":["e-state-d","e-tomb"],"highlight":["e-before","e-key"]},
+    {"title":"A primary-key change has three records","desc":"Kafka cannot mutate a record key. A primary-key update becomes a delete for the old key, its tombstone, and a create under the new key.","token":{"x":97,"y":214},"tokenLabel":"3×","visible":["e-state-d","e-tomb","e-pk"],"highlight":["e-key"]},
+    {"title":"Source LSN is a replay identity","desc":"The source block carries connector version/name, database, schema, table, transaction id, LSN, snapshot flag, and sequence. Consumers can use a stable source position such as LSN to deduplicate recovery replays.","token":{"x":444,"y":235},"tokenLabel":"LSN","visible":["e-state-c"],"highlight":["e-source"]},
+    {"title":"TOAST can hide unchanged large columns","desc":"Under DEFAULT identity, an unchanged out-of-line PostgreSQL TOAST value may not be present in WAL. Debezium uses <code>__debezium_unavailable_value</code>; FULL restores it at a WAL cost.","token":{"x":448,"y":326},"tokenLabel":"TOAST","visible":["e-state-u-default","e-toast"],"highlight":["e-before","e-after"]},
+    {"title":"Know every operation code","desc":"<code>r</code> read, <code>c</code> create, <code>u</code> update, <code>d</code> delete, <code>t</code> truncate, and <code>m</code> logical message. A consumer should branch on <code>op</code>, not infer intent from nulls alone.","token":{"x":275,"y":211},"tokenLabel":"op","visible":["e-state-r"],"highlight":["e-op"]}
+  ]
+  </script>
+</div>
+
+<div class="fact-grid">
+  <div><strong>Source contract</strong><p>Use <code>lsn</code> / source position for replay-aware deduplication, not broker offset.</p></div>
+  <div><strong>Type mapping</strong><p>Review decimal, time precision, and hstore handling modes before consumers rely on a schema.</p></div>
+  <div><strong>Delete contract</strong><p>Model both the delete event and tombstone; compacted topics need the latter.</p></div>
+  <div><strong>Identity contract</strong><p><code>before</code> is limited by PostgreSQL&rsquo;s logged old tuple, not just a connector setting.</p></div>
+</div>
+
+<p class="scene-kicker">Scene 06 · Runtime and delivery</p>
+<h2 id="delivery">6. Pick a runtime, then design for recovery duplicates</h2>
+<p>
+  Kafka Connect, Debezium Server, and the Embedded Engine use the same source connector mechanics. They
+  differ in who owns the offset store and where records go. Regardless of runtime, normal delivery is
+  at-least-once: a crash after an event reaches its sink but before an offset flush can cause a replay.
+</p>
+
+<div class="stepflow" data-token="d-token" role="group" aria-label="Animated Debezium runtime choices and recovery semantics">
+  <div class="sf-stage">
+    <svg viewBox="0 0 720 330" role="img" aria-label="PostgreSQL feeds the same Debezium connector through Kafka Connect, Debezium Server, or Embedded Engine. A crash before offset persistence causes a replay that a consumer deduplicates by LSN.">
+      <defs><marker id="d-arr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#6b6459"></path></marker><marker id="d-green" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#3f7a3f"></path></marker></defs>
+      <rect id="d-pg" class="sf-actor" x="26" y="128" width="116" height="62" rx="10" fill="#f7f4ec" stroke="#2e5a7a" stroke-width="1.5"></rect><text x="84" y="154" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" font-weight="700">PostgreSQL</text><text x="84" y="171" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9">logical slot</text>
+      <rect id="d-core" class="sf-actor" x="222" y="116" width="145" height="85" rx="10" fill="#eef1f6" stroke="#2e5a7a" stroke-width="1.5"></rect><text x="294" y="145" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" font-weight="700">Postgres SourceTask</text><text x="294" y="162" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9">snapshot + stream</text><text x="294" y="177" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9">same CDC core</text>
+      <rect id="d-connect" class="sf-actor" x="460" y="31" width="137" height="61" rx="9" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.5"></rect><text x="528" y="57" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="700">Kafka Connect</text><text x="528" y="74" text-anchor="middle" font-family="system-ui,sans-serif" font-size="8.5">Kafka topics + offsets</text>
+      <rect id="d-server" class="sf-actor" x="460" y="128" width="137" height="61" rx="9" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.5"></rect><text x="528" y="154" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="700">Debezium Server</text><text x="528" y="171" text-anchor="middle" font-family="system-ui,sans-serif" font-size="8.5">Quarkus → pluggable sink</text>
+      <rect id="d-embedded" class="sf-actor" x="460" y="225" width="137" height="61" rx="9" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.5"></rect><text x="528" y="251" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="700">Embedded Engine</text><text x="528" y="268" text-anchor="middle" font-family="system-ui,sans-serif" font-size="8.5">application callback</text>
+      <rect id="d-sink" class="sf-actor" x="630" y="128" width="68" height="61" rx="9" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.5"></rect><text x="664" y="154" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" font-weight="700">sink</text><text x="664" y="171" text-anchor="middle" font-family="system-ui,sans-serif" font-size="8">event</text>
+      <g id="d-a1" style="display:none"><line x1="144" y1="159" x2="220" y2="159" stroke="#6b6459" stroke-width="1.5" marker-end="url(#d-arr)"></line></g>
+      <g id="d-a2" style="display:none"><line x1="368" y1="135" x2="458" y2="65" stroke="#6b6459" stroke-width="1.5" marker-end="url(#d-arr)"></line></g>
+      <g id="d-a3" style="display:none"><line x1="368" y1="159" x2="458" y2="159" stroke="#6b6459" stroke-width="1.5" marker-end="url(#d-arr)"></line></g>
+      <g id="d-a4" style="display:none"><line x1="368" y1="183" x2="458" y2="256" stroke="#6b6459" stroke-width="1.5" marker-end="url(#d-arr)"></line></g>
+      <g id="d-a5" style="display:none"><line x1="598" y1="159" x2="628" y2="159" stroke="#3f7a3f" stroke-width="1.7" marker-end="url(#d-green)"></line></g>
+      <text id="d-crash" x="528" y="110" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" font-weight="700" fill="#a32f2f" style="display:none">✗ crash before offset flush</text>
+      <text id="d-duplicate" x="355" y="315" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" font-weight="700" fill="#b5651d" style="display:none">same source LSN replays → consumer deduplicates</text>
+      <g id="d-token" class="sf-token" style="display:none"><circle r="15" fill="#7a2e2e" stroke="#fff" stroke-width="1.5"></circle><text class="sf-token-label" x="0" y="4" text-anchor="middle" font-family="system-ui,sans-serif" font-size="8" font-weight="700" fill="#fff">LSN</text></g>
+    </svg>
+  </div>
+  <div class="sf-caption" aria-live="polite" aria-atomic="true"><p class="sf-title"></p><p class="sf-desc"></p></div>
+  <div class="sf-controls"><button class="sf-btn sf-prev" type="button">◀ Prev</button><button class="sf-btn sf-next" type="button">Next ▶</button><button class="sf-btn sf-reset" type="button">↺ Reset</button><button class="sf-btn sf-play" type="button">▶ Play</button><span class="sf-counter"></span></div>
+  <script type="application/json" class="sf-steps">
+  [
+    {"title":"All three runtimes start with the same source task","desc":"The PostgreSQL connector is the same Kafka Connect source implementation wherever it runs. It reads the slot and creates change records.","token":{"x":84,"y":159},"tokenLabel":"LSN","visible":["d-a1"],"highlight":["d-pg","d-core"]},
+    {"title":"Kafka Connect is the Kafka-first option","desc":"A Connect worker cluster runs the task. Connector configuration, status, and offsets live in Kafka internal compacted topics; workers can redistribute a task after failure.","token":{"x":528,"y":64},"tokenLabel":"event","visible":["d-a1","d-a2"],"highlight":["d-connect"]},
+    {"title":"Debezium Server is a standalone bridge","desc":"Debezium Server is a Quarkus application using the embedded engine, usually one connector, with a selected sink such as Kinesis, Pub/Sub, Pulsar, NATS, HTTP, or Redis.","token":{"x":528,"y":158},"tokenLabel":"event","visible":["d-a1","d-a3"],"highlight":["d-server"]},
+    {"title":"Embedded Engine puts fault tolerance in your app","desc":"The Java Embedded Engine invokes your callback directly. No broker runtime is required, but your application now owns offset storage, retry behavior, and fault tolerance.","token":{"x":528,"y":256},"tokenLabel":"event","visible":["d-a1","d-a4"],"highlight":["d-embedded"]},
+    {"title":"Normal delivery looks exactly once","desc":"During ordinary operation, the task emits each change once and advances its source offset after the sink accepts it. This is why a happy-path demo can look exactly once.","token":{"x":664,"y":159},"tokenLabel":"event","visible":["d-a1","d-a3","d-a5"],"highlight":["d-server","d-sink"]},
+    {"title":"Recovery is at least once","desc":"If the process crashes after an event is delivered but before its periodic source offset flush, restart begins from the older LSN and emits that event again.","token":{"x":528,"y":105},"tokenLabel":"✗","visible":["d-a1","d-a3","d-a5","d-crash"],"highlight":["d-server"]},
+    {"title":"Deduplicate the replay by source position","desc":"Debezium calls this at-least-once delivery. Make downstream side effects idempotent and retain an identity such as source LSN (scoped appropriately) to recognize a replay.","token":{"x":355,"y":311},"tokenLabel":"LSN","visible":["d-a1","d-a3","d-a5","d-crash","d-duplicate"],"highlight":["d-sink"]},
+    {"title":"Kafka Connect EOS support is a separate layer","desc":"The Postgres connector advertises exactly-once source support for a suitably configured modern Kafka Connect cluster. Do not confuse that optional worker capability with the connector&rsquo;s ordinary at-least-once recovery contract.","token":null,"tokenLabel":"","visible":["d-a1","d-a2","d-a3","d-a4"],"highlight":["d-connect"]}
+  ]
+  </script>
+</div>
+
+<table>
+  <thead><tr><th>Transformation / naming</th><th>Use</th><th>Critical behavior</th></tr></thead>
+  <tbody>
+    <tr><td>Outbox Event Router</td><td>Route transactional-outbox rows by aggregate type and id</td><td>Uses aggregate id as key; filters out outbox DELETEs</td></tr>
+    <tr><td>Extract New Record State</td><td>Flatten an event for sinks that need only current state</td><td>Optionally retain <code>op</code>, table, LSN, and source time as metadata</td></tr>
+    <tr><td><code>topic.prefix</code></td><td>Builds default topic <code>prefix.schema.table</code></td><td>Unique logical source name; also prefixes transaction metadata topic</td></tr>
+  </tbody>
+</table>
+
+<p class="scene-kicker">Scene 07 · Operate the slot, not just the connector</p>
+<h2 id="operations">7. The dominant production failure is a slot that cannot advance</h2>
+<p>
+  A logical slot is a promise: PostgreSQL retains the log until the consumer confirms it. That is exactly
+  what makes a restart reliable—and exactly what makes a stalled connector a disk incident. The response
+  is to monitor the right LSNs and arrange safe progress even when captured tables are quiet.
+</p>
+
+<div class="stepflow" data-token="o-token" role="group" aria-label="Animated logical slot operations and recovery">
+  <div class="sf-stage">
+    <svg viewBox="0 0 720 350" role="img" aria-label="A replication slot retains WAL until flush feedback advances it. An idle captured database causes WAL growth, while heartbeat writes advance the slot. Recovery resumes from stored LSN or re-snapshots if WAL is unavailable.">
+      <defs><marker id="o-arr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#6b6459"></path></marker><marker id="o-green" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#3f7a3f"></path></marker></defs>
+      <rect id="o-wal" class="sf-actor" x="27" y="73" width="164" height="128" rx="11" fill="#eef1f6" stroke="#2e5a7a" stroke-width="1.5"></rect><text x="109" y="101" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" font-weight="700">pg_wal segments</text><rect id="o-old" x="50" y="118" width="118" height="15" rx="3" fill="#b5651d" style="display:none"></rect><rect id="o-keep" x="50" y="142" width="118" height="15" rx="3" fill="#7a2e2e" style="display:none"></rect><rect id="o-new" x="50" y="166" width="118" height="15" rx="3" fill="#3f7a3f" style="display:none"></rect><text x="109" y="222" text-anchor="middle" font-family="system-ui,sans-serif" font-size="8.5">old → retained → new</text>
+      <rect id="o-slot" class="sf-actor" x="259" y="73" width="171" height="128" rx="11" fill="#fbf1e7" stroke="#b5651d" stroke-width="1.5"></rect><text x="344" y="101" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" font-weight="700">logical slot</text><text x="344" y="127" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9">restart_lsn: oldest needed</text><text x="344" y="148" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9">confirmed_flush_lsn:</text><text x="344" y="164" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9">what consumer confirmed</text><text id="o-slot-ok" x="344" y="185" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9" font-weight="700" fill="#3f7a3f" style="display:none">✓ can advance</text>
+      <rect id="o-dbz" class="sf-actor" x="496" y="78" width="135" height="62" rx="10" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.5"></rect><text x="563" y="104" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" font-weight="700">Debezium</text><text x="563" y="121" text-anchor="middle" font-family="system-ui,sans-serif" font-size="8.5">dispatch → commit → flush</text>
+      <rect id="o-metrics" class="sf-actor" x="496" y="190" width="172" height="74" rx="10" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.5"></rect><text x="582" y="215" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" font-weight="700">JMX dashboard</text><text x="582" y="234" text-anchor="middle" font-family="system-ui,sans-serif" font-size="8.5">lag · queue capacity · LSN</text><text x="582" y="249" text-anchor="middle" font-family="system-ui,sans-serif" font-size="8.5">filtered events · connection</text>
+      <rect id="o-heartbeat" class="sf-actor" x="259" y="270" width="171" height="44" rx="9" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.5"></rect><text x="344" y="297" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" font-weight="700">heartbeat write in captured DB</text>
+      <g id="o-a1" style="display:none"><line x1="193" y1="137" x2="257" y2="137" stroke="#6b6459" stroke-width="1.5" marker-end="url(#o-arr)"></line></g>
+      <g id="o-a2" style="display:none"><line x1="432" y1="112" x2="494" y2="112" stroke="#6b6459" stroke-width="1.5" marker-end="url(#o-arr)"></line></g>
+      <g id="o-a3" style="display:none"><path d="M497,145 C465,213 422,218 385,203" fill="none" stroke="#3f7a3f" stroke-width="1.7" stroke-dasharray="5 3" marker-end="url(#o-green)"></path></g>
+      <g id="o-a4" style="display:none"><line x1="563" y1="142" x2="582" y2="188" stroke="#6b6459" stroke-width="1.5" marker-end="url(#o-arr)"></line></g>
+      <g id="o-a5" style="display:none"><line x1="344" y1="268" x2="344" y2="203" stroke="#3f7a3f" stroke-width="1.7" marker-end="url(#o-green)"></line></g>
+      <text id="o-disk" x="109" y="245" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" font-weight="700" fill="#a32f2f" style="display:none">WAL grows → disk risk</text>
+      <text id="o-resume" x="344" y="340" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9.5" font-weight="700" fill="#2e5a7a" style="display:none">restart: stored LSN if retained; otherwise snapshot.mode=when_needed / always</text>
+      <g id="o-token" class="sf-token" style="display:none"><circle r="15" fill="#7a2e2e" stroke="#fff" stroke-width="1.5"></circle><text class="sf-token-label" x="0" y="4" text-anchor="middle" font-family="system-ui,sans-serif" font-size="8" font-weight="700" fill="#fff">LSN</text></g>
+    </svg>
+  </div>
+  <div class="sf-caption" aria-live="polite" aria-atomic="true"><p class="sf-title"></p><p class="sf-desc"></p></div>
+  <div class="sf-controls"><button class="sf-btn sf-prev" type="button">◀ Prev</button><button class="sf-btn sf-next" type="button">Next ▶</button><button class="sf-btn sf-reset" type="button">↺ Reset</button><button class="sf-btn sf-play" type="button">▶ Play</button><span class="sf-counter"></span></div>
+  <script type="application/json" class="sf-steps">
+  [
+    {"title":"Normal retention is expected","desc":"WAL first grows behind the current write position. A slot retains some older WAL while a connector is processing it; <code>restart_lsn</code> can trail <code>confirmed_flush_lsn</code> harmlessly.","token":{"x":109,"y":174},"tokenLabel":"new","visible":["o-new","o-a1"],"highlight":["o-wal","o-slot"]},
+    {"title":"Only confirmation frees the slot","desc":"When Debezium has dispatched a record, Kafka Connect has committed its offset, and Debezium flushes the LSN, PostgreSQL may move the slot forward and eventually recycle old WAL.","token":{"x":344,"y":177},"tokenLabel":"flush","visible":["o-old","o-keep","o-new","o-a1","o-a2","o-a3","o-slot-ok"],"highlight":["o-slot","o-dbz"]},
+    {"title":"Quiet captured tables can stop feedback","desc":"If the connector reads WAL but all events are filtered or no captured table changes occur, it may have nothing to dispatch and therefore no source offset to commit. The slot stops advancing.","token":{"x":344,"y":145},"tokenLabel":"stuck","visible":["o-old","o-keep","o-new","o-a1","o-a2"],"highlight":["o-slot"]},
+    {"title":"A stopped slot pins WAL and catalog state","desc":"PostgreSQL retains WAL and logical-decoding catalog tuples for a slot that has not progressed. It can fill disk and, in an extreme abandoned case, contribute to transaction-id pressure.","token":{"x":109,"y":150},"tokenLabel":"pin","visible":["o-old","o-keep","o-new","o-a1","o-disk"],"highlight":["o-wal","o-slot"]},
+    {"title":"Same-database heartbeat gives progress","desc":"For a busy captured database with few captured-table changes, enable <code>heartbeat.interval.ms</code>. Heartbeat records give Connect an opportunity to commit and flush source progress.","token":{"x":563,"y":112},"tokenLabel":"♥","visible":["o-old","o-keep","o-new","o-a1","o-a2","o-a3"],"highlight":["o-dbz","o-slot"]},
+    {"title":"Cross-database idle needs a real write","desc":"If another database on the host is busy but the captured database is idle, interval heartbeats alone are insufficient. Use <code>heartbeat.action.query</code> to upsert a heartbeat row <em>in the captured database</em>.","token":{"x":344,"y":292},"tokenLabel":"write","visible":["o-heartbeat","o-a5","o-old","o-keep","o-new","o-a1","o-a2","o-a3"],"highlight":["o-heartbeat","o-slot"]},
+    {"title":"Publish the heartbeat table too","desc":"The heartbeat write must be included in the publication. Otherwise it cannot traverse pgoutput, reach the connector, or advance the source position.","token":{"x":344,"y":235},"tokenLabel":"LSN","visible":["o-heartbeat","o-a5","o-old","o-keep","o-new","o-a1","o-a2","o-a3","o-slot-ok"],"highlight":["o-slot"]},
+    {"title":"Watch the right JMX metrics","desc":"Alert on <code>MilliSecondsBehindSource</code>, queue remaining capacity, source event position, event/filter counts, and connected state. Snapshot metrics add running/completed state, rows scanned, and duration.","token":{"x":582,"y":228},"tokenLabel":"JMX","visible":["o-a4"],"highlight":["o-metrics"]},
+    {"title":"Recovery resumes from a retained source LSN","desc":"A restart normally reopens the intact slot and resumes at the stored connector LSN. Do not drop a live primary slot just to make an error disappear: that discards the replay point.","token":{"x":344,"y":335},"tokenLabel":"resume","visible":["o-resume"],"highlight":["o-slot","o-dbz"]},
+    {"title":"Plan for missing WAL and failover","desc":"If the recorded LSN is no longer available, <code>when_needed</code> or <code>always</code> can re-snapshot. For failover, older PostgreSQL logical slots were primary-only; PG 17+ failover slots and platform solutions such as Patroni change that plan.","token":null,"tokenLabel":"","visible":["o-resume"],"highlight":[]}
+  ]
+  </script>
+</div>
+
+<table>
+  <thead><tr><th>Production rule</th><th>Why</th><th>Action</th></tr></thead>
+  <tbody>
+    <tr><td>One connector, one slot, one publication</td><td>Sharing a slot advances one reader past data another has not consumed</td><td>Give each source a unique, persistent name</td></tr>
+    <tr><td>Keep <code>slot.drop.on.stop=false</code></td><td>Dropping the slot loses recovery history</td><td>Only drop deliberately when decommissioning the capture</td></tr>
+    <tr><td>Monitor retained WAL</td><td>Slot lag is database disk pressure, not merely connector lag</td><td>Inspect <code>pg_replication_slots</code> plus source lag</td></tr>
+    <tr><td>Size the queue for large transactions</td><td>Logical decoding and Connect buffer data before it reaches the sink</td><td>Review max queue size, batch size, bytes, and capacity metric</td></tr>
+  </tbody>
+</table>
+
+<pre><code>heartbeat.interval.ms=10000
+heartbeat.action.query=INSERT INTO dbz_heartbeat.heartbeat (id, ts)
+  VALUES (1, now()) ON CONFLICT (id) DO UPDATE SET ts = now()
+# Also: ALTER PUBLICATION dbz_pub ADD TABLE dbz_heartbeat.heartbeat;</code></pre>
+
+<p class="scene-kicker">Scene 08 · The practical reason teams adopt it</p>
+<h2 id="fes">8. Transactional outbox becomes a durable event stream—and FES packages it</h2>
+<p>
+  CDC is especially valuable as the relay in the <a href="0014-transactional-outbox.html">transactional
+  outbox pattern</a>. A service writes business state and an outbox row in one database transaction.
+  Debezium sees the committed WAL record regardless of a later process crash. The supplied source report
+  describes Zalando&rsquo;s FES (Fabric Event Stream) as a platform version of this pattern: a managed
+  PostgreSQL logical-replication bridge into Nakadi.
+</p>
+
+<div class="stepflow" data-token="f-token" role="group" aria-label="Animated transactional outbox and Zalando Fabric Event Stream flow">
+  <div class="sf-stage">
+    <svg viewBox="0 0 720 350" role="img" aria-label="A service writes business data and an outbox row atomically, PostgreSQL WAL and pgoutput feed a Patroni-managed logical slot, FES Debezium connector transforms events and publishes them to Nakadi with a dead-letter route for failure">
+      <defs><marker id="f-arr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#6b6459"></path></marker><marker id="f-green" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#3f7a3f"></path></marker></defs>
+      <rect id="f-app" class="sf-actor" x="22" y="127" width="112" height="64" rx="10" fill="#faf8f2" stroke="#2e5a7a" stroke-width="1.5"></rect><text x="78" y="153" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" font-weight="700">Service</text><text x="78" y="170" text-anchor="middle" font-family="system-ui,sans-serif" font-size="8.5">one local ACID tx</text>
+      <rect id="f-pg" class="sf-actor" x="185" y="63" width="182" height="195" rx="12" fill="#f7f4ec" stroke="#2e5a7a" stroke-width="1.5"></rect><text x="276" y="89" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" font-weight="700">PostgreSQL</text><rect id="f-biz" x="207" y="106" width="138" height="33" rx="5" fill="#eef1f6" stroke="#c9c1b1"></rect><text x="276" y="127" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9">business row</text><rect id="f-outbox" x="207" y="153" width="138" height="33" rx="5" fill="#fbf1e7" stroke="#b5651d"></rect><text x="276" y="174" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9">outbox row</text><rect id="f-wal" x="207" y="205" width="138" height="31" rx="5" fill="#eef4ee" stroke="#3f7a3f"></rect><text x="276" y="225" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9">WAL / pgoutput</text>
+      <rect id="f-slot" class="sf-actor" x="412" y="73" width="128" height="64" rx="10" fill="#fbf1e7" stroke="#b5651d" stroke-width="1.5"></rect><text x="476" y="99" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="700">permanent slot</text><text x="476" y="116" text-anchor="middle" font-family="system-ui,sans-serif" font-size="8.5">Patroni / operator</text>
+      <rect id="f-fes" class="sf-actor" x="412" y="177" width="128" height="64" rx="10" fill="#eef1f6" stroke="#2e5a7a" stroke-width="1.5"></rect><text x="476" y="203" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="700">FES connector</text><text x="476" y="220" text-anchor="middle" font-family="system-ui,sans-serif" font-size="8.5">Debezium + pgoutput</text>
+      <rect id="f-transform" class="sf-actor" x="582" y="73" width="110" height="64" rx="10" fill="#f3f0e8" stroke="#a98b3f" stroke-width="1.5"></rect><text x="637" y="99" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="700">flow transform</text><text x="637" y="116" text-anchor="middle" font-family="system-ui,sans-serif" font-size="8.5">jq / mapping</text>
+      <rect id="f-nakadi" class="sf-actor" x="582" y="177" width="110" height="64" rx="10" fill="#eef4ee" stroke="#3f7a3f" stroke-width="1.5"></rect><text x="637" y="203" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" font-weight="700">Nakadi</text><text x="637" y="220" text-anchor="middle" font-family="system-ui,sans-serif" font-size="8.5">event type</text>
+      <rect id="f-dlq" class="sf-actor" x="582" y="278" width="110" height="42" rx="9" fill="#fbf1e7" stroke="#b5651d" stroke-width="1.5"></rect><text x="637" y="303" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" font-weight="700">DLQ · SQS/Nakadi</text>
+      <g id="f-a1" style="display:none"><line x1="136" y1="159" x2="183" y2="159" stroke="#6b6459" stroke-width="1.5" marker-end="url(#f-arr)"></line></g>
+      <g id="f-a2" style="display:none"><line x1="276" y1="187" x2="276" y2="203" stroke="#6b6459" stroke-width="1.5" marker-end="url(#f-arr)"></line></g>
+      <g id="f-a3" style="display:none"><line x1="347" y1="220" x2="410" y2="110" stroke="#3f7a3f" stroke-width="1.7" marker-end="url(#f-green)"></line></g>
+      <g id="f-a4" style="display:none"><line x1="476" y1="139" x2="476" y2="175" stroke="#6b6459" stroke-width="1.5" marker-end="url(#f-arr)"></line></g>
+      <g id="f-a5" style="display:none"><line x1="542" y1="205" x2="580" y2="114" stroke="#6b6459" stroke-width="1.5" marker-end="url(#f-arr)"></line></g>
+      <g id="f-a6" style="display:none"><line x1="637" y1="139" x2="637" y2="175" stroke="#3f7a3f" stroke-width="1.7" marker-end="url(#f-green)"></line></g>
+      <g id="f-dlq-arrow" style="display:none"><line x1="637" y1="242" x2="637" y2="276" stroke="#b5651d" stroke-width="1.6" stroke-dasharray="5 3" marker-end="url(#f-arr)"></line></g>
+      <text id="f-atomic" x="276" y="279" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" font-weight="700" fill="#1f4a29" style="display:none">✓ state + outbox commit together</text>
+      <text id="f-delete" x="276" y="303" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9.5" font-weight="700" fill="#b5651d" style="display:none">same-tx DELETE is ignored by outbox router</text>
+      <g id="f-token" class="sf-token" style="display:none"><circle r="15" fill="#7a2e2e" stroke="#fff" stroke-width="1.5"></circle><text class="sf-token-label" x="0" y="4" text-anchor="middle" font-family="system-ui,sans-serif" font-size="8" font-weight="700" fill="#fff">evt</text></g>
+    </svg>
+  </div>
+  <div class="sf-caption" aria-live="polite" aria-atomic="true"><p class="sf-title"></p><p class="sf-desc"></p></div>
+  <div class="sf-controls"><button class="sf-btn sf-prev" type="button">◀ Prev</button><button class="sf-btn sf-next" type="button">Next ▶</button><button class="sf-btn sf-reset" type="button">↺ Reset</button><button class="sf-btn sf-play" type="button">▶ Play</button><span class="sf-counter"></span></div>
+  <script type="application/json" class="sf-steps">
+  [
+    {"title":"The unsafe version is a dual write","desc":"Writing business state to PostgreSQL and publishing an event to a broker are separate systems. A crash between them loses an event or creates a phantom one. Lesson 14 fixes that with an outbox.","token":{"x":78,"y":159},"tokenLabel":"tx","visible":[],"highlight":["f-app"]},
+    {"title":"Write state and outbox in one transaction","desc":"The service persists its business change and an outbox event row in the same local ACID transaction. Both commit, or neither commits.","token":{"x":276,"y":170},"tokenLabel":"outbox","visible":["f-a1","f-atomic"],"highlight":["f-app","f-pg"]},
+    {"title":"Committed outbox data is in the WAL","desc":"After commit, the outbox INSERT is durable WAL history. CDC can relay it even if the service process immediately crashes.","token":{"x":276,"y":220},"tokenLabel":"LSN","visible":["f-a1","f-a2","f-atomic"],"highlight":["f-wal"]},
+    {"title":"A platform provisions logical replication","desc":"The source report describes Zalando&rsquo;s postgres-operator configuring <code>wal_level: logical</code>, pgoutput, a publication, a replication user, and a permanent Patroni slot.","token":{"x":476,"y":105},"tokenLabel":"slot","visible":["f-a1","f-a2","f-a3"],"highlight":["f-slot"]},
+    {"title":"FES runs the Debezium bridge","desc":"FES (Fabric Event Stream) is described as a standardized Debezium + pgoutput bridge. It reads the slot&rsquo;s logical stream and manages delivery to the event platform.","token":{"x":476,"y":209},"tokenLabel":"event","visible":["f-a1","f-a2","f-a3","f-a4"],"highlight":["f-fes"]},
+    {"title":"A flow transform shapes the contract","desc":"A jq or PostgresWalToGenericNakadiEvent-style transform maps Debezium&rsquo;s <code>before</code>, <code>after</code>, <code>op</code>, and time fields into the downstream event schema.","token":{"x":637,"y":105},"tokenLabel":"map","visible":["f-a1","f-a2","f-a3","f-a4","f-a5"],"highlight":["f-transform"]},
+    {"title":"Nakadi receives the business event","desc":"The transformed record reaches a Nakadi event type. The supplied customs-data-checker example is a DATA_CHANGE pipeline whose schema exposes the Debezium before/after shape.","token":{"x":637,"y":208},"tokenLabel":"event","visible":["f-a1","f-a2","f-a3","f-a4","f-a5","f-a6"],"highlight":["f-nakadi"]},
+    {"title":"Same-transaction delete keeps the outbox empty","desc":"An implementation may INSERT then DELETE an outbox row in the same transaction. CDC still sees the WAL INSERT; the Outbox Event Router ignores the DELETE, avoiding a cleanup job.","token":{"x":276,"y":174},"tokenLabel":"I+D","visible":["f-a1","f-a2","f-delete","f-atomic"],"highlight":["f-outbox","f-wal"]},
+    {"title":"Failure has an explicit recovery path","desc":"The FES topology in the source report routes delivery failures to a dead-letter path such as SQS or Nakadi. That makes an unpublishable event inspectable instead of silently discarded.","token":{"x":637,"y":300},"tokenLabel":"DLQ","visible":["f-a1","f-a2","f-a3","f-a4","f-a5","f-a6","f-dlq-arrow"],"highlight":["f-dlq"]},
+    {"title":"Treat platform details as deployment-specific","desc":"The report names a concrete customs-data-checker configuration: logical slot <code>fes_cdc</code>, a dedicated replication user, a pgoutput publication, a jq transform, and SQS DLQ. These are source-provided internal deployment details, not universal Debezium defaults.","token":null,"tokenLabel":"","visible":["f-a1","f-a2","f-a3","f-a4","f-a5","f-a6"],"highlight":["f-slot","f-fes","f-nakadi"]}
+  ]
+  </script>
+</div>
+
+<div class="callout warning">
+  <span class="label">Evidence boundary</span>
+  <p>The FES/customs material in the supplied Markdown is attributed to internal manifests and repositories.
+     This lesson presents it as a useful deployment case study, while PostgreSQL and Debezium mechanics
+     are independently linked to their public primary documentation below.</p>
+</div>
+
+<p>
+  The report&rsquo;s internal code search found roughly 59 <code>FabricEventStream</code> hits across 26+
+  Zalando Logistics repositories. It calls out a pick-broker-reservation-handler README/ADR as a public
+  style reference for the same slot-retention trade-off, while noting that the <code>customs</code>
+  meta-repository itself is documentation/tooling rather than a Debezium implementation.
+</p>
+
+<h2>9. The design-review checklist</h2>
+<ul class="checklist compact-list">
+  <li>Does PostgreSQL run with <code>wal_level=logical</code>, enough replication slots, and an intentional WAL-retention guard?</li>
+  <li>Does every connector have its own named slot and publication, with <code>slot.drop.on.stop=false</code> in production?</li>
+  <li>Do UPDATE and DELETE tables have the right REPLICA IDENTITY for the <code>before</code> contract and TOAST behavior you promise?</li>
+  <li>Can consumers tolerate an <code>op: r</code> snapshot and recovery duplicates, and can they deduplicate source positions?</li>
+  <li>Do dashboards alert on source lag, retained WAL, queue capacity, filtered records, and snapshot progress?</li>
+  <li>Does the heartbeat strategy include an in-captured-database write for the cross-database idle case?</li>
+  <li>Does the failover plan account for your PostgreSQL version, managed service, Patroni policy, and snapshot fallback?</li>
+  <li>For business events, does an outbox write occur in the same transaction as the business state change?</li>
+</ul>
+
+<div class="primary-source">
+  <span class="label">Go deeper (primary sources)</span>
+  <p>
+    PostgreSQL: <a href="https://www.postgresql.org/docs/current/wal-intro.html" target="_blank" rel="noopener">WAL</a>,
+    <a href="https://www.postgresql.org/docs/current/logicaldecoding-explanation.html" target="_blank" rel="noopener">logical decoding and slots</a>,
+    <a href="https://www.postgresql.org/docs/current/logical-replication-publication.html" target="_blank" rel="noopener">publications</a>, and
+    <a href="https://www.postgresql.org/docs/current/sql-altertable.html" target="_blank" rel="noopener">REPLICA IDENTITY</a>.
+    Debezium: <a href="https://debezium.io/documentation/reference/stable/connectors/postgresql.html" target="_blank" rel="noopener">PostgreSQL connector reference</a>,
+    <a href="https://github.com/debezium/debezium-design-documents/blob/main/DDD-3.md" target="_blank" rel="noopener">incremental-snapshot design</a>, and
+    <a href="https://debezium.io/documentation/reference/stable/transformations/outbox-event-router.html" target="_blank" rel="noopener">Outbox Event Router</a>.
+    This lesson follows the supplied report&rsquo;s pinned PostgreSQL and Debezium sources; version-specific claims are marked as such.
+  </p>
+</div>
+
+<h2>10. Check yourself</h2>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 1 of 3</p>
+  <p class="quiz-q">What safely lets PostgreSQL reclaim WAL retained for a logical slot?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="Correct: Connect commits the event/offset, then Debezium sends flush-LSN feedback to advance the slot.">Kafka commits plus flush feedback</button></li>
+    <li><button data-correct="false" data-feedback="Table polling does not advance a logical slot; confirmation feedback does.">Table reads plus polling queries</button></li>
+    <li><button data-correct="false" data-feedback="Schema locks protect metadata; they are not slot acknowledgement.">Schema locks plus checkpoints</button></li>
+    <li><button data-correct="false" data-feedback="Keys and tombstones are Kafka-record behavior, not PostgreSQL slot feedback.">Primary keys plus tombstones</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="The causal order is sink delivery → offset commit → Debezium flushes its LSN → PostgreSQL can move the logical slot and eventually recycle old WAL."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 2 of 3</p>
+  <p class="quiz-q">What prevents an initial snapshot from missing a write that commits during its table scan?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="Correct: the snapshot anchor LSN defines where the live reader begins after the READ scan.">Resume streaming at captured LSN</button></li>
+    <li><button data-correct="false" data-feedback="A periodic rescan is slow and still does not create a precise no-gap handoff.">Rescan all tables every day</button></li>
+    <li><button data-correct="false" data-feedback="The snapshot does not block ordinary writes; it catches them in WAL afterward.">Ignore concurrent writes during snapshots</button></li>
+    <li><button data-correct="false" data-feedback="Deleting a slot destroys, rather than protects, the restart boundary.">Delete replication slots before scanning</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Existing rows are emitted as READs from the exported snapshot; writes after the captured LSN are read from the WAL stream. The shared LSN boundary closes the gap."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 3 of 3</p>
+  <p class="quiz-q">What fixes WAL retention when the captured database itself is idle but another database is busy?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="Correct: this creates a capturable record in the database whose logical slot needs to advance.">Write heartbeat inside captured database</button></li>
+    <li><button data-correct="false" data-feedback="More queue memory may mask pressure, but it cannot create a source record/LSN advance.">Increase worker queue memory size</button></li>
+    <li><button data-correct="false" data-feedback="Filters are not the root cause; they can actually make the no-dispatch condition worse.">Disable all connector filters now</button></li>
+    <li><button data-correct="false" data-feedback="Dropping a live slot loses recovery history and is not a heartbeat strategy.">Drop the replication slot immediately</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Use heartbeat.action.query to write in the captured database, and include the heartbeat table in the publication. Then the connector receives an event to commit and acknowledge."></div>
+</div>
+
+<div class="callout tryit">
+  <span class="label">Try it in your own system</span>
+  <p>Take one PostgreSQL-backed service and write its proposed CDC contract: captured tables, publication,
+     REPLICA IDENTITY choice, slot name, topic keys, snapshot mode, dedup key, dashboard alerts, and
+     heartbeat plan. If it publishes business events, add the outbox row and decide who owns failure
+     recovery. Bring that design back and we can review it like a production RFC.</p>
+</div>
+
+<div class="followup">
+  <strong>I&rsquo;m your teacher &mdash; pull any frame apart.</strong> Want to turn this into a local Docker
+  lab, inspect a real Debezium connector configuration, simulate a stalled slot, or trace exactly how
+  the outbox event becomes a Kafka/Nakadi record? Ask, and we&rsquo;ll replay the relevant scene slowly.
+</div>
+
+<nav class="lesson-nav">
+  <span class="group"><b>Previous</b><a href="0018-observability-when-not-to.html">← Lesson 18 · Observability &amp; Judgment</a></span>
+  <span class="group"><b>Related</b><a href="0014-transactional-outbox.html">Lesson 14 · Transactional Outbox</a></span>
+  <span class="group"><b>Reference</b><a href="../reference/0019-debezium-postgresql-cdc-cheatsheet.html">PostgreSQL CDC cheat sheet →</a></span>
+</nav>
+
+</body>
+</html>

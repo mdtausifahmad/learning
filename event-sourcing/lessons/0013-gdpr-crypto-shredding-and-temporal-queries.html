@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 13 · GDPR, Crypto-Shredding &amp; Temporal Queries</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<script src="../assets/quiz.js" defer></script>
+<script src="../assets/anim.js" defer></script>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Event Sourcing · Lesson 13</p>
+  <h1>GDPR, Crypto-Shredding &amp; Temporal Queries</h1>
+  <div class="meta">
+    <span>◷ ~15 min read</span>
+    <span class="dot">•</span>
+    <span>Level 4 · Advanced</span>
+    <span class="dot">•</span>
+    <span>Prereq: <a href="0012-event-schema-evolution.html">Lesson 12 · Event schema evolution</a></span>
+  </div>
+</header>
+
+<p class="mission-tie">
+  Your log is immutable; the law says a person can ask to be <em>forgotten</em>. Those two facts collide
+  the first time a data-protection officer reads your design doc. This lesson gives you the four ways
+  out, a production-shaped crypto-shredding sketch in Java, the end-to-end purge map a Staff engineer
+  owns &mdash; and then turns time itself into a feature: <strong>as-of</strong> versus
+  <strong>valid-time</strong> queries, retroactive events and bi-temporal modelling.
+</p>
+
+<h2>1. The collision: immutability vs erasure</h2>
+
+<p>
+  GDPR Art.&nbsp;17 (&ldquo;right to erasure&rdquo;) obliges you to delete a data subject&rsquo;s
+  personal data on request, without undue delay (Art.&nbsp;12(3) gives you one month by default).
+  Event sourcing promises the opposite: <em>never</em> update, <em>never</em> delete. If your events
+  contain <code>email</code>, <code>name</code>, <code>iban</code> or a free-text <code>note</code>, you have a
+  problem that grows with every append &mdash; and with every copy of those events downstream.
+</p>
+
+<div class="callout warning">
+  <span class="label">PII hides in places you don&rsquo;t look</span>
+  <p>Payloads are the obvious place. Less obvious: <strong>stream ids</strong>
+  (<code>customer-alice@example.com</code>), <strong>metadata</strong> (IP address, user agent),
+  <strong>tags</strong>, <strong>Kafka message keys</strong>, log lines that print events, and error
+  messages in your dead-letter table. Use opaque ids (<code>customer-42</code>) everywhere identity is
+  structural.</p>
+</div>
+
+<h2>2. The four options</h2>
+
+<table>
+  <thead><tr><th>Technique</th><th>How</th><th>Trade-offs</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Keep PII out of events</strong></td><td>Events reference <code>customerId</code>; PII lives in a separate, deletable CRUD store</td><td>Simplest; <strong>best default</strong>. Replays still work; erasure is a plain <code>DELETE</code>. Costs a lookup when projecting.</td></tr>
+    <tr><td><strong>Crypto-shredding</strong></td><td>Encrypt PII fields with a <strong>per-subject key</strong> held in a key store/vault; delete the key to &ldquo;forget&rdquo;</td><td>Events stay immutable; replay shows <code>[erased]</code>. Most popular approach when PII must travel with the fact. Adds key-management ops.</td></tr>
+    <tr><td><strong>Stream deletion / truncation</strong></td><td>Delete or truncate the whole stream (e.g. <code>customer-42</code>)</td><td>Supported by most stores; projections must handle tombstones; breaks global replay determinism for that subject.</td></tr>
+    <tr><td><strong>Copy-transform excluding data</strong></td><td>Rewrite history into a new store/stream without the subject&rsquo;s data</td><td>Heavy, risky, audited migration. <strong>Last resort.</strong></td></tr>
+  </tbody>
+</table>
+
+<p>
+  In practice you combine them: keep <em>most</em> PII out, crypto-shred the few fields that genuinely
+  belong to the fact (a payment <code>memo</code>, a claim&rsquo;s free-text description), and keep stream
+  deletion for subjects whose entire stream is personal (a user-preferences stream).
+</p>
+
+<div class="evlog">
+  <span class="ev">CustomerRegistered{id: 42, email: ENC(k42,&hellip;)}</span><span class="arrow">&rarr;</span>
+  <span class="ev dep">OrderPlaced{customerId: 42, total: 80}</span><span class="arrow">&rarr;</span>
+  <span class="ev meta">CustomerDataErased{id: 42}</span>
+</div>
+
+<h2>3. Crypto-shredding, step by step</h2>
+
+<figure class="anim" data-anim>
+<div class="anim-stage">
+<svg viewBox="0 0 680 300" role="img" aria-label="Sequence: handler gets a per-subject key, appends encrypted event, projection decrypts, erasure deletes the key, projection now shows erased">
+  <defs>
+    <marker id="l13a" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#4b3f8f"></path></marker>
+    <marker id="l13b" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#b23b3b"></path></marker>
+    <marker id="l13c" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#1f7a5e"></path></marker>
+  </defs>
+  <g font-family="system-ui, sans-serif" font-size="11">
+    <g class="anim-el" data-step="1">
+      <rect x="20" y="10" width="120" height="30" rx="6" fill="#efedf8" stroke="#4b3f8f"></rect>
+      <text x="80" y="29" text-anchor="middle" font-weight="700" fill="#4b3f8f">Command handler</text>
+      <rect x="190" y="10" width="130" height="30" rx="6" fill="#fff" stroke="#c98a1a" stroke-width="1.5"></rect>
+      <text x="255" y="29" text-anchor="middle" font-weight="700">Key store (per subject)</text>
+      <rect x="370" y="10" width="120" height="30" rx="6" fill="#efedf8" stroke="#4b3f8f"></rect>
+      <text x="430" y="29" text-anchor="middle" font-weight="700" fill="#4b3f8f">Event store</text>
+      <rect x="540" y="10" width="120" height="30" rx="6" fill="#fff" stroke="#1f7a5e" stroke-width="1.5"></rect>
+      <text x="600" y="29" text-anchor="middle" font-weight="700">Projection</text>
+      <line x1="80" y1="40" x2="80" y2="290" stroke="#ccc" stroke-dasharray="4 3"></line>
+      <line x1="255" y1="40" x2="255" y2="290" stroke="#ccc" stroke-dasharray="4 3"></line>
+      <line x1="430" y1="40" x2="430" y2="290" stroke="#ccc" stroke-dasharray="4 3"></line>
+      <line x1="600" y1="40" x2="600" y2="290" stroke="#ccc" stroke-dasharray="4 3"></line>
+    </g>
+    <g class="anim-el" data-step="2">
+      <path d="M80 62 H250" stroke="#4b3f8f" marker-end="url(#l13a)"></path>
+      <text x="165" y="57" text-anchor="middle">getOrCreateKey(customer-42)</text>
+      <path d="M255 76 H86" stroke="#4b3f8f" stroke-dasharray="4 2" marker-end="url(#l13a)"></path>
+      <text x="165" y="90" text-anchor="middle" fill="#63625c">k42 (AES-256)</text>
+      <rect x="225" y="95" width="60" height="20" rx="4" fill="#fff" stroke="#c98a1a"></rect>
+      <text x="255" y="109" text-anchor="middle">🔑 k42</text>
+    </g>
+    <g class="anim-el" data-step="3">
+      <path d="M80 128 H425" stroke="#4b3f8f" marker-end="url(#l13a)"></path>
+      <text x="255" y="123" text-anchor="middle">append CustomerRegistered{ email: ENC(k42, &quot;a@b.com&quot;) }</text>
+      <rect x="380" y="134" width="100" height="22" rx="4" fill="#fff" stroke="#4b3f8f"></rect>
+      <text x="430" y="149" text-anchor="middle" font-family="Menlo, monospace" font-size="10">x9F#q2…</text>
+    </g>
+    <g class="anim-el" data-step="4">
+      <path d="M600 172 H261" stroke="#1f7a5e" marker-end="url(#l13c)"></path>
+      <text x="430" y="167" text-anchor="middle">getKey(customer-42) → k42</text>
+      <rect x="545" y="180" width="110" height="22" rx="4" fill="#e3f3ec" stroke="#1f7a5e"></rect>
+      <text x="600" y="195" text-anchor="middle" fill="#1f7a5e">email = a@b.com</text>
+    </g>
+    <g class="anim-el" data-step="5">
+      <rect x="170" y="210" width="170" height="24" rx="5" fill="#f8eaea" stroke="#b23b3b"></rect>
+      <text x="255" y="226" text-anchor="middle" fill="#b23b3b" font-weight="700">GDPR erasure: DELETE k42</text>
+      <line x1="225" y1="95" x2="285" y2="115" stroke="#b23b3b" stroke-width="2"></line>
+      <line x1="285" y1="95" x2="225" y2="115" stroke="#b23b3b" stroke-width="2"></line>
+    </g>
+    <g class="anim-el" data-step="6">
+      <path d="M600 252 H261" stroke="#b23b3b" marker-end="url(#l13b)"></path>
+      <text x="430" y="247" text-anchor="middle">getKey(customer-42) → not found</text>
+      <rect x="545" y="260" width="110" height="22" rx="4" fill="#f8eaea" stroke="#b23b3b"></rect>
+      <text x="600" y="275" text-anchor="middle" fill="#b23b3b">email = [erased]</text>
+    </g>
+    <g class="anim-el" data-step="7">
+      <rect x="370" y="262" width="120" height="30" rx="5" fill="#fff" stroke="#1f7a5e" stroke-width="1.5"></rect>
+      <text x="430" y="275" text-anchor="middle" fill="#1f7a5e" font-size="10">events untouched,</text>
+      <text x="430" y="287" text-anchor="middle" fill="#1f7a5e" font-size="10">ciphertext now noise</text>
+    </g>
+  </g>
+</svg>
+</div>
+<div class="anim-caps">
+  <p class="anim-cap" data-step="1"><span class="n">1</span>Four actors. The <strong>key store</strong> is the only mutable, deletable piece &mdash; typically a Postgres table of data keys wrapped by a KMS/Vault master key (envelope encryption).</p>
+  <p class="anim-cap" data-step="2"><span class="n">2</span>On the first event about a subject, the handler fetches or creates <strong>that subject&rsquo;s</strong> key. One key per data subject, not per event and not per tenant.</p>
+  <p class="anim-cap" data-step="3"><span class="n">3</span>Only the PII field is encrypted; the rest of the event (ids, amounts, types) stays clear so projections, upcasters and analytics still work. The event store sees ciphertext.</p>
+  <p class="anim-cap" data-step="4"><span class="n">4</span>A projection asks for the key and decrypts while building its read model. Replays do the same.</p>
+  <p class="anim-cap" data-step="5"><span class="n">5</span>Erasure request: delete the subject&rsquo;s key (and make sure no key backup outlives your deadline). No event is modified.</p>
+  <p class="anim-cap" data-step="6"><span class="n">6</span>Every future read &mdash; live or replay &mdash; gets &ldquo;key not found&rdquo; and renders <code>[erased]</code>. <code>evolve</code> must tolerate this; it must never throw.</p>
+  <p class="anim-cap" data-step="7"><span class="n">7</span>The log is still immutable and replayable. The ciphertext is mathematically unrecoverable &mdash; that&rsquo;s the &ldquo;shredding&rdquo;. But <em>derived copies</em> (read models, Kafka, snapshots) still hold plaintext &mdash; see &sect;5.</p>
+</div>
+<figcaption>Crypto-shredding: deleting one small key makes every copy of the ciphertext unreadable, everywhere, without touching the log.</figcaption>
+</figure>
+
+<h2>4. A Java sketch: field-level encryption with a key store</h2>
+
+<p>Keep the crypto behind a narrow interface so the decider never sees it, and so you can swap the
+backing store (Postgres table + KMS wrapping, HashiCorp Vault Transit, AWS KMS data keys).</p>
+
+<pre><code>// ---- The only mutable thing: per-subject keys ----
+public interface SubjectKeyStore {
+    SecretKey getOrCreate(String subjectId);          // write path
+    Optional&lt;SecretKey&gt; find(String subjectId);       // read path; empty after erasure
+    void destroy(String subjectId);                   // GDPR erasure = crypto-shred
+}
+
+// ---- What is stored inside the event payload ----
+public record Encrypted(String subjectId, String iv, String ciphertext) {}
+
+public final class PiiCipher {
+    private static final int IV_BYTES = 12, TAG_BITS = 128;
+    public static final String ERASED = "[erased]";
+
+    private final SubjectKeyStore keys;
+    private final SecureRandom random = new SecureRandom();
+
+    public PiiCipher(SubjectKeyStore keys) { this.keys = keys; }
+
+    public Encrypted encrypt(String subjectId, String plaintext) {
+        try {
+            byte[] iv = new byte[IV_BYTES];
+            random.nextBytes(iv);                                   // fresh IV per field
+            Cipher c = Cipher.getInstance("AES/GCM/NoPadding");
+            c.init(Cipher.ENCRYPT_MODE, keys.getOrCreate(subjectId), new GCMParameterSpec(TAG_BITS, iv));
+            c.updateAAD(subjectId.getBytes(UTF_8));                 // bind ciphertext to subject
+            byte[] ct = c.doFinal(plaintext.getBytes(UTF_8));
+            return new Encrypted(subjectId, b64(iv), b64(ct));
+        } catch (GeneralSecurityException e) {
+            throw new IllegalStateException("PII encryption failed", e);
+        }
+    }
+
+    /** Never throws for a missing key: erasure is a normal, expected outcome. */
+    public String decryptOrErased(Encrypted f) {
+        return keys.find(f.subjectId()).map(k -&gt; decrypt(k, f)).orElse(ERASED);
+    }
+
+    private static String decrypt(SecretKey key, Encrypted f) {
+        try {
+            Cipher c = Cipher.getInstance("AES/GCM/NoPadding");
+            c.init(Cipher.DECRYPT_MODE, key, new GCMParameterSpec(TAG_BITS, unb64(f.iv())));
+            c.updateAAD(f.subjectId().getBytes(UTF_8));
+            return new String(c.doFinal(unb64(f.ciphertext())), UTF_8);
+        } catch (GeneralSecurityException e) {
+            throw new IllegalStateException("Corrupt ciphertext for " + f.subjectId(), e);
+        }
+    }
+    private static String b64(byte[] b) { return Base64.getEncoder().encodeToString(b); }
+    private static byte[] unb64(String s) { return Base64.getDecoder().decode(s); }
+}
+
+// ---- The event: PII is a value object, the rest is clear text ----
+public sealed interface CustomerEvent {
+    record CustomerRegistered(String customerId, Encrypted email, Instant at) implements CustomerEvent {}
+    record CustomerDataErased(String customerId, Instant at) implements CustomerEvent {}   // no PII!
+}
+
+// ---- Projection side ----
+case CustomerRegistered e -&gt; jdbc.update(
+        "INSERT INTO customer_view(id, email) VALUES (?, ?) ON CONFLICT (id) DO NOTHING",
+        e.customerId(), cipher.decryptOrErased(e.email()));
+case CustomerDataErased e -&gt; jdbc.update(
+        "UPDATE customer_view SET email = ?, name = ? WHERE id = ?", ERASED, ERASED, e.customerId());</code></pre>
+
+<pre><code>-- Postgres-backed key store: data keys wrapped by a KMS master key (envelope encryption)
+CREATE TABLE subject_keys (
+    subject_id   TEXT PRIMARY KEY,
+    wrapped_key  BYTEA       NOT NULL,      -- data key encrypted by KMS; never stored raw
+    kms_key_ref  TEXT        NOT NULL,
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+-- Erasure: the row goes, and with it every readable copy of the subject's PII.
+DELETE FROM subject_keys WHERE subject_id = 'customer-42';</code></pre>
+
+<div class="callout insight">
+  <span class="label">Make erasure itself an event</span>
+  <p>Append a PII-free <span class="term">CustomerDataErased</span> after destroying the key. It gives
+  you an auditable record that the request was honoured (when, by whom, under which ticket) and it
+  is the <em>trigger</em> every projection and downstream consumer uses to scrub its own copy.
+  Deleting the key alone does nothing to a read model that already holds plaintext.</p>
+</div>
+
+<table>
+  <thead><tr><th>Crypto-shredding gotcha</th><th>Mitigation</th></tr></thead>
+  <tbody>
+    <tr><td>Key-store backups or KMS soft-delete keep the key alive past the deadline</td><td>Backup retention &lt; legal deadline; explicit purge of soft-deleted keys</td></tr>
+    <tr><td>Encrypted fields can&rsquo;t be indexed or searched</td><td>Search on projections (plaintext, deletable) or on keyed hashes &mdash; but a hash of an email is still personal data</td></tr>
+    <tr><td>Key lookup on every replay is slow</td><td>Cache keys per projection batch; bulk-fetch by subject</td></tr>
+    <tr><td>Losing the key store = losing all PII</td><td>Treat it as tier-0 infra: replicated, backed up (within the retention window)</td></tr>
+    <tr><td>Is it &ldquo;erasure&rdquo; in law?</td><td>Widely accepted as rendering data unrecoverable, but get your DPO to sign off in the ADR</td></tr>
+  </tbody>
+</table>
+
+<h2>5. The end-to-end purge map (the Staff part)</h2>
+
+<p>
+  The event store is one copy. A Staff engineer owns the <strong>data map</strong>: every place an
+  event, or something derived from it, comes to rest.
+</p>
+
+<table>
+  <thead><tr><th>Where</th><th>Holds PII as</th><th>Erasure action</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Event store</strong></td><td>ciphertext (or nothing)</td><td>destroy key / delete stream</td></tr>
+    <tr><td><strong>Read models</strong></td><td>plaintext</td><td>projection handles <code>CustomerDataErased</code>; verify rebuilds yield <code>[erased]</code></td></tr>
+    <tr><td><strong>Snapshots</strong></td><td>plaintext if state holds PII (it shouldn&rsquo;t)</td><td>delete subject&rsquo;s snapshots; they rebuild from events</td></tr>
+    <tr><td><strong>Kafka topics</strong></td><td>whatever your integration events carry</td><td>publish ciphertext or ids only; compacted topics: tombstone the key; otherwise rely on retention &lt; deadline</td></tr>
+    <tr><td><strong>Backups</strong></td><td>full copies</td><td>retention window shorter than the deadline, or documented restore-then-re-erase procedure</td></tr>
+    <tr><td><strong>Data lake / warehouse</strong></td><td>often raw event dumps</td><td>ingest decrypted-at-source fields as separate deletable columns, or keep ciphertext</td></tr>
+    <tr><td><strong>Logs, DLQ, caches, search</strong></td><td>accidental plaintext</td><td>don&rsquo;t log payloads; TTLs; erasure handler in each</td></tr>
+  </tbody>
+</table>
+
+<div class="callout warning">
+  <span class="label">Snapshot trap</span>
+  <p>A snapshot is serialised aggregate state. If you decrypted PII into state, the snapshot holds it
+  in plaintext and survives key deletion. Keep PII out of aggregate state entirely &mdash; deciders
+  rarely need an email to enforce an invariant.</p>
+</div>
+
+<h2>6. Temporal queries: two different &ldquo;whens&rdquo;</h2>
+
+<p>
+  Event sourcing gives you time travel for free &mdash; but there are <em>two</em> clocks, and mixing
+  them up produces subtly wrong answers in HR, insurance, payroll and finance.
+</p>
+
+<table>
+  <thead><tr><th>Question</th><th>Time axis</th><th>Comes from</th></tr></thead>
+  <tbody>
+    <tr><td>&ldquo;What did <strong>we know</strong> on 1 March?&rdquo;</td><td><strong>System time</strong> (as-of, transaction time)</td><td><code>recorded_at</code> / global position &mdash; free with ES</td></tr>
+    <tr><td>&ldquo;What <strong>was true</strong> on 1 March?&rdquo;</td><td><strong>Valid time</strong> (business, effective time)</td><td>an explicit <code>effectiveFrom</code> in the payload &mdash; you must model it</td></tr>
+  </tbody>
+</table>
+
+<p>A <strong>retroactive event</strong> is one recorded today but effective in the past. That&rsquo;s
+where the axes split apart:</p>
+
+<figure class="anim" data-anim>
+<div class="anim-stage">
+<svg viewBox="0 0 660 270" role="img" aria-label="Bi-temporal timeline: SalaryChanged recorded 10 April effective 1 March; system-time vs valid-time answers differ">
+  <defs>
+    <marker id="l13d" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#63625c"></path></marker>
+    <marker id="l13e" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#c98a1a"></path></marker>
+  </defs>
+  <g font-family="system-ui, sans-serif" font-size="11">
+    <g class="anim-el" data-step="1">
+      <line x1="40" y1="70" x2="630" y2="70" stroke="#63625c" marker-end="url(#l13d)"></line>
+      <text x="40" y="58" fill="#63625c" font-weight="700">calendar 2026</text>
+      <line x1="100" y1="64" x2="100" y2="76" stroke="#63625c"></line><text x="100" y="90" text-anchor="middle">1 Feb</text>
+      <line x1="250" y1="64" x2="250" y2="76" stroke="#63625c"></line><text x="250" y="90" text-anchor="middle">1 Mar</text>
+      <line x1="400" y1="64" x2="400" y2="76" stroke="#63625c"></line><text x="400" y="90" text-anchor="middle">31 Mar</text>
+      <line x1="500" y1="64" x2="500" y2="76" stroke="#63625c"></line><text x="500" y="90" text-anchor="middle">10 Apr</text>
+      <rect x="40" y="18" width="220" height="24" rx="5" fill="#efedf8" stroke="#4b3f8f"></rect>
+      <text x="150" y="34" text-anchor="middle" fill="#4b3f8f">SalaryChanged 4,000 (eff. 1 Feb)</text>
+    </g>
+    <g class="anim-el" data-step="2">
+      <rect x="410" y="100" width="240" height="44" rx="6" fill="#fff" stroke="#c98a1a" stroke-width="1.5"></rect>
+      <text x="530" y="117" text-anchor="middle" font-weight="700">SalaryChanged 4,500</text>
+      <text x="530" y="134" text-anchor="middle" fill="#63625c">recorded_at 10 Apr · effective_from 1 Mar</text>
+      <path d="M500 100 V78" stroke="#c98a1a" marker-end="url(#l13e)"></path>
+      <path d="M430 144 C 380 175, 280 175, 252 80" stroke="#c98a1a" stroke-dasharray="4 3" fill="none" marker-end="url(#l13e)"></path>
+      <text x="320" y="182" text-anchor="middle" fill="#c98a1a">applies back to 1 Mar</text>
+    </g>
+    <g class="anim-el" data-step="3">
+      <rect x="30" y="200" width="290" height="56" rx="6" fill="#fff" stroke="#4b3f8f" stroke-width="1.5"></rect>
+      <text x="175" y="219" text-anchor="middle" font-weight="700" fill="#4b3f8f">System time: what did payroll KNOW on 31 Mar?</text>
+      <text x="175" y="238" text-anchor="middle">recorded_at ≤ 31 Mar → only the 4,000 event</text>
+      <text x="175" y="252" text-anchor="middle" font-weight="700">→ 4,000 (what March payroll paid)</text>
+    </g>
+    <g class="anim-el" data-step="4">
+      <rect x="340" y="200" width="300" height="56" rx="6" fill="#fff" stroke="#1f7a5e" stroke-width="1.5"></rect>
+      <text x="490" y="219" text-anchor="middle" font-weight="700" fill="#1f7a5e">Valid time: what WAS the salary on 31 Mar?</text>
+      <text x="490" y="238" text-anchor="middle">all events, effective_from ≤ 31 Mar, latest wins</text>
+      <text x="490" y="252" text-anchor="middle" font-weight="700">→ 4,500 (the truth, as known now)</text>
+    </g>
+    <g class="anim-el" data-step="5">
+      <rect x="250" y="100" width="150" height="40" rx="6" fill="#f8eaea" stroke="#b23b3b"></rect>
+      <text x="325" y="117" text-anchor="middle" fill="#b23b3b" font-weight="700">gap: 500 × 1 month</text>
+      <text x="325" y="132" text-anchor="middle" fill="#b23b3b">underpaid in March</text>
+    </g>
+    <g class="anim-el" data-step="6">
+      <rect x="40" y="105" width="190" height="40" rx="6" fill="#e3f3ec" stroke="#1f7a5e"></rect>
+      <text x="135" y="122" text-anchor="middle" fill="#1f7a5e" font-weight="700">policy → BackpayCalculated</text>
+      <text x="135" y="137" text-anchor="middle" fill="#1f7a5e">500, paid in April run</text>
+    </g>
+  </g>
+</svg>
+</div>
+<div class="anim-caps">
+  <p class="anim-cap" data-step="1"><span class="n">1</span>Employee E7 earns 4,000 from 1 February. One event, recorded and effective on the same day &mdash; the two clocks agree.</p>
+  <p class="anim-cap" data-step="2"><span class="n">2</span>On 10 April HR records a raise to 4,500 <strong>effective 1 March</strong>. A retroactive event: <code>recorded_at</code> and <code>effective_from</code> now differ by six weeks.</p>
+  <p class="anim-cap" data-step="3"><span class="n">3</span><strong>As-of (system time):</strong> filter by <code>recorded_at</code>. On 31 March the system only knew 4,000 &mdash; that&rsquo;s what an auditor reconstructing March&rsquo;s payroll run needs.</p>
+  <p class="anim-cap" data-step="4"><span class="n">4</span><strong>Valid time:</strong> take every event, filter by <code>effective_from</code>. The salary <em>was</em> 4,500 on 31 March &mdash; we just didn&rsquo;t know yet.</p>
+  <p class="anim-cap" data-step="5"><span class="n">5</span>The difference between the two answers is a business fact: March was underpaid by 500.</p>
+  <p class="anim-cap" data-step="6"><span class="n">6</span>A policy reacts to the retroactive event and appends a <em>compensating</em> <span class="term">BackpayCalculated</span>. History is never rewritten; the correction is itself history.</p>
+</div>
+<figcaption>Bi-temporal: two independent axes. Questions about <em>knowledge</em> use system time; questions about <em>reality</em> use valid time.</figcaption>
+</figure>
+
+<pre><code>-- As-of (system time): what did we KNOW at :as_of?
+SELECT event_type, data
+FROM   events
+WHERE  stream_id = 'employee-E7' AND recorded_at &lt;= :as_of
+ORDER  BY stream_version;
+
+-- Valid time, as known now: what WAS the salary on :on_date?
+SELECT (data-&gt;&gt;'amount')::numeric AS salary
+FROM   events
+WHERE  stream_id = 'employee-E7' AND event_type = 'SalaryChanged'
+  AND  (data-&gt;&gt;'effectiveFrom')::date &lt;= :on_date
+ORDER  BY (data-&gt;&gt;'effectiveFrom')::date DESC, stream_version DESC
+LIMIT  1;
+
+-- Fully bi-temporal: what did we believe on :as_of about :on_date?  Add both predicates.</code></pre>
+
+<p>
+  These raw queries are fine for an audit tool or a test. For request-path reads, build a
+  <strong>bi-temporal projection</strong>: a table with <code>valid_from</code>, <code>valid_to</code>,
+  <code>recorded_from</code>, <code>recorded_to</code> (PostgreSQL <code>tstzrange</code> columns with a
+  GiST index work well).
+</p>
+
+<pre><code>public record SalaryChanged(String employeeId, BigDecimal amount,
+                            LocalDate effectiveFrom,   // valid time: business decides
+                            Instant recordedAt)        // system time: the clock decides
+        implements EmployeeEvent {}</code></pre>
+
+<div class="callout insight">
+  <span class="label">Staff differentiator</span>
+  <p>Most teams discover bi-temporality after an auditor asks &ldquo;why did the March payslip say
+  4,000?&rdquo;. If you put <code>effectiveFrom</code> in the event <em>at design time</em> in HR,
+  insurance (policy endorsements), payroll or pricing domains, you&rsquo;ve avoided a painful
+  schema-evolution project later. Ask in every design review: &ldquo;can this fact be back-dated?&rdquo;</p>
+</div>
+
+<div class="primary-source">
+  <span class="label">Read this next (primary source)</span>
+  <p>Oskar Dudycz &mdash; <a href="https://event-driven.io/" target="_blank" rel="noopener"><em>event-driven.io</em></a>
+  (search &ldquo;GDPR&rdquo; and &ldquo;crypto shredding&rdquo; for practical write-ups), and Martin Fowler &mdash;
+  <a href="https://martinfowler.com/eaaDev/EventSourcing.html" target="_blank" rel="noopener"><em>Event Sourcing</em></a>
+  (the sections on temporal query and retroactive events).</p>
+</div>
+
+<h2>7. Check yourself</h2>
+<p>Retrieve before revealing.</p>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 1 of 3</p>
+  <p class="quiz-q">You crypto-shredded customer 42&rsquo;s key. Which copy most likely still exposes their email?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="The event store holds ciphertext; without the key it is unreadable.">the encrypted CustomerRegistered event in the store</button></li>
+    <li><button data-correct="false" data-feedback="An archived stream holds the same ciphertext as the live one.">an archived copy of the stream in object storage</button></li>
+    <li><button data-correct="true" data-feedback="Right — read models hold decrypted plaintext and need their own erasure handling.">the customer_view read model built before erasure</button></li>
+    <li><button data-correct="false" data-feedback="The erasure event deliberately carries no PII.">the CustomerDataErased event appended afterwards</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Key deletion protects every ciphertext copy. Plaintext derived copies — read models, snapshots, logs, warehouses — need explicit purging, usually triggered by an erasure event."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 2 of 3</p>
+  <p class="quiz-q">An auditor asks: &ldquo;Reconstruct exactly what payroll knew when it ran on 31 March.&rdquo; You filter events by&hellip;</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="Right — knowledge at a moment is system (transaction) time.">recorded_at &le; 31 March, i.e. system time</button></li>
+    <li><button data-correct="false" data-feedback="That answers what was true, including facts learned later.">effective_from &le; 31 March, i.e. valid time</button></li>
+    <li><button data-correct="false" data-feedback="occurred_at is when the decision was made, not what was known.">occurred_at &le; 31 March across all streams</button></li>
+    <li><button data-correct="false" data-feedback="The current projection reflects today&rsquo;s knowledge, not March&rsquo;s.">the current read model with no time filter at all</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="&ldquo;What did we know?&rdquo; = system time (recorded_at / position). &ldquo;What was true?&rdquo; = valid time (effective date in the payload)."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 3 of 3</p>
+  <p class="quiz-q">The best <em>default</em> for PII in a new event-sourced context is to&hellip;</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="Workable but adds key ops; reserve it for PII that must travel with the fact.">encrypt every PII field with a per-subject key</button></li>
+    <li><button data-correct="false" data-feedback="That destroys immutability and is a governed last resort.">rewrite the affected streams whenever asked</button></li>
+    <li><button data-correct="false" data-feedback="Shared keys can&rsquo;t forget one subject without forgetting all.">encrypt all events with a single tenant-wide key</button></li>
+    <li><button data-correct="true" data-feedback="Right — reference ids; PII lives in a deletable store.">keep it out of events and reference a subject id</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Keep PII out by default; crypto-shred the few fields that must be in events; stream deletion and copy-transform are for special cases."></div>
+</div>
+
+<div class="callout tryit">
+  <span class="label">Try it in your own system</span>
+  <ul class="checklist">
+    <li>Grep one of your event schemas (or Kafka topics) for PII: payloads, keys, headers, metadata. List every field.</li>
+    <li>For each field decide: remove (reference an id) or crypto-shred. Justify any field that stays in plaintext.</li>
+    <li>Draw the data map: every store an event lands in. Write the erasure action and owner next to each.</li>
+    <li>Find one fact in your domain that can be back-dated. Does its event carry an <code>effectiveFrom</code>?</li>
+  </ul>
+</div>
+
+<div class="followup">
+  <strong>I&rsquo;m your teacher &mdash; ask me anything.</strong> Want to walk through Vault Transit vs
+  a Postgres key table, or design a bi-temporal projection with <code>tstzrange</code> and exclusion
+  constraints? Bring your domain and we&rsquo;ll sketch it.
+</div>
+
+<nav class="lesson-nav">
+  <span class="group">
+    <b>Reference</b>
+    <a href="../reference/0010-gdpr-and-testing-recipes.html">GDPR &amp; testing recipes &rarr;</a>
+  </span>
+  <span class="group">
+    <b>Previous</b>
+    <a href="0012-event-schema-evolution.html">&larr; Lesson 12 · Event schema evolution</a>
+  </span>
+  <span class="group">
+    <b>Up next</b>
+    <a href="0014-testing-event-sourced-systems.html">Lesson 14 · Testing event-sourced systems &rarr;</a>
+  </span>
+</nav>
+
+</body>
+</html>

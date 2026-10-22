@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cheat Sheet · Eventual-Consistency Strategies</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<style>
+  body { max-width: 52rem; }
+  @media print { body { margin: 0; } h2 { margin-top: 1.1rem; } }
+</style>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Event Sourcing · Reference 06</p>
+  <h1>Eventual-Consistency Strategies &amp; Rebuilds</h1>
+  <div class="meta"><span>Compressed from Lesson 06</span><span class="dot">•</span><span>Print-friendly</span></div>
+</header>
+
+<h2>Strategy menu</h2>
+<table>
+  <thead><tr><th>Technique</th><th>How</th><th>Trade-off</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Return result from command</strong></td><td>Return new version / computed values; optimistic UI</td><td>Simplest; covers most cases</td></tr>
+    <tr><td><strong>Position token (read-your-writes)</strong></td><td>Command returns <code>globalPosition</code>; query sends <code>?minPosition=</code>; bounded wait until checkpoint &ge; token</td><td>Strong UX, small latency</td></tr>
+    <tr><td><strong>Inline projection</strong></td><td>Update the view in the append&rsquo;s transaction (same Postgres)</td><td>Write latency &amp; failures coupled; 1&ndash;2 views max</td></tr>
+    <tr><td><strong>Read from aggregate</strong></td><td>Rehydrate the stream for get-by-id</td><td>Always consistent; by id only</td></tr>
+    <tr><td><strong>Push</strong></td><td>SSE/WebSocket when the projection catches up</td><td>Best UX; more infra</td></tr>
+    <tr><td><strong>Design the UI</strong></td><td>&ldquo;Your order is being processed&rdquo;</td><td>Often fine &mdash; <em>ask the business</em></td></tr>
+  </tbody>
+</table>
+
+<h2>Read-your-writes in Java</h2>
+<pre><code>public OrderView getOrder(String id, Optional&lt;Long&gt; minPosition) {
+    minPosition.ifPresent(p -&gt; checkpoints.awaitAtLeast(activeProjection("rm_orders"), p, Duration.ofSeconds(2)));
+    return repo.findById(id).orElseThrow(NotFound::new);
+}</code></pre>
+<ul>
+  <li>Bound the wait; on timeout return data + a freshness flag (e.g. <code>X-Read-Model-Fresh: false</code>).</li>
+  <li>Resolve the projection behind the alias &mdash; don&rsquo;t hard-code <code>-v1</code>.</li>
+  <li>Token is only valid if the poller can&rsquo;t skip gaps (Lesson 08).</li>
+</ul>
+
+<h2>Blue/green rebuild</h2>
+<pre><code>1. deploy orders-summary-v2 → own checkpoint (0), own table rm_orders_v2
+2. catch up in background (v1 keeps serving)
+3. verify: counts · EXCEPT diff · sampled spot checks · build indexes
+4. BEGIN; DROP VIEW rm_orders; CREATE VIEW rm_orders AS SELECT * FROM rm_orders_v2; COMMIT;
+   (OpenSearch: POST /_aliases with remove + add in one call)
+5. stop v1; drop rm_orders_v1 after grace period</code></pre>
+
+<h2>Rebuild speed</h2>
+<ul class="checklist">
+  <li>Batch writes (<code>COPY</code>, JDBC batch, bulk API); checkpoint per batch.</li>
+  <li>Defer secondary indexes until near head; create before swap.</li>
+  <li>Parallelise per-entity projections by <code>hash(stream_id) % N</code>, one checkpoint per partition.</li>
+  <li>Optional: <code>UNLOGGED</code> during catch-up, <code>SET LOGGED</code> before swap.</li>
+</ul>
+
+<div class="callout warning">
+  <span class="label">SLOs to publish</span>
+  <p><strong>Freshness:</strong> p99 projection lag per read model (agreed with product).
+  <strong>Rebuild time:</strong> slowest projection from zero. If it&rsquo;s days, you&rsquo;ve lost a core
+  ES benefit.</p>
+</div>
+
+<nav class="lesson-nav">
+  <span class="group"><b>From</b><a href="../lessons/0006-rebuilds-and-eventual-consistency.html">&larr; Lesson 06 · Rebuilds &amp; eventual consistency</a></span>
+  <span class="group"><b>Canonical terms</b><a href="../GLOSSARY.md">GLOSSARY.md</a></span>
+  <span class="group"><b>Primary source</b><a href="https://learn.microsoft.com/azure/architecture/patterns/cqrs" target="_blank" rel="noopener">Microsoft · CQRS pattern</a></span>
+</nav>
+
+</body>
+</html>
