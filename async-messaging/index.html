@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Async Messaging — Course Map</title>
+<link rel="stylesheet" href="../assets/course/course.css">
+<link rel="stylesheet" href="assets/theme.css">
+<script src="../assets/course/links.js" defer></script>
+<style>
+  .course-sec { margin: 1.8rem 0; }
+  .course-sec > h2 { margin-bottom: .3rem; }
+  .arc { font-size: .82rem; color: var(--muted); font-style: italic; margin: 0 0 .7rem; }
+  ol.lessons { margin: .3rem 0; padding-left: 1.4rem; }
+  ol.lessons li { margin: .5rem 0; }
+  ol.lessons a { font-weight: 600; }
+  .desc { color: var(--muted); font-size: .92rem; }
+  .refs { display: grid; grid-template-columns: 1fr 1fr; gap: .3rem 1.4rem; list-style: none; padding: 0; font-size: .92rem; }
+  .docs a { margin-right: 1.2rem; }
+  .code-tag { font-family: -apple-system, system-ui, sans-serif; font-size: .64rem; font-weight: 700; letter-spacing: .06em; color: var(--accent); border: 1px solid var(--accent); border-radius: 10px; padding: 0 .4rem; margin-right: .4rem; vertical-align: middle; }
+  @media (max-width: 620px) { .refs { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Principal-Engineering Track</p>
+  <h1>Async Messaging: Level 0 &rarr; Staff</h1>
+  <div class="meta"><span>19 lessons · 19 cheat sheets · 1 capstone · 1 full Markdown guide</span><span class="dot">•</span><span>Kotlin · Spring Boot · Kafka · PostgreSQL · Podman</span></div>
+</header>
+
+<p class="mission-tie">
+  From why async exists to running Kafka exactly-once, sagas and PostgreSQL CDC in production — the judgement a staff engineer needs. Each lesson is a single sitting, with step-through animations, quizzes and a cheat sheet. Prefer one long read? The whole course is also in <a href="GUIDE.md">GUIDE.md</a> (with Mermaid diagrams). See <a href="MISSION.md">MISSION.md</a> for the why.
+</p>
+
+<p>Nineteen interactive lessons take you from temporal coupling and queues vs topics to Kafka consumer-group internals, delivery guarantees, idempotency, ordering, backpressure and dead-letter queues. They then cover the architecture layer — log vs queue brokers, choreography vs orchestration, the transactional outbox, sagas, schema evolution, event sourcing and CQRS — and finish with observability and an animated atlas of PostgreSQL CDC with Debezium. Examples use Kotlin and Spring Boot with Kafka and PostgreSQL, and a hands-on order-saga capstone ties it together.</p>
+
+<div class="course-sec">
+  <h2>Part I · Foundations</h2>
+  <p class="arc">Why async exists, queues vs topics, Kafka consumer groups, and naming intent.</p>
+  <ol class="lessons">
+    <li><a href="lessons/0001-why-async.html">Why Async? The Problem Messaging Solves</a><br><span class="desc">Temporal coupling, the four cracks of sync calls, and the durable buffer that fixes them.</span></li>
+    <li><a href="lessons/0002-queue-vs-topic.html">Queues vs Topics — One Consumer, or Many?</a><br><span class="desc">Point-to-point vs publish-subscribe, competing consumers, and how Kafka’s groupId decides.</span></li>
+    <li><a href="lessons/0003-kafka-consumer-groups-deep-dive.html">Why Consumers ≤ Partitions — Kafka’s Consumer Group Machinery</a><br><span class="desc">Group protocol, eager vs cooperative rebalances, static membership, assignors, adding partitions.</span></li>
+    <li><a href="lessons/0004-event-command-query.html">Event vs Command vs Query — Naming What Flows</a><br><span class="desc">Facts, requests and questions: naming messages by intent and who owns the decision.</span></li>
+  </ol>
+</div>
+
+<div class="course-sec">
+  <h2>Part II · Delivery semantics &amp; Kafka exactly-once</h2>
+  <p class="arc">What a crash does to your guarantees, and how Kafka EOS works and is operated.</p>
+  <ol class="lessons" start="5">
+    <li><a href="lessons/0005-delivery-guarantees.html">Delivery Guarantees — At-Most, At-Least, Exactly-Once</a><br><span class="desc">Commit order decides loss vs duplicates; two routes to effectively-once processing.</span></li>
+    <li><a href="lessons/0006-kafka-exactly-once-internals.html">Inside Kafka Exactly-Once — Sequence Numbers &amp; read_committed</a><br><span class="desc">Idempotent producer, transactions, zombie fencing, markers, the LSO and read_committed.</span></li>
+    <li><a href="lessons/0007-operating-kafka-exactly-once.html">Operating Kafka Exactly-Once — Lag, transactional.id &amp; the Commit Dial</a><br><span class="desc">Hung transactions that look like lag, choosing transactional.id, the commit-interval trade-off.</span></li>
+  </ol>
+</div>
+
+<div class="course-sec">
+  <h2>Part III · Reliability patterns</h2>
+  <p class="arc">Idempotency, ordering, backpressure and retries/DLQs — the everyday toolkit.</p>
+  <ol class="lessons" start="8">
+    <li><a href="lessons/0008-idempotency-deduplication.html">Idempotency &amp; Deduplication in Depth</a><br><span class="desc">Natural idempotency, idempotency keys, dedup stores and windows, broker-native dedup.</span></li>
+    <li><a href="lessons/0009-ordering-partitioning.html">Ordering &amp; Partitioning</a><br><span class="desc">Per-key order, choosing the partition key, what breaks ordering, per-broker ordering models.</span></li>
+    <li><a href="lessons/0010-backpressure-load-leveling.html">Backpressure &amp; Load Leveling</a><br><span class="desc">Spikes vs sustained overload, pull vs push, prefetch, lag-based autoscaling, load shedding.</span></li>
+    <li><a href="lessons/0011-retries-dlq-poison-messages.html">Retries, Dead-Letter Queues &amp; Poison Messages</a><br><span class="desc">Transient vs permanent failures, bounded backoff with jitter, DLQs as an owned workflow.</span></li>
+  </ol>
+</div>
+
+<div class="course-sec">
+  <h2>Part IV · Broker models &amp; distributed workflows</h2>
+  <p class="arc">Log vs queue, choreography vs orchestration, the outbox and sagas.</p>
+  <ol class="lessons" start="12">
+    <li><a href="lessons/0012-log-vs-queue-brokers.html">Log vs Queue Brokers — the One Difference That Explains Everything</a><br><span class="desc">Consume-and-delete vs append-and-retain: replay, fan-out, ordering, DLQ and when to pick each.</span></li>
+    <li><a href="lessons/0013-choreography-orchestration.html">Event-Driven Architecture — Choreography vs Orchestration</a><br><span class="desc">Events vs commands for multi-service flows, the visibility trap, hybrids and workflow engines.</span></li>
+    <li><a href="lessons/0014-transactional-outbox.html">The Transactional Outbox &amp; the Dual-Write Problem</a><br><span class="desc">Lost and phantom events, the outbox table, polling relay vs CDC, at-least-once publishing.</span></li>
+    <li><a href="lessons/0015-saga-pattern.html">The Saga Pattern &amp; Distributed Workflows</a><br><span class="desc">Local transactions plus compensations, semantic locks, pivot ordering, missing isolation.</span></li>
+  </ol>
+</div>
+
+<div class="course-sec">
+  <h2>Part V · Evolution, history &amp; operations</h2>
+  <p class="arc">Schema contracts, event sourcing and CQRS, observability and when not to.</p>
+  <ol class="lessons" start="16">
+    <li><a href="lessons/0016-schema-evolution.html">Schema Evolution &amp; Contracts</a><br><span class="desc">Backward/forward/full compatibility, Avro vs Protobuf vs JSON, schema registry, migrations.</span></li>
+    <li><a href="lessons/0017-event-sourcing-cqrs.html">Event Sourcing &amp; CQRS</a><br><span class="desc">Events as the source of truth, folds and projections, CQRS read models, and when not to.</span></li>
+    <li><a href="lessons/0018-observability-when-not-to.html">Observability, Operations &amp; When Not to Use Messaging</a><br><span class="desc">Trace context across hops, the key metrics, an incident runbook, and when to skip the broker.</span></li>
+  </ol>
+</div>
+
+<div class="course-sec">
+  <h2>Part VI · CDC with PostgreSQL &amp; Debezium</h2>
+  <p class="arc">An animated atlas of logical decoding, slots, snapshots and change events.</p>
+  <ol class="lessons" start="19">
+    <li><a href="lessons/0019-debezium-postgresql-cdc-atlas.html">PostgreSQL CDC with Debezium — an Animated Atlas</a><br><span class="desc">WAL, logical decoding, slots, snapshots, change events and slot operations, end to end.</span></li>
+  </ol>
+</div>
+
+<hr>
+
+<div class="course-sec">
+  <h2>Reference cheat sheets</h2>
+  <ul class="refs">
+    <li><a href="reference/0001-sync-vs-async-cheatsheet.html">01 · Sync ↔ Async</a></li>
+    <li><a href="reference/0002-queue-vs-topic-cheatsheet.html">02 · Queue ↔ Topic — Delivery Topology</a></li>
+    <li><a href="reference/0003-kafka-consumer-groups-cheatsheet.html">03 · Kafka Consumer Group Internals</a></li>
+    <li><a href="reference/0004-event-command-query-cheatsheet.html">04 · Event / Command / Query — Intent</a></li>
+    <li><a href="reference/0005-delivery-guarantees-cheatsheet.html">05 · Delivery Guarantees</a></li>
+    <li><a href="reference/0006-kafka-exactly-once-internals-cheatsheet.html">06 · Inside Kafka Exactly-Once</a></li>
+    <li><a href="reference/0007-operating-kafka-exactly-once-cheatsheet.html">07 · Operating Kafka Exactly-Once</a></li>
+    <li><a href="reference/0008-idempotency-cheatsheet.html">08 · Idempotency &amp; Deduplication</a></li>
+    <li><a href="reference/0009-ordering-partitioning-cheatsheet.html">09 · Ordering &amp; Partitioning</a></li>
+    <li><a href="reference/0010-backpressure-load-leveling-cheatsheet.html">10 · Backpressure &amp; Load Leveling</a></li>
+    <li><a href="reference/0011-retries-dlq-cheatsheet.html">11 · Retries &amp; Dead-Letter Queues</a></li>
+    <li><a href="reference/0012-log-vs-queue-cheatsheet.html">12 · Log vs Queue Brokers</a></li>
+    <li><a href="reference/0013-choreography-orchestration-cheatsheet.html">13 · Choreography vs Orchestration</a></li>
+    <li><a href="reference/0014-transactional-outbox-cheatsheet.html">14 · Transactional Outbox</a></li>
+    <li><a href="reference/0015-saga-cheatsheet.html">15 · The Saga Pattern</a></li>
+    <li><a href="reference/0016-schema-evolution-cheatsheet.html">16 · Schema Evolution &amp; Contracts</a></li>
+    <li><a href="reference/0017-event-sourcing-cqrs-cheatsheet.html">17 · Event Sourcing &amp; CQRS</a></li>
+    <li><a href="reference/0018-observability-when-not-cheatsheet.html">18 · Observability &amp; Judgment</a></li>
+    <li><a href="reference/0019-debezium-postgresql-cdc-cheatsheet.html">19 · Debezium ⇄ PostgreSQL CDC</a></li>
+  </ul>
+</div>
+
+<div class="course-sec">
+  <h2>Capstone &amp; workspace</h2>
+  <p class="docs">
+    <a href="capstone/capstone-brief.html">Capstone: order saga</a>
+    <a href="GUIDE.md">Full guide (Markdown)</a>
+    <a href="MISSION.md">Mission</a>
+    <a href="GLOSSARY.md">Glossary</a>
+    <a href="RESOURCES.md">Resources</a>
+    <a href="NOTES.md">Notes</a>
+    <a href="../02-skills-to-upgrade.md">Skills map (playbook)</a>
+  </p>
+</div>
+
+<div class="followup">
+  <strong>Your teacher is here.</strong> Bring a real flow from work &mdash; a queue, a topic, a saga &mdash; and we&rsquo;ll pick its delivery guarantee, design its idempotency, or review its outbox. Ask anytime.
+</div>
+
+</body>
+</html>

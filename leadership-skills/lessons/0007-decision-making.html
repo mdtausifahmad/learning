@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 07 · Decision-Making &amp; Disagreeing Productively</title>
+<link rel="stylesheet" href="../../assets/course/course.css">
+<link rel="stylesheet" href="../assets/theme.css">
+<script src="../../assets/course/links.js" defer></script>
+<script src="../../assets/course/quiz.js" defer></script>
+<script type="module" src="../../assets/course/mermaid.js"></script>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Leadership Skills · Lesson 07 · B7</p>
+  <h1>Decision-Making &amp; Disagreeing Productively</h1>
+  <div class="meta">
+    <span>◷ ~15 min read</span>
+    <span class="dot">•</span>
+    <span>Staff judgement</span>
+    <span class="dot">•</span>
+    <span>Prereq: <a href="0003-technical-and-project-leadership.html">Lesson 03</a></span>
+  </div>
+</header>
+
+<p class="mission-tie">
+  At Staff+ scope, the decisions you make yourself matter less than the quality of decisions made <strong>when you are not in the room</strong>. That means writing down reasoning instead of directions, circulating before your view hardens, separating style from substance, changing your mind visibly, and using the lightest framework that prevents confusion. It also means judging decisions by their quality, not their luck. That habit is what makes your judgement calls defensible in a promotion packet.
+</p>
+
+<div class="callout insight">
+  <span class="label">TL;DR</span>
+  <p>How do you make good decisions at scale and disagree without damaging relationships?</p>
+<ul>
+<li>At Staff+ scale, making decisions is less important than transferring judgment so teams decide well without you.</li>
+<li>Write down reasoning, circulate early, separate style from substance, and be willing to change your mind.</li>
+<li>Use decision frameworks such as DACI, RACI, one-way and two-way doors, and disagree-and-commit deliberately.</li>
+<li>Separate decision quality from outcome quality; good decisions can have bad outcomes under uncertainty.</li>
+<li>Productive disagreement combines safety, curiosity, calibrated questions, and clear escalation paths.</li>
+</ul>
+</div>
+
+<p class="related">Back to the main map: <a href="../../02-skills-to-upgrade.md">Skills to upgrade</a>. Related leadership lessons: <a href="0001-influence-without-authority.html">B1 influence</a>, <a href="0002-communication-and-executive-writing.html">B2 communication</a>, <a href="0003-technical-and-project-leadership.html">B3 technical leadership</a>, <a href="0004-mentorship-and-sponsorship.html">B4 mentorship</a>, <a href="0005-stakeholder-management-and-trust.html">B5 stakeholders</a>, <a href="0006-glue-work.html">B6 glue work</a>, <a href="0008-prioritization.html">B8 prioritization</a>. Use evidence in the <a href="../../05-promotion-playbook.md">promotion playbook</a> and <a href="../../06-self-assessment-and-tracking.md">self-assessment tracker</a>.</p>
+
+<h2 id="1-the-real-work-is-transferring-judgment">1. The real work is transferring judgment</h2>
+<p>At small scope, you can personally make many decisions.
+At Staff+ scope, that does not scale.
+If every important judgment waits for you, you become a bottleneck and the team stops developing decision muscle.</p>
+<p>The real work is transferring judgment:</p>
+<ul>
+<li>Explain how you reason, not only what you decided.</li>
+<li>Show trade-offs and constraints.</li>
+<li>Let others make reversible decisions.</li>
+<li>Review decision quality after the fact.</li>
+<li>Create artifacts future teams can reuse.</li>
+</ul>
+<p>A Staff+ engineer should aim for fewer decisions that depend on them and more decisions that reflect shared principles.
+The best evidence of your leadership is often a high-quality decision made when you were not in the room.</p>
+<figure><pre class="mermaid">
+flowchart TD
+    A["Decision needed"] --&gt; B{"Can team decide with existing principles"}
+    B --&gt;|"Yes"| C["Team decides"]
+    C --&gt; D["Review reasoning later"]
+    B --&gt;|"No"| E["Staff engineer writes reasoning"]
+    E --&gt; F["Discuss trade-offs"]
+    F --&gt; G["Create reusable principle"]
+    G --&gt; H["Delegate next similar decision"]
+</pre></figure>
+<p>This is why &quot;just tell me what to do&quot; is a leadership smell.
+Sometimes speed requires a direct call.
+But if every call stays opaque, the organization learns dependence rather than judgment.</p>
+<h2 id="2-write-it-down-reasoning-beats-direction">2. Write it down: reasoning beats direction</h2>
+<p>Writing is the primary mechanism for scaling decisions.
+A decision document should teach readers how to think.
+It should not merely announce an answer.</p>
+<p>The myth of the &quot;Feynman algorithm&quot; says: write down the problem, think very hard, write down the answer.
+That skips the useful part.
+In organizations, people need your intermediate reasoning:</p>
+<ul>
+<li>What goal are we optimizing for?</li>
+<li>What constraints matter most?</li>
+<li>What alternatives did we reject?</li>
+<li>What evidence changed our confidence?</li>
+<li>What assumptions would invalidate the decision?</li>
+<li>What should future teams copy or avoid?</li>
+</ul>
+<p>A lightweight decision record can include:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Section</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Context</td>
+<td>Why this decision exists now.</td>
+</tr>
+<tr>
+<td>Goals and non-goals</td>
+<td>Prevents accidental scope expansion.</td>
+</tr>
+<tr>
+<td>Options</td>
+<td>Shows real alternatives.</td>
+</tr>
+<tr>
+<td>Trade-offs</td>
+<td>Makes values explicit.</td>
+</tr>
+<tr>
+<td>Recommendation</td>
+<td>States the call and confidence.</td>
+</tr>
+<tr>
+<td>Revisit trigger</td>
+<td>Defines when to change course.</td>
+</tr>
+</tbody>
+</table></div>
+<p>Writing reasoning also protects relationships.
+People can disagree with the argument rather than guessing your motive.</p>
+<h2 id="3-circulate-early-before-you-crystallize">3. Circulate early, before you crystallize</h2>
+<p>If you circulate a decision after your mind has hardened, review becomes theater.
+People can sense when feedback is performative.
+Early circulation creates better decisions and less resistance.</p>
+<p>Use three passes:</p>
+<ol>
+<li>Problem framing: &quot;Are we solving the right problem?&quot;</li>
+<li>Option shaping: &quot;What alternatives or constraints am I missing?&quot;</li>
+<li>Decision review: &quot;Can you live with this recommendation?&quot;</li>
+</ol>
+<figure><pre class="mermaid">
+sequenceDiagram
+    participant A as Author
+    participant P as Peer
+    participant S as Stakeholder
+    participant D as Decider
+    A-&gt;&gt;P: Share problem framing early
+    P--&gt;&gt;A: Add missing constraints
+    A-&gt;&gt;S: Share options before recommendation hardens
+    S--&gt;&gt;A: Flag impact and risks
+    A-&gt;&gt;D: Present recommendation and trade-offs
+    D--&gt;&gt;A: Decide or delegate decision
+    A--&gt;&gt;P: Publish decision and rationale
+</pre></figure>
+<p>Early review is especially important when the decision crosses teams.
+People support decisions more readily when they see their concerns represented, even if their preferred option is not chosen.</p>
+<h2 id="4-separate-style-from-substance">4. Separate style from substance</h2>
+<p>Staff+ engineers can accidentally become drive-by critics.
+Because your opinion carries weight, casual style feedback may cause churn.
+Before commenting, ask: &quot;Would changing this affect the outcome?&quot;</p>
+<p>Substance feedback changes correctness, risk, strategy, cost, or learning.
+Style feedback changes taste, personal preference, naming, formatting, or an implementation approach that is acceptable either way.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Feedback type</th>
+<th>Example</th>
+<th>Should you give it?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Correctness</td>
+<td>&quot;This migration can lose writes during failover.&quot;</td>
+<td>Yes.</td>
+</tr>
+<tr>
+<td>Risk</td>
+<td>&quot;This assumes Security can review in one day.&quot;</td>
+<td>Yes.</td>
+</tr>
+<tr>
+<td>Strategy</td>
+<td>&quot;This optimizes local velocity but increases platform fragmentation.&quot;</td>
+<td>Yes.</td>
+</tr>
+<tr>
+<td>Preference</td>
+<td>&quot;I would have used a different library.&quot;</td>
+<td>Usually no.</td>
+</tr>
+<tr>
+<td>Style</td>
+<td>&quot;I dislike this diagram layout.&quot;</td>
+<td>Only if it blocks understanding.</td>
+</tr>
+</tbody>
+</table></div>
+<p>When you do give style feedback, label it:</p>
+<ul>
+<li>&quot;Non-blocking preference.&quot;</li>
+<li>&quot;Nit, ignore if not useful.&quot;</li>
+<li>&quot;Style only; not worth delaying.&quot;</li>
+</ul>
+<p>Creating space for others means allowing acceptable decisions you would not personally make.</p>
+<h2 id="5-change-your-mind-visibly">5. Change your mind visibly</h2>
+<p>Changing your mind is not weakness.
+It is evidence that the conversation mattered.
+When you change your mind, say what changed it.
+That teaches the team which evidence is persuasive and rewards people for contributing.</p>
+<p>Say what changed you: &quot;The operational data changes my view&quot; or &quot;I optimized for build cost and missed support cost.&quot;</p>
+<p>Do not use &quot;strong opinions loosely held&quot; as a license to dominate the room.
+Strong opinions can be useful when they force clarity.
+They become harmful when they make others spend all their energy dislodging you.</p>
+<h2 id="6-do-not-weigh-in-on-everything">6. Do not weigh in on everything</h2>
+<p>At Staff+ level, attention is an intervention.
+If you comment on every design doc, review every architecture choice, or join every debate, people may interpret your presence as required approval.
+That slows the organization.</p>
+<p>Ask whether your involvement adds unique value:</p>
+<ul>
+<li>Do I have context others lack?</li>
+<li>Is this decision irreversible or high blast radius?</li>
+<li>Is the team missing a principle I can teach?</li>
+<li>Am I needed to unblock a conflict?</li>
+<li>Would silence create risk, or would involvement create dependence?</li>
+</ul>
+<figure><pre class="mermaid">
+flowchart TD
+    A["Opportunity to weigh in"] --&gt; B{"Material risk or learning opportunity"}
+    B --&gt;|"No"| C["Stay out or offer non-blocking support"]
+    B --&gt;|"Yes"| D{"Is decision reversible"}
+    D --&gt;|"Yes"| E["Ask coaching questions"]
+    D --&gt;|"No"| F["Engage deeply"]
+    F --&gt; G["Document reasoning"]
+    E --&gt; H["Let owner decide"]
+</pre></figure>
+<p>Restraint is a form of leadership.
+You create space by not filling every space.</p>
+<h2 id="7-decision-frameworks-choose-the-right-tool">7. Decision frameworks: choose the right tool</h2>
+<p>Frameworks are useful when they clarify roles, reversibility, or commitment.
+They are harmful when they become process theater.
+Use the lightest framework that prevents confusion.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Framework</th>
+<th>Best for</th>
+<th>Key question</th>
+<th>Watch out for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>DACI</td>
+<td>Cross-functional decisions</td>
+<td>Who drives, approves, contributes, and is informed?</td>
+<td>Confusing approver with consensus.</td>
+</tr>
+<tr>
+<td>RACI</td>
+<td>Operational ownership</td>
+<td>Who is responsible, accountable, consulted, and informed?</td>
+<td>Too many consulted people.</td>
+</tr>
+<tr>
+<td>One-way door</td>
+<td>Irreversible or costly decisions</td>
+<td>Can we undo this cheaply?</td>
+<td>Treating fear as irreversibility.</td>
+</tr>
+<tr>
+<td>Two-way door</td>
+<td>Reversible decisions</td>
+<td>Can we learn by trying?</td>
+<td>Over-documenting low-risk calls.</td>
+</tr>
+<tr>
+<td>Disagree and commit</td>
+<td>After debate and decision</td>
+<td>Can I support execution despite disagreement?</td>
+<td>Using it to silence dissent early.</td>
+</tr>
+</tbody>
+</table></div>
+<figure><pre class="mermaid">
+flowchart LR
+    A["Decision"] --&gt; B{"Reversible"}
+    B --&gt;|"Yes"| C["Two-way door"]
+    C --&gt; D["Delegate and learn"]
+    B --&gt;|"No"| E["One-way door"]
+    E --&gt; F["Document and review deeply"]
+    A --&gt; G{"Roles unclear"}
+    G --&gt;|"Yes"| H["Use DACI or RACI"]
+    G --&gt;|"No"| I["Keep process light"]
+</pre></figure>
+<p>Disagree-and-commit is powerful only after real disagreement was allowed.
+If dissent was unsafe, commitment becomes compliance.</p>
+<h2 id="8-decision-quality-versus-outcome-quality">8. Decision quality versus outcome quality</h2>
+<p>Annie Duke's &quot;Thinking in Bets&quot; popularized a crucial distinction: outcomes are not the same as decisions.
+A good decision can lead to a bad outcome because of uncertainty.
+A bad decision can get lucky.
+Judging only by outcomes creates resulting: rewriting history based on what happened.</p>
+<p>Evaluate decision quality by asking:</p>
+<ul>
+<li>Did we use the best available evidence?</li>
+<li>Did we consider base rates?</li>
+<li>Did we identify assumptions?</li>
+<li>Did we compare real alternatives?</li>
+<li>Did we match process weight to risk?</li>
+<li>Did we define revisit triggers?</li>
+</ul>
+<p>Outcome quality still matters.
+But learning requires separating what we controlled from what we did not.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Case</th>
+<th>Interpretation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Good decision, good outcome</td>
+<td>Reinforce principle, but check for luck.</td>
+</tr>
+<tr>
+<td>Good decision, bad outcome</td>
+<td>Learn from uncertainty without blaming process unfairly.</td>
+</tr>
+<tr>
+<td>Bad decision, good outcome</td>
+<td>Do not let luck become precedent.</td>
+</tr>
+<tr>
+<td>Bad decision, bad outcome</td>
+<td>Fix reasoning, roles, and evidence paths.</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="9-deciding-under-uncertainty">9. Deciding under uncertainty</h2>
+<p>Most important engineering decisions are made with incomplete information.
+Waiting for certainty is often a decision to let events decide for you.
+Good uncertainty practice includes:</p>
+<ul>
+<li>State confidence explicitly.</li>
+<li>Use base rates from similar projects.</li>
+<li>Identify leading indicators.</li>
+<li>Prefer reversible experiments when possible.</li>
+<li>Decide what evidence would change your mind.</li>
+<li>Create revisit dates before emotions attach to the plan.</li>
+</ul>
+<p>A useful template:</p>
+<p>&quot;I am 70% confident in option B because it reduces migration risk and preserves customer commitments. The largest uncertainty is support load. If support tickets exceed X per week after beta, we should pause rollout and revisit option C.&quot;</p>
+<p>This style gives others a place to contribute without turning every discussion into a referendum on your competence.</p>
+<h2 id="10-productive-disagreement">10. Productive disagreement</h2>
+<p>Productive disagreement requires both candor and safety.
+Crucial Conversations frames high-stakes conversations around making it safe enough to discuss what matters.
+Never Split the Difference emphasizes calibrated questions and tactical empathy.
+Together, they produce a useful Staff+ posture: direct about the issue, curious about the person.</p>
+<p>Use calibrated questions: &quot;What problem are you solving?&quot;, &quot;How would we know this works?&quot;, &quot;What would make this unsafe?&quot;, and &quot;What am I missing?&quot;</p>
+<p>Escalation is not failure.
+It is a tool for resolving decisions at the right level of authority.
+Escalate when the decision requires trade-offs local teams cannot make, when disagreement is stuck, or when risk exceeds delegated authority.
+Escalate with a crisp summary: shared goal, options, trade-offs, recommendation, and decision needed.</p>
+<h2 id="11-practice-drills">11. Practice drills</h2>
+<ul>
+<li>Take one recent decision and write the reasoning after the fact. Include options, trade-offs, confidence, and revisit triggers.</li>
+<li>In your next design review, label every comment as blocking, risk, question, or non-blocking preference.</li>
+<li>Choose one reversible decision and explicitly delegate it.</li>
+<li>Run a premortem: &quot;It is six months later and this decision failed. What happened?&quot;</li>
+<li>Practice three calibrated questions before stating your opinion in a disagreement.</li>
+<li>Review a past bad outcome and separate decision quality from outcome quality.</li>
+</ul>
+<h2 id="12-what-good-looks-like-at-staff">12. What &quot;good&quot; looks like at Staff+</h2>
+<ul>
+<li>Teams make better decisions after working with you, even when you are absent.</li>
+<li>Your documents teach reasoning, not only conclusions.</li>
+<li>Stakeholders know who decides, who contributes, and when commitment begins.</li>
+<li>You change your mind when evidence warrants it and explain why.</li>
+<li>You avoid low-value drive-by opinions.</li>
+<li>You escalate cleanly with options and trade-offs, not drama.</li>
+<li>You make disagreement safer without making it soft or vague.</li>
+</ul>
+<h2 id="13-common-pitfalls">13. Common pitfalls</h2>
+<ul>
+<li>Treating every decision as if it needs Staff+ approval.</li>
+<li>Circulating documents only after the decision is already made.</li>
+<li>Giving style feedback that creates unnecessary churn.</li>
+<li>Using disagree-and-commit to shut down debate instead of ending it cleanly.</li>
+<li>Confusing confidence with certainty.</li>
+<li>Rewarding lucky outcomes and punishing unlucky good decisions.</li>
+<li>Escalating as a threat rather than as a decision tool.</li>
+</ul>
+<h2 id="14-further-reading">14. Further reading</h2>
+<ul>
+<li>StaffEng, &quot;Create space for others&quot;: <a href="https://staffeng.com/guides/create-space-for-others/" target="_blank" rel="noopener">https://staffeng.com/guides/create-space-for-others/</a></li>
+<li>StaffEng, &quot;Learn to never be wrong&quot;: <a href="https://staffeng.com/guides/learn-to-never-be-wrong/" target="_blank" rel="noopener">https://staffeng.com/guides/learn-to-never-be-wrong/</a></li>
+<li>Amazon Leadership Principles, including &quot;Disagree and Commit&quot;: <a href="https://www.amazon.jobs/content/en/our-workplace/leadership-principles" target="_blank" rel="noopener">https://www.amazon.jobs/content/en/our-workplace/leadership-principles</a></li>
+<li>Annie Duke, &quot;Thinking in Bets&quot; (book)</li>
+</ul>
+
+<div class="primary-source">
+  <span class="label">Read this next (primary source)</span>
+  <p><a href="https://www.amazon.jobs/content/en/our-workplace/leadership-principles" target="_blank" rel="noopener"><em>Amazon Leadership Principles</em></a>: read “Have Backbone; Disagree and Commit” for what commitment looks like after real debate. Annie Duke’s book <em>Thinking in Bets</em> is the source for separating decision quality from outcome quality, and for the trap of “resulting”.</p>
+</div>
+
+<h2 id="15-check-yourself">15. Check yourself</h2>
+<p>Retrieve before revealing.</p>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 1 of 3</p>
+  <p class="quiz-q">You are reviewing a design doc. The author chose a library you dislike, the diagram layout is messy, and the migration can lose writes during failover. How do you comment?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="Blocking on taste makes your presence feel like required approval and creates churn.">Flag all three as blocking, so the doc reaches a consistently high standard before approval</button></li>
+    <li><button data-correct="false" data-feedback="Restraint is not silence on correctness. Lost writes change the outcome, so you must raise it.">Approve it as is, because the author owns the design and Staff engineers shouldn’t nitpick details</button></li>
+    <li><button data-correct="false" data-feedback="An acceptable library you would not pick is a preference, not substance.">Raise the library choice first, because changing that later would be the most expensive</button></li>
+    <li><button data-correct="true" data-feedback="Right — correctness, risk and strategy are substance; label everything else as non-blocking.">Block on the lost-write risk, and mark the library and the diagram as non-blocking preferences</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Before commenting, ask “Would changing this affect the outcome?” Give substance feedback (correctness, risk, strategy, cost) and label style or preference as non-blocking."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 2 of 3</p>
+  <p class="quiz-q">Last quarter you approved a staged rollout backed by solid load tests and base rates. A rare upstream outage still caused an incident during it, and a director now wants a heavy approval gate on all rollouts. What do you argue?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="This is resulting: judging the decision only by its outcome, and rewriting history.">Agree to the gate, because the incident proves that the original decision process was clearly wrong</button></li>
+    <li><button data-correct="false" data-feedback="Blame framing misses the point. The question is decision quality, not whose fault it was.">Defend the rollout by showing that the incident was not your team’s fault in the first place</button></li>
+    <li><button data-correct="true" data-feedback="Right — a good decision can have a bad outcome under uncertainty; check the reasoning before adding process.">Separate decision quality from outcome; review evidence and assumptions before changing process</button></li>
+    <li><button data-correct="false" data-feedback="Good decision, bad outcome is still a learning case: examine the uncertainty without blaming the process unfairly.">Skip the retrospective, since bad luck offers nothing useful for the team to learn from</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Separate decision quality from outcome quality. Ask whether you used the best evidence, base rates, real alternatives and revisit triggers, not just whether it worked."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 3 of 3</p>
+  <p class="quiz-q">A team asks you to approve their feature-flag naming convention and the config format for a new internal service. Both are cheap to change later. What do you do?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="Right — delegate reversible decisions and review outcomes; that is how judgement transfers.">Tell them it is a two-way door, they should decide, and you will look at the outcome later</button></li>
+    <li><button data-correct="false" data-feedback="A framework here is process theatre. Use the lightest process that prevents confusion.">Run a DACI with all of the stakeholders, so the convention gets proper cross-team sign-off first</button></li>
+    <li><button data-correct="false" data-feedback="Over-documenting low-risk, reversible calls is the main trap of two-way doors.">Ask for a full decision record with options and trade-offs before they go any further</button></li>
+    <li><button data-correct="false" data-feedback="Fast, but opaque calls teach dependence, not judgement. The team can decide this themselves.">Make the call yourself straight away, so the team is not blocked waiting for consensus</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Two-way doors: delegate and learn. One-way doors: document and review deeply. Do not treat fear as irreversibility, and do not over-process reversible calls."></div>
+</div>
+
+<div class="callout tryit">
+  <span class="label">Try it in your own system</span>
+  <ul class="checklist">
+    <li>Take one recent decision and write its record after the fact: context, goals and non-goals, options, trade-offs, recommendation with a confidence level, and a revisit trigger.</li>
+    <li>In your next design review, prefix every comment with blocking, risk, question or non-blocking preference.</li>
+    <li>Find one reversible decision that is currently waiting on you, and explicitly delegate it.</li>
+    <li>Run a 30-minute premortem on a live decision: “It is six months later and this failed. What happened?”</li>
+    <li>Review one past bad outcome and write two lines: what was decision quality, and what was luck.</li>
+  </ul>
+</div>
+
+<div class="followup">
+  <strong>I&rsquo;m your teacher &mdash; ask me anything.</strong> Bring a decision you are about to make and we will write its record together (options, confidence, revisit trigger), or work out whether it is a one-way or a two-way door.
+</div>
+
+<nav class="lesson-nav">
+  <span class="group">
+    <b>Previous</b>
+    <a href="0006-glue-work.html">&larr; Lesson 06 · Glue work made visible</a>
+  </span>
+  <span class="group">
+    <b>Reference</b>
+    <a href="../reference/0007-decision-making-cheatsheet.html">Decision-making cheat sheet &rarr;</a>
+  </span>
+  <span class="group">
+    <b>Course map</b>
+    <a href="../index.html">&uarr; All lessons</a>
+  </span>
+  <span class="group">
+    <b>Up next</b>
+    <a href="0008-prioritization.html">Lesson 08 · Prioritization &rarr;</a>
+  </span>
+</nav>
+
+</body>
+</html>

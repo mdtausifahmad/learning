@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Technical Skills (Part A) — Course Map</title>
+<link rel="stylesheet" href="../assets/course/course.css">
+<link rel="stylesheet" href="assets/theme.css">
+<script src="../assets/course/links.js" defer></script>
+<script type="module" src="../assets/course/mermaid.js"></script>
+<style>
+  .course-sec { margin: 1.8rem 0; }
+  .course-sec > h2 { margin-bottom: .3rem; }
+  .arc { font-size: .82rem; color: var(--muted); font-style: italic; margin: 0 0 .7rem; }
+  ol.lessons { margin: .3rem 0; padding-left: 1.4rem; }
+  ol.lessons li { margin: .5rem 0; }
+  ol.lessons a { font-weight: 600; }
+  .desc { color: var(--muted); font-size: .92rem; }
+  .refs { display: grid; grid-template-columns: 1fr 1fr; gap: .3rem 1.4rem; list-style: none; padding: 0; font-size: .92rem; }
+  .docs a { margin-right: 1.2rem; }
+  .code-tag { font-family: -apple-system, system-ui, sans-serif; font-size: .64rem; font-weight: 700; letter-spacing: .06em; color: var(--accent); border: 1px solid var(--accent); border-radius: 10px; padding: 0 .4rem; margin-right: .4rem; vertical-align: middle; }
+  @media (max-width: 620px) { .refs { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Principal-Engineering Track</p>
+  <h1>Technical Skills (Part A)</h1>
+  <div class="meta"><span>8 lessons · 8 reference sheets · 1 full Markdown guide</span><span class="dot">•</span><span>≈ 8–10 weeks part-time (3–5 hrs/week)</span></div>
+</header>
+
+<p class="mission-tie">
+  Everything is a trade-off: the Staff+ signal is naming the trade-off behind every technical choice and writing it down so a whole org can align. Each lesson is a single sitting, with quizzes and a &ldquo;try it in your own system&rdquo; task. Prefer one long read? The whole course is also in <a href="GUIDE.md">GUIDE.md</a> (with Mermaid diagrams). See <a href="MISSION.md">MISSION.md</a> for the why.
+</p>
+
+<p>For a senior engineer working toward Staff or Principal. These eight lessons cover A2&ndash;A9 of <a href="../02-skills-to-upgrade.md#part-a--technical-skills">Part A of the skills playbook</a>: the theory beneath system design, keeping systems up in production, architecture and strategy across teams, the writing that scales your judgement, security, cloud, and the shape of your expertise. A1 &mdash; system design itself &mdash; is its own course: <a href="../system-design/index.html">System Design &amp; Architecture at Scale</a>. Every lesson ends with quizzes, a try-it list for your own system and a primary source, so you finish able to <strong>name, defend and write down</strong> the trade-off behind each choice.</p>
+
+<figure><pre class="mermaid">
+flowchart TD
+    A1["A1 System Design&lt;br/&gt;(the core)"] --&gt; A2["A2 Distributed Systems&lt;br/&gt;(the theory beneath it)"]
+    A2 --&gt; A3["A3 Reliability / SRE&lt;br/&gt;(keep it up in prod)"]
+    A1 --&gt; A4["A4 Architecture&lt;br/&gt;(zoom out to styles)"]
+    A4 --&gt; A5["A5 Strategy &amp; Vision&lt;br/&gt;(direction across teams)"]
+    A5 --&gt; A6["A6 Writing&lt;br/&gt;(the leverage mechanism)"]
+    A4 --&gt; A7["A7 Security&lt;br/&gt;(cross-cutting)"]
+    A1 --&gt; A8["A8 Cloud&lt;br/&gt;(where it runs)"]
+    A2 --&gt; A9["A9 T-shape&lt;br/&gt;(breadth + one deep spike)"]
+    A4 --&gt; A9
+</pre><figcaption>How the technical skills fit together</figcaption></figure>
+
+<div class="course-sec">
+  <h2>Part I · Distributed foundations</h2>
+  <p class="arc">The theory beneath system design, and how to keep it dependable in production.</p>
+  <ol class="lessons">
+    <li><span class="code-tag">A2</span><a href="lessons/0001-data-intensive-distributed-systems.html">Data-Intensive &amp; Distributed Systems</a><br><span class="desc">Schema evolution, partial failure, clocks and causality, consensus vs 2PC, batch vs stream.</span></li>
+    <li><span class="code-tag">A3</span><a href="lessons/0002-reliability-observability-sre.html">Reliability, Observability &amp; SRE</a><br><span class="desc">SLOs and error budgets, golden signals, toil, incidents and postmortems, overload, safe rollouts.</span></li>
+  </ol>
+</div>
+
+<div class="course-sec">
+  <h2>Part II · Architecture & direction</h2>
+  <p class="arc">Zoom out from one system to styles, multi-team strategy and the writing that carries it.</p>
+  <ol class="lessons" start="3">
+    <li><span class="code-tag">A4</span><a href="lessons/0003-software-architecture.html">Software Architecture &amp; Evolutionary Design</a><br><span class="desc">Styles, coupling, data ownership, sagas, Strangler Fig migrations, fitness functions, tech debt.</span></li>
+    <li><span class="code-tag">A5</span><a href="lessons/0004-engineering-strategy-and-vision.html">Engineering Strategy &amp; Technical Vision</a><br><span class="desc">Rumelt's kernel, strategy vs vision, the five-design-docs recipe, guiding policies, enforcement.</span></li>
+    <li><span class="code-tag">A6</span><a href="lessons/0005-technical-writing-docs-rfcs-adrs.html">Technical Writing — Design Docs, RFCs &amp; ADRs</a><br><span class="desc">Design docs, RFCs and ADRs: when to write which, what goes in each, and healthy review culture.</span></li>
+  </ol>
+</div>
+
+<div class="course-sec">
+  <h2>Part III · Cross-cutting concerns</h2>
+  <p class="arc">Security, privacy and the cloud platform every design runs on.</p>
+  <ol class="lessons" start="6">
+    <li><span class="code-tag">A7</span><a href="lessons/0006-security-and-privacy.html">Security &amp; Privacy as a Design Concern</a><br><span class="desc">OWASP Top 10, authN vs authZ, secure APIs, core principles, crypto basics, STRIDE and PII.</span></li>
+    <li><span class="code-tag">A8</span><a href="lessons/0007-cloud-infrastructure.html">Cloud Infrastructure &amp; Pragmatic Tech Choices</a><br><span class="desc">Scaling progression, primitives, Kubernetes trade-offs, IaC, deploys, RTO/RPO, FinOps, boring tech.</span></li>
+  </ol>
+</div>
+
+<div class="course-sec">
+  <h2>Part IV · Shape of expertise</h2>
+  <p class="arc">Turn A1–A8 into broad judgement plus one deep, business-critical spike.</p>
+  <ol class="lessons" start="8">
+    <li><span class="code-tag">A9</span><a href="lessons/0008-tshaped-breadth-and-depth.html">T-shaped Breadth + Depth</a><br><span class="desc">Breadth for judgement, a business-critical spike for authority, and a quarterly loop to build both.</span></li>
+  </ol>
+</div>
+
+<hr>
+
+<div class="course-sec">
+  <h2>Reference cheat sheets</h2>
+  <ul class="refs">
+    <li><a href="reference/0001-data-intensive-distributed-systems-cheatsheet.html">01 · Distributed systems</a></li>
+    <li><a href="reference/0002-reliability-observability-sre-cheatsheet.html">02 · Reliability & SRE</a></li>
+    <li><a href="reference/0003-software-architecture-cheatsheet.html">03 · Architecture trade-offs</a></li>
+    <li><a href="reference/0004-engineering-strategy-and-vision-cheatsheet.html">04 · Strategy & vision</a></li>
+    <li><a href="reference/0005-technical-writing-docs-rfcs-adrs-cheatsheet.html">05 · Design docs, RFCs & ADRs</a></li>
+    <li><a href="reference/0006-security-and-privacy-cheatsheet.html">06 · Security & privacy</a></li>
+    <li><a href="reference/0007-cloud-infrastructure-cheatsheet.html">07 · Cloud infrastructure</a></li>
+    <li><a href="reference/0008-tshaped-breadth-and-depth-cheatsheet.html">08 · T-shape development</a></li>
+  </ul>
+</div>
+
+<div class="course-sec">
+  <h2>Workspace</h2>
+  <p class="docs">
+    <a href="GUIDE.md">Full guide (Markdown)</a>
+    <a href="MISSION.md">Mission</a>
+    <a href="GLOSSARY.md">Glossary</a>
+    <a href="RESOURCES.md">Resources</a>
+    <a href="NOTES.md">Notes</a>
+    <a href="../02-skills-to-upgrade.md">Skills map (playbook)</a>
+  </p>
+</div>
+
+<div class="followup">
+  <strong>Your teacher is here.</strong> Bring a real system, design doc or situation from work and we&rsquo;ll apply any chapter to it. Ask anytime.
+</div>
+
+</body>
+</html>

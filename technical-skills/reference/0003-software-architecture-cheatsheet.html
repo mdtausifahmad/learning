@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cheat Sheet · Architecture Trade-offs</title>
+<link rel="stylesheet" href="../../assets/course/course.css">
+<link rel="stylesheet" href="../assets/theme.css">
+<script src="../../assets/course/links.js" defer></script>
+<style>
+  body { max-width: 52rem; }
+  @media print { body { margin: 0; } h2 { margin-top: 1.1rem; } }
+</style>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Technical Skills · Reference 03</p>
+  <h1>Architecture Trade-offs Cheat Sheet</h1>
+  <div class="meta"><span>Compressed from Lesson 03</span><span class="dot">•</span><span>Print-friendly</span></div>
+</header>
+
+<div class="callout insight">
+  <span class="label">Mindset</span>
+  <p>Architecture is <strong>the important stuff</strong> &mdash; the hard-to-change decisions and the shared understanding
+  behind them. Rank the qualities, say which ones you sacrifice, and keep the system changeable.</p>
+</div>
+
+<h2>Architecture characteristics (pick, rank, sacrifice)</h2>
+<table>
+  <thead><tr><th>Characteristic</th><th>Means</th><th>Usual cost</th></tr></thead>
+  <tbody>
+    <tr><td>Scalability</td><td>Handles growth in load dimensions</td><td>More distributed complexity</td></tr>
+    <tr><td>Availability</td><td>Keeps serving despite faults</td><td>Weaker consistency or higher cost</td></tr>
+    <tr><td>Evolvability</td><td>Adapts to changing needs</td><td>Abstraction and governance</td></tr>
+    <tr><td>Testability</td><td>Behaviour verifiable cheaply</td><td>Seams and design discipline</td></tr>
+    <tr><td>Security</td><td>Protects data and operations</td><td>Friction, constraints, specialist review</td></tr>
+    <tr><td>Operability</td><td>Runs safely in production</td><td>Tooling and process investment</td></tr>
+  </tbody>
+</table>
+<p>Internal quality is not gold-plating: with continuous change, it pays back in delivery speed within <strong>weeks</strong>.</p>
+
+<h2>Styles at a glance</h2>
+<table>
+  <thead><tr><th>Style</th><th>Buys you</th><th>Costs you</th><th>Fits</th></tr></thead>
+  <tbody>
+    <tr><td>Monolith</td><td>Simple deploys, local transactions</td><td>Ownership bottlenecks if boundaries rot</td><td>Small teams, early products</td></tr>
+    <tr><td>Modular monolith</td><td>Internal boundaries, one deployable</td><td>Discipline against boundary bypass</td><td>Growing, not ops-ready for services</td></tr>
+    <tr><td>Layered</td><td>Familiar UI / domain / data split</td><td>Anaemic models; changes cut every layer</td><td>CRUD, enterprise apps</td></tr>
+    <tr><td>Microservices</td><td>Independent deploys, autonomy, isolation</td><td>Distributed systems, duplication, observability</td><td>Large orgs, mature operations</td></tr>
+    <tr><td>Event-driven</td><td>Temporal decoupling, extensibility, audit</td><td>Debugging, ordering, schema evolution</td><td>Workflows, integrations</td></tr>
+    <tr><td>SOA</td><td>Reuse, enterprise integration</td><td>Governance, shared-platform coupling</td><td>Large enterprises</td></tr>
+    <tr><td>Serverless</td><td>Low ops, pay per use</td><td>Cold starts, vendor limits, tracing</td><td>Bursty handlers, glue</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>Coordination</th><th>Advantage</th><th>Risk</th></tr></thead>
+  <tbody>
+    <tr><td>Choreography</td><td>Low central coupling, easy to extend</td><td>Emergent behaviour is hard to see</td></tr>
+    <tr><td>Orchestration</td><td>Explicit, visible workflow</td><td>Coordinator becomes a coupling hotspot</td></tr>
+  </tbody>
+</table>
+
+<h2>Coupling types</h2>
+<ul class="checklist">
+  <li><strong>Runtime</strong> &mdash; A must call B synchronously to work.</li>
+  <li><strong>Data</strong> &mdash; components share tables or formats.</li>
+  <li><strong>Semantic</strong> &mdash; one component knows another&rsquo;s business rules.</li>
+  <li><strong>Temporal</strong> &mdash; strict time sequence between systems.</li>
+  <li><strong>Deployment</strong> &mdash; must be released together.</li>
+  <li><strong>Conway&rsquo;s Law</strong> &mdash; design mirrors communication structure; design teams and architecture together.</li>
+</ul>
+
+<h2>Granularity: forces</h2>
+<table>
+  <thead><tr><th>Disintegrators (split)</th><th>Integrators (merge)</th></tr></thead>
+  <tbody>
+    <tr><td>Different scalability needs</td><td>Shared transactions</td></tr>
+    <tr><td>Different change cadence / volatility</td><td>Shared invariants</td></tr>
+    <tr><td>Security boundary</td><td>Query needs across the data</td></tr>
+    <tr><td>Team ownership</td><td>Latency budget</td></tr>
+    <tr><td>Fault isolation</td><td>Workflow simplicity</td></tr>
+  </tbody>
+</table>
+<p><strong>Data ownership is the real boundary:</strong> one owner writes; others consume behaviour or events, never tables.</p>
+
+<h2>Saga checklist</h2>
+<ul class="checklist">
+  <li><strong>Local commits + compensations</strong> &mdash; not magic rollback; some steps cannot be undone.</li>
+  <li><strong>Visible intermediate states</strong> (e.g. <code>PENDING</code> order) that users and support understand.</li>
+  <li><strong>Idempotent steps and retries</strong> with timeouts.</li>
+  <li><strong>Operator repair path</strong> for stuck or half-compensated flows.</li>
+</ul>
+
+<h2>Migration patterns</h2>
+<table>
+  <thead><tr><th>Pattern</th><th>Use when</th><th>Key risk</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Strangler Fig</strong></td><td>Replace legacy capabilities gradually behind a routing facade</td><td>Routing and data synchronisation</td></tr>
+    <tr><td><strong>Branch by abstraction</strong></td><td>Swap internals behind stable call sites, no long-lived branch</td><td>Leaky abstraction, dual maintenance</td></tr>
+    <tr><td><strong>Parallel run</strong></td><td>Correctness matters; compare old vs new outputs</td><td>Comparison noise, double cost</td></tr>
+  </tbody>
+</table>
+
+<h2>Fitness functions (automated architecture rules)</h2>
+<ul class="checklist">
+  <li><strong>Forbidden-dependency</strong> rules in CI.</li>
+  <li><strong>Every API publishes</strong> an OpenAPI spec; <strong>event schemas</strong> pass compatibility checks.</li>
+  <li><strong>Ownership metadata</strong> required per service.</li>
+  <li><strong>Deploy gates</strong> on latency budgets, SLOs or cost guardrails.</li>
+  <li><strong>Humans for judgment</strong> &mdash; not a late-stage review board that becomes a bottleneck.</li>
+</ul>
+
+<h2>Technical debt portfolio</h2>
+<table>
+  <thead><tr><th>Type</th><th>Example</th><th>Signal</th></tr></thead>
+  <tbody>
+    <tr><td>Deliberate prudent</td><td>Manual process before product fit</td><td>Cheap now; repayment scheduled</td></tr>
+    <tr><td>Deliberate reckless</td><td>No migration plan for known scale</td><td>Interest exceeds benefit</td></tr>
+    <tr><td>Accidental</td><td>Design no longer fits new needs</td><td>Refactor as learning emerges</td></tr>
+    <tr><td>Neglect</td><td>Dependencies and tests decay</td><td>Risk and change cost compound</td></tr>
+  </tbody>
+</table>
+<p>Translate debt into business terms: delay cost, incident risk, opportunity cost, throughput, compliance exposure.</p>
+
+<div class="callout warning"><span class="label">Traps</span><ul>
+  <li>Microservices to fix what is really an organisational problem.</li>
+  <li>Shared databases while claiming independent deployment.</li>
+  <li>Maximising one quality and pretending the others are unaffected.</li>
+  <li>Sagas without idempotency, compensations or repair workflows.</li>
+  <li>Big-bang rewrites instead of incremental migration.</li>
+  <li>Governance that slows teams without improving decisions.</li>
+</ul></div>
+
+<nav class="lesson-nav">
+  <span class="group"><b>From</b><a href="../lessons/0003-software-architecture.html">&larr; Lesson 03 · Software architecture</a></span>
+  <span class="group"><b>Course map</b><a href="../index.html">&uarr; All lessons</a></span>
+  <span class="group"><b>Canonical terms</b><a href="../GLOSSARY.md">GLOSSARY.md</a></span>
+  <span class="group"><b>Primary source</b><a href="https://martinfowler.com/architecture/" target="_blank" rel="noopener">Software Architecture Guide · Martin Fowler</a></span>
+</nav>
+
+</body>
+</html>

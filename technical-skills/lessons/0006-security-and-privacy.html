@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 06 · Security &amp; Privacy as a Design Concern</title>
+<link rel="stylesheet" href="../../assets/course/course.css">
+<link rel="stylesheet" href="../assets/theme.css">
+<script src="../../assets/course/links.js" defer></script>
+<script src="../../assets/course/quiz.js" defer></script>
+<script type="module" src="../../assets/course/mermaid.js"></script>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Technical Skills · Lesson 06 · A7</p>
+  <h1>Security &amp; Privacy as a Design Concern</h1>
+  <div class="meta">
+    <span>◷ ~15 min read</span>
+    <span class="dot">•</span>
+    <span>Core · Cross-cutting</span>
+    <span class="dot">•</span>
+    <span>Prereq: <a href="0003-software-architecture.html">Lesson 03</a></span>
+  </div>
+</header>
+
+<p class="mission-tie">
+  Security rarely has an owner in the design review, so at Staff+ <strong>it is you</strong>. You are expected to notice the missing object-level check, the token in a log line and the PII collected &ldquo;just in case&rdquo; &mdash; and to fund the fix by translating risk into business language. This lesson gives you the working vocabulary: OWASP, authentication vs authorization, secure defaults, crypto basics, STRIDE and privacy principles.
+</p>
+
+<div class="callout insight">
+  <span class="label">TL;DR</span>
+  <p>How do you build systems that are safe by design, when no one else is asking for it?</p>
+<ul>
+<li>Security and privacy are cross-cutting design concerns, not specialist clean-up tasks after the architecture is finished.</li>
+<li>Staff+ engineers often must fund security work by making risks visible, connecting them to business outcomes, and designing secure defaults.</li>
+<li>The OWASP Top 10 gives a practical vocabulary for common web application risks, but secure design also requires threat modeling and operational discipline.</li>
+<li>Authentication proves identity; authorization decides allowed actions. OAuth2, OIDC, JWTs, sessions, and MFA solve different parts of the identity problem.</li>
+<li>Privacy requires data minimization, clear purpose, retention discipline, and careful handling of PII, not just encryption.</li>
+</ul>
+</div>
+
+<p class="related">Back to the roadmap: <a href="../../02-skills-to-upgrade.md">Skills to upgrade</a>. Related deep dives: <a href="../../system-design/lessons/0006-networking-and-api-design.html">API design</a>, <a href="../../system-design/lessons/0006-networking-and-api-design.html">networking</a>, <a href="../../system-design/lessons/0003-databases-and-data-modeling.html">databases and data modeling</a>, <a href="../../system-design/lessons/0004-caching.html">caching</a>, <a href="../../system-design/lessons/0005-asynchronism-and-messaging.html">asynchronism and messaging</a>, and <a href="0005-technical-writing-docs-rfcs-adrs.html">technical writing</a>.</p>
+
+<h2 id="1-security-is-cross-cutting">1. Security is cross-cutting</h2>
+<p>Security affects product behavior, architecture, infrastructure, operations, data, and incident response. It cannot be bolted on at the end without expensive rework.</p>
+<p>At Staff+, you are expected to notice safety gaps even when no one asks:</p>
+<ul>
+<li>Does the design expose unnecessary data?</li>
+<li>Are permissions checked at the correct boundary?</li>
+<li>What happens when a dependency is compromised?</li>
+<li>Can an attacker replay, tamper with, or enumerate requests?</li>
+<li>Will logs help detect abuse without leaking PII?</li>
+</ul>
+<figure><pre class="mermaid">
+flowchart TD
+    A["Product design"] --&gt; S["Security and privacy"]
+    B["API boundaries"] --&gt; S
+    C["Data storage"] --&gt; S
+    D["Infrastructure"] --&gt; S
+    E["Operations"] --&gt; S
+    F["Incident response"] --&gt; S
+    S --&gt; G["Safe system behavior"]
+</pre></figure>
+<p>&quot;Funding&quot; security means translating technical risk into business language: fraud, regulatory exposure, customer trust, downtime, recovery cost, and delivery risk.</p>
+<h2 id="2-owasp-top-10-as-a-practical-risk-map">2. OWASP Top 10 as a practical risk map</h2>
+<p>The OWASP Top 10 is a widely used list of critical web application security risks. The 2021 edition is current here; a 2025 revision is in progress.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>OWASP 2021 category</th>
+<th>One-line explanation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Broken Access Control</td>
+<td>Users can act outside their intended permissions or access other users' data</td>
+</tr>
+<tr>
+<td>Cryptographic Failures</td>
+<td>Sensitive data is exposed because encryption, key handling, or hashing is weak</td>
+</tr>
+<tr>
+<td>Injection</td>
+<td>Untrusted input is interpreted as code or commands</td>
+</tr>
+<tr>
+<td>Insecure Design</td>
+<td>The architecture lacks controls for known threat scenarios</td>
+</tr>
+<tr>
+<td>Security Misconfiguration</td>
+<td>Defaults, permissions, headers, services, or cloud resources are unsafe</td>
+</tr>
+<tr>
+<td>Vulnerable and Outdated Components</td>
+<td>Dependencies contain known exploitable vulnerabilities</td>
+</tr>
+<tr>
+<td>Identification and Authentication Failures</td>
+<td>Login, session, credential, or identity flows can be bypassed or abused</td>
+</tr>
+<tr>
+<td>Software and Data Integrity Failures</td>
+<td>Code, updates, CI/CD, or data can be tampered with</td>
+</tr>
+<tr>
+<td>Security Logging and Monitoring Failures</td>
+<td>Attacks are not detected, investigated, or alerted on effectively</td>
+</tr>
+<tr>
+<td>Server-Side Request Forgery</td>
+<td>Attackers make the server send requests to unintended internal or external targets</td>
+</tr>
+</tbody>
+</table></div>
+<figure><pre class="mermaid">
+flowchart TD
+    A["OWASP risks"] --&gt; B["Access control"]
+    A --&gt; C["Data protection"]
+    A --&gt; D["Input handling"]
+    A --&gt; E["Secure design"]
+    A --&gt; F["Operations and supply chain"]
+    B --&gt; G["Threat model"]
+    C --&gt; G
+    D --&gt; G
+    E --&gt; G
+    F --&gt; G
+</pre></figure>
+<p>Use OWASP as a checklist, not a substitute for thinking. The most dangerous risks are often specific to your domain, data, and trust boundaries.</p>
+<h2 id="3-authentication-authorization-and-identity">3. Authentication, authorization, and identity</h2>
+<p>Authentication and authorization are often confused.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Concept</th>
+<th>Question answered</th>
+<th>Examples</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Authentication</td>
+<td>Who are you?</td>
+<td>Password, passkey, SSO, MFA, OIDC login</td>
+</tr>
+<tr>
+<td>Authorization</td>
+<td>What are you allowed to do?</td>
+<td>RBAC, ABAC, policy engine, resource ownership checks</td>
+</tr>
+<tr>
+<td>Accounting</td>
+<td>What did you do?</td>
+<td>Audit logs, access logs, change history</td>
+</tr>
+</tbody>
+</table></div>
+<p>Authentication must not imply authorization. A valid user may still lack permission for a tenant, account, record, action, or field.</p>
+<h3 id="oauth2-oidc-jwts-sessions-and-mfa">OAuth2, OIDC, JWTs, sessions, and MFA</h3>
+<ul>
+<li><strong>OAuth2</strong> is an authorization framework for delegated access.</li>
+<li><strong>OIDC</strong> adds identity on top of OAuth2 and standardizes login claims.</li>
+<li><strong>JWTs</strong> are signed tokens containing claims; they are not automatically secure just because they are signed.</li>
+<li><strong>Sessions</strong> store server-side state and usually use an opaque cookie as the client handle.</li>
+<li><strong>MFA</strong> reduces account takeover risk by requiring more than one factor.</li>
+</ul>
+<figure><pre class="mermaid">
+sequenceDiagram
+    participant User as User
+    participant Browser as Browser
+    participant App as Application
+    participant IdP as Identity Provider
+    participant API as Resource API
+    User-&gt;&gt;Browser: Start login
+    Browser-&gt;&gt;App: Request protected page
+    App-&gt;&gt;Browser: Redirect to authorization endpoint
+    Browser-&gt;&gt;IdP: Authenticate user and request consent
+    IdP-&gt;&gt;Browser: Return authorization code
+    Browser-&gt;&gt;App: Send authorization code
+    App-&gt;&gt;IdP: Exchange code for tokens
+    IdP-&gt;&gt;App: Return ID token and access token
+    App-&gt;&gt;API: Call API with access token
+    API-&gt;&gt;API: Validate token and authorization policy
+</pre></figure>
+<p>Sessions are easier to revoke centrally. Self-contained tokens are convenient for distributed systems but require careful expiry, audience validation, signing key rotation, and revocation strategy.</p>
+<h2 id="4-secure-api-design">4. Secure API design</h2>
+<p>APIs are security boundaries. Design them as if clients are malicious, broken, or compromised.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Control</th>
+<th>What it prevents</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Input validation</td>
+<td>Unexpected types, sizes, formats, and unsafe values</td>
+</tr>
+<tr>
+<td>Output encoding</td>
+<td>Cross-site scripting and downstream interpretation bugs</td>
+</tr>
+<tr>
+<td>Rate limiting</td>
+<td>Brute force, scraping, abuse, and accidental overload</td>
+</tr>
+<tr>
+<td>Least privilege</td>
+<td>Overbroad service or user access</td>
+</tr>
+<tr>
+<td>CORS discipline</td>
+<td>Browser-based cross-origin access mistakes</td>
+</tr>
+<tr>
+<td>Idempotency keys</td>
+<td>Unsafe retries for mutation APIs</td>
+</tr>
+<tr>
+<td>Audit logging</td>
+<td>Invisible sensitive actions</td>
+</tr>
+</tbody>
+</table></div>
+<p>Good API security includes object-level authorization. Many breaches happen when an endpoint checks &quot;is logged in&quot; but not &quot;can access this specific object.&quot;</p>
+<p>Secure defaults matter:</p>
+<ul>
+<li>Deny by default when policy cannot be evaluated.</li>
+<li>Use allowlists rather than blocklists for trusted inputs.</li>
+<li>Avoid returning sensitive fields unless explicitly requested and authorized.</li>
+<li>Make pagination and filtering resistant to enumeration.</li>
+<li>Treat internal APIs as hostile unless protected by identity and policy.</li>
+</ul>
+<h2 id="5-core-security-principles">5. Core security principles</h2>
+<figure><pre class="mermaid">
+flowchart TD
+    A["Secure system"] --&gt; B["Defense in depth"]
+    A --&gt; C["Least privilege"]
+    A --&gt; D["Zero trust"]
+    A --&gt; E["Fail secure"]
+    A --&gt; F["Secure defaults"]
+    B --&gt; G["Multiple independent controls"]
+    C --&gt; H["Only required access"]
+    D --&gt; I["Verify every boundary"]
+    E --&gt; J["Deny on uncertainty"]
+    F --&gt; K["Safe unless changed"]
+</pre></figure>
+<h3 id="defense-in-depth">Defense in depth</h3>
+<p>Assume one control will fail. Combine identity, network segmentation, input validation, encryption, monitoring, and incident response.</p>
+<h3 id="least-privilege">Least privilege</h3>
+<p>Grant only the permissions needed for the task, for the shortest reasonable duration, at the narrowest scope.</p>
+<h3 id="zero-trust">Zero trust</h3>
+<p>Do not trust a request because it originates from an internal network. Verify identity, device, workload, policy, and context at each boundary.</p>
+<h3 id="fail-secure">Fail secure</h3>
+<p>When a dependency is down or a policy is ambiguous, prefer safe denial over unsafe access.</p>
+<h3 id="secure-defaults">Secure defaults</h3>
+<p>Make the easiest path the safest path. Engineers under delivery pressure will follow defaults.</p>
+<h2 id="6-cryptography-basics-for-practitioners">6. Cryptography basics for practitioners</h2>
+<p>Cryptography is easy to misuse. Prefer well-reviewed libraries, managed services, and standard protocols.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Topic</th>
+<th>Practical meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Encryption in transit</td>
+<td>Use TLS to protect data between clients, services, and infrastructure</td>
+</tr>
+<tr>
+<td>Encryption at rest</td>
+<td>Protect stored data using database, disk, object-store, or application-level encryption</td>
+</tr>
+<tr>
+<td>Hashing</td>
+<td>One-way transformation used for integrity checks and password verification</td>
+</tr>
+<tr>
+<td>Encryption</td>
+<td>Reversible transformation that requires key management</td>
+</tr>
+<tr>
+<td>Symmetric crypto</td>
+<td>Same key encrypts and decrypts; fast and common for data encryption</td>
+</tr>
+<tr>
+<td>Asymmetric crypto</td>
+<td>Public and private keys; useful for key exchange, signatures, and identity</td>
+</tr>
+</tbody>
+</table></div>
+<p>Passwords must be hashed with password-specific algorithms such as bcrypt or Argon2, plus unique salts. Do not use fast hashes such as SHA-256 alone for passwords.</p>
+<p>Secrets management is part of cryptography:</p>
+<ul>
+<li>Store secrets in Vault, cloud KMS, or a managed secret manager.</li>
+<li>Rotate keys and credentials.</li>
+<li>Separate encryption keys from encrypted data.</li>
+<li>Never log secrets.</li>
+<li>Avoid long-lived credentials where workload identity is available.</li>
+</ul>
+<figure><pre class="mermaid">
+flowchart LR
+    A["Application"] --&gt; B["Secret manager"]
+    B --&gt; C["KMS key"]
+    A --&gt; D["Database"]
+    C --&gt; D
+    E["Operator"] --&gt; B
+    F["Audit log"] --&gt; B
+</pre></figure>
+<h2 id="7-threat-modeling-with-stride">7. Threat modeling with STRIDE</h2>
+<p>Threat modeling is structured imagination. It helps teams ask, &quot;How could this fail under attack?&quot;</p>
+<p>STRIDE categories:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>STRIDE category</th>
+<th>Threat question</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Spoofing</td>
+<td>Can an attacker pretend to be someone or something else?</td>
+</tr>
+<tr>
+<td>Tampering</td>
+<td>Can data, requests, binaries, or configuration be modified?</td>
+</tr>
+<tr>
+<td>Repudiation</td>
+<td>Can actors deny actions because evidence is missing?</td>
+</tr>
+<tr>
+<td>Information disclosure</td>
+<td>Can sensitive data be exposed?</td>
+</tr>
+<tr>
+<td>Denial of service</td>
+<td>Can availability be degraded or exhausted?</td>
+</tr>
+<tr>
+<td>Elevation of privilege</td>
+<td>Can a low-privilege actor gain more power?</td>
+</tr>
+</tbody>
+</table></div>
+<p>Use data-flow diagrams to identify:</p>
+<ul>
+<li>External entities.</li>
+<li>Processes.</li>
+<li>Data stores.</li>
+<li>Data flows.</li>
+<li>Trust boundaries.</li>
+</ul>
+<figure><pre class="mermaid">
+flowchart LR
+    User["External user"] --&gt; Web["Web app"]
+    Web --&gt; API["API service"]
+    API --&gt; DB["PII database"]
+    API --&gt; Queue["Work queue"]
+    Queue --&gt; Worker["Worker service"]
+    subgraph sgTrust["Trust boundary"]
+        API
+        DB
+        Queue
+        Worker
+    end
+</pre></figure>
+<p>The Staff+ move is to make threat modeling lightweight enough that teams actually do it.</p>
+<h2 id="8-privacy-and-pii">8. Privacy and PII</h2>
+<p>Privacy is about appropriate collection, use, sharing, retention, and deletion of personal data.</p>
+<p>PII can include names, email addresses, government IDs, phone numbers, precise location, device identifiers, IP addresses, financial details, and combinations of attributes that identify a person.</p>
+<p>Key privacy concepts:</p>
+<ul>
+<li><strong>Data minimization</strong>: collect only what is needed.</li>
+<li><strong>Purpose limitation</strong>: use data only for the purpose communicated or legally justified.</li>
+<li><strong>Retention limits</strong>: delete data when no longer needed.</li>
+<li><strong>Access control</strong>: restrict who and what can view or process personal data.</li>
+<li><strong>Pseudonymization</strong>: replace direct identifiers with stable aliases while preserving analytical utility.</li>
+<li><strong>GDPR rights</strong>: access, correction, deletion, portability, and objection depending on context.</li>
+</ul>
+<p>Encryption reduces exposure but does not eliminate privacy obligations. If the system can decrypt and use the data, the organization must still govern it.</p>
+<h2 id="9-what-good-looks-like-at-staff">9. What &quot;good&quot; looks like at Staff+</h2>
+<ul>
+<li>You raise security and privacy risks during design, not after launch.</li>
+<li>You make threat models, access controls, data flows, and logging decisions visible in design docs.</li>
+<li>You push for secure defaults and managed security primitives instead of bespoke mechanisms.</li>
+<li>You connect security investments to customer trust, compliance, fraud prevention, and operational resilience.</li>
+<li>You ensure sensitive actions are authorized, audited, monitored, and reversible where possible.</li>
+<li>You mentor teams to use OWASP, STRIDE, and privacy principles pragmatically.</li>
+</ul>
+<h2 id="10-common-pitfalls">10. Common pitfalls</h2>
+<ul>
+<li>Treating authentication as sufficient authorization.</li>
+<li>Storing passwords with general-purpose hashes or reversible encryption.</li>
+<li>Logging tokens, secrets, or unnecessary PII.</li>
+<li>Relying on internal networks as a security boundary.</li>
+<li>Adding rate limits and monitoring only after abuse occurs.</li>
+<li>Copying OAuth2 or JWT examples without validating issuer, audience, expiry, and signature.</li>
+<li>Collecting data because it might be useful someday.</li>
+</ul>
+<h2 id="11-further-reading">11. Further reading</h2>
+<ul>
+<li>OWASP Top 10: <a href="https://owasp.org/www-project-top-ten/" target="_blank" rel="noopener">https://owasp.org/www-project-top-ten/</a></li>
+<li>OWASP Cheat Sheet Series: <a href="https://cheatsheetseries.owasp.org/" target="_blank" rel="noopener">https://cheatsheetseries.owasp.org/</a></li>
+<li>Microsoft STRIDE: <a href="https://learn.microsoft.com/en-us/azure/security/develop/threat-modeling-tool-threats" target="_blank" rel="noopener">https://learn.microsoft.com/en-us/azure/security/develop/threat-modeling-tool-threats</a></li>
+</ul>
+
+<div class="primary-source">
+  <span class="label">Read this next (primary source)</span>
+  <p>OWASP &mdash; <a href="https://owasp.org/www-project-top-ten/" target="_blank" rel="noopener"><em>OWASP Top 10</em></a> for the shared risk vocabulary, and the <a href="https://cheatsheetseries.owasp.org/" target="_blank" rel="noopener"><em>OWASP Cheat Sheet Series</em></a> (start with the Authorization and Password Storage cheat sheets) for concrete controls. For threat modelling, Microsoft&rsquo;s <a href="https://learn.microsoft.com/en-us/azure/security/develop/threat-modeling-tool-threats" target="_blank" rel="noopener"><em>STRIDE threat categories</em></a>.</p>
+</div>
+
+<h2 id="12-check-yourself">12. Check yourself</h2>
+<p>Retrieve before revealing.</p>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 1 of 3</p>
+  <p class="quiz-q">Endpoint <code>GET /invoices/{id}</code> checks that the caller has a valid session, then returns the invoice. A pen test downloads other customers&rsquo; invoices by changing the id. What is the root cause?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="Token format is irrelevant: either one only proves who the caller is.">the session should have been a signed JWT, not an opaque session cookie</button></li>
+    <li><button data-correct="false" data-feedback="Guessable ids make it easier, but random ids only hide the missing check.">the invoice ids are sequential numbers instead of random UUIDs</button></li>
+    <li><button data-correct="true" data-feedback="Right — a valid user may still not own this invoice. Check object-level permission on every request.">authentication was treated as authorization: no per-object check</button></li>
+    <li><button data-correct="false" data-feedback="Rate limits slow abuse down; they do not stop a single unauthorised read.">the API has no rate limiting, so the scraping was not throttled</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Authentication proves identity; authorization decides what that identity may do to this specific object."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 2 of 3</p>
+  <p class="quiz-q">A service accepts incoming JWTs after checking the signature only. What else must it validate before it trusts the claims?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="Signed is not secure. A validly signed token can be expired, or meant for another service.">nothing more: a valid signature proves the token is safe to use</button></li>
+    <li><button data-correct="false" data-feedback="Client storage is a separate concern; it says nothing about whether this token is valid here.">that the client keeps the token in local storage, not a cookie</button></li>
+    <li><button data-correct="false" data-feedback="Confidentiality of claims is not the gap. Validity and intended audience are.">that the payload is encrypted so that the claims cannot be read</button></li>
+    <li><button data-correct="true" data-feedback="Right — validate issuer, audience, expiry and signature, and plan key rotation and revocation.">issuer, audience and expiry, plus a plan for key rotation</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Never copy JWT examples blindly: validate issuer, audience, expiry and signature, rotate signing keys, and have a revocation strategy."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 3 of 3</p>
+  <p class="quiz-q">Product wants to store users&rsquo; precise location on every request &ldquo;in case analytics needs it later&rdquo;. It will be encrypted at rest. Your privacy review comment:</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="If the system can decrypt and use the data, the organisation must still govern it.">fine &mdash; encryption at rest removes our privacy obligations</button></li>
+    <li><button data-correct="true" data-feedback="Right — data minimisation, purpose limitation and retention discipline come before encryption.">collect only what a stated purpose needs, with a retention limit</button></li>
+    <li><button data-correct="false" data-feedback="Pseudonymising logs helps, but it does not justify collecting data with no purpose.">fine, as long as it is pseudonymised before it reaches any of the logs</button></li>
+    <li><button data-correct="false" data-feedback="Isolation is defence in depth, not minimisation. The data still should not be collected.">store it in a separate database so a breach exposes less of it</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Privacy is minimisation, purpose limitation and retention discipline. Encryption reduces exposure but does not remove the duty to govern data you can decrypt."></div>
+</div>
+
+<div class="callout tryit">
+  <span class="label">Try it in your own system</span>
+  <ul class="checklist">
+    <li>Pick three endpoints you own. For each, confirm there is an object-level authorization check, not just &ldquo;is logged in&rdquo;.</li>
+    <li>Search your logs for tokens, secrets and unnecessary PII (emails, IPs, full names). File one fix.</li>
+    <li>Run a 30-minute STRIDE pass on one data-flow diagram: mark the trust boundaries and write one threat per category.</li>
+    <li>List the long-lived credentials your services use. Which could move to workload identity or a secret manager with rotation?</li>
+    <li>For one table holding personal data, write down its purpose, its retention period and who can read it. Is any column collected &ldquo;just in case&rdquo;?</li>
+  </ul>
+</div>
+
+<div class="followup">
+  <strong>I&rsquo;m your teacher &mdash; ask me anything.</strong> Sketch a data flow from your system and we&rsquo;ll run STRIDE on it together &mdash; or bring a login or token-validation flow and we&rsquo;ll check it against the OAuth2, OIDC and JWT pitfalls.
+</div>
+
+<nav class="lesson-nav">
+  <span class="group">
+    <b>Previous</b>
+    <a href="0005-technical-writing-docs-rfcs-adrs.html">&larr; Lesson 05 · Technical writing</a>
+  </span>
+  <span class="group">
+    <b>Reference</b>
+    <a href="../reference/0006-security-and-privacy-cheatsheet.html">Security & privacy cheat sheet &rarr;</a>
+  </span>
+  <span class="group">
+    <b>Course map</b>
+    <a href="../index.html">&uarr; All lessons</a>
+  </span>
+  <span class="group">
+    <b>Up next</b>
+    <a href="0007-cloud-infrastructure.html">Lesson 07 · Cloud infrastructure &rarr;</a>
+  </span>
+</nav>
+
+</body>
+</html>

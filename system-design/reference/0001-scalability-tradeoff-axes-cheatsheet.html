@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cheat Sheet · Scalability Trade-off Axes</title>
+<link rel="stylesheet" href="../../assets/course/course.css">
+<link rel="stylesheet" href="../assets/theme.css">
+<script src="../../assets/course/links.js" defer></script>
+<style>
+  body { max-width: 52rem; }
+  @media print { body { margin: 0; } h2 { margin-top: 1.1rem; } }
+</style>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">System Design · Reference 01</p>
+  <h1>Scalability Trade-off Axes</h1>
+  <div class="meta"><span>Compressed from Lesson 01</span><span class="dot">•</span><span>Print-friendly</span></div>
+</header>
+
+<div class="callout insight">
+  <span class="label">Mindset</span>
+  <p>Scalability means <strong>adding resources buys proportional capacity</strong>, with no rewrite and no latency collapse.
+  Quantify first, scale out stateless by default, and know exactly which component is the stateful bottleneck.</p>
+</div>
+
+<h2>Diagnose before you scale</h2>
+<table>
+  <thead><tr><th>Symptom</th><th>Problem</th><th>Look for</th></tr></thead>
+  <tbody>
+    <tr><td>Slow for a single user</td><td><strong>Performance</strong></td><td>The code path, the query, the algorithm</td></tr>
+    <tr><td>Fast for one user, slow under load</td><td><strong>Scalability</strong></td><td>Anything whose cost grows super-linearly: a shared lock, a single DB, an O(n&sup2;) fan-out</td></tr>
+  </tbody>
+</table>
+
+<h2>Latency vs throughput</h2>
+<ul class="checklist">
+  <li><strong>Latency</strong> &mdash; time for one operation. Quote <strong>p50 / p95 / p99 / p99.9</strong>, never just the average.</li>
+  <li><strong>Throughput</strong> &mdash; operations per unit time. Goal: max throughput at <em>acceptable</em> latency.</li>
+  <li><strong>Little&rsquo;s Law</strong> &mdash; <code>Concurrency = Throughput &times; Latency</code>. Batching and queuing raise throughput but add latency.</li>
+  <li><strong>Fan-out amplifies the tail</strong> &mdash; 100 calls per page at p99 = 1 s &rarr; 1 &minus; 0.99<sup>100</sup> &asymp; 63% of pages hit a slow call.</li>
+</ul>
+
+<h2>Scale up vs scale out</h2>
+<table>
+  <thead><tr><th></th><th>Vertical (scale up)</th><th>Horizontal (scale out)</th></tr></thead>
+  <tbody>
+    <tr><td>How</td><td>Bigger CPU / RAM / disk</td><td>More boxes behind a load balancer</td></tr>
+    <tr><td>Ceiling</td><td>Hard hardware limit</td><td>Effectively unlimited</td></tr>
+    <tr><td>Complexity</td><td>Low &mdash; no code change</td><td>High &mdash; statelessness, LB, partitioning</td></tr>
+    <tr><td>Failure</td><td>Single point of failure</td><td>Lose a node, survive</td></tr>
+    <tr><td>Cost curve</td><td>Super-linear (premium hardware)</td><td>~Linear (commodity)</td></tr>
+  </tbody>
+</table>
+<p><strong>The unlock is statelessness:</strong> push sessions to a shared store or a signed token, and any server can take any request.
+State then lives in stores you scale deliberately (Lesson 03).</p>
+
+<h2>AKF scale cube</h2>
+<table>
+  <thead><tr><th>Axis</th><th>Move</th><th>Scales</th><th>Doesn&rsquo;t help with</th></tr></thead>
+  <tbody>
+    <tr><td><strong>X</strong> &mdash; clone</td><td>N identical copies behind an LB</td><td>Traffic, reads</td><td>A dataset too big for one node</td></tr>
+    <tr><td><strong>Y</strong> &mdash; split by function</td><td>Services by responsibility</td><td>Teams, complexity, independent scaling</td><td>One hot dataset</td></tr>
+    <tr><td><strong>Z</strong> &mdash; split by data</td><td>Shard by key (user_id, geo)</td><td>Data volume, writes</td><td>Cross-shard queries (they get harder)</td></tr>
+  </tbody>
+</table>
+<p>Large systems use all three: cloned stateless services (X), split by domain (Y), each on a sharded store (Z).</p>
+
+<h2>Availability: numbers to remember</h2>
+<table>
+  <thead><tr><th>Availability</th><th>Downtime / year</th><th>Downtime / day</th></tr></thead>
+  <tbody>
+    <tr><td>99%</td><td>3.65 days</td><td>14.4 min</td></tr>
+    <tr><td>99.9%</td><td>8.77 hours</td><td>1.44 min</td></tr>
+    <tr><td>99.99%</td><td>52.6 min</td><td>8.6 s</td></tr>
+    <tr><td>99.999%</td><td>5.26 min</td><td>0.86 s</td></tr>
+  </tbody>
+</table>
+<pre><code>Series   (both must work):  A = A1 &times; A2               99.9% &times; 99.9% &asymp; 99.8%
+Parallel (either works):    A = 1 &minus; (1 &minus; A1)(1 &minus; A2)   two 99.9% replicas &asymp; 99.9999%</code></pre>
+<p>Every synchronous hop costs availability. Add redundancy, remove hops, or make hops async.
+<strong>SLI</strong> = what you measure; <strong>SLO</strong> = internal target; <strong>SLA</strong> = contractual promise (looser than the SLO).</p>
+
+<h2>Review questions</h2>
+<ul class="checklist">
+  <li>What are the target QPS, data size and latency budget? (Lesson 07)</li>
+  <li>Is this a performance or a scalability problem? Which component grows super-linearly?</li>
+  <li>Are latency budgets and alerts set on p99, not the average?</li>
+  <li>Which component is stateful, and how does it scale?</li>
+  <li>Which AKF axis does the next 10&times; need?</li>
+  <li>What is the composed availability of this path, and which hop costs us a nine?</li>
+</ul>
+
+<div class="callout warning">
+  <span class="label">Traps</span>
+  <ul>
+    <li><strong>Premature scaling</strong> &mdash; building for 1B users at 1,000. Keep it boring until the numbers say otherwise.</li>
+    <li><strong>Hidden single points of failure</strong> &mdash; one primary DB, one cache, one AZ: redundant on paper, series in practice.</li>
+    <li><strong>Optimising the average</strong> while p99 melts under load.</li>
+    <li><strong>Stateful app servers</strong> that block scale-out and make deploys and failover painful.</li>
+  </ul>
+</div>
+
+<nav class="lesson-nav">
+  <span class="group"><b>From</b><a href="../lessons/0001-scalability-tradeoff-axes.html">&larr; Lesson 01 · Scalability trade-offs</a></span>
+  <span class="group"><b>Course map</b><a href="../index.html">&uarr; All lessons</a></span>
+  <span class="group"><b>Canonical terms</b><a href="../GLOSSARY.md">GLOSSARY.md</a></span>
+  <span class="group"><b>Primary source</b><a href="https://akfpartners.com/growth-blog/scale-cube" target="_blank" rel="noopener">AKF Partners · The Scale Cube</a></span>
+</nav>
+
+</body>
+</html>

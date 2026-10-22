@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cheat Sheet · Asynchronism &amp; Messaging</title>
+<link rel="stylesheet" href="../../assets/course/course.css">
+<link rel="stylesheet" href="../assets/theme.css">
+<script src="../../assets/course/links.js" defer></script>
+<style>
+  body { max-width: 52rem; }
+  @media print { body { margin: 0; } h2 { margin-top: 1.1rem; } }
+</style>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">System Design · Reference 05</p>
+  <h1>Asynchronism &amp; Messaging</h1>
+  <div class="meta"><span>Compressed from Lesson 05</span><span class="dot">•</span><span>Print-friendly</span></div>
+</header>
+
+<div class="callout insight">
+  <span class="label">Mindset</span>
+  <p>Async buys <strong>decoupling, absorption of spikes and independent scaling</strong>, and costs you eventual consistency and harder debugging.
+  Assume <strong>at-least-once</strong> delivery and make every consumer <strong>idempotent</strong>.</p>
+</div>
+
+<h2>When to go async</h2>
+<ul class="checklist">
+  <li>The caller doesn&rsquo;t need the result right now (email, thumbnails, analytics, fan-out).</li>
+  <li>Work is slow or bursty and should be <strong>levelled</strong> by a buffer.</li>
+  <li>Producers and consumers should scale and fail <strong>independently</strong>.</li>
+  <li>Several downstream systems react to one fact (pub/sub).</li>
+  <li><strong>Stay sync</strong> when the user needs an immediate answer (auth, price, stock check).</li>
+</ul>
+
+<h2>Queue vs pub/sub vs log</h2>
+<table>
+  <thead><tr><th></th><th>Work queue</th><th>Pub/sub</th><th>Log (Kafka)</th></tr></thead>
+  <tbody>
+    <tr><td>Delivery</td><td>Each message to <strong>one</strong> consumer</td><td>Each message to <strong>every</strong> subscriber</td><td>Each consumer group reads every message</td></tr>
+    <tr><td>Retention</td><td>Deleted on ack</td><td>Usually transient</td><td>Kept for a time/size window; replayable</td></tr>
+    <tr><td>Examples</td><td>SQS, RabbitMQ</td><td>SNS, Redis pub/sub</td><td>Kafka, Kinesis, Pulsar</td></tr>
+    <tr><td>Use for</td><td>Task distribution</td><td>Notifications, fan-out</td><td>Event streams, CDC, replay, analytics</td></tr>
+  </tbody>
+</table>
+
+<h2>Back-pressure &amp; poison messages</h2>
+<ul class="checklist">
+  <li><strong>Bounded</strong> queues; when full, reject (<code>429</code>/<code>503</code>), block or shed &mdash; never grow without limit.</li>
+  <li>Alert on <strong>queue depth and consumer lag</strong>, not just errors.</li>
+  <li>After N failed attempts, move the message to a <strong>dead-letter queue</strong> with context; alert and replay after the fix.</li>
+</ul>
+
+<h2>Delivery semantics</h2>
+<table>
+  <thead><tr><th>Guarantee</th><th>Meaning</th><th>Cost</th></tr></thead>
+  <tbody>
+    <tr><td>At-most-once</td><td>May be lost, never duplicated</td><td>Ack before processing</td></tr>
+    <tr><td><strong>At-least-once</strong> (default)</td><td>Never lost, may be duplicated</td><td>Consumer must be idempotent</td></tr>
+    <tr><td>Exactly-once</td><td>Once, effectively</td><td>Only inside a closed system (Kafka transactions) or via at-least-once + idempotency</td></tr>
+  </tbody>
+</table>
+<p><strong>Idempotency techniques:</strong> processed-message-ID table (dedupe in the same transaction as the effect), natural keys with upserts,
+conditional writes (version / compare-and-set), <code>Idempotency-Key</code> on APIs.</p>
+
+<h2>Event-driven patterns</h2>
+<table>
+  <thead><tr><th>Pattern</th><th>Idea</th><th>Watch out</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Event notification</strong></td><td>&ldquo;Something happened&rdquo;; consumers call back for detail</td><td>Callback load on the producer</td></tr>
+    <tr><td><strong>Event-carried state</strong></td><td>Event carries the data consumers need</td><td>Larger events, schema evolution</td></tr>
+    <tr><td><strong>Event sourcing</strong></td><td>Events are the source of truth; state = fold</td><td>Versioning, snapshots, projections</td></tr>
+    <tr><td><strong>CQRS</strong></td><td>Separate write model and read models</td><td>Read models lag the write side</td></tr>
+  </tbody>
+</table>
+
+<h2>The dual-write problem</h2>
+<pre><code>// BROKEN: DB commit succeeds, publish fails (or the reverse)
+db.save(order); broker.publish(OrderPlaced)
+
+// FIX 1 &mdash; transactional outbox
+tx { db.save(order); db.insert(outbox, OrderPlaced) }  // relay publishes later
+// FIX 2 &mdash; CDC: tail the DB log (Debezium) and emit changes</code></pre>
+
+<h2>Kafka in one screen</h2>
+<ul class="checklist">
+  <li><strong>Topic</strong> &rarr; <strong>partitions</strong> (ordered, append-only); <strong>offset</strong> = position. Order is per partition only &mdash; key by entity ID.</li>
+  <li><strong>Consumer group</strong>: each partition read by one member; max parallelism = <strong>partition count</strong>.</li>
+  <li>Durability: replication factor 3, <code>acks=all</code>, <code>min.insync.replicas=2</code>; the <strong>ISR</strong> is the in-sync replica set.</li>
+  <li>Fast because of sequential disk I/O, page cache, zero-copy and batching.</li>
+  <li>Unlike a queue, messages stay after consumption &rarr; replay, multiple independent readers.</li>
+</ul>
+
+<h2>Review questions</h2>
+<ul class="checklist">
+  <li>Does the caller truly need the result synchronously?</li>
+  <li>Queue, pub/sub or log &mdash; and why? Is replay needed?</li>
+  <li>Is every consumer idempotent? What happens on a redelivery?</li>
+  <li>How do DB state and published events stay consistent (outbox / CDC)?</li>
+  <li>Where is the DLQ, who is alerted, and how is it replayed?</li>
+  <li>What ordering is required, and does the partition key give it?</li>
+</ul>
+
+<div class="callout warning">
+  <span class="label">Traps</span>
+  <ul>
+    <li><strong>Unbounded queues</strong> &mdash; latency grows silently until memory runs out.</li>
+    <li><strong>Assuming exactly-once</strong> &mdash; duplicates will arrive.</li>
+    <li><strong>Dual writes</strong> to DB and broker without an outbox or CDC.</li>
+    <li><strong>Global ordering</strong> demands that kill parallelism &mdash; order per key instead.</li>
+    <li><strong>Async everything</strong> &mdash; a simple request becomes an untraceable distributed workflow.</li>
+  </ul>
+</div>
+
+<nav class="lesson-nav">
+  <span class="group"><b>From</b><a href="../lessons/0005-asynchronism-and-messaging.html">&larr; Lesson 05 · Async &amp; messaging</a></span>
+  <span class="group"><b>Course map</b><a href="../index.html">&uarr; All lessons</a></span>
+  <span class="group"><b>Canonical terms</b><a href="../GLOSSARY.md">GLOSSARY.md</a></span>
+  <span class="group"><b>Primary source</b><a href="https://engineering.linkedin.com/distributed-systems/log-what-every-software-engineer-should-know-about-real-time-datas-unifying" target="_blank" rel="noopener">Jay Kreps · The Log</a></span>
+</nav>
+
+</body>
+</html>

@@ -1,0 +1,25 @@
+/* ===========================================================================
+   Async & Messaging — course theme (loaded after /assets/course/course.css)
+   Distinct BRICK identity on a warmer paper palette.
+   =========================================================================== */
+
+:root {
+  --paper:        #fdfcf9;
+  --muted:        #6b6459;
+  --rule:         #e4ded2;
+  --accent:       #7a2e2e;   /* deep brick — used sparingly */
+  --link:         #7a2e2e;
+  --code-bg:      #f3f0e8;
+  --insight-bg:   #eef4ee;
+  --insight-br:   #3f7a3f;
+  --ok:           #2f7a3f;
+  --surface-alt:  #f7f4ec;
+  --btn-bg:       #faf8f2;
+  --btn-hover-bg: #f0ece1;
+  --btn-hover-br: #cfc7b5;
+  --correct-ink:  #1f4a29;
+  --accent-hover: #5e2323;
+  --accent-glow:  rgba(122, 46, 46, .55);
+  --accent-past:  rgba(122, 46, 46, .4);
+  --accent-shadow: rgba(122, 46, 46, .4);
+}

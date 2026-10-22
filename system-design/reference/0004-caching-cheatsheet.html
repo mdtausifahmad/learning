@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cheat Sheet · Caching</title>
+<link rel="stylesheet" href="../../assets/course/course.css">
+<link rel="stylesheet" href="../assets/theme.css">
+<script src="../../assets/course/links.js" defer></script>
+<style>
+  body { max-width: 52rem; }
+  @media print { body { margin: 0; } h2 { margin-top: 1.1rem; } }
+</style>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">System Design · Reference 04</p>
+  <h1>Caching</h1>
+  <div class="meta"><span>Compressed from Lesson 04</span><span class="dot">•</span><span>Print-friendly</span></div>
+</header>
+
+<div class="callout insight">
+  <span class="label">Mindset</span>
+  <p>A cache is an <strong>optimisation, never the source of truth</strong>: the system must be correct, if slower, with the cache empty.
+  Design for stampede, hot keys and penetration up front &mdash; they only appear under load.</p>
+</div>
+
+<h2>Layers (closer to the user = faster, harder to invalidate)</h2>
+<table>
+  <thead><tr><th>Layer</th><th>Mechanism</th><th>Note</th></tr></thead>
+  <tbody>
+    <tr><td>Browser / client</td><td><code>Cache-Control</code>, <code>ETag</code>, <code>Expires</code></td><td>Zero server cost</td></tr>
+    <tr><td>CDN / edge</td><td>PoPs near users</td><td>Static and cacheable dynamic content (Lesson 06)</td></tr>
+    <tr><td>Reverse proxy</td><td>Nginx, Varnish</td><td>Full responses in front of app servers</td></tr>
+    <tr><td>In-process</td><td>Caffeine, Guava</td><td>Nanoseconds; per instance, lost on restart</td></tr>
+    <tr><td>Distributed</td><td>Redis, Memcached</td><td>Shared by all instances &mdash; the workhorse</td></tr>
+    <tr><td>Database</td><td>Buffer pool / page cache</td><td>Hot pages in RAM</td></tr>
+  </tbody>
+</table>
+
+<h2>Read and write patterns</h2>
+<table>
+  <thead><tr><th>Pattern</th><th>How</th><th>Consistency</th><th>Risk</th><th>Use when</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Cache-aside</strong> (default)</td><td>App: get &rarr; miss &rarr; DB &rarr; set with TTL</td><td>Stale until TTL</td><td>Cold first hit</td><td>General reads; cache outage falls back to DB</td></tr>
+    <tr><td><strong>Read-through</strong></td><td>Cache loads from DB on miss</td><td>Same as cache-aside</td><td>Logic in cache layer</td><td>You want loading out of app code</td></tr>
+    <tr><td><strong>Write-through</strong></td><td>Write cache and DB synchronously</td><td>Strong</td><td>Higher write latency</td><td>Read-heavy data that must be fresh</td></tr>
+    <tr><td><strong>Write-behind</strong></td><td>Ack from cache, flush to DB async</td><td>Eventual</td><td>Data loss if cache dies</td><td>Write-heavy, loss-tolerant (counters, metrics)</td></tr>
+    <tr><td><strong>Write-around</strong></td><td>Write DB only; cache on later read</td><td>&mdash;</td><td>New data stays cold</td><td>Write-once, rarely re-read</td></tr>
+    <tr><td><strong>Refresh-ahead</strong></td><td>Reload hot keys before expiry</td><td>Fresh for hot keys</td><td>Wasted refreshes</td><td>Predictable hot keys</td></tr>
+  </tbody>
+</table>
+
+<h2>Eviction &amp; invalidation</h2>
+<ul class="checklist">
+  <li><strong>TTL</strong> &mdash; simplest freshness control; combine with everything.</li>
+  <li><strong>LRU</strong> &mdash; most common; temporal locality. <strong>LFU</strong> &mdash; stable popularity. <strong>FIFO</strong>, <strong>random</strong> &mdash; cheap.</li>
+  <li><strong>Explicit invalidation</strong> &mdash; delete/update keys on write, ideally driven by a CDC stream (Lesson 05).</li>
+  <li><strong>Versioned keys</strong> &mdash; <code>user:123:v7</code>; a new version bypasses old entries.</li>
+</ul>
+
+<h2>Failure modes &rarr; fixes</h2>
+<table>
+  <thead><tr><th>Failure</th><th>What happens</th><th>Fix</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Stampede</strong> (thundering herd)</td><td>Hot key expires; thousands miss and hit the DB at once</td><td>Single-flight / coalescing, lock per key, TTL jitter, early refresh</td></tr>
+    <tr><td><strong>Hot key</strong></td><td>One key saturates one cache node</td><td>Replicate the key, local in-process cache in front, split the value</td></tr>
+    <tr><td><strong>Penetration</strong></td><td>Requests for keys that don&rsquo;t exist always reach the DB</td><td>Cache &ldquo;not found&rdquo; with a short TTL; Bloom filter</td></tr>
+    <tr><td><strong>Avalanche</strong></td><td>Many keys expire together (e.g. after restart)</td><td>TTL jitter; warm the cache on startup</td></tr>
+  </tbody>
+</table>
+
+<h2>Redis vs Memcached</h2>
+<table>
+  <thead><tr><th></th><th>Redis</th><th>Memcached</th></tr></thead>
+  <tbody>
+    <tr><td>Data types</td><td>Strings, hashes, lists, sets, sorted sets, streams, HLL</td><td>Strings / blobs</td></tr>
+    <tr><td>Persistence</td><td>Optional (RDB, AOF)</td><td>None</td></tr>
+    <tr><td>HA</td><td>Replicas, Sentinel, Cluster</td><td>Client-side sharding</td></tr>
+    <tr><td>Threading</td><td>Mostly single-threaded</td><td>Multi-threaded</td></tr>
+    <tr><td>Pick for</td><td>Structures, pub/sub, atomic ops, rate limiters, locks</td><td>Pure, simple KV cache</td></tr>
+  </tbody>
+</table>
+
+<h2>Review questions</h2>
+<ul class="checklist">
+  <li>Which layer caches this, and what is the invalidation path for each layer?</li>
+  <li>Why this write pattern &mdash; what consistency, latency and durability do we need?</li>
+  <li>What happens when the hottest key expires at peak?</li>
+  <li>What happens with the cache empty or down: slower, or wrong?</li>
+  <li>What is the hit ratio, and is it measured per cache?</li>
+</ul>
+
+<div class="callout warning">
+  <span class="label">Traps</span>
+  <ul>
+    <li><strong>No TTL or invalidation plan</strong> &mdash; permanent staleness.</li>
+    <li><strong>App depends on the cache for correctness</strong> &mdash; an outage should cost latency, not correctness.</li>
+    <li><strong>No stampede protection</strong> &mdash; the cache causes the outage it was meant to prevent.</li>
+    <li><strong>Caching personalised data</strong> with low hit rates &mdash; all cost, no benefit.</li>
+    <li><strong>No hit-ratio metrics</strong> &mdash; you can&rsquo;t tune what you don&rsquo;t measure.</li>
+  </ul>
+</div>
+
+<nav class="lesson-nav">
+  <span class="group"><b>From</b><a href="../lessons/0004-caching.html">&larr; Lesson 04 · Caching</a></span>
+  <span class="group"><b>Course map</b><a href="../index.html">&uarr; All lessons</a></span>
+  <span class="group"><b>Canonical terms</b><a href="../GLOSSARY.md">GLOSSARY.md</a></span>
+  <span class="group"><b>Primary source</b><a href="https://aws.amazon.com/caching/best-practices/" target="_blank" rel="noopener">AWS · Caching best practices</a></span>
+</nav>
+
+</body>
+</html>

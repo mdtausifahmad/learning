@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>System Design &amp; Architecture at Scale — Course Map</title>
+<link rel="stylesheet" href="../assets/course/course.css">
+<link rel="stylesheet" href="assets/theme.css">
+<script src="../assets/course/links.js" defer></script>
+<script type="module" src="../assets/course/mermaid.js"></script>
+<style>
+  .course-sec { margin: 1.8rem 0; }
+  .course-sec > h2 { margin-bottom: .3rem; }
+  .arc { font-size: .82rem; color: var(--muted); font-style: italic; margin: 0 0 .7rem; }
+  ol.lessons { margin: .3rem 0; padding-left: 1.4rem; }
+  ol.lessons li { margin: .5rem 0; }
+  ol.lessons a { font-weight: 600; }
+  .desc { color: var(--muted); font-size: .92rem; }
+  .refs { display: grid; grid-template-columns: 1fr 1fr; gap: .3rem 1.4rem; list-style: none; padding: 0; font-size: .92rem; }
+  .docs a { margin-right: 1.2rem; }
+  .code-tag { font-family: -apple-system, system-ui, sans-serif; font-size: .64rem; font-weight: 700; letter-spacing: .06em; color: var(--accent); border: 1px solid var(--accent); border-radius: 10px; padding: 0 .4rem; margin-right: .4rem; vertical-align: middle; }
+  @media (max-width: 620px) { .refs { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Principal-Engineering Track</p>
+  <h1>System Design &amp; Architecture at Scale</h1>
+  <div class="meta"><span>8 lessons · 8 reference sheets · 1 full Markdown guide</span><span class="dot">•</span><span>≈ 4–6 weeks part-time</span></div>
+</header>
+
+<p class="mission-tie">
+  Lead any open-ended design conversation with one repeatable method — requirements, high-level design, core components, scale it — and name the trade-off behind every choice. Each lesson is a single sitting, with quizzes and a &ldquo;try it in your own system&rdquo; task. Prefer one long read? The whole course is also in <a href="GUIDE.md">GUIDE.md</a> (with Mermaid diagrams). See <a href="MISSION.md">MISSION.md</a> for the why.
+</p>
+
+<p>For senior engineers aiming at Staff or Principal who can already build services but want to <strong>lead</strong> the design conversation. Eight lessons cover the mental models (scaling axes, CAP and consistency), the building blocks (data, caching, async, networking and APIs), the quantitative glue (estimation) and how to stay up when things fail. Everything hangs off one <strong>4-step method</strong>: requirements &amp; constraints &rarr; high-level design &rarr; core components &rarr; scale it and name the trade-offs. This is competency A1, the core technical skill, in the <a href="../02-skills-to-upgrade.md">skills playbook</a>.</p>
+
+<figure><pre class="mermaid">
+flowchart LR
+    A["1. Requirements&lt;br/&gt;&amp; constraints"] --&gt; B["2. High-level&lt;br/&gt;design"]
+    B --&gt; C["3. Core&lt;br/&gt;components"]
+    C --&gt; D["4. Scale it &amp;&lt;br/&gt;name the trade-offs"]
+    D -.-&gt;|new bottleneck&lt;br/&gt;discovered| A
+</pre><figcaption>The 4-step method these topics serve</figcaption></figure>
+
+<div class="course-sec">
+  <h2>Part I · Mental models</h2>
+  <p class="arc">How systems grow and what breaks first: scaling axes, availability maths, CAP and consistency.</p>
+  <ol class="lessons">
+    <li><a href="lessons/0001-scalability-tradeoff-axes.html">Scalability Trade-off Axes</a><br><span class="desc">Performance vs scalability, latency vs throughput, scale up vs out, the AKF cube and availability nines.</span></li>
+    <li><a href="lessons/0002-cap-theorem-consistency-models.html">CAP Theorem &amp; Consistency Models</a><br><span class="desc">CAP and PACELC, the consistency spectrum, client guarantees, N/W/R quorums and when you need consensus.</span></li>
+  </ol>
+</div>
+
+<div class="course-sec">
+  <h2>Part II · Building blocks</h2>
+  <p class="arc">The parts you compose: data stores, caches, async pipelines, networks and API contracts.</p>
+  <ol class="lessons" start="3">
+    <li><a href="lessons/0003-databases-and-data-modeling.html">Databases &amp; Data Modeling</a><br><span class="desc">The cheapest-first scaling ladder, replication, sharding, SQL vs NoSQL, isolation levels, B-Tree vs LSM.</span></li>
+    <li><a href="lessons/0004-caching.html">Caching</a><br><span class="desc">Cache layers, read and write patterns, eviction, invalidation, and fixes for stampede, hot keys, penetration.</span></li>
+    <li><a href="lessons/0005-asynchronism-and-messaging.html">Asynchronism &amp; Messaging</a><br><span class="desc">Queues vs pub/sub, back-pressure, delivery semantics and idempotency, event sourcing, CDC and Kafka.</span></li>
+    <li><a href="lessons/0006-networking-and-api-design.html">Networking &amp; API Design</a><br><span class="desc">TCP/UDP, HTTP/1→3, REST vs gRPC vs GraphQL, L4/L7 load balancing, DNS, CDN and API design rules.</span></li>
+  </ol>
+</div>
+
+<div class="course-sec">
+  <h2>Part III · Quantitative glue</h2>
+  <p class="arc">Estimate first, so the numbers pick the bottleneck and the architecture.</p>
+  <ol class="lessons" start="7">
+    <li><a href="lessons/0007-back-of-envelope-estimation.html">Back-of-the-Envelope Estimation</a><br><span class="desc">Powers of two, latency numbers, nines, and the users → QPS → storage → bandwidth → cache → servers method.</span></li>
+  </ol>
+</div>
+
+<div class="course-sec">
+  <h2>Part IV · Staying up</h2>
+  <p class="arc">Contain failure: timeouts, retries, breakers, bulkheads, shedding and health checks.</p>
+  <ol class="lessons" start="8">
+    <li><a href="lessons/0008-resilience-and-fault-tolerance.html">Resilience &amp; Fault Tolerance Patterns</a><br><span class="desc">Timeouts, retries with backoff and jitter, circuit breakers, bulkheads, degradation, shedding, probes.</span></li>
+  </ol>
+</div>
+
+<hr>
+
+<div class="course-sec">
+  <h2>Reference cheat sheets</h2>
+  <ul class="refs">
+    <li><a href="reference/0001-scalability-tradeoff-axes-cheatsheet.html">01 · Scalability trade-offs</a></li>
+    <li><a href="reference/0002-cap-theorem-consistency-models-cheatsheet.html">02 · CAP & consistency</a></li>
+    <li><a href="reference/0003-databases-and-data-modeling-cheatsheet.html">03 · Databases & data modeling</a></li>
+    <li><a href="reference/0004-caching-cheatsheet.html">04 · Caching</a></li>
+    <li><a href="reference/0005-asynchronism-and-messaging-cheatsheet.html">05 · Async & messaging</a></li>
+    <li><a href="reference/0006-networking-and-api-design-cheatsheet.html">06 · Networking & API design</a></li>
+    <li><a href="reference/0007-back-of-envelope-estimation-cheatsheet.html">07 · Estimation</a></li>
+    <li><a href="reference/0008-resilience-and-fault-tolerance-cheatsheet.html">08 · Resilience patterns</a></li>
+  </ul>
+</div>
+
+<div class="course-sec">
+  <h2>Workspace</h2>
+  <p class="docs">
+    <a href="GUIDE.md">Full guide (Markdown)</a>
+    <a href="MISSION.md">Mission</a>
+    <a href="GLOSSARY.md">Glossary</a>
+    <a href="RESOURCES.md">Resources</a>
+    <a href="NOTES.md">Notes</a>
+    <a href="../02-skills-to-upgrade.md">Skills map (playbook)</a>
+  </p>
+</div>
+
+<div class="followup">
+  <strong>Your teacher is here.</strong> Bring a real system, design doc or situation from work and we&rsquo;ll apply any chapter to it. Ask anytime.
+</div>
+
+</body>
+</html>

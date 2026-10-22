@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cheat Sheet · Project Leadership</title>
+<link rel="stylesheet" href="../../assets/course/course.css">
+<link rel="stylesheet" href="../assets/theme.css">
+<script src="../../assets/course/links.js" defer></script>
+<style>
+  body { max-width: 52rem; }
+  @media print { body { margin: 0; } h2 { margin-top: 1.1rem; } }
+</style>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Leadership Skills · Reference 03</p>
+  <h1>Project Leadership</h1>
+  <div class="meta"><span>Compressed from Lesson 03</span><span class="dot">•</span><span>Print-friendly</span></div>
+</header>
+
+<div class="callout insight">
+  <span class="label">Mindset</span>
+  <p>Technical direction is <strong>part-time product management for technology</strong>. Start from the organisation&rsquo;s needs, not your favourite tools. A project is done when <em>behaviour changes</em>, not when the code merges.</p>
+</div>
+
+<h2>Product questions, technical version</h2>
+<table>
+  <thead><tr><th>PM question</th><th>Ask instead</th></tr></thead>
+  <tbody>
+    <tr><td>Who is the customer?</td><td>Which teams and users does this system constrain?</td></tr>
+    <tr><td>What problem matters now?</td><td>What technical limitation blocks strategy or safety?</td></tr>
+    <tr><td>Smallest valuable slice?</td><td>What migration or platform step changes behaviour soon?</td></tr>
+    <tr><td>How do we measure success?</td><td>Which operational, delivery or quality metric moves?</td></tr>
+    <tr><td>What trade-off are we making?</td><td>What do we defer to create leverage now?</td></tr>
+  </tbody>
+</table>
+
+<h2>Scoping the ambiguous (turn blur into bounded uncertainty)</h2>
+<ul class="checklist">
+  <li><strong>Outcome</strong> &mdash; what are we trying to create? Why now?</li>
+  <li><strong>Behaviour change</strong> &mdash; which teams must change what they do?</li>
+  <li><strong>Top three risks</strong> &mdash; and which decisions are reversible?</li>
+  <li><strong>Silent dependency</strong> &mdash; what could block us without anyone noticing?</li>
+  <li><strong>First valuable slice</strong> &mdash; what creates learning and value earliest?</li>
+  <li><strong>Stop condition</strong> &mdash; what would make us stop?</li>
+</ul>
+<p>Traits that matter: <strong>perseverance</strong> (survive the first broken plan), <strong>courage</strong> (surface bad news), <strong>talking to people</strong> (find constraints before they explode). A plan is a communication tool and a hypothesis, not control.</p>
+
+<h2>Aggressive delegation: essential &rarr; adjacent</h2>
+<table>
+  <thead><tr><th>Element</th><th>Script</th></tr></thead>
+  <tbody>
+    <tr><td>Outcome</td><td>&ldquo;Reduce export failure rate below 0.5%.&rdquo;</td></tr>
+    <tr><td>Authority</td><td>&ldquo;You own the design review and the final recommendation.&rdquo;</td></tr>
+    <tr><td>Guardrails</td><td>&ldquo;Don&rsquo;t change customer-facing APIs without product sign-off.&rdquo;</td></tr>
+    <tr><td>Support</td><td>&ldquo;I&rsquo;ll review drafts and join escalation meetings if needed.&rdquo;</td></tr>
+    <tr><td>Visibility</td><td>&ldquo;You present the update in the platform sync.&rdquo;</td></tr>
+  </tbody>
+</table>
+<p>Give away <em>hard, growth-producing</em> work, not leftovers. When it&rsquo;s theirs, let it stay theirs: don&rsquo;t re-centre yourself at the moment of success.</p>
+
+<h2>Cross-team alignment: both org charts</h2>
+<table>
+  <thead><tr><th>Formal org chart</th><th>Shadow org chart</th></tr></thead>
+  <tbody>
+    <tr><td>Reporting lines, accountable leaders</td><td>Trusted reviewers, incident veterans, informal architects, managers with veto, people whose silence signals risk</td></tr>
+    <tr><td>Ignore it &rarr; you bypass accountable leaders and breed resentment</td><td>Ignore it &rarr; you miss the person everyone waits for</td></tr>
+  </tbody>
+</table>
+<ul class="checklist">
+  <li><strong>1. Decision-maker</strong> &mdash; identify the accountable one.</li>
+  <li><strong>2. Veto holders &amp; influencers</strong> &mdash; name them.</li>
+  <li><strong>3. Meet in their context</strong> &mdash; before you ask for commitment.</li>
+  <li><strong>4. Write it down</strong> &mdash; decisions and assumptions.</li>
+  <li><strong>5. Explicit trade-offs</strong> &mdash; visible, even to people who disagree.</li>
+  <li><strong>6. Managers informed</strong> &mdash; without making every issue an escalation.</li>
+</ul>
+
+<h2>Technical quality: cheapest tool first</h2>
+<table>
+  <thead><tr><th>#</th><th>Tool</th><th>Escalate when&hellip;</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Hot spots: where defects, toil, incidents cluster</td><td>Fixes keep recurring</td></tr>
+    <tr><td>2</td><td>Best practices: simple published guidance</td><td>Guidance isn&rsquo;t adopted</td></tr>
+    <tr><td>3</td><td>Leverage points: shared systems many teams touch</td><td>Problems span many systems</td></tr>
+    <tr><td>4</td><td>Technical vectors: directional bets</td><td>Teams drift apart</td></tr>
+    <tr><td>5</td><td>Measurement: actionable quality signals</td><td>Signals don&rsquo;t move</td></tr>
+    <tr><td>6</td><td>Technical-quality team</td><td>Coordination cost is too high</td></tr>
+    <tr><td>7</td><td>Quality program: funding, governance, accountability</td><td>Portfolio-level problem</td></tr>
+  </tbody>
+</table>
+<p>Frame by <strong>consequence</strong> (incidents, cycle time, customer trust, onboarding, compliance, cloud cost), never by morality. A metric no team can act on is dashboard decoration.</p>
+
+<h2>Operating rituals</h2>
+<table>
+  <thead><tr><th>Ritual</th><th>Output</th></tr></thead>
+  <tbody>
+    <tr><td>Kickoff</td><td>Charter and owners</td></tr>
+    <tr><td>Weekly status</td><td>Written update</td></tr>
+    <tr><td>Risk review</td><td>Risk register: probability, impact, owner, mitigation, review date</td></tr>
+    <tr><td>Decision review</td><td>Decision log</td></tr>
+    <tr><td>Dependency sync</td><td>Named asks with due dates</td></tr>
+    <tr><td>Landing review</td><td>Rollout and closeout plan</td></tr>
+  </tbody>
+</table>
+
+<h3>Status update template</h3>
+<ul class="checklist">
+  <li><strong>Colour + reason</strong> &mdash; &ldquo;Yellow: dependency X slipped a week.&rdquo;</li>
+  <li><strong>Progress</strong> &mdash; since the last update.</li>
+  <li><strong>Risks &amp; decisions needed</strong> &mdash; with owners.</li>
+  <li><strong>Asks</strong> &mdash; by owner and date.</li>
+  <li><strong>Next milestone + confidence</strong> &mdash; high, medium or low, and why.</li>
+</ul>
+
+<h3>Definition of landed</h3>
+<p>Intended behaviour has changed &middot; the system operates safely &middot; owners know what remains &middot; the organisation learned something durable.</p>
+
+<div class="callout warning"><span class="label">Traps</span><ul>
+  <li>Technology-centred leadership: a favourite framework in search of a problem.</li>
+  <li>Being the bottleneck because every hard decision routes through you.</li>
+  <li>Delegating only easy work and hoarding the growth opportunities.</li>
+  <li>Ignoring informal influencers until they become blockers.</li>
+  <li>Quality as a cleanup crusade rather than a managed program.</li>
+  <li>Green, green, green&hellip; suddenly red. Declaring victory at launch.</li>
+</ul></div>
+
+<nav class="lesson-nav">
+  <span class="group"><b>From</b><a href="../lessons/0003-technical-and-project-leadership.html">&larr; Lesson 03 · Technical &amp; project leadership</a></span>
+  <span class="group"><b>Course map</b><a href="../index.html">&uarr; All lessons</a></span>
+  <span class="group"><b>Canonical terms</b><a href="../GLOSSARY.md">GLOSSARY.md</a></span>
+  <span class="group"><b>Primary source</b><a href="https://staffeng.com/guides/manage-technical-quality/" target="_blank" rel="noopener">StaffEng &mdash; Manage technical quality</a></span>
+</nav>
+
+</body>
+</html>

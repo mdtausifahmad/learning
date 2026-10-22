@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cheat Sheet · Security &amp; Privacy</title>
+<link rel="stylesheet" href="../../assets/course/course.css">
+<link rel="stylesheet" href="../assets/theme.css">
+<script src="../../assets/course/links.js" defer></script>
+<style>
+  body { max-width: 52rem; }
+  @media print { body { margin: 0; } h2 { margin-top: 1.1rem; } }
+</style>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Technical Skills · Reference 06</p>
+  <h1>Security &amp; Privacy Cheat Sheet</h1>
+  <div class="meta"><span>Compressed from Lesson 06</span><span class="dot">•</span><span>Print-friendly</span></div>
+</header>
+
+<div class="callout insight">
+  <span class="label">Mindset</span>
+  <p>Security and privacy are <strong>design concerns, not clean-up tasks</strong>. Raise them in the design doc,
+  make the safe path the easy path, and fund the work by translating risk into business language.</p>
+</div>
+
+<h2>Design-review questions</h2>
+<ul class="checklist">
+  <li><strong>Exposure</strong> &mdash; does the design expose data it doesn&rsquo;t need to?</li>
+  <li><strong>Boundary</strong> &mdash; is permission checked at the right boundary, per object?</li>
+  <li><strong>Compromise</strong> &mdash; what happens if a dependency is compromised?</li>
+  <li><strong>Abuse</strong> &mdash; can requests be replayed, tampered with or enumerated?</li>
+  <li><strong>Logs</strong> &mdash; do they detect abuse without leaking PII or secrets?</li>
+</ul>
+
+<h2>OWASP Top 10 (2021)</h2>
+<table>
+  <thead><tr><th>Risk</th><th>In one line</th></tr></thead>
+  <tbody>
+    <tr><td>A01 Broken Access Control</td><td>Acting outside intended permissions; other users&rsquo; data</td></tr>
+    <tr><td>A02 Cryptographic Failures</td><td>Weak encryption, key handling or hashing</td></tr>
+    <tr><td>A03 Injection</td><td>Untrusted input interpreted as code or commands</td></tr>
+    <tr><td>A04 Insecure Design</td><td>No controls for known threat scenarios</td></tr>
+    <tr><td>A05 Security Misconfiguration</td><td>Unsafe defaults, headers, services, cloud resources</td></tr>
+    <tr><td>A06 Vulnerable &amp; Outdated Components</td><td>Dependencies with known exploits</td></tr>
+    <tr><td>A07 Identification &amp; Authentication Failures</td><td>Login, session or credential flows bypassed</td></tr>
+    <tr><td>A08 Software &amp; Data Integrity Failures</td><td>Tampered code, updates, CI/CD or data</td></tr>
+    <tr><td>A09 Security Logging &amp; Monitoring Failures</td><td>Attacks not detected or investigated</td></tr>
+    <tr><td>A10 Server-Side Request Forgery</td><td>Server tricked into calling unintended targets</td></tr>
+  </tbody>
+</table>
+<p>Use it as a checklist, not a substitute for thinking; the worst risks are specific to your domain and trust boundaries.</p>
+
+<h2>Identity building blocks</h2>
+<table>
+  <thead><tr><th>Concept</th><th>Answers / does</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Authentication</strong></td><td>Who are you? (password, passkey, SSO, MFA, OIDC)</td></tr>
+    <tr><td><strong>Authorization</strong></td><td>What may you do? (RBAC, ABAC, policy engine, ownership checks)</td></tr>
+    <tr><td><strong>Accounting</strong></td><td>What did you do? (audit, access logs, change history)</td></tr>
+    <tr><td>OAuth2</td><td>Delegated <em>authorization</em> framework</td></tr>
+    <tr><td>OIDC</td><td>Identity layer on OAuth2; standard login claims (ID token)</td></tr>
+    <tr><td>JWT</td><td>Signed, self-contained claims; hard to revoke &mdash; short expiry, key rotation</td></tr>
+    <tr><td>Session</td><td>Server-side state behind an opaque cookie; easy central revocation</td></tr>
+    <tr><td>MFA</td><td>More than one factor; cuts account-takeover risk</td></tr>
+  </tbody>
+</table>
+<p><strong>Validate every token:</strong> signature (expected algorithm), issuer, audience, expiry &mdash; then still run the authorization check.</p>
+
+<h2>API controls &amp; secure defaults</h2>
+<table>
+  <thead><tr><th>Control</th><th>Prevents</th></tr></thead>
+  <tbody>
+    <tr><td>Input validation (allowlists)</td><td>Unexpected types, sizes, formats</td></tr>
+    <tr><td>Output encoding</td><td>XSS and downstream interpretation bugs</td></tr>
+    <tr><td>Object-level authorization</td><td>&ldquo;Logged in&rdquo; treated as &ldquo;may access this record&rdquo;</td></tr>
+    <tr><td>Rate limiting</td><td>Brute force, scraping, accidental overload</td></tr>
+    <tr><td>Least privilege &amp; CORS discipline</td><td>Overbroad access; cross-origin mistakes</td></tr>
+    <tr><td>Idempotency keys</td><td>Unsafe retries of mutations</td></tr>
+    <tr><td>Audit logging</td><td>Invisible sensitive actions</td></tr>
+  </tbody>
+</table>
+<p>Deny by default when policy can&rsquo;t be evaluated &middot; return sensitive fields only when requested and authorised &middot; make pagination resistant to enumeration &middot; treat internal APIs as hostile.</p>
+
+<h2>Five principles</h2>
+<ul class="checklist">
+  <li><strong>Defence in depth</strong> &mdash; assume one control fails; layer independent ones.</li>
+  <li><strong>Least privilege</strong> &mdash; narrowest scope, shortest duration.</li>
+  <li><strong>Zero trust</strong> &mdash; the internal network is not a credential; verify at every boundary.</li>
+  <li><strong>Fail secure</strong> &mdash; deny on uncertainty or dependency failure.</li>
+  <li><strong>Secure defaults</strong> &mdash; people under deadline follow defaults.</li>
+</ul>
+
+<h2>Crypto &amp; secrets</h2>
+<ul class="checklist">
+  <li><strong>TLS in transit</strong>; encryption at rest (disk, DB, object store, or application level).</li>
+  <li><strong>Passwords</strong> &mdash; bcrypt or Argon2 with unique salts; <em>never</em> SHA-256 alone, never reversible.</li>
+  <li><strong>Use vetted libraries and managed services</strong> &mdash; no home-grown crypto.</li>
+  <li><strong>Secrets</strong> in Vault / KMS / a secret manager; rotate; keys apart from data; never logged; prefer workload identity to long-lived credentials.</li>
+</ul>
+
+<h2>STRIDE on a data-flow diagram</h2>
+<table>
+  <thead><tr><th>Threat</th><th>Question</th></tr></thead>
+  <tbody>
+    <tr><td>Spoofing</td><td>Can someone pretend to be someone or something else?</td></tr>
+    <tr><td>Tampering</td><td>Can data, requests, binaries or config be modified?</td></tr>
+    <tr><td>Repudiation</td><td>Can an actor deny an action for lack of evidence?</td></tr>
+    <tr><td>Information disclosure</td><td>Can sensitive data leak?</td></tr>
+    <tr><td>Denial of service</td><td>Can availability be exhausted?</td></tr>
+    <tr><td>Elevation of privilege</td><td>Can a low-privilege actor gain power?</td></tr>
+  </tbody>
+</table>
+<p>DFD elements: external entities, processes, data stores, data flows, <strong>trust boundaries</strong>. Keep it light enough that teams actually do it.</p>
+
+<h2>Privacy checklist</h2>
+<ul class="checklist">
+  <li><strong>Minimise</strong> &mdash; collect only what is needed, not &ldquo;might be useful someday&rdquo;.</li>
+  <li><strong>Purpose limitation</strong> and <strong>retention limits</strong> with real deletion.</li>
+  <li><strong>Access control</strong> on PII; <strong>pseudonymise</strong> for analytics.</li>
+  <li><strong>Data-subject rights</strong> (GDPR): access, correction, deletion, portability, objection.</li>
+  <li><strong>Encryption is not privacy</strong> &mdash; if you can decrypt and use it, you must still govern it.</li>
+</ul>
+
+<div class="callout warning"><span class="label">Traps</span><ul>
+  <li>Authentication treated as authorization.</li>
+  <li>Logging tokens, secrets or unnecessary PII.</li>
+  <li>The internal network as the security boundary.</li>
+  <li>Copying OAuth2/JWT samples without checking issuer, audience, expiry and signature.</li>
+  <li>Rate limits and monitoring added only after abuse.</li>
+</ul></div>
+
+<nav class="lesson-nav">
+  <span class="group"><b>From</b><a href="../lessons/0006-security-and-privacy.html">&larr; Lesson 06 · Security &amp; privacy</a></span>
+  <span class="group"><b>Course map</b><a href="../index.html">&uarr; All lessons</a></span>
+  <span class="group"><b>Canonical terms</b><a href="../GLOSSARY.md">GLOSSARY.md</a></span>
+  <span class="group"><b>Primary source</b><a href="https://owasp.org/www-project-top-ten/" target="_blank" rel="noopener">OWASP Top 10</a></span>
+</nav>
+
+</body>
+</html>

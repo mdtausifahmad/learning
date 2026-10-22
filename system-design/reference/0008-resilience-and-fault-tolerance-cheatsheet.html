@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cheat Sheet · Resilience &amp; Fault Tolerance</title>
+<link rel="stylesheet" href="../../assets/course/course.css">
+<link rel="stylesheet" href="../assets/theme.css">
+<script src="../../assets/course/links.js" defer></script>
+<script type="module" src="../../assets/course/mermaid.js"></script>
+<style>
+  body { max-width: 52rem; }
+  @media print { body { margin: 0; } h2 { margin-top: 1.1rem; } }
+</style>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">System Design · Reference 08</p>
+  <h1>Resilience &amp; Fault Tolerance</h1>
+  <div class="meta"><span>Compressed from Lesson 08</span><span class="dot">•</span><span>Print-friendly</span></div>
+</header>
+
+<div class="callout insight">
+  <span class="label">Mindset</span>
+  <p>Assume every dependency will be slow or down. <strong>Bound the wait, cap the retries, contain the blast radius,
+  and decide in advance what to sacrifice</strong> &mdash; no single pattern is enough on its own.</p>
+</div>
+
+<h2>Timeouts &amp; retries</h2>
+<ul class="checklist">
+  <li><strong>Every network call has a timeout</strong>, set from the downstream&rsquo;s p99 plus margin &mdash; not a round number.</li>
+  <li>Timeouts <strong>shrink down the call chain</strong>, so the outermost caller times out last.</li>
+  <li><strong>Exponential backoff</strong> (<code>base &times; 2^attempt</code>) + <strong>jitter</strong> so clients don&rsquo;t retry in lockstep.</li>
+  <li><strong>Cap</strong> attempts with a retry budget; retry only <strong>idempotent</strong> operations.</li>
+  <li>Retry <code>503</code> and timeouts; <strong>never</strong> <code>400</code>/<code>404</code> &mdash; the request itself is wrong.</li>
+</ul>
+
+<h2>Circuit breaker</h2>
+<figure>
+<pre class="mermaid">
+stateDiagram-v2
+    [*] --&gt; Closed
+    Closed --&gt; Open: failure rate over threshold
+    Open --&gt; HalfOpen: after cooldown
+    HalfOpen --&gt; Closed: trial request succeeds
+    HalfOpen --&gt; Open: trial request fails
+</pre>
+<figcaption>Closed counts failures; Open fails fast and returns a fallback; Half-Open lets a trial request test recovery.</figcaption>
+</figure>
+<p>Without a breaker, one degraded dependency exhausts caller thread pools across the fleet. Always pair it with a <strong>fallback</strong>
+(cached value, default, degraded feature). Libraries: Resilience4j, Envoy/Istio.</p>
+
+<h2>The pattern toolbox</h2>
+<table>
+  <thead><tr><th>Pattern</th><th>Protects against</th><th>Key setting</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Timeout</strong></td><td>Hung dependency holding threads</td><td>Downstream p99 + margin</td></tr>
+    <tr><td><strong>Retry + backoff + jitter</strong></td><td>Transient blips</td><td>Max attempts, idempotent only</td></tr>
+    <tr><td><strong>Circuit breaker</strong></td><td>Hammering a dying dependency</td><td>Failure threshold, cooldown, fallback</td></tr>
+    <tr><td><strong>Bulkhead</strong></td><td>One dependency starving the others</td><td>Dedicated pool size per dependency</td></tr>
+    <tr><td><strong>Load shedding</strong></td><td>Overload collapsing everything</td><td>Priority; what to reject first</td></tr>
+    <tr><td><strong>Graceful degradation</strong></td><td>Errors where a reduced answer would do</td><td>Stale cache, defaults, hidden widgets</td></tr>
+    <tr><td><strong>Kill switch</strong></td><td>Expensive non-critical feature in an incident</td><td>Feature flag, no deploy needed</td></tr>
+  </tbody>
+</table>
+
+<h2>Health checks</h2>
+<table>
+  <thead><tr><th>Probe</th><th>Question</th><th>On failure</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Liveness</strong></td><td>Is the process alive?</td><td>Restart it</td></tr>
+    <tr><td><strong>Readiness</strong></td><td>Can it take traffic now?</td><td>Remove from the load balancer, no restart</td></tr>
+  </tbody>
+</table>
+<p>Don&rsquo;t put dependency checks in liveness &mdash; a database blip would restart the whole fleet.</p>
+
+<h2>Defence in depth (A calling B)</h2>
+<pre><code>Service A
+  &rarr; Bulkhead       dedicated pool for B
+  &rarr; Circuit breaker fail fast if B is unhealthy  &rarr; (open) fallback: cache / default / degrade
+  &rarr; Timeout        bound the wait
+  &rarr; Retry          backoff + jitter, idempotent only
+  &rarr; Service B</code></pre>
+
+<h2>Review questions</h2>
+<ul class="checklist">
+  <li>Does every outbound call have an explicit timeout, and do they shrink down the chain?</li>
+  <li>Are retries bounded, jittered and limited to idempotent, retryable errors?</li>
+  <li>Which dependencies have a breaker, and what is each fallback?</li>
+  <li>Are pools isolated per dependency?</li>
+  <li>What is shed first under overload, and who can flip the kill switch?</li>
+  <li>Do liveness and readiness probes ask different questions?</li>
+</ul>
+
+<div class="callout warning">
+  <span class="label">Traps</span>
+  <ul>
+    <li><strong>No timeout</strong> &mdash; one hung dependency exhausts every caller.</li>
+    <li><strong>Naive retries</strong> &mdash; a blip becomes a self-inflicted retry storm.</li>
+    <li><strong>Retrying non-idempotent operations</strong> &mdash; duplicate charges and emails.</li>
+    <li><strong>Shared pools</strong> across dependencies &mdash; one slow call starves all traffic.</li>
+    <li><strong>Breaker with no fallback</strong> &mdash; fail fast still shows the user an error.</li>
+  </ul>
+</div>
+
+<nav class="lesson-nav">
+  <span class="group"><b>From</b><a href="../lessons/0008-resilience-and-fault-tolerance.html">&larr; Lesson 08 · Resilience &amp; fault tolerance</a></span>
+  <span class="group"><b>Course map</b><a href="../index.html">&uarr; All lessons</a></span>
+  <span class="group"><b>Canonical terms</b><a href="../GLOSSARY.md">GLOSSARY.md</a></span>
+  <span class="group"><b>Primary source</b><a href="https://aws.amazon.com/builders-library/timeouts-retries-and-backoff-with-jitter/" target="_blank" rel="noopener">AWS Builders&rsquo; Library · Timeouts, retries &amp; backoff with jitter</a></span>
+</nav>
+
+</body>
+</html>

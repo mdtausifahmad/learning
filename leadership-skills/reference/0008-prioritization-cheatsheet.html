@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cheat Sheet · Prioritization</title>
+<link rel="stylesheet" href="../../assets/course/course.css">
+<link rel="stylesheet" href="../assets/theme.css">
+<script src="../../assets/course/links.js" defer></script>
+<script type="module" src="../../assets/course/mermaid.js"></script>
+<style>
+  body { max-width: 52rem; }
+  @media print { body { margin: 0; } h2 { margin-top: 1.1rem; } }
+</style>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Leadership Skills · Reference 08</p>
+  <h1>Prioritization</h1>
+  <div class="meta"><span>Compressed from Lesson 08</span><span class="dot">•</span><span>Print-friendly</span></div>
+</header>
+
+<div class="callout insight">
+  <span class="label">Mindset</span>
+  <p><strong>Leverage</strong> is value created per unit of scarce attention, and it comes mostly from what you choose <em>not</em> to do. Existential issues come first. Then work where matter, room and attention overlap. Future You is a stakeholder.</p>
+</div>
+
+<h2>Triage filter</h2>
+<figure>
+<pre class="mermaid">
+flowchart TD
+    A["Candidate work"] --> B{"Existential issue?"}
+    B -->|"Yes"| C["Invest first"]
+    B -->|"No"| D{"Does it matter?"}
+    D -->|"No"| X["Decline or delegate"]
+    D -->|"Yes"| E{"Room to improve?"}
+    E -->|"No"| X
+    E -->|"Yes"| F{"Org attention or sponsor?"}
+    F -->|"Yes"| G["Invest"]
+    F -->|"No"| H["Build sponsorship or pick another lever"]
+</pre>
+<figcaption>Existential first; then matter &times; room &times; attention.</figcaption>
+</figure>
+
+<h2>Name the anti-pattern</h2>
+<table>
+  <thead><tr><th>Anti-pattern</th><th>Feels like</th><th>Danger</th><th>Tell</th></tr></thead>
+  <tbody>
+    <tr><td>Snacking</td><td>Quick wins, easy fixes, inbox zero</td><td>Motion without progress</td><td>Spikes when the important work feels ambiguous</td></tr>
+    <tr><td>Preening</td><td>Visible, impressive-looking work</td><td>Visibility mistaken for impact</td><td>Flashy talk or dashboard; outcomes unchanged</td></tr>
+    <tr><td>Chasing ghosts</td><td>Hard, vague, elegant problems</td><td>Effort the org won&rsquo;t value</td><td>No sponsor, no adoption path, no plausible trigger</td></tr>
+  </tbody>
+</table>
+
+<h2>Is it existential?</h2>
+<ul class="checklist">
+  <li><strong>Large downside</strong> &mdash; customer trust, reliability, security, strategy or talent concentration.</li>
+  <li><strong>Underestimated</strong> &mdash; the organisation isn&rsquo;t pricing it in yet.</li>
+  <li><strong>You can move it</strong> &mdash; Staff+ attention creates clarity, options or momentum.</li>
+</ul>
+<p>Existential &ne; loud. The loudest issue may be someone&rsquo;s preference; the existential one may be a quiet architectural limit or a team-health problem.</p>
+
+<h2>Six-question filter</h2>
+<ul class="checklist">
+  <li><strong>1. Goal</strong> &mdash; is it connected to a meaningful organisational goal?</li>
+  <li><strong>2. Owner</strong> &mdash; is there a clear owner and decision forum?</li>
+  <li><strong>3. Unique</strong> &mdash; is my involvement uniquely useful?</li>
+  <li><strong>4. Durable</strong> &mdash; can it create lasting leverage?</li>
+  <li><strong>5. Cost</strong> &mdash; what will I stop doing to make room?</li>
+  <li><strong>6. Signal</strong> &mdash; how will I know it worked?</li>
+</ul>
+
+<h2>Portfolio check: impact, leverage, energy, sponsor</h2>
+<table>
+  <thead><tr><th>Question</th><th>Why</th></tr></thead>
+  <tbody>
+    <tr><td>Impactful?</td><td>Connects to outcomes</td></tr>
+    <tr><td>Leveraged?</td><td>Multiplies beyond your direct effort</td></tr>
+    <tr><td>Energising enough?</td><td>Sustains performance (Michelle Bu)</td></tr>
+    <tr><td>Sponsored?</td><td>Raises the odds of adoption</td></tr>
+  </tbody>
+</table>
+<p>If <em>all</em> your important work is draining, redesign the portfolio.</p>
+
+<h2>Saying no (trade-off, not apology)</h2>
+<ul>
+  <li>&ldquo;I can&rsquo;t take this on this week without dropping the migration review. Which is more important?&rdquo;</li>
+  <li>&ldquo;This looks reversible; I trust the team to decide, and I can review outcomes later.&rdquo;</li>
+  <li>&ldquo;I agree it&rsquo;s useful, but I don&rsquo;t think it&rsquo;s Staff+ leverage right now.&rdquo;</li>
+  <li>&ldquo;I can help frame the problem, but I shouldn&rsquo;t be the owner.&rdquo;</li>
+</ul>
+
+<h3>Time-defence policies</h3>
+<p>Office hours for advice &middot; written intake for architecture reviews &middot; criteria for joining meetings &middot; delegation paths for reversible calls &middot; deep-work blocks &middot; a public list of priorities <em>and non-priorities</em>. Saying no is easier when your yes is visible.</p>
+
+<h2>Future You investments</h2>
+<table>
+  <thead><tr><th>Future You wishes you had&hellip;</th><th>This month&rsquo;s version</th></tr></thead>
+  <tbody>
+    <tr><td>Written down the decision</td><td>Decision log for a debated area</td></tr>
+    <tr><td>Built the dashboard before the incident</td><td>One leading-indicator dashboard</td></tr>
+    <tr><td>Trained someone before leave</td><td>Delegation plan for one critical area</td></tr>
+    <tr><td>Cleaned the ownership boundary before the reorg</td><td>Ownership map</td></tr>
+    <tr><td>Started exec alignment before the deadline hardened</td><td>Telegraph a forming risk, its investment and its decision window</td></tr>
+  </tbody>
+</table>
+<p><strong>Telegraph</strong> future constraints early. Do <strong>tidy-up</strong> work only when it adds leverage: simplify a boundary, remove a recurring incident source, clarify a de facto rule, retire a confusing process. Write <strong>institutional memory</strong> while context is fresh.</p>
+
+<h2>Calendar audit labels</h2>
+<p><code>leverage | snack | preen | ghost | necessary maintenance</code> &mdash; one week, every block. Then write a <em>not-doing list</em> and share it with your manager.</p>
+
+<h2>Pacing: the forty-year career</h2>
+<p>Fewer, better bets &middot; alternate intensity with recovery &middot; build systems, not dependency &middot; delegate growth opportunities &middot; keep your tools sharp. A tired Staff+ engineer compensates with control: more reviews, more meetings, more direct decisions.</p>
+
+<div class="callout warning"><span class="label">Traps</span><ul>
+  <li>Mistaking busyness for impact.</li>
+  <li>Saying yes to easy work because the strategic work feels ambiguous.</li>
+  <li>Choosing visible work because promotion systems notice it.</li>
+  <li>Fighting ignored problems with no sponsor or adoption path.</li>
+  <li>Treating every urgent request as important; a calendar designed by other people&rsquo;s anxiety.</li>
+  <li>Burning out and calling it commitment.</li>
+</ul></div>
+
+<nav class="lesson-nav">
+  <span class="group"><b>From</b><a href="../lessons/0008-prioritization.html">&larr; Lesson 08 · Prioritization</a></span>
+  <span class="group"><b>Course map</b><a href="../index.html">&uarr; All lessons</a></span>
+  <span class="group"><b>Canonical terms</b><a href="../GLOSSARY.md">GLOSSARY.md</a></span>
+  <span class="group"><b>Primary source</b><a href="https://staffeng.com/guides/work-on-what-matters/" target="_blank" rel="noopener">StaffEng &mdash; Work on what matters</a></span>
+</nav>
+
+</body>
+</html>

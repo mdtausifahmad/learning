@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 04 · Engineering Strategy &amp; Technical Vision</title>
+<link rel="stylesheet" href="../../assets/course/course.css">
+<link rel="stylesheet" href="../assets/theme.css">
+<script src="../../assets/course/links.js" defer></script>
+<script src="../../assets/course/quiz.js" defer></script>
+<script type="module" src="../../assets/course/mermaid.js"></script>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Technical Skills · Lesson 04 · A5</p>
+  <h1>Engineering Strategy &amp; Technical Vision</h1>
+  <div class="meta">
+    <span>◷ ~15 min read</span>
+    <span class="dot">•</span>
+    <span>Advanced · Staff differentiator</span>
+    <span class="dot">•</span>
+    <span>Prereq: <a href="0003-software-architecture.html">Lesson 03</a></span>
+  </div>
+</header>
+
+<p class="mission-tie">
+  Strategy is the technical differentiator between Senior and Staff+: it <strong>turns your local expertise into aligned multi-team action</strong>. This lesson gives you Rumelt&rsquo;s kernel, the line between strategy and vision, the five-design-docs recipe and how enforcement is earned. It builds on the trade-off thinking of <a href="0003-software-architecture.html">Lesson 03</a>, and the strategy you write here is carried by the documents of <a href="0005-technical-writing-docs-rfcs-adrs.html">Lesson 05</a>.
+</p>
+
+<div class="callout insight">
+  <span class="label">TL;DR</span>
+  <p>How do you set technical direction that many teams actually follow?</p>
+<ul>
+<li>Engineering strategy is the technical differentiator between Senior and Staff+ because it turns local expertise into aligned multi-team action.</li>
+<li>Rumelt's kernel is diagnosis, guiding policy, and coherent action; if the policy implies no trade-off, it is probably not strategy.</li>
+<li>Vision describes a plausible aspirational future; strategy tackles the current challenge that blocks progress toward it.</li>
+<li>Good strategy is specific, opinionated, boring, evidence-backed, and enforceable.</li>
+<li>The Staff-engineer recipe is to synthesize repeated design work into strategy, then forecast multiple strategies into vision.</li>
+<li>Enforcement is earned through bottom-up evidence, consensus, clear escalation, and resource allocation.</li>
+</ul>
+</div>
+
+<p class="related">Skill map: return to <a href="../../02-skills-to-upgrade.md">Skills to upgrade</a>. Related deep dives: <a href="0003-software-architecture.html">A4 architecture</a>, <a href="0002-reliability-observability-sre.html">A3 reliability</a>, and <a href="../../system-design/lessons/0007-back-of-envelope-estimation.html">back-of-envelope estimation</a>.</p>
+
+<h2 id="1-why-strategy-is-the-senior-to-staff-differentiator">1. Why strategy is the Senior to Staff+ differentiator</h2>
+<p>Senior engineers usually deliver ambiguous projects. Staff+ engineers change how groups of teams make technical decisions. Strategy is the bridge.</p>
+<p>Without strategy, every team locally optimizes. One team chooses speed, another consistency, another platform reuse, another autonomy. Each decision may be reasonable in isolation, yet the organization drifts.</p>
+<p>Engineering strategy creates shared constraints for repeated decisions. It tells teams what problem matters most, which trade-offs are preferred, where to invest, and how to resolve disagreement.</p>
+<figure><pre class="mermaid">
+flowchart TD
+    A["Senior engineer"] --&gt; B["Solves hard local problems"]
+    B --&gt; C["Repeated patterns discovered"]
+    C --&gt; D["Staff plus engineer"]
+    D --&gt; E["Sets technical direction"]
+    E --&gt; F["Many teams make aligned decisions"]
+</pre></figure>
+<p>Strategy is not seniority theater. It is useful only if it changes what teams do when the author is not in the room.</p>
+<h2 id="2-rumelts-kernel-diagnosis-guiding-policy-coherent-action">2. Rumelt's kernel: diagnosis, guiding policy, coherent action</h2>
+<p>Richard Rumelt's strategy kernel is a practical structure for engineering strategy.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Kernel part</th>
+<th>Definition</th>
+<th>Engineering example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Diagnosis</td>
+<td>A clear explanation of the challenge and why it is hard.</td>
+<td>Product teams cannot safely launch cross-region features because data ownership is ambiguous.</td>
+</tr>
+<tr>
+<td>Guiding policy</td>
+<td>The overall approach for overcoming the challenge.</td>
+<td>Each customer domain will have one owning service and publish events for derived views.</td>
+</tr>
+<tr>
+<td>Coherent action</td>
+<td>Coordinated steps that implement the policy.</td>
+<td>Define ownership map, migrate three critical tables, add event contracts, block new shared writes.</td>
+</tr>
+</tbody>
+</table></div>
+<p>A policy must imply a trade-off. Work harder, improve quality, and collaborate more are aspirations, not policies. A real policy says what you will not do, what will be slower, and which decisions are now constrained.</p>
+<figure><pre class="mermaid">
+flowchart LR
+    A["Diagnosis&lt;br/&gt;what challenge matters"] --&gt; B["Guiding policy&lt;br/&gt;chosen trade off"]
+    B --&gt; C["Coherent action&lt;br/&gt;coordinated moves"]
+    C --&gt; D["Changed decisions across teams"]
+</pre></figure>
+<p>The diagnosis is often the most valuable part. If leaders disagree about the challenge, action becomes scattered. A sharp diagnosis creates urgency and narrows debate.</p>
+<h2 id="3-strategy-versus-vision">3. Strategy versus vision</h2>
+<p>Strategy and vision are related but different.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Concept</th>
+<th>Time horizon</th>
+<th>Purpose</th>
+<th>Output</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Strategy</td>
+<td>Now to roughly 6 to 18 months.</td>
+<td>Tackle today's most important technical challenge.</td>
+<td>Diagnosis, policy, actions, ownership, trade-offs.</td>
+</tr>
+<tr>
+<td>Vision</td>
+<td>Roughly 2 to 3 years.</td>
+<td>Describe an aspirational future state that guides investment.</td>
+<td>Narrative of future users, capabilities, architecture, and team experience.</td>
+</tr>
+</tbody>
+</table></div>
+<p>Vision says where we want to be. Strategy says how we will handle the current obstacle. A vision without strategy is a poster. A strategy without vision can optimize the wrong future.</p>
+<p>A good technical vision is optimistic but not fantasy. It is grounded in users, business direction, technology constraints, and organizational capability.</p>
+<h2 id="4-the-staff-engineer-recipe">4. The Staff-engineer recipe</h2>
+<p>A practical recipe from Staff engineering practice is: write five design docs, then pull out the similarities to form your strategy. Forecast five strategies two years out, and the common destination becomes your vision.</p>
+<p>Why this works:</p>
+<ul>
+<li>Design docs expose real decisions, not abstract preferences.</li>
+<li>Similarities reveal repeated constraints and unresolved debates.</li>
+<li>Bottom-up evidence makes the strategy credible.</li>
+<li>Future strategies force you to reason about sequencing and compounding investments.</li>
+</ul>
+<figure><pre class="mermaid">
+flowchart TD
+    A["Design doc one"] --&gt; F["Extract repeated themes"]
+    B["Design doc two"] --&gt; F
+    C["Design doc three"] --&gt; F
+    D["Design doc four"] --&gt; F
+    E["Design doc five"] --&gt; F
+    F --&gt; G["Engineering strategy"]
+    G --&gt; H["Forecast future strategies"]
+    H --&gt; I["Technical vision"]
+</pre></figure>
+<p>This recipe prevents strategy from becoming a top-down essay detached from reality. It also helps the author build the coalition required for enforcement.</p>
+<h2 id="5-properties-of-good-strategy">5. Properties of good strategy</h2>
+<p>Good strategy is often boring. It turns confusing debate into ordinary execution. If the strategy feels like a slogan, it probably lacks diagnosis or trade-offs.</p>
+<p>Good strategy is specific. Generic statements create the illusion of alignment because everyone can agree while imagining different actions. Specific statements create real alignment because they constrain decisions.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Weak statement</th>
+<th>Stronger strategic statement</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>We will improve platform reliability.</td>
+<td>Tier one APIs will adopt 99.9 percent availability SLOs, dependency timeouts, and rollback within 10 minutes before new feature investment.</td>
+</tr>
+<tr>
+<td>Teams should own their services.</td>
+<td>Every customer-facing domain has one service owner, one data owner, and no new shared database writes after Q2.</td>
+</tr>
+<tr>
+<td>We will modernize the frontend.</td>
+<td>New checkout surfaces use the design system and server-driven configuration; legacy checkout receives only compliance fixes.</td>
+</tr>
+</tbody>
+</table></div>
+<p>Good strategy is opinionated. It should show your work: evidence, rejected alternatives, risks, and why now. It should be clear enough that teams can disagree productively.</p>
+<h2 id="6-structuring-guiding-policies">6. Structuring guiding policies</h2>
+<p>Guiding policies need the right altitude. Too high, and they are slogans. Too low, and they are project plans. The right altitude is applicable across teams, enforceable, and creates leverage.</p>
+<p>Useful policy categories include:</p>
+<ul>
+<li>Resource allocation: where engineering capacity goes and what stops receiving investment.</li>
+<li>Priorities: which quality attributes win when decisions conflict.</li>
+<li>Fundamental rules: constraints all teams must follow.</li>
+<li>Escalation paths: how exceptions and conflicts are resolved.</li>
+<li>Sequencing: what must happen before other work becomes safe or useful.</li>
+</ul>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Policy type</th>
+<th>Example</th>
+<th>Why it matters</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Resource allocation</td>
+<td>Spend 30 percent of platform capacity on migration until shared writes are removed.</td>
+<td>Strategy without capacity is wishful thinking.</td>
+</tr>
+<tr>
+<td>Priority rule</td>
+<td>Prefer data correctness over launch speed for billing flows.</td>
+<td>Teams can decide without re-litigating values.</td>
+</tr>
+<tr>
+<td>Fundamental rule</td>
+<td>No new synchronous calls from checkout to experimental services.</td>
+<td>Prevents architecture drift.</td>
+</tr>
+<tr>
+<td>Escalation rule</td>
+<td>Exceptions require domain lead and SRE approval.</td>
+<td>Makes enforcement explicit.</td>
+</tr>
+</tbody>
+</table></div>
+<p>A policy should make some teams unhappy in understandable ways. If no one must change plans, the policy is probably not strategic.</p>
+<h2 id="7-when-to-write-an-engineering-strategy">7. When to write an engineering strategy</h2>
+<p>Write a strategy when repeated debate signals missing direction. A useful heuristic is that if the same debate recurs three or four times, the organization needs a policy, not another meeting.</p>
+<p>Write a strategy when the future is too hazy to pick investments. Strategy can reduce uncertainty by naming the diagnosis and setting learning-oriented actions.</p>
+<p>Other triggers:</p>
+<ul>
+<li>Multiple teams are solving the same problem inconsistently.</li>
+<li>A platform migration needs coordinated adoption.</li>
+<li>Incidents reveal systemic architectural risk.</li>
+<li>Product direction changed and old technical assumptions no longer fit.</li>
+<li>Leaders need to choose between mutually exclusive investments.</li>
+</ul>
+<p>Do not write a strategy for every project. Some problems need a design doc, a decision record, or a roadmap item.</p>
+<h2 id="8-vision-doc-format">8. Vision doc format</h2>
+<p>A vision doc should usually be short: one to two pages. It describes a two to three year future in concrete terms.</p>
+<p>A strong vision includes:</p>
+<ul>
+<li>The users or customers whose lives are better.</li>
+<li>The business capabilities enabled.</li>
+<li>The engineering experience in the future state.</li>
+<li>The technical shape of the system at a useful level of detail.</li>
+<li>What is intentionally not part of the future.</li>
+<li>A few believable milestones or signs of progress.</li>
+</ul>
+<p>The tone should be optimistic, not audacious for its own sake. Grand claims reduce trust if the organization cannot see a path.</p>
+<p>Vision should be specific enough to guide strategy. For example, &quot;developers can launch a compliant payment method in one week without payment-platform support&quot; is more useful than &quot;we will have a world-class payments platform.&quot;</p>
+<h2 id="9-enforcement-is-the-real-challenge">9. Enforcement is the real challenge</h2>
+<p>Writing is the easy part. Enforcement is where strategy succeeds or fails.</p>
+<p>Enforcement does not mean authoritarian control. It means the organization changes resource allocation, review criteria, templates, platform defaults, scorecards, and escalation rules so the strategy becomes the path of least resistance.</p>
+<p>Bottom-up evidence enables enforcement. If the strategy comes from five real design docs, affected teams can see their own problems in the diagnosis. That shared recognition creates the consensus needed to say no later.</p>
+<figure><pre class="mermaid">
+flowchart TD
+    A["Bottom up evidence"] --&gt; B["Shared diagnosis"]
+    B --&gt; C["Consensus on trade offs"]
+    C --&gt; D["Guiding policy"]
+    D --&gt; E["Governance and defaults"]
+    E --&gt; F["Teams make aligned decisions"]
+    F --&gt; G["Exceptions escalate clearly"]
+    G --&gt; B
+</pre></figure>
+<p>Enforcement tools include architecture review, funding gates, platform paved roads, SLO policy, migration dashboards, RFC templates, dependency rules, and executive sponsorship.</p>
+<p>The Staff+ skill is knowing when to persuade, when to create defaults, and when to escalate.</p>
+<h2 id="10-example-strategies-to-study">10. Example strategies to study</h2>
+<p>Study real strategies to see specificity and trade-offs. Useful examples include platform migrations, reliability strategies, API standardization, data ownership, monorepo or build system modernization, frontend consolidation, and cloud cost control.</p>
+<p>When reading a strategy, ask:</p>
+<ul>
+<li>What is the diagnosis?</li>
+<li>What trade-off does the guiding policy impose?</li>
+<li>Which actions are coherent with the policy?</li>
+<li>What is being deprioritized?</li>
+<li>How will enforcement happen?</li>
+<li>What evidence would prove the strategy is wrong?</li>
+</ul>
+<p>The best examples are not universally applicable. They are context-specific and clear about why the context matters.</p>
+<h2 id="11-what-good-looks-like-at-staff">11. What &quot;good&quot; looks like at Staff+</h2>
+<ul>
+<li>You turn recurring technical debates into explicit policy.</li>
+<li>You write strategies grounded in real design work and production evidence.</li>
+<li>You distinguish vision, strategy, roadmap, and design documents.</li>
+<li>You make trade-offs clear enough that teams know what to stop doing.</li>
+<li>You connect strategy to capacity, ownership, governance, and escalation.</li>
+<li>You create alignment without needing to attend every project meeting.</li>
+<li>You revise strategy when evidence changes rather than defending it as identity.</li>
+</ul>
+<h2 id="12-common-pitfalls">12. Common pitfalls</h2>
+<ul>
+<li>Writing generic principles that everyone can agree with and no one can execute.</li>
+<li>Calling a roadmap a strategy without diagnosis or trade-offs.</li>
+<li>Creating vision that is too audacious to guide near-term investment.</li>
+<li>Publishing strategy without changing funding, review, or enforcement mechanisms.</li>
+<li>Skipping bottom-up evidence and then being surprised by resistance.</li>
+<li>Setting policies at the wrong altitude: either slogans or task lists.</li>
+<li>Treating exceptions as failure instead of a source of learning and calibration.</li>
+</ul>
+<h2 id="13-further-reading">13. Further reading</h2>
+<ul>
+<li>StaffEng &quot;Writing engineering strategy&quot;: <a href="https://staffeng.com/guides/engineering-strategy/" target="_blank" rel="noopener">https://staffeng.com/guides/engineering-strategy/</a></li>
+<li>Larson &quot;Eng strategies&quot; with Rumelt: <a href="https://lethain.com/eng-strategies/" target="_blank" rel="noopener">https://lethain.com/eng-strategies/</a></li>
+<li>&quot;How Big Technical Changes Happen at Slack&quot;: <a href="https://slack.engineering/how-big-technical-changes-happen-at-slack/" target="_blank" rel="noopener">https://slack.engineering/how-big-technical-changes-happen-at-slack/</a></li>
+<li>An Elegant Puzzle: <a href="https://lethain.com/elegant-puzzle/" target="_blank" rel="noopener">https://lethain.com/elegant-puzzle/</a></li>
+</ul>
+
+<div class="primary-source">
+  <span class="label">Read this next (primary source)</span>
+  <p>Will Larson &mdash; <a href="https://staffeng.com/guides/engineering-strategy/" target="_blank" rel="noopener"><em>Writing an engineering strategy</em></a> (the five-design-docs recipe, and why good strategy is boring) and <a href="https://lethain.com/eng-strategies/" target="_blank" rel="noopener"><em>Engineering strategy</em></a> (Rumelt&rsquo;s kernel applied to engineering). For a real multi-year change, read Slack&rsquo;s <a href="https://slack.engineering/how-big-technical-changes-happen-at-slack/" target="_blank" rel="noopener"><em>How Big Technical Changes Happen at Slack</em></a>.</p>
+</div>
+
+<h2 id="14-check-yourself">14. Check yourself</h2>
+<p>Retrieve before revealing.</p>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 1 of 3</p>
+  <p class="quiz-q">A draft engineering strategy says: &ldquo;We will improve reliability, collaborate across teams and raise code quality.&rdquo; What is the most important gap?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="Horizon is not the problem; a three-year slogan is still a slogan.">it needs a longer time horizon so that teams can plan for it</button></li>
+    <li><button data-correct="false" data-feedback="More initiatives make it a wish list. Strategy is about what you will not do.">it should list more initiatives so every team sees its own work</button></li>
+    <li><button data-correct="false" data-feedback="A diagram describes a destination (vision). It still lacks a diagnosis and a policy.">it needs a target-architecture diagram to make the vision concrete</button></li>
+    <li><button data-correct="true" data-feedback="Right — everyone can agree with it and nobody has to change. That is aspiration, not strategy.">it has no diagnosis, and its policies imply no trade-off at all</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Rumelt’s kernel is diagnosis → guiding policy → coherent action. If a policy implies no trade-off, it is an aspiration, not strategy."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 2 of 3</p>
+  <p class="quiz-q">The same &ldquo;shared event bus or direct calls?&rdquo; debate has come up in four design reviews this quarter, each time with a different outcome. What is the Staff move?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="That does not scale, and the direction disappears the moment you are not in the room.">attend every future review so the answer stays consistent</button></li>
+    <li><button data-correct="true" data-feedback="Right — a debate that recurs three or four times needs a policy, and those design docs are your evidence.">write a strategy grounded in those docs and set a policy</button></li>
+    <li><button data-correct="false" data-feedback="Each local choice may be reasonable, but the organisation drifts. That is the problem strategy solves.">let each team decide locally, since autonomy beats consistency</button></li>
+    <li><button data-correct="false" data-feedback="Vision describes where you want to be. The recurring debate needs a policy for today’s challenge.">write a two-to-three-year vision of the ideal future platform</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="When the same debate recurs three or four times, the organisation needs a policy, not another meeting. Real design docs make the diagnosis credible."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 3 of 3</p>
+  <p class="quiz-q">Your strategy &mdash; &ldquo;no new shared database writes after Q2&rdquo; &mdash; was approved. Three months later teams are still adding shared writes. What is most likely missing?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="Teams understood the destination. Nothing in their daily path changed.">a clearer vision document describing the future data platform</button></li>
+    <li><button data-correct="false" data-feedback="The policy is already specific. Ambiguity is not why it is being ignored.">more precise policy wording so that nobody can misread it</button></li>
+    <li><button data-correct="true" data-feedback="Right — strategy sticks when funding, reviews, paved-road defaults and escalation make it the easy path.">enforcement: capacity, review criteria, defaults, escalation</button></li>
+    <li><button data-correct="false" data-feedback="Tone is not a mechanism. Change resource allocation, review criteria and defaults instead.">a firmer tone so that teams understand the policy is mandatory</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Writing is the easy part. Strategy works when capacity, review criteria, templates, defaults, dependency rules and escalation make it the path of least resistance."></div>
+</div>
+
+<div class="callout tryit">
+  <span class="label">Try it in your own system</span>
+  <ul class="checklist">
+    <li>List the last five design docs in your area. Write down the three themes that recur: that is the raw material for your diagnosis.</li>
+    <li>Write a one-paragraph diagnosis of your group&rsquo;s biggest technical challenge. Would your peers sign it without edits?</li>
+    <li>Rewrite one generic principle in your org (&ldquo;own your services&rdquo;, &ldquo;improve reliability&rdquo;) as a specific policy that tells someone what to stop doing.</li>
+    <li>For one policy you care about, name its enforcement mechanism: capacity, review criteria, a template, a platform default, a dependency rule or an escalation path.</li>
+    <li>Draft one vision sentence in the form &ldquo;In two years, a developer can &hellip; without &hellip;&rdquo;. Check it is concrete enough to guide this quarter.</li>
+  </ul>
+</div>
+
+<div class="followup">
+  <strong>I&rsquo;m your teacher &mdash; ask me anything.</strong> Bring a recurring debate from your organisation and we&rsquo;ll turn it into a diagnosis, a guiding policy and three coherent actions &mdash; or paste a draft strategy and I&rsquo;ll find the slogans hiding in it.
+</div>
+
+<nav class="lesson-nav">
+  <span class="group">
+    <b>Previous</b>
+    <a href="0003-software-architecture.html">&larr; Lesson 03 · Software architecture</a>
+  </span>
+  <span class="group">
+    <b>Reference</b>
+    <a href="../reference/0004-engineering-strategy-and-vision-cheatsheet.html">Strategy & vision cheat sheet &rarr;</a>
+  </span>
+  <span class="group">
+    <b>Course map</b>
+    <a href="../index.html">&uarr; All lessons</a>
+  </span>
+  <span class="group">
+    <b>Up next</b>
+    <a href="0005-technical-writing-docs-rfcs-adrs.html">Lesson 05 · Technical writing &rarr;</a>
+  </span>
+</nav>
+
+</body>
+</html>

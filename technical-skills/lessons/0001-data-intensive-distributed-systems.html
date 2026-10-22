@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 01 · Data-Intensive &amp; Distributed Systems</title>
+<link rel="stylesheet" href="../../assets/course/course.css">
+<link rel="stylesheet" href="../assets/theme.css">
+<script src="../../assets/course/links.js" defer></script>
+<script src="../../assets/course/quiz.js" defer></script>
+<script type="module" src="../../assets/course/mermaid.js"></script>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Technical Skills · Lesson 01 · A2</p>
+  <h1>Data-Intensive &amp; Distributed Systems</h1>
+  <div class="meta">
+    <span>◷ ~16 min read</span>
+    <span class="dot">•</span>
+    <span>Foundations</span>
+    <span class="dot">•</span>
+    <span>Prereq: none</span>
+  </div>
+</header>
+
+<p class="mission-tie">
+  System design (A1, its own course: <a href="../../system-design/index.html">System Design &amp; Architecture at Scale</a>) draws the boxes; this lesson is the theory underneath them. Staff engineers are trusted with designs because they can name the <strong>exact guarantee</strong> a business invariant needs and predict how the design behaves under partial failure, clock skew and a rolling upgrade. Get this wrong and it shows up later as lost updates or a schema change that silently breaks consumers.
+</p>
+
+<div class="callout insight">
+  <span class="label">TL;DR</span>
+  <p>How do you reason correctly about data as it moves, replicates, and fails across many machines?</p>
+<ul>
+<li>Data-intensive systems are judged by reliability, scalability, and maintainability, not by clever distributed tricks.</li>
+<li>Most production failures come from partial failure, time assumptions, overloaded dependencies, and misunderstood consistency semantics.</li>
+<li>Compatibility is an engineering discipline: schema evolution, rolling upgrades, and mixed-version operation must be designed explicitly.</li>
+<li>Ordering is not the same as time; causality tools such as happens-before, Lamport timestamps, and vector clocks help reason about concurrent updates.</li>
+<li>Consensus is expensive but foundational when systems need one agreed sequence of decisions, such as leader election or configuration changes.</li>
+<li>Batch and stream processing are complementary ways to derive state from immutable facts.</li>
+</ul>
+</div>
+
+<p class="related">Skill map: return to <a href="../../02-skills-to-upgrade.md">Skills to upgrade</a>. Related deep dives: <a href="../../system-design/lessons/0002-cap-theorem-consistency-models.html">CAP and consistency</a>, <a href="../../system-design/lessons/0003-databases-and-data-modeling.html">databases and data modeling</a>, <a href="../../system-design/lessons/0005-asynchronism-and-messaging.html">messaging</a>, and sibling <a href="0002-reliability-observability-sre.html">A3 reliability</a>.</p>
+
+<h2 id="1-the-lens-reliability-scalability-maintainability">1. The lens: reliability, scalability, maintainability</h2>
+<p>Data-intensive systems are hard because of data volume, complexity, correctness, or movement. The Staff+ job is reasoning about guarantees and failure modes.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Property</th>
+<th>Practitioner definition</th>
+<th>Staff+ question</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Reliability</td>
+<td>The system continues to work correctly despite faults in hardware, software, humans, networks, or dependencies.</td>
+<td>What failures are we assuming, detecting, masking, or accepting?</td>
+</tr>
+<tr>
+<td>Scalability</td>
+<td>The system can handle increased load by adding resources or changing architecture without collapsing cost or complexity.</td>
+<td>Which load dimension grows, and what bottleneck appears first?</td>
+</tr>
+<tr>
+<td>Maintainability</td>
+<td>Engineers can understand, operate, modify, and safely evolve the system over years.</td>
+<td>Can a new team change this without rediscovering hidden invariants?</td>
+</tr>
+</tbody>
+</table></div>
+<p>Reliability is correctness under stress, not just uptime. Scalability is multi-dimensional: reads, writes, fan-out, tenants, regions, and latency can each become the bottleneck. Maintainability is the Staff+ differentiator because a design fails organizationally if only two people can operate it.</p>
+<h2 id="2-data-models-and-query-languages">2. Data models and query languages</h2>
+<p>A data model shapes what is easy, what is hard, and what mistakes the system invites. See <a href="../../system-design/lessons/0003-databases-and-data-modeling.html">databases and data modeling</a>.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Model</th>
+<th>Best fit</th>
+<th>Watch out for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Relational</td>
+<td>Structured records, joins, constraints, reporting, transactional updates.</td>
+<td>Object-relational impedance, schema migration discipline, accidental shared database coupling.</td>
+</tr>
+<tr>
+<td>Document</td>
+<td>Aggregate-oriented data, flexible shape, read-mostly records, product iteration.</td>
+<td>Hard cross-document joins, duplicated facts, inconsistent update paths.</td>
+</tr>
+<tr>
+<td>Graph</td>
+<td>Many-to-many relationships, traversals, recommendations, permissions, lineage.</td>
+<td>Operational maturity, query predictability, partitioning difficulty.</td>
+</tr>
+</tbody>
+</table></div>
+<p>Declarative languages specify what result is wanted; the optimizer chooses how. Imperative APIs specify steps and often embed execution strategy in application code.</p>
+<p>Ask: what are the dominant access patterns, invariants, evolution needs, and operational risks? Do not choose by fashion.</p>
+<h2 id="3-encoding-and-schema-evolution">3. Encoding and schema evolution</h2>
+<p>Encoding turns in-memory data into bytes. Schema evolution keeps those bytes understandable while producers and consumers upgrade independently.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Encoding family</th>
+<th>Examples</th>
+<th>Strengths</th>
+<th>Risks</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Textual</td>
+<td>JSON, XML, CSV</td>
+<td>Human-readable, ubiquitous, easy debugging.</td>
+<td>Ambiguous types, larger payloads, weak schema enforcement unless added separately.</td>
+</tr>
+<tr>
+<td>Binary with schema</td>
+<td>Avro, Protobuf, Thrift</td>
+<td>Compact, typed, faster, explicit compatibility rules.</td>
+<td>Schema registry and tooling discipline required.</td>
+</tr>
+<tr>
+<td>Language-native</td>
+<td>Java serialization, pickle</td>
+<td>Convenient inside one runtime.</td>
+<td>Poor long-term compatibility, security risks, tight coupling.</td>
+</tr>
+</tbody>
+</table></div>
+<p>Backward compatibility means new code can read old data. Forward compatibility means old code can read new data. Rolling upgrades require both during the window where old and new versions coexist.</p>
+<p>Safe evolution means optional fields, defaults, reserved removed identifiers, no semantic reuse, and CI compatibility tests.</p>
+<figure><pre class="mermaid">
+flowchart LR
+    subgraph sgOld["Version one"]
+        P1["Producer v1"] --&gt; M1["Message schema v1"]
+        C1["Consumer v1"]
+    end
+    subgraph sgRoll["Rolling upgrade"]
+        P2["Producer v2 adds optional field"] --&gt; M2["Message schema v2"]
+        C2["Consumer v1 ignores unknown field"]
+        C3["Consumer v2 reads old default"]
+    end
+    M1 --&gt; C3
+    M2 --&gt; C2
+    M2 --&gt; C3
+</pre></figure>
+<p>Compatibility is semantic too: a field changing from cents to dollars may parse while breaking downstream assumptions.</p>
+<h2 id="4-storage-engines-recap-b-tree-vs-lsm-tree">4. Storage engines recap: B-Tree vs LSM-Tree</h2>
+<p>Storage engines are covered in <a href="../../system-design/lessons/0003-databases-and-data-modeling.html">databases and data modeling</a>. The key distinction is read-optimized page mutation versus write-optimized append and compaction.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Engine</th>
+<th>Basic idea</th>
+<th>Good at</th>
+<th>Cost profile</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>B-Tree</td>
+<td>Update fixed-size pages in a sorted tree.</td>
+<td>Point reads, range scans, predictable latency, mature transactions.</td>
+<td>Random writes, page splits, write amplification.</td>
+</tr>
+<tr>
+<td>LSM-Tree</td>
+<td>Append writes to memory and immutable sorted files, compact later.</td>
+<td>High write throughput, compression, sequential I/O.</td>
+<td>Read amplification, compaction stalls, tuning complexity.</td>
+</tr>
+</tbody>
+</table></div>
+<p>This choice leaks into product behavior: write-heavy ingestion often favors LSM designs; read-heavy transactional workloads often favor B-Trees.</p>
+<h2 id="5-the-trouble-with-distributed-systems">5. The trouble with distributed systems</h2>
+<p>Distributed systems fail in ways single-process programs do not. Networks drop, delay, duplicate, reorder, or partition messages. Processes pause. Clocks move backward. Dependencies become slow enough to look dead.</p>
+<p>Partial failure is central: one component can fail while others continue. If a leader stops responding, it may be dead, slow, paused, partitioned, or overloaded.</p>
+<figure><pre class="mermaid">
+flowchart TD
+    A["Client request"] --&gt; B["Service A"]
+    B --&gt; C["Service B"]
+    B --&gt; D["Service C"]
+    C --&gt; E["Database primary"]
+    D --&gt; F["Cache"]
+    E -. "delayed packet" .-&gt; B
+    F -. "stale value" .-&gt; B
+    G["GC pause or VM pause"] -.-&gt; C
+    H["Network partition"] -.-&gt; E
+</pre></figure>
+<p>Time-of-day clocks help humans and logs but can jump because of NTP adjustments. Monotonic clocks measure elapsed duration within a process. Clock skew means machines disagree about wall time; correctness should not depend on perfect synchronization without explicit uncertainty handling.</p>
+<p>Process pauses include garbage collection, VM suspension, host overload, container throttling, and page faults. A paused process may believe it still holds a lease while the rest of the system has moved on.</p>
+<p>The two generals problem shows that perfect agreement over an unreliable channel is impossible with acknowledgements alone. Byzantine failures add malicious or arbitrary behavior; most business systems assume crash or omission failures because Byzantine tolerance is much more expensive.</p>
+<h2 id="6-ordering-and-causality">6. Ordering and causality</h2>
+<p>Time order and causal order are different. If event B reads data written by event A, A happened before B. If two events happened independently, neither caused the other, even if one wall-clock timestamp is smaller.</p>
+<p>Happens-before is the relation that captures potential causality. It is created by local process order and message send-before-receive relationships.</p>
+<p>Lamport timestamps assign monotonically increasing counters. They preserve causality in one direction: if A happened before B, then A has a smaller Lamport timestamp. The reverse is not guaranteed; smaller timestamp does not prove causality.</p>
+<p>Vector clocks track a counter per actor. They can detect concurrency because neither vector dominates the other when events are independent.</p>
+<figure><pre class="mermaid">
+sequenceDiagram
+    participant A as Node A
+    participant B as Node B
+    participant C as Node C
+    A-&gt;&gt;B: write x with counter A1
+    B-&gt;&gt;B: merge and increment B2
+    C-&gt;&gt;C: independent write y with counter C1
+    B-&gt;&gt;C: replicate x with vector A1 B2 C0
+    Note over C: Compare vectors to detect causality or concurrency
+</pre></figure>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>What it gives</th>
+<th>Limitation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Wall-clock timestamp</td>
+<td>Human ordering and approximate recency.</td>
+<td>Skew and jumps can violate causal reality.</td>
+</tr>
+<tr>
+<td>Lamport timestamp</td>
+<td>A total-ish ordering compatible with causality.</td>
+<td>Cannot identify concurrent updates.</td>
+</tr>
+<tr>
+<td>Vector clock</td>
+<td>Detects causality and concurrency.</td>
+<td>Metadata grows with number of actors.</td>
+</tr>
+</tbody>
+</table></div>
+<p>Causality matters for conflicts, collaborative editing, replication, event processing, and debugging. Last-write-wins can destroy meaningful updates.</p>
+<h2 id="7-consensus-leader-election-and-atomic-broadcast">7. Consensus, leader election, and atomic broadcast</h2>
+<p>Consensus lets nodes agree on values despite failures. In practice, systems repeatedly agree on a log, producing a replicated state machine.</p>
+<p>Paxos and Raft are consensus families. Raft elects a leader, replicates entries through it, commits after a majority stores an entry, and applies entries in order. Real systems include etcd, ZooKeeper, Consul, and many database control planes.</p>
+<figure><pre class="mermaid">
+sequenceDiagram
+    participant C as Client
+    participant L as Leader
+    participant F1 as Follower One
+    participant F2 as Follower Two
+    C-&gt;&gt;L: propose command
+    L-&gt;&gt;F1: append log entry
+    L-&gt;&gt;F2: append log entry
+    F1--&gt;&gt;L: acknowledge stored
+    F2--&gt;&gt;L: acknowledge stored
+    L-&gt;&gt;L: commit after majority
+    L--&gt;&gt;C: command committed
+    L-&gt;&gt;F1: commit index update
+    L-&gt;&gt;F2: commit index update
+</pre></figure>
+<p>Two-phase commit and consensus are often confused. 2PC coordinates a transaction across participants if the coordinator survives and participants obey. It can block indefinitely if the coordinator fails at the wrong time. Consensus elects new leaders and makes progress with a majority, but it is not a free distributed transaction mechanism.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Mechanism</th>
+<th>Purpose</th>
+<th>Failure behavior</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2PC</td>
+<td>Atomic commit across resources.</td>
+<td>Blocking under coordinator failure.</td>
+</tr>
+<tr>
+<td>Consensus log</td>
+<td>Agreement on ordered decisions.</td>
+<td>Available with majority, unavailable without majority.</td>
+</tr>
+<tr>
+<td>Saga</td>
+<td>Business transaction split into local commits and compensations.</td>
+<td>Eventually consistent, requires domain-specific recovery.</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="8-consistency-guarantees-recap">8. Consistency guarantees recap</h2>
+<p>Consistency models are covered in <a href="../../system-design/lessons/0002-cap-theorem-consistency-models.html">CAP and consistency</a>. The useful recap is:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Guarantee</th>
+<th>Meaning</th>
+<th>Example user expectation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Linearizable</td>
+<td>Operations appear to take effect atomically in real-time order.</td>
+<td>After I change a password, every login check sees it.</td>
+</tr>
+<tr>
+<td>Causal</td>
+<td>Effects are observed after their causes.</td>
+<td>A reply is not visible before the original comment.</td>
+</tr>
+<tr>
+<td>Eventual</td>
+<td>Replicas converge if no new updates arrive.</td>
+<td>Search results catch up after indexing.</td>
+</tr>
+</tbody>
+</table></div>
+<p>Do not say strong or eventual without naming the actual guarantee. Translate business invariants into explicit consistency needs.</p>
+<h2 id="9-batch-versus-stream-processing">9. Batch versus stream processing</h2>
+<p>Batch processing consumes bounded data sets. Stream processing consumes unbounded data as it arrives. Both derive views from source facts.</p>
+<p>MapReduce and Spark popularized batch over large files. Kafka Streams and Flink popularized continuous computation over logs. Modern platforms unbundle the database into log, storage, compute, serving indexes, and governance layers.</p>
+<figure><pre class="mermaid">
+flowchart LR
+    A["Source systems"] --&gt; B["Immutable event log"]
+    B --&gt; C["Batch engine&lt;br/&gt;Spark or warehouse"]
+    B --&gt; D["Stream engine&lt;br/&gt;Flink or Kafka Streams"]
+    C --&gt; E["Historical views"]
+    D --&gt; F["Low latency views"]
+    E --&gt; G["Serving and analytics"]
+    F --&gt; G
+</pre></figure>
+<p>Lambda uses separate batch and speed layers, then merges results. It duplicates logic. Kappa uses one stream pipeline and replays the log.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Architecture</th>
+<th>Core idea</th>
+<th>Trade-off</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Lambda</td>
+<td>Batch for correctness, stream for low latency.</td>
+<td>Duplicate code paths and reconciliation complexity.</td>
+</tr>
+<tr>
+<td>Kappa</td>
+<td>Stream processing for both live and replay.</td>
+<td>Requires durable log and replay-safe processors.</td>
+</tr>
+<tr>
+<td>Warehouse-first</td>
+<td>Central analytical store derives views.</td>
+<td>Higher latency, strong governance, less app coupling.</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="10-what-good-looks-like-at-staff">10. What &quot;good&quot; looks like at Staff+</h2>
+<ul>
+<li>You name guarantees precisely: durability, ordering, idempotency, linearizability, causality, convergence, and freshness.</li>
+<li>You choose technologies from workload shape and failure model, not trend pressure.</li>
+<li>You design rolling upgrades and schema compatibility before the first breaking change.</li>
+<li>You make partial failure explicit in diagrams, tests, runbooks, and incident reviews.</li>
+<li>You know when consensus is required and when a simpler lease, queue, or idempotent workflow is enough.</li>
+<li>You connect theory to operational consequences such as tail latency, compaction, replay time, and blast radius.</li>
+</ul>
+<h2 id="11-common-pitfalls">11. Common pitfalls</h2>
+<ul>
+<li>Treating distributed calls as local function calls with longer latency.</li>
+<li>Assuming clocks are reliable enough for correctness without proving the bound and failure behavior.</li>
+<li>Using last-write-wins where losing concurrent updates would violate user intent.</li>
+<li>Confusing eventual consistency with no consistency contract.</li>
+<li>Introducing microservices before data ownership, idempotency, and operational maturity exist.</li>
+<li>Using 2PC as a default solution for cross-service consistency.</li>
+<li>Designing a streaming system without replay, schema evolution, or poison-message handling.</li>
+</ul>
+<h2 id="12-further-reading">12. Further reading</h2>
+<ul>
+<li>DDIA: <a href="https://dataintensive.net/" target="_blank" rel="noopener">https://dataintensive.net/</a></li>
+<li>DDIA references: <a href="https://github.com/ept/ddia-references" target="_blank" rel="noopener">https://github.com/ept/ddia-references</a></li>
+<li>MIT 6.824: <a href="https://pdos.csail.mit.edu/6.824/" target="_blank" rel="noopener">https://pdos.csail.mit.edu/6.824/</a></li>
+<li>Kleppmann lectures: <a href="https://www.youtube.com/playlist?list=PLeKd45zvjcDFUEv_ohr_HdUFe97RItdiB" target="_blank" rel="noopener">https://www.youtube.com/playlist?list=PLeKd45zvjcDFUEv_ohr_HdUFe97RItdiB</a></li>
+<li>Fowler &quot;Patterns of Distributed Systems&quot;: <a href="https://martinfowler.com/articles/patterns-of-distributed-systems/" target="_blank" rel="noopener">https://martinfowler.com/articles/patterns-of-distributed-systems/</a></li>
+<li>Raft: <a href="https://raft.github.io/" target="_blank" rel="noopener">https://raft.github.io/</a></li>
+</ul>
+
+<div class="primary-source">
+  <span class="label">Read this next (primary source)</span>
+  <p>Martin Kleppmann &mdash; <a href="https://dataintensive.net/" target="_blank" rel="noopener"><em>Designing Data-Intensive Applications</em></a>: read the chapters on encoding and evolution, the trouble with distributed systems, and consistency and consensus. They are the spine of this lesson. Then read the <a href="https://raft.github.io/" target="_blank" rel="noopener"><em>Raft</em></a> site and paper to see leader election and majority commit concretely.</p>
+</div>
+
+<h2 id="13-check-yourself">13. Check yourself</h2>
+<p>Retrieve before revealing.</p>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 1 of 3</p>
+  <p class="quiz-q">During a rolling upgrade, a producer team wants to switch the Protobuf field <code>amount</code> from dollars to cents, renaming it <code>amount_cents</code> but keeping the same tag number. Your review comment:</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="It will parse, which is the problem: old consumers read cents as the old unit. Compatibility is semantic too.">fine &mdash; Protobuf matches on tag numbers, so old consumers still parse it</button></li>
+    <li><button data-correct="false" data-feedback="A rolling upgrade means old and new versions coexist; a coordinated deploy gives up independent upgrades.">fine, as long as producers and consumers all deploy in one release window</button></li>
+    <li><button data-correct="true" data-feedback="Right — new optional field, defaults, and a reserved identifier: old and new readers both stay correct.">add a new optional field with a new tag and reserve the old tag and name</button></li>
+    <li><button data-correct="false" data-feedback="JSON weakens schema enforcement and does nothing for the change in meaning.">move the topic to JSON so that consumers can see the field names change</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Evolve schemas with optional fields, defaults and reserved removed identifiers. Never reuse a field with a new meaning: it parses but breaks semantics."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 2 of 3</p>
+  <p class="quiz-q">A nightly billing job runs on whichever node holds a lease. After a 40-second GC pause, the old holder resumes and writes results while the new holder is also running. What is the core design flaw?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="Right — a paused process can act on a stale belief. The design must tolerate (or fence off) a holder that no longer holds the lease.">it assumes a paused process still knows whether it holds the lease</button></li>
+    <li><button data-correct="false" data-feedback="A lease can be enough; consensus per job adds cost without fixing the stale-holder problem by itself.">it uses a lease instead of running a consensus round for every job</button></li>
+    <li><button data-correct="false" data-feedback="Pauses also come from VM suspension, throttling and page faults. You cannot tune them away; you design for them.">the garbage collector was badly tuned and should never pause that long</button></li>
+    <li><button data-correct="false" data-feedback="Even perfect clocks do not help a process that was frozen. Correctness should not depend on clock sync.">the nodes&rsquo; wall clocks were not synchronised tightly enough by NTP</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Partial failure includes process pauses. Any node that acts on a belief (a lease, leadership) must cope with that belief being stale."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 3 of 3</p>
+  <p class="quiz-q">Two users edit the same shared document offline and both edits replicate later. Product says neither edit may silently disappear. Which mechanism lets the system <em>detect</em> that the edits were concurrent?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="Last-write-wins discards one edit, and skewed clocks may even pick the wrong one.">last-write-wins, keeping the edit with the latest wall-clock timestamp</button></li>
+    <li><button data-correct="false" data-feedback="Lamport order is consistent with causality but cannot tell you that two events were concurrent.">Lamport timestamps, keeping the edit with the larger counter</button></li>
+    <li><button data-correct="false" data-feedback="Serialising still loses one edit unless you merge, and it cannot see that the edits were made independently.">a single leader that serialises both writes as they arrive</button></li>
+    <li><button data-correct="true" data-feedback="Right — per-actor counters show concurrency when neither vector dominates, so the system can merge or ask.">vector clocks, flagging when neither vector dominates the other</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Lamport timestamps order events consistently with causality but cannot spot concurrency. Vector clocks can, at the cost of metadata per actor."></div>
+</div>
+
+<div class="callout tryit">
+  <span class="label">Try it in your own system</span>
+  <ul class="checklist">
+    <li>Pick one event or message schema you own. Write down its compatibility rule (backward, forward or both) and check whether CI actually enforces it.</li>
+    <li>Draw one critical request path and mark every place a <em>partial</em> failure can occur: slow dependency, paused process, delayed or duplicated message.</li>
+    <li>Search your code for wall-clock timestamps that decide order or expiry (<code>now()</code> comparisons, last-write-wins). Note which would be wrong under clock skew.</li>
+    <li>For one cross-service workflow, state the guarantee each step needs (linearizable, causal or eventual) in one sentence a product manager would accept.</li>
+    <li>Find one place you use 2PC or a distributed lock. Could a saga, an idempotent workflow or a lease do the job with less blocking?</li>
+  </ul>
+</div>
+
+<div class="followup">
+  <strong>I&rsquo;m your teacher &mdash; ask me anything.</strong> Bring a schema change you are planning and we&rsquo;ll walk it through a rolling upgrade &mdash; or describe a lease, lock or leader in your system and we&rsquo;ll work out what happens when its holder pauses for 30 seconds.
+</div>
+
+<nav class="lesson-nav">
+  <span class="group">
+    <b>Reference</b>
+    <a href="../reference/0001-data-intensive-distributed-systems-cheatsheet.html">Distributed systems cheat sheet &rarr;</a>
+  </span>
+  <span class="group">
+    <b>Course map</b>
+    <a href="../index.html">&uarr; All lessons</a>
+  </span>
+  <span class="group">
+    <b>Up next</b>
+    <a href="0002-reliability-observability-sre.html">Lesson 02 · Reliability & SRE &rarr;</a>
+  </span>
+</nav>
+
+</body>
+</html>

@@ -1,0 +1,77 @@
+/* ===========================================================================
+   Event Sourcing — course theme (loaded after /assets/course/course.css)
+   Distinct INDIGO identity (event log). Siblings: Observability (teal),
+   async-messaging (brick), system-design (cobalt), technical-skills (bronze),
+   leadership-skills (plum).
+   =========================================================================== */
+
+:root {
+  --accent:       #4b3f8f;   /* deep indigo — primary identity, used sparingly */
+  --link:         #4b3f8f;
+  --insight-bg:   #efedf8;
+  --insight-br:   #5e4fb0;
+  --correct-ink:  #2f2766;
+  --accent-hover: #3a3070;
+  --accent-glow:  rgba(94, 79, 176, .55);
+  --accent-past:  rgba(94, 79, 176, .4);
+  --accent-shadow: rgba(75, 63, 143, .4);
+}
+
+/* ------- Event-log strip (static figure helper) -----------------------
+   <div class="evlog"><span class="ev">AccountOpened</span><span class="ev dep">Deposited 100</span>…</div> */
+.evlog { display: flex; flex-wrap: wrap; gap: .35rem; margin: 1.2rem 0; font-family: -apple-system, system-ui, sans-serif; font-size: .78rem; }
+.evlog .ev { background: #fff; border: 1px solid var(--accent); border-left-width: 4px; border-radius: 4px; padding: .3rem .55rem; color: var(--ink); }
+.evlog .ev.dep { border-color: var(--sig-good); }
+.evlog .ev.wd  { border-color: var(--sig-bad); }
+.evlog .ev.meta { border-color: var(--sig-warn); }
+.evlog .arrow { color: var(--muted); align-self: center; }
+
+/* ------- Interactive simulators (see es-sim.js) ------------------------ */
+.sim {
+  border: 1px solid var(--rule); border-radius: 8px; background: #fff;
+  padding: 1rem 1.1rem; margin: 1.8rem 0;
+  font-family: -apple-system, system-ui, sans-serif; font-size: .86rem;
+}
+.sim-title { font-size: .66rem; text-transform: uppercase; letter-spacing: .12em; color: var(--accent); font-weight: 700; margin: 0 0 .6rem; }
+.sim-intro { font-family: Palatino, Georgia, serif; font-size: .95rem; color: var(--muted); margin: 0 0 .8rem; }
+.sim-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .9rem; }
+.sim-grid.three { grid-template-columns: 1fr 1fr 1fr; }
+@media (max-width: 620px) { .sim-grid, .sim-grid.three { grid-template-columns: 1fr; } }
+.sim-panel { border: 1px solid var(--rule); border-radius: 6px; padding: .6rem .7rem; background: #fafaf7; min-width: 0; }
+.sim-panel h4 { margin: 0 0 .45rem; font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.sim-btns { display: flex; flex-wrap: wrap; gap: .35rem; margin: .4rem 0; }
+.sim button, .sim select, .sim input[type=number] {
+  font-family: inherit; font-size: .8rem; border: 1px solid var(--rule); border-radius: 5px;
+  background: #fff; padding: .3rem .6rem; color: var(--ink); cursor: pointer;
+}
+.sim input[type=number] { width: 5rem; cursor: text; }
+.sim button:hover:not(:disabled) { background: #eceee8; }
+.sim button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+.sim button.primary:hover:not(:disabled) { background: #3a3070; }
+.sim button:disabled { opacity: .4; cursor: default; }
+.sim input[type=range] { width: 100%; accent-color: var(--accent); }
+.sim-events { list-style: none; margin: 0; padding: 0; max-height: 15rem; overflow-y: auto; }
+.sim-events li {
+  display: flex; gap: .5rem; align-items: baseline; padding: .28rem .45rem; margin: .18rem 0;
+  border-radius: 4px; border-left: 4px solid var(--rule); background: #fff; transition: opacity .25s, background .25s;
+}
+.sim-events li .pos { font-family: "SF Mono", Menlo, monospace; font-size: .72rem; color: var(--muted); min-width: 2.2rem; }
+.sim-events li.applied { border-left-color: var(--accent); }
+.sim-events li.future { opacity: .32; }
+.sim-events li.current { background: var(--insight-bg); }
+.sim-events li.invisible { opacity: .35; border-left-style: dashed; }
+.sim-events li.missed { background: #f8eaea; border-left-color: var(--sig-bad); }
+.sim-events li.dup { background: #fbf1e7; border-left-color: var(--sig-warn); }
+.sim-state { font-family: "SF Mono", Menlo, monospace; font-size: .8rem; background: var(--code-bg); border-radius: 5px; padding: .5rem .6rem; white-space: pre-wrap; margin: .3rem 0; }
+.sim-big { font-size: 1.6rem; font-weight: 700; color: var(--accent); }
+.sim-log { font-family: "SF Mono", Menlo, monospace; font-size: .74rem; background: #1f1d2b; color: #e6e3f5; border-radius: 6px; padding: .55rem .7rem; max-height: 11rem; overflow-y: auto; margin-top: .7rem; }
+.sim-log div { margin: .1rem 0; }
+.sim-log .ok { color: #8fe3b5; } .sim-log .err { color: #ff9c9c; } .sim-log .warn { color: #ffd479; } .sim-log .dim { color: #a9a4c4; }
+.sim-toggle { display: inline-flex; align-items: center; gap: .35rem; margin-right: .9rem; cursor: pointer; }
+.sim-badge { display: inline-block; font-size: .68rem; font-weight: 700; padding: .05rem .4rem; border-radius: 10px; background: var(--code-bg); color: var(--muted); }
+.sim-badge.good { background: #e3f3ec; color: var(--sig-good); }
+.sim-badge.bad { background: #f8eaea; color: var(--sig-bad); }
+
+@media print {
+  .sim { break-inside: avoid; }
+}

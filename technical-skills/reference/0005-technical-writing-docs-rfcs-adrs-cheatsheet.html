@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cheat Sheet · Design Docs, RFCs &amp; ADRs</title>
+<link rel="stylesheet" href="../../assets/course/course.css">
+<link rel="stylesheet" href="../assets/theme.css">
+<script src="../../assets/course/links.js" defer></script>
+<style>
+  body { max-width: 52rem; }
+  @media print { body { margin: 0; } h2 { margin-top: 1.1rem; } }
+</style>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Technical Skills · Reference 05</p>
+  <h1>Design Docs, RFCs &amp; ADRs Cheat Sheet</h1>
+  <div class="meta"><span>Compressed from Lesson 05</span><span class="dot">•</span><span>Print-friendly</span></div>
+</header>
+
+<div class="callout insight">
+  <span class="label">Mindset</span>
+  <p>Writing is how your judgment <strong>scales beyond meetings, time zones and your own availability</strong>.
+  Make disagreement cheap while change is still cheap.</p>
+</div>
+
+<h2>Pick the right artifact</h2>
+<table>
+  <thead><tr><th>Situation</th><th>Artifact</th></tr></thead>
+  <tbody>
+    <tr><td>Local, reversible, well understood; no real trade-offs</td><td><strong>Just write the code</strong></td></tr>
+    <tr><td>Small change with a few real trade-offs</td><td><strong>Mini design doc</strong> (1&ndash;3 pages)</td></tr>
+    <tr><td>Substantial, cross-team, long-term operational impact</td><td><strong>Full design doc</strong> (~10&ndash;20 pages)</td></tr>
+    <tr><td>Proposal that needs wide input and a named decision owner</td><td><strong>RFC / tech spec</strong></td></tr>
+    <tr><td>One architecturally significant decision future readers will ask &ldquo;why?&rdquo; about</td><td><strong>ADR</strong></td></tr>
+  </tbody>
+</table>
+<p>Meetings exclude the absent and lose rationale; chat threads fragment; PR-only review arrives too late for architectural trade-offs.</p>
+
+<h2>Design doc anatomy</h2>
+<table>
+  <thead><tr><th>Section</th><th>Question it answers</th></tr></thead>
+  <tbody>
+    <tr><td>Context &amp; scope</td><td>What world are we operating in?</td></tr>
+    <tr><td>Goals</td><td>What must be true when this ships?</td></tr>
+    <tr><td>Non-goals</td><td>What are we intentionally <em>not</em> solving?</td></tr>
+    <tr><td>Design</td><td>Why this shape and not another?</td></tr>
+    <tr><td>Alternatives considered</td><td>Did we fairly explore the decision space?</td></tr>
+    <tr><td>Cross-cutting concerns</td><td>Security, privacy, observability, reliability, migration, cost?</td></tr>
+    <tr><td>Rollout &amp; operations</td><td>Migration, launch, rollback, ownership &mdash; how does it survive production?</td></tr>
+  </tbody>
+</table>
+
+<h2>Design section must-haves</h2>
+<ul class="checklist">
+  <li><strong>System-context diagram</strong> &mdash; actors and dependencies.</li>
+  <li><strong>Contracts</strong> &mdash; APIs, event schemas, interface boundaries.</li>
+  <li><strong>Data</strong> &mdash; model, storage, ownership, retention.</li>
+  <li><strong>Failure modes</strong> &mdash; retries, idempotency, backpressure, degradation.</li>
+  <li><strong>Observability</strong> &mdash; logs, metrics, traces, dashboards, alerts, SLO impact.</li>
+  <li><strong>Trade-offs stated directly</strong> and a clear recommendation.</li>
+</ul>
+
+<h2>Lifecycle</h2>
+<p><strong>Create</strong> (enough known to frame the problem, before implementation inertia) &rarr;
+<strong>Review</strong> (dependent owners, security, privacy, SRE, data, operators, constructive dissenters) &rarr;
+<strong>Decide</strong> &rarr; <strong>Implement</strong> (doc guides milestones; material changes update it or add an ADR) &rarr;
+<strong>Maintain</strong> &rarr; <strong>Archive</strong> with status and links to code, runbooks, dashboards, ADRs.</p>
+
+<h2>RFC template &amp; practices</h2>
+<table>
+  <thead><tr><th>Template (8 sections)</th><th>Practice &rarr; why</th></tr></thead>
+  <tbody>
+    <tr><td>1. Summary &middot; 2. Motivation</td><td>Short review window &rarr; no indefinite debate</td></tr>
+    <tr><td>3. Goals &amp; non-goals &middot; 4. Proposal</td><td>Explicit decision owner &rarr; no consensus theatre</td></tr>
+    <tr><td>5. Alternatives &middot; 6. Risks &amp; mitigations</td><td>Open-questions section &rarr; unknowns separated from blockers</td></tr>
+    <tr><td>7. Rollout plan &middot; 8. Open questions</td><td>Decision-log link &rarr; outcome survives the comment thread</td></tr>
+  </tbody>
+</table>
+<p><strong>Gather input widely, write alone.</strong> Record unresolved disagreement explicitly. Prefer good over perfect: a timely decision beats a beautiful doc that arrives after implementation is entrenched.</p>
+
+<h2>ADR anatomy</h2>
+<ul class="checklist">
+  <li><strong>Title</strong> &mdash; short and specific (&ldquo;Use managed PostgreSQL for customer configuration&rdquo;).</li>
+  <li><strong>Status</strong> &mdash; proposed &middot; accepted &middot; deprecated &middot; superseded.</li>
+  <li><strong>Context</strong> &mdash; forces, constraints, problem.</li>
+  <li><strong>Decision</strong> &mdash; the chosen path, in active voice.</li>
+  <li><strong>Consequences</strong> &mdash; benefits, costs, risks, follow-up obligations.</li>
+  <li><strong>Immutable</strong> &mdash; timestamped; when the decision changes, write a <em>new</em> ADR that supersedes it. The collection is the Architecture Decision Log. Templates: Nygard, MADR.</li>
+</ul>
+
+<h2>Craft: open with SCQA, lead with the answer</h2>
+<table>
+  <thead><tr><th>Element</th><th>Example</th></tr></thead>
+  <tbody>
+    <tr><td>Situation</td><td>Settlement events are emitted from three services</td></tr>
+    <tr><td>Complication</td><td>Consumers see inconsistent ordering and duplicate reconciliation</td></tr>
+    <tr><td>Question</td><td>How do we create one reliable settlement stream?</td></tr>
+    <tr><td>Answer</td><td>An owned settlement event service with idempotent publication and explicit schemas</td></tr>
+  </tbody>
+</table>
+<p>Make risk concrete: not &ldquo;may have scalability issues&rdquo; but &ldquo;at 2,000 writes/s the single-writer partition saturates; shard by tenant after milestone two&rdquo;.</p>
+
+<h2>Review comments</h2>
+<table>
+  <thead><tr><th>Good</th><th>Bad</th></tr></thead>
+  <tbody>
+    <tr><td>Challenges assumptions with evidence</td><td>Re-litigates declared non-goals</td></tr>
+    <tr><td>Separates must-fix from preference</td><td>Demands a favourite technology without context</td></tr>
+    <tr><td>Names missing stakeholders</td><td>Blocks on style, not decision quality</td></tr>
+    <tr><td>Asks whether it fails safely; ties back to goals</td><td>Hides disagreement in side channels</td></tr>
+  </tbody>
+</table>
+
+<div class="callout warning"><span class="label">Traps</span><ul>
+  <li>A long doc written to avoid making a decision.</li>
+  <li>Treating an RFC as a vote instead of a recommendation plus accountable decision.</li>
+  <li>Omitting non-goals &rarr; infinite scope.</li>
+  <li>Security, privacy, observability and migration hidden until late.</li>
+  <li>Editing accepted ADRs instead of superseding them.</li>
+  <li>Polished prose mistaken for clear thinking; diagrams as decoration.</li>
+</ul></div>
+
+<nav class="lesson-nav">
+  <span class="group"><b>From</b><a href="../lessons/0005-technical-writing-docs-rfcs-adrs.html">&larr; Lesson 05 · Technical writing</a></span>
+  <span class="group"><b>Course map</b><a href="../index.html">&uarr; All lessons</a></span>
+  <span class="group"><b>Canonical terms</b><a href="../GLOSSARY.md">GLOSSARY.md</a></span>
+  <span class="group"><b>Primary source</b><a href="https://www.industrialempathy.com/posts/design-docs-at-google/" target="_blank" rel="noopener">Design Docs at Google · Malte Ubl</a></span>
+</nav>
+
+</body>
+</html>

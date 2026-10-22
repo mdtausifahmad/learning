@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cheat Sheet · T-shape Development</title>
+<link rel="stylesheet" href="../../assets/course/course.css">
+<link rel="stylesheet" href="../assets/theme.css">
+<script src="../../assets/course/links.js" defer></script>
+<style>
+  body { max-width: 52rem; }
+  @media print { body { margin: 0; } h2 { margin-top: 1.1rem; } }
+</style>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Technical Skills · Reference 08</p>
+  <h1>T-shape Development Cheat Sheet</h1>
+  <div class="meta"><span>Compressed from Lesson 08</span><span class="dot">•</span><span>Print-friendly</span></div>
+</header>
+
+<div class="callout insight">
+  <span class="label">Mindset</span>
+  <p>Not &ldquo;learn everything&rdquo; but <strong>learn the right adjacent things while deepening the authority the business needs</strong>.
+  Breadth earns you a seat in the room; depth gives your judgment weight.</p>
+</div>
+
+<h2>Shapes of expertise</h2>
+<table>
+  <thead><tr><th>Shape</th><th>Strength</th><th>Risk</th></tr></thead>
+  <tbody>
+    <tr><td>Pure specialist</td><td>Deep authority in a niche</td><td>Fragile if the niche fades</td></tr>
+    <tr><td>Pure generalist</td><td>Navigates many domains</td><td>Too shallow to set direction</td></tr>
+    <tr><td><strong>T-shaped</strong></td><td>Breadth + one spike</td><td>Overloaded as the bridge for everything</td></tr>
+    <tr><td><strong>Pi-shaped</strong></td><td>Breadth + two spikes (common over a long career)</td><td>Needs deliberate focus to avoid dilution</td></tr>
+  </tbody>
+</table>
+
+<h2>Breadth = working fluency, not trivia</h2>
+<table>
+  <thead><tr><th>Domain</th><th>Minimum useful fluency</th></tr></thead>
+  <tbody>
+    <tr><td>Frontend</td><td>Rendering model, performance, accessibility, client state</td></tr>
+    <tr><td>Backend</td><td>API boundaries, concurrency, failure handling, deployment</td></tr>
+    <tr><td>Data</td><td>Modelling, indexing, transactions, retention, analytics</td></tr>
+    <tr><td>Infrastructure</td><td>Compute, networking, scaling, IAM, cost</td></tr>
+    <tr><td>Security</td><td>AuthN, AuthZ, threat modelling, secure defaults</td></tr>
+    <tr><td>Operations</td><td>Observability, SLOs, incident response, capacity</td></tr>
+    <tr><td>Product</td><td>User workflows, business model, customer pain</td></tr>
+  </tbody>
+</table>
+<p>Breadth lets you ask cross-domain questions, understand specialist language, spot missing stakeholders, connect incidents to design, and weigh trade-offs. It compounds: each domain adds hooks that speed up learning the next.</p>
+
+<h2>Choosing your spike</h2>
+<ul class="checklist">
+  <li><strong>Energising to you</strong> <em>and</em> <strong>enduringly central</strong> to the business &mdash; years, not a quarter.</li>
+  <li><strong>Where expensive decisions repeat</strong>, or incidents and bottlenecks cluster.</li>
+  <li><strong>Where differentiation depends</strong> on technical excellence.</li>
+  <li><strong>Where no clear authority exists</strong> yet.</li>
+  <li><strong>Not because it is fashionable</strong> &mdash; an unneeded specialty is strategically limiting.</li>
+</ul>
+<table>
+  <thead><tr><th>Company context</th><th>Plausible spike</th></tr></thead>
+  <tbody>
+    <tr><td>High-scale consumer</td><td>Reliability, latency, experimentation platform</td></tr>
+    <tr><td>Fintech / regulated</td><td>Security, privacy, ledger correctness, compliance architecture</td></tr>
+    <tr><td>Data-heavy SaaS</td><td>Analytics infra, data modelling, search, ML platform</td></tr>
+    <tr><td>Developer tools</td><td>API design, extensibility, build systems</td></tr>
+    <tr><td>Marketplace</td><td>Ranking, payments, fraud, event-driven systems</td></tr>
+  </tbody>
+</table>
+
+<h2>Build breadth through real exposure</h2>
+<ul class="checklist">
+  <li><strong>Rotate</strong> or take temporary assignments in adjacent domains.</li>
+  <li><strong>Read real artifacts</strong> &mdash; architecture docs, RFCs, incident reviews.</li>
+  <li><strong>Shadow on-call</strong> for systems you depend on; join design reviews outside your area.</li>
+  <li><strong>Pair with specialists</strong> during migrations, outages, performance work; prototype unfamiliar tools.</li>
+  <li><strong>Ask in every design</strong>: &ldquo;what breaks at 10&times;?&rdquo; and &ldquo;who operates this?&rdquo;</li>
+</ul>
+
+<h2>Build depth through ownership under pressure</h2>
+<ul class="checklist">
+  <li><strong>Own a critical domain</strong> for multiple years.</li>
+  <li><strong>Read source, design docs, postmortems</strong> and historical decisions.</li>
+  <li><strong>Lead root-cause analysis</strong> and follow systemic fixes through.</li>
+  <li><strong>Benchmark and measure</strong> instead of trusting folklore.</li>
+  <li><strong>Teach and encode</strong> &mdash; docs, talks, office hours, tools, standards, ADRs. Expertise that lives only in your head doesn&rsquo;t scale.</li>
+</ul>
+
+<h2>Archetypes need both bars</h2>
+<table>
+  <thead><tr><th>Archetype</th><th>Breadth need</th><th>Depth need</th></tr></thead>
+  <tbody>
+    <tr><td>Tech Lead</td><td>Product, team, architecture, delivery trade-offs</td><td>Enough to make credible technical calls</td></tr>
+    <tr><td>Architect</td><td>System-wide interactions, future constraints</td><td>Deep authority in core domains</td></tr>
+    <tr><td>Solver</td><td>Where the hardest problem sits across layers</td><td>Very deep debugging and problem solving</td></tr>
+    <tr><td>Right Hand</td><td>Translate executive priorities across domains</td><td>Deep trust and judgment in critical systems</td></tr>
+  </tbody>
+</table>
+
+<h2>Quarterly loop</h2>
+<p>1&nbsp;Pick one breadth domain &rarr; 2&nbsp;pick one depth capability &rarr; 3&nbsp;find real work that forces learning &rarr;
+4&nbsp;produce a scaling artifact &rarr; 5&nbsp;ask specialists to critique you.</p>
+<table>
+  <thead><tr><th>Goal</th><th>Real work</th><th>Scaling artifact</th></tr></thead>
+  <tbody>
+    <tr><td>Security breadth</td><td>Threat-model a new API</td><td>Security review checklist</td></tr>
+    <tr><td>Database depth</td><td>Lead a high-write migration</td><td>Migration playbook + ADR</td></tr>
+    <tr><td>Cloud breadth</td><td>Join a cost-reduction effort</td><td>Cost review guide</td></tr>
+    <tr><td>Observability depth</td><td>Redesign service SLOs</td><td>SLO template + dashboard standard</td></tr>
+  </tbody>
+</table>
+
+<div class="callout warning"><span class="label">Traps</span><ul>
+  <li>Breadth as shallow awareness instead of working fluency.</li>
+  <li>Becoming the only bridge across teams &mdash; a bottleneck.</li>
+  <li>Staying in a comfortable niche after the business moved on.</li>
+  <li>Confusing years of experience with depth.</li>
+  <li>Reading broadly without doing real cross-domain work; private, unteachable expertise.</li>
+</ul></div>
+
+<nav class="lesson-nav">
+  <span class="group"><b>From</b><a href="../lessons/0008-tshaped-breadth-and-depth.html">&larr; Lesson 08 · T-shaped expertise</a></span>
+  <span class="group"><b>Course map</b><a href="../index.html">&uarr; All lessons</a></span>
+  <span class="group"><b>Canonical terms</b><a href="../GLOSSARY.md">GLOSSARY.md</a></span>
+  <span class="group"><b>Primary source</b><a href="https://staffeng.com/guides/staff-archetypes/" target="_blank" rel="noopener">Staff archetypes · StaffEng</a></span>
+</nav>
+
+</body>
+</html>

@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Leadership Skills (Part B) — Course Map</title>
+<link rel="stylesheet" href="../assets/course/course.css">
+<link rel="stylesheet" href="assets/theme.css">
+<script src="../assets/course/links.js" defer></script>
+<script type="module" src="../assets/course/mermaid.js"></script>
+<style>
+  .course-sec { margin: 1.8rem 0; }
+  .course-sec > h2 { margin-bottom: .3rem; }
+  .arc { font-size: .82rem; color: var(--muted); font-style: italic; margin: 0 0 .7rem; }
+  ol.lessons { margin: .3rem 0; padding-left: 1.4rem; }
+  ol.lessons li { margin: .5rem 0; }
+  ol.lessons a { font-weight: 600; }
+  .desc { color: var(--muted); font-size: .92rem; }
+  .refs { display: grid; grid-template-columns: 1fr 1fr; gap: .3rem 1.4rem; list-style: none; padding: 0; font-size: .92rem; }
+  .docs a { margin-right: 1.2rem; }
+  .code-tag { font-family: -apple-system, system-ui, sans-serif; font-size: .64rem; font-weight: 700; letter-spacing: .06em; color: var(--accent); border: 1px solid var(--accent); border-radius: 10px; padding: 0 .4rem; margin-right: .4rem; vertical-align: middle; }
+  @media (max-width: 620px) { .refs { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Principal-Engineering Track</p>
+  <h1>Leadership Skills (Part B)</h1>
+  <div class="meta"><span>8 lessons · 8 reference sheets · 1 full Markdown guide</span><span class="dot">•</span><span>≈ 8 weeks part-time, plus a 90-day capstone you run in your day job</span></div>
+</header>
+
+<p class="mission-tie">
+  At Staff+, authority shrinks as scope grows: you lead through influence, communication and force-multiplication, not command. Each lesson is a single sitting, with quizzes and a &ldquo;try it in your own system&rdquo; task. Prefer one long read? The whole course is also in <a href="GUIDE.md">GUIDE.md</a> (with Mermaid diagrams). See <a href="MISSION.md">MISSION.md</a> for the why.
+</p>
+
+<p>For Senior engineers aiming at Staff or Principal who already have the technical chops and now need the skills the promotion is actually won on. Eight lessons cover Part B of <a href="../02-skills-to-upgrade.md">Skills to upgrade</a>: influence, executive communication, project leadership, sponsorship, trust, glue work, decision-making and prioritization. Each one ends with scenario quizzes and actions to run at work this week, and the evidence they produce feeds your brag doc and your <a href="../05-promotion-playbook.md">promotion packet</a>.</p>
+
+<figure><pre class="mermaid">
+flowchart TD
+    B1["B1 Influence&lt;br/&gt;(the master skill)"] --&gt; B2["B2 Communication&lt;br/&gt;(how influence travels)"]
+    B2 --&gt; B3["B3 Project Leadership&lt;br/&gt;(influence applied to delivery)"]
+    B1 --&gt; B4["B4 Sponsorship&lt;br/&gt;(multiply through others)"]
+    B4 --&gt; B5["B5 Trust &amp; Stakeholders&lt;br/&gt;(the capital you spend)"]
+    B5 --&gt; B6["B6 Glue Work&lt;br/&gt;(made visible = leadership)"]
+    B3 --&gt; B7["B7 Decision-Making&lt;br/&gt;(align without command)"]
+    B7 --&gt; B8["B8 Prioritization&lt;br/&gt;(leverage = what you choose)"]
+</pre><figcaption>How the leadership skills reinforce each other</figcaption></figure>
+
+<div class="course-sec">
+  <h2>Part I · Influence & communication</h2>
+  <p class="arc">The master skill and how it travels: questions, purpose, SCQA, the pyramid and nemawashi.</p>
+  <ol class="lessons">
+    <li><span class="code-tag">B1</span><a href="lessons/0001-influence-without-authority.html">Influence Without Authority</a><br><span class="desc">Borrowed authority: ask before you assert, name the purpose, read the room, and follow quickly.</span></li>
+    <li><span class="code-tag">B2</span><a href="lessons/0002-communication-and-executive-writing.html">Communication &amp; Executive Writing</a><br><span class="desc">Make messages land with executives: SCQA openings, Minto Pyramid, nemawashi and answer-first memos.</span></li>
+  </ol>
+</div>
+
+<div class="course-sec">
+  <h2>Part II · Leading through others</h2>
+  <p class="arc">Apply influence to delivery, then multiply it through delegation and sponsorship.</p>
+  <ol class="lessons" start="3">
+    <li><span class="code-tag">B3</span><a href="lessons/0003-technical-and-project-leadership.html">Technical &amp; Project Leadership</a><br><span class="desc">Lead ambiguous multi-team work: scope it, delegate the hard parts, map the shadow org, land it.</span></li>
+    <li><span class="code-tag">B4</span><a href="lessons/0004-mentorship-and-sponsorship.html">Mentorship &amp; Sponsorship</a><br><span class="desc">Advice versus opportunity: sponsor people into visible work, scaffold them, let the credit stay theirs.</span></li>
+  </ol>
+</div>
+
+<div class="course-sec">
+  <h2>Part III · Capital & visibility</h2>
+  <p class="arc">Earn and spend borrowed authority, and make the invisible work count.</p>
+  <ol class="lessons" start="5">
+    <li><span class="code-tag">B5</span><a href="lessons/0005-stakeholder-management-and-trust.html">Stakeholder Management, Trust &amp; Political Capital</a><br><span class="desc">Proxied authority: never surprise your manager, bank political capital, build peers before you need them.</span></li>
+    <li><span class="code-tag">B6</span><a href="lessons/0006-glue-work.html">Glue Work — Made Visible</a><br><span class="desc">Name, scope, measure, rotate and reward the coordination work that holds teams together.</span></li>
+  </ol>
+</div>
+
+<div class="course-sec">
+  <h2>Part IV · Judgement at scale</h2>
+  <p class="arc">Decide, disagree well, and choose where your scarce attention goes.</p>
+  <ol class="lessons" start="7">
+    <li><span class="code-tag">B7</span><a href="lessons/0007-decision-making.html">Decision-Making &amp; Disagreeing Productively</a><br><span class="desc">Transfer judgement: write reasoning, circulate early, split style from substance, judge decisions not luck.</span></li>
+    <li><span class="code-tag">B8</span><a href="lessons/0008-prioritization.html">Prioritization at Scale — "Work on What Matters"</a><br><span class="desc">Leverage is what you choose: skip snacks, preening and ghosts, and invest in existential issues first.</span></li>
+  </ol>
+</div>
+
+<hr>
+
+<div class="course-sec">
+  <h2>Reference cheat sheets</h2>
+  <ul class="refs">
+    <li><a href="reference/0001-influence-without-authority-cheatsheet.html">01 · Influence without authority</a></li>
+    <li><a href="reference/0002-communication-and-executive-writing-cheatsheet.html">02 · Executive communication</a></li>
+    <li><a href="reference/0003-technical-and-project-leadership-cheatsheet.html">03 · Project leadership</a></li>
+    <li><a href="reference/0004-mentorship-and-sponsorship-cheatsheet.html">04 · Sponsorship</a></li>
+    <li><a href="reference/0005-stakeholder-management-and-trust-cheatsheet.html">05 · Stakeholders & trust</a></li>
+    <li><a href="reference/0006-glue-work-cheatsheet.html">06 · Glue work</a></li>
+    <li><a href="reference/0007-decision-making-cheatsheet.html">07 · Decision-making</a></li>
+    <li><a href="reference/0008-prioritization-cheatsheet.html">08 · Prioritization</a></li>
+  </ul>
+</div>
+
+<div class="course-sec">
+  <h2>Workspace</h2>
+  <p class="docs">
+    <a href="GUIDE.md">Full guide (Markdown)</a>
+    <a href="MISSION.md">Mission</a>
+    <a href="GLOSSARY.md">Glossary</a>
+    <a href="RESOURCES.md">Resources</a>
+    <a href="NOTES.md">Notes</a>
+    <a href="../02-skills-to-upgrade.md">Skills map (playbook)</a>
+  </p>
+</div>
+
+<div class="followup">
+  <strong>Your teacher is here.</strong> Bring a real system, design doc or situation from work and we&rsquo;ll apply any chapter to it. Ask anytime.
+</div>
+
+</body>
+</html>

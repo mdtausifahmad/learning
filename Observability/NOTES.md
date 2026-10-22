@@ -42,9 +42,12 @@
   services / designs / incidents through the methods; (b) **wisdom** — a community (ask preference
   first); (c) **spaced retrieval** to convert fluency → storage strength. Optional depth if wanted:
   capacity planning, chaos engineering, multi-region/DR, tracing internals, SLO tooling (Sloth).
-- **Step-by-step animations added to all 16 lessons (2026-07-24)** — reusable engine `assets/anim.js`
-  + styles in `styles.css` (Back/Play/Next/Replay, step dots, cumulative reveal via
+- **Step-by-step animations added to all 16 lessons (2026-07-24)** — reusable engine `../assets/course/anim.js`
+  + styles in `../assets/course/course.css` (Back/Play/Next/Replay, step dots, cumulative reveal via
   `data-step`/`data-only`/`data-from`/`data-to`; print-safe = all steps shown, controls hidden).
   Each lesson's core-concept figure is now a click-through explainer with one caption per step.
   Reuse-first: new lessons should drive the SAME engine (markup convention documented at the top of
   `anim.js`), never inline bespoke animation code. Learner values visual, build-up explanations.
+- **Shared course assets** — `course.css`, `quiz.js`, `anim.js`, `stepflow.js`, `mermaid.js` and `links.js`
+  live in `../assets/course/` and are shared by every topic; `assets/theme.css` holds only this
+  course's teal palette. `GUIDE.md` is the long-form markdown edition of all lessons.

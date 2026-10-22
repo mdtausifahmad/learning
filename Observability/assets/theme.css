@@ -1,0 +1,16 @@
+/* ===========================================================================
+   Reliability, Observability & SRE — course theme
+   (loaded after /assets/course/course.css). Distinct TEAL identity (SRE/signals).
+   =========================================================================== */
+
+:root {
+  --accent:       #14615f;   /* deep teal — primary identity, used sparingly */
+  --link:         #14615f;
+  --insight-bg:   #e9f2ef;
+  --insight-br:   #14807a;
+  --correct-ink:  #14503c;
+  --accent-hover: #0f4f4d;
+  --accent-glow:  rgba(20, 128, 122, .55);
+  --accent-past:  rgba(20, 128, 122, .4);
+  --accent-shadow: rgba(20, 97, 95, .4);
+}

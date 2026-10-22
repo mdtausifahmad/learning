@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cheat Sheet · Reliability &amp; SRE</title>
+<link rel="stylesheet" href="../../assets/course/course.css">
+<link rel="stylesheet" href="../assets/theme.css">
+<script src="../../assets/course/links.js" defer></script>
+<script type="module" src="../../assets/course/mermaid.js"></script>
+<style>
+  body { max-width: 52rem; }
+  @media print { body { margin: 0; } h2 { margin-top: 1.1rem; } }
+</style>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Technical Skills · Reference 02</p>
+  <h1>Reliability &amp; SRE Cheat Sheet</h1>
+  <div class="meta"><span>Compressed from Lesson 02</span><span class="dot">•</span><span>Print-friendly</span></div>
+</header>
+
+<div class="callout insight">
+  <span class="label">Mindset</span>
+  <p>Reliability is managed <strong>measurably, not heroically</strong>: a user-centred SLO plus an agreed
+  error-budget policy decides when to ship and when to stabilise.</p>
+</div>
+
+<h2>SLI &rarr; SLO &rarr; budget &rarr; policy</h2>
+<figure>
+<pre class="mermaid">
+flowchart LR
+    J["User journey"] --&gt; I["SLI&lt;br/&gt;measured user signal"]
+    I --&gt; O["SLO&lt;br/&gt;target over a window"]
+    O --&gt; B["Error budget&lt;br/&gt;allowed unreliability"]
+    B --&gt; P{"Budget healthy?"}
+    P --&gt;|"Yes"| S["Ship normally"]
+    P --&gt;|"No"| R["Freeze risky launches,&lt;br/&gt;prioritise reliability"]
+</pre>
+<figcaption>The policy is the point: the budget turns a reliability target into a shared shipping decision.</figcaption>
+</figure>
+<table>
+  <thead><tr><th>Term</th><th>Definition</th><th>Example</th></tr></thead>
+  <tbody>
+    <tr><td><strong>SLI</strong></td><td>Measured signal approximating user experience</td><td>% of valid checkout requests completing &lt; 800&nbsp;ms</td></tr>
+    <tr><td><strong>SLO</strong></td><td>Target for an SLI over a window</td><td>99.9% of checkouts succeed over 30 days</td></tr>
+    <tr><td><strong>SLA</strong></td><td>External promise with consequences</td><td>Credits if monthly availability &lt; 99.5%</td></tr>
+    <tr><td><strong>Error budget</strong></td><td>1 &minus; SLO over the window</td><td>0.1% of requests may fail in 30 days</td></tr>
+  </tbody>
+</table>
+
+<h2>Budget numbers to remember (30-day window, if failures were full outages)</h2>
+<table>
+  <thead><tr><th>SLO</th><th>Budget</th><th>SLO</th><th>Budget</th></tr></thead>
+  <tbody>
+    <tr><td>99%</td><td>7.2 hours</td><td>99.95%</td><td>21.6 minutes</td></tr>
+    <tr><td>99.9%</td><td>43.2 minutes</td><td>99.99%</td><td>4.32 minutes</td></tr>
+  </tbody>
+</table>
+
+<h2>What to measure</h2>
+<table>
+  <thead><tr><th>Lens</th><th>Signals</th><th>Use for</th></tr></thead>
+  <tbody>
+    <tr><td>Golden signals</td><td>Latency, Traffic, Errors, Saturation</td><td>Baseline dashboard for user-facing services</td></tr>
+    <tr><td>RED</td><td>Rate, Errors, Duration</td><td>Request-driven services</td></tr>
+    <tr><td>USE</td><td>Utilization, Saturation, Errors</td><td>Resources (CPU, pools, disks, queues)</td></tr>
+    <tr><td>Three pillars</td><td>Metrics, logs, traces</td><td>Trends &amp; alerts / case detail / cross-service paths</td></tr>
+  </tbody>
+</table>
+<ul class="checklist">
+  <li><strong>Stable names</strong> and <strong>controlled cardinality</strong> for metrics.</li>
+  <li><strong>Correlation IDs</strong> through every hop; a deliberate <strong>sampling</strong> strategy.</li>
+  <li><strong>Owners and retention</strong> defined per signal; alert on <strong>burn rate</strong> and user impact, not every anomaly.</li>
+  <li><strong>Percentiles, not means</strong> &mdash; users live in the tail.</li>
+</ul>
+
+<h2>Toil test</h2>
+<p>Toil is <strong>manual, repetitive, automatable, tactical</strong>, scales linearly with load, and leaves no enduring value.
+Novel incident debugging and SLO design are engineering, not toil. Cap toil with a <strong>toil budget</strong>; when it is exceeded,
+invest in automation, self-healing or redesign &mdash; but never automate a bad process.</p>
+
+<h2>Incident response</h2>
+<table>
+  <thead><tr><th>Role</th><th>Owns</th></tr></thead>
+  <tbody>
+    <tr><td>Incident Commander</td><td>Coordination, priorities, decisions, timeline</td></tr>
+    <tr><td>Operations Lead</td><td>Technical investigation and mitigation</td></tr>
+    <tr><td>Communications Lead</td><td>Stakeholders, status page, support, executives</td></tr>
+    <tr><td>Scribe</td><td>Timeline, decisions, commands, hypotheses</td></tr>
+  </tbody>
+</table>
+<p>Flow: alert &rarr; triage severity (by user/business impact) &rarr; assign roles &rarr; <strong>mitigate first</strong> &rarr; communicate &rarr; resolve &rarr; postmortem &rarr; track and verify follow-ups.</p>
+
+<h2>Blameless postmortem checklist</h2>
+<ul class="checklist">
+  <li><strong>Impact</strong> &mdash; who, how badly, how long. <strong>Detection</strong> &mdash; how found, how late.</li>
+  <li><strong>Timeline</strong> of events, decisions and signals.</li>
+  <li><strong>Contributing factors</strong> &mdash; technical, organisational, process, knowledge.</li>
+  <li><strong>What went well / poorly</strong> &mdash; which defences held, failed or were missing.</li>
+  <li><strong>Action items</strong> that change defaults, automate checks, shrink blast radius or surface failure sooner &mdash; owned, prioritised, verified.</li>
+</ul>
+
+<h2>Overload &amp; cascading failure</h2>
+<table>
+  <thead><tr><th>Pattern</th><th>Purpose</th><th>Watch out for</th></tr></thead>
+  <tbody>
+    <tr><td>Load shedding</td><td>Reject excess work before collapse</td><td>Shed low-value work first; return clear errors</td></tr>
+    <tr><td>Graceful degradation</td><td>Keep critical journeys alive</td><td>Product decisions needed <em>before</em> the incident</td></tr>
+    <tr><td>Backoff + jitter</td><td>Spread and desynchronise retries</td><td>Non-idempotent retries duplicate effects</td></tr>
+    <tr><td>Circuit breaker</td><td>Stop calling a failing dependency</td><td>Bad thresholds oscillate or hide recovery</td></tr>
+    <tr><td>Bulkhead</td><td>Isolate by tenant, feature, dependency</td><td>Over-partitioning wastes capacity</td></tr>
+  </tbody>
+</table>
+<p>Thundering herd: many clients retry, reconnect or refill caches at once &rarr; jitter, request coalescing, token buckets, stampede control.</p>
+
+<h2>Safe change</h2>
+<ul class="checklist">
+  <li><strong>Deploy dark &rarr; canary &rarr; expand &rarr; full</strong>, gated on SLIs.</li>
+  <li><strong>Feature flags</strong> separate deploy from release &mdash; and get removed afterwards.</li>
+  <li><strong>Rollback is tested</strong> and compatible with schema changes and mixed versions.</li>
+  <li><strong>NALSD</strong> &mdash; real numbers, failure domains, owners, rollout mechanics; a design that cannot say how it fails is unfinished.</li>
+</ul>
+
+<div class="callout warning"><span class="label">Traps</span><ul>
+  <li>SLOs on host uptime or CPU instead of user journeys.</li>
+  <li>SLOs so strict they&rsquo;re ignored, or so loose users suffer.</li>
+  <li>Retrying everything without timeouts, budgets, idempotency or jitter.</li>
+  <li>Action items that say &ldquo;be careful&rdquo; or &ldquo;add monitoring&rdquo;.</li>
+  <li>Permanent, undocumented feature flags.</li>
+  <li>Expecting on-call heroics to cover unclear ownership or excess complexity.</li>
+</ul></div>
+
+<nav class="lesson-nav">
+  <span class="group"><b>From</b><a href="../lessons/0002-reliability-observability-sre.html">&larr; Lesson 02 · Reliability &amp; SRE</a></span>
+  <span class="group"><b>Course map</b><a href="../index.html">&uarr; All lessons</a></span>
+  <span class="group"><b>Canonical terms</b><a href="../GLOSSARY.md">GLOSSARY.md</a></span>
+  <span class="group"><b>Primary source</b><a href="https://sre.google/sre-book/table-of-contents/" target="_blank" rel="noopener">Site Reliability Engineering · Google</a></span>
+</nav>
+
+</body>
+</html>

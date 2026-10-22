@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cheat Sheet · Networking &amp; API Design</title>
+<link rel="stylesheet" href="../../assets/course/course.css">
+<link rel="stylesheet" href="../assets/theme.css">
+<script src="../../assets/course/links.js" defer></script>
+<style>
+  body { max-width: 52rem; }
+  @media print { body { margin: 0; } h2 { margin-top: 1.1rem; } }
+</style>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">System Design · Reference 06</p>
+  <h1>Networking &amp; API Design</h1>
+  <div class="meta"><span>Compressed from Lesson 06</span><span class="dot">•</span><span>Print-friendly</span></div>
+</header>
+
+<div class="callout insight">
+  <span class="label">Mindset</span>
+  <p>Pick the <strong>communication style per boundary</strong>, and treat the API contract as the hardest thing to change later:
+  make it <strong>idempotent, paginated, versioned and rate-limited</strong> from day one.</p>
+</div>
+
+<h2>Transport &amp; HTTP</h2>
+<table>
+  <thead><tr><th></th><th>TCP</th><th>UDP</th></tr></thead>
+  <tbody>
+    <tr><td>Connection</td><td>Handshake</td><td>None</td></tr>
+    <tr><td>Reliability</td><td>Delivery and order guaranteed</td><td>Best-effort</td></tr>
+    <tr><td>Use</td><td>Correctness matters (web, DBs)</td><td>Speed over perfection (streaming, DNS, games)</td></tr>
+  </tbody>
+</table>
+<ul class="checklist">
+  <li><strong>HTTP/1.1</strong> &mdash; one request at a time per connection &rarr; head-of-line (HOL) blocking; browsers open ~6 connections.</li>
+  <li><strong>HTTP/2</strong> &mdash; multiplexed streams, binary framing, HPACK. Fixes application HOL, but one lost TCP packet still stalls every stream.</li>
+  <li><strong>HTTP/3</strong> &mdash; QUIC over UDP: independent streams, 0-RTT handshakes, connection migration.</li>
+</ul>
+
+<h2>Communication styles</h2>
+<table>
+  <thead><tr><th></th><th>REST</th><th>gRPC</th><th>GraphQL</th><th>SOAP</th></tr></thead>
+  <tbody>
+    <tr><td>Format</td><td>HTTP + JSON</td><td>HTTP/2 + Protobuf</td><td>HTTP + JSON, one endpoint</td><td>XML + WSDL</td></tr>
+    <tr><td>Best for</td><td>Public APIs, CRUD</td><td>Internal service-to-service</td><td>Rich clients aggregating sources</td><td>Legacy enterprise</td></tr>
+    <tr><td>Strength</td><td>Simple, cacheable, ubiquitous</td><td>Fast, streaming, typed codegen</td><td>No over/under-fetching</td><td>Formal contracts</td></tr>
+    <tr><td>Weakness</td><td>Over/under-fetching, chatty</td><td>Not browser-native, opaque</td><td>Caching and rate limiting harder</td><td>Verbose, heavy</td></tr>
+  </tbody>
+</table>
+
+<h2>Load balancers, proxies, gateways</h2>
+<table>
+  <thead><tr><th></th><th>L4 (transport)</th><th>L7 (application)</th></tr></thead>
+  <tbody>
+    <tr><td>Sees</td><td>IP + port</td><td>URL, headers, cookies</td></tr>
+    <tr><td>Routes by</td><td>Connection</td><td>Content (path, host, header)</td></tr>
+    <tr><td>Can do</td><td>Fast, even distribution</td><td>Path routing, sticky sessions, TLS termination, canary</td></tr>
+  </tbody>
+</table>
+<ul class="checklist">
+  <li><strong>Algorithms:</strong> round-robin, weighted, <strong>least connections</strong>, least response time, IP / consistent hash (sticky).</li>
+  <li><strong>Reverse proxy</strong> (Nginx, Envoy, Varnish) &mdash; TLS, caching, compression, hides topology. A load balancer is a specialised one.</li>
+  <li><strong>API gateway</strong> &mdash; the front door: authN, rate limiting, routing, aggregation, protocol translation, once instead of in every service.</li>
+</ul>
+
+<h2>DNS &amp; CDN &mdash; the outermost layers</h2>
+<ul class="checklist">
+  <li>Records: <code>A</code>, <code>AAAA</code>, <code>CNAME</code>, <code>MX</code>, <code>NS</code>, <code>TXT</code>. <strong>Low TTL</strong> = faster failover, more lookups.</li>
+  <li>DNS is the first load balancer: round-robin, <strong>GeoDNS</strong>, latency/health-based routing.</li>
+  <li><strong>Pull CDN</strong> &mdash; edge fetches on first request; easy, first hit slow. <strong>Push CDN</strong> &mdash; you publish to the edge; more control.</li>
+</ul>
+
+<h2>API design checklist</h2>
+<ul class="checklist">
+  <li><strong>Nouns, not verbs:</strong> <code>GET /users/123/orders</code>, not <code>/getUserOrders</code>.</li>
+  <li><strong>Methods and status codes</strong> used meaningfully: <code>201</code>, <code>204</code>, <code>400</code>, <code>404</code>, <code>409</code>, <code>422</code>, <code>429</code>, <code>503</code>.</li>
+  <li><strong>Idempotency:</strong> <code>GET</code>/<code>PUT</code>/<code>DELETE</code> idempotent; <code>POST</code> via an <code>Idempotency-Key</code> header (payments).</li>
+  <li><strong>Pagination:</strong> never unbounded; prefer <strong>cursor/keyset</strong> over offset for large or live data.</li>
+  <li><strong>Versioning:</strong> <code>/v1/&hellip;</code> or an <code>Accept</code> header.</li>
+  <li><strong>Rate limiting:</strong> <code>429</code> + <code>Retry-After</code>; <strong>token bucket</strong> allows bursts, <strong>leaky bucket</strong> smooths.</li>
+  <li><strong>One error shape:</strong> <code>{ code, message, details }</code>.</li>
+  <li><strong>Security:</strong> HTTPS everywhere, OAuth2/JWT, input validation, least privilege.</li>
+</ul>
+
+<h2>Review questions</h2>
+<ul class="checklist">
+  <li>Why this style for this boundary (public vs internal vs aggregating client)?</li>
+  <li>Where does TLS terminate? Is the LB L4 or L7, and why?</li>
+  <li>Which endpoints are unsafe to retry, and do they take an <code>Idempotency-Key</code>?</li>
+  <li>Is every list paginated, and is every endpoint rate-limited?</li>
+  <li>How will v2 ship without breaking v1 clients?</li>
+</ul>
+
+<div class="callout warning">
+  <span class="label">Traps</span>
+  <ul>
+    <li><strong>Unbounded list endpoints</strong> &mdash; fine until the data grows.</li>
+    <li><strong>No versioning</strong> &mdash; you can&rsquo;t evolve without breaking clients.</li>
+    <li><strong>Non-idempotent POSTs</strong> for payments and orders &mdash; retries create duplicates.</li>
+    <li><strong>Chatty REST</strong> forcing N+1 calls &mdash; aggregate or consider GraphQL.</li>
+    <li><strong>Verbs in URLs, misused status codes</strong> &mdash; uncacheable and unpredictable.</li>
+  </ul>
+</div>
+
+<nav class="lesson-nav">
+  <span class="group"><b>From</b><a href="../lessons/0006-networking-and-api-design.html">&larr; Lesson 06 · Networking &amp; APIs</a></span>
+  <span class="group"><b>Course map</b><a href="../index.html">&uarr; All lessons</a></span>
+  <span class="group"><b>Canonical terms</b><a href="../GLOSSARY.md">GLOSSARY.md</a></span>
+  <span class="group"><b>Primary source</b><a href="https://cloud.google.com/apis/design" target="_blank" rel="noopener">Google · API Design Guide</a></span>
+</nav>
+
+</body>
+</html>

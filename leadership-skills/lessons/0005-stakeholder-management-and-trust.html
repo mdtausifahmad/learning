@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 05 · Stakeholder Management, Trust &amp; Political Capital</title>
+<link rel="stylesheet" href="../../assets/course/course.css">
+<link rel="stylesheet" href="../assets/theme.css">
+<script src="../../assets/course/links.js" defer></script>
+<script src="../../assets/course/quiz.js" defer></script>
+<script type="module" src="../../assets/course/mermaid.js"></script>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Leadership Skills · Lesson 05 · B5</p>
+  <h1>Stakeholder Management, Trust &amp; Political Capital</h1>
+  <div class="meta">
+    <span>◷ ~16 min read</span>
+    <span class="dot">•</span>
+    <span>Core practice</span>
+    <span class="dot">•</span>
+    <span>Prereq: <a href="0004-mentorship-and-sponsorship.html">Lesson 04</a></span>
+  </div>
+</header>
+
+<p class="mission-tie">
+  Staff+ authority is usually <strong>proxied</strong> from a sponsor, most often your manager, and it lasts only while they can predict your moves and defend your judgement. This lesson treats trust as an operating system: never surprise your manager, do not let your sponsor surprise you, manage political capital like a bank account, and build a peer network before you need it. Promotion committees ask “Do we know this person, and do we trust their credibility?” This is how you earn the yes.
+</p>
+
+<div class="callout insight">
+  <span class="label">TL;DR</span>
+  <p>How do you build and spend the trust that gives you borrowed authority?</p>
+<ul>
+<li>Staff+ authority is usually proxied from a sponsor, most often your manager; stay aligned or your influence decays.</li>
+<li>Never surprise your manager, and do not let your sponsor surprise you; information flow is part of the job.</li>
+<li>Political capital is a bank account: deposits are reliability, context, generosity, and judgment; withdrawals are asks, escalations, and decisions.</li>
+<li>Build peer networks before you need them; the higher you go, the lonelier and more cross-functional the work becomes.</li>
+<li>Represent engineering in the room, not only your own opinion, and keep disagreeing compatible with alignment.</li>
+</ul>
+</div>
+
+<p class="related">Back to the main map: <a href="../../02-skills-to-upgrade.md">Skills to upgrade</a>. Related leadership lessons: <a href="0001-influence-without-authority.html">B1 influence</a>, <a href="0002-communication-and-executive-writing.html">B2 communication</a>, <a href="0003-technical-and-project-leadership.html">B3 technical leadership</a>, <a href="0004-mentorship-and-sponsorship.html">B4 mentorship</a>, <a href="0006-glue-work.html">B6 glue work</a>, <a href="0007-decision-making.html">B7 decisions</a>, <a href="0008-prioritization.html">B8 prioritization</a>. Use this with the <a href="../../05-promotion-playbook.md">promotion playbook</a> and <a href="../../06-self-assessment-and-tracking.md">self-assessment tracker</a>.</p>
+
+<h2 id="1-borrowed-authority-the-staff-operating-model">1. Borrowed authority: the Staff+ operating model</h2>
+<p>A Senior engineer can often lead from ownership: they own a service, a project, or a technical area.
+A Staff+ engineer often leads across ownership boundaries.
+That means your authority is not command authority.
+It is borrowed, delegated, and continually renewed.</p>
+<p>Rick Boone's analogy is useful: a Staff engineer can operate like the Hand of the King.
+You may speak with influence because a sponsor has delegated trust to you.
+But you still serve at the pleasure of that sponsor.
+If your manager or executive sponsor cannot predict your moves, defend your judgment, or explain your work, your authority collapses.</p>
+<p>Borrowed authority has four practical implications:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Implication</th>
+<th>What it means in practice</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Alignment precedes autonomy</td>
+<td>You earn freedom by showing your sponsor how you think.</td>
+</tr>
+<tr>
+<td>Sponsorship is conditional</td>
+<td>Your sponsor must believe your judgment helps their goals.</td>
+</tr>
+<tr>
+<td>Surprises are expensive</td>
+<td>A surprise makes your sponsor look uninformed or exposed.</td>
+</tr>
+<tr>
+<td>You represent more than yourself</td>
+<td>In cross-functional rooms, people may hear you as engineering.</td>
+</tr>
+</tbody>
+</table></div>
+<figure><pre class="mermaid">
+flowchart TD
+    A["Sponsor gives trust"] --&gt; B["You act across boundaries"]
+    B --&gt; C["Stakeholders observe outcomes"]
+    C --&gt; D{"Aligned with sponsor priorities"}
+    D --&gt;|"Yes"| E["Authority expands"]
+    D --&gt;|"No"| F["Sponsor must repair confidence"]
+    F --&gt; G["Authority narrows"]
+    E --&gt; H["More ambiguous work"]
+    H --&gt; A
+</pre></figure>
+<p>Borrowed authority is not fake authority.
+It is how complex organizations scale judgment.
+The trap is forgetting that the authority is proxied.
+Your sponsor does not need to approve every action, but they do need to understand your direction, risks, and trade-offs.</p>
+<h2 id="2-never-surprise-your-manager">2. Never surprise your manager</h2>
+<p>&quot;Never surprise your manager&quot; is not about obedience.
+It is about resilience.
+A manager can help you only if they know what is happening early enough to act.
+A sponsor can defend your work only if they are not learning the situation from someone else.</p>
+<p>Treat each surprise as an incident.
+Ask what signal was missed, what reporting path failed, and what update cadence would have prevented it.
+Common surprises include:</p>
+<ul>
+<li>A stakeholder is angry about a decision you thought was settled.</li>
+<li>A delivery date moved and your manager hears from Product first.</li>
+<li>You escalated in a meeting without warning your sponsor.</li>
+<li>A technical risk became urgent after weeks of private concern.</li>
+<li>A cross-team dependency slipped because no one owned the interface.</li>
+</ul>
+<p>A good weekly update is short, regular, and decision-oriented:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Section</th>
+<th>Example content</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Outcomes</td>
+<td>&quot;Search migration completed phase one; p95 latency down 18%.&quot;</td>
+</tr>
+<tr>
+<td>Risks</td>
+<td>&quot;Data backfill confidence is lower than expected; mitigation by Friday.&quot;</td>
+</tr>
+<tr>
+<td>Decisions needed</td>
+<td>&quot;Need sponsor call on whether to delay launch or reduce scope.&quot;</td>
+</tr>
+<tr>
+<td>Stakeholder temperature</td>
+<td>&quot;Product aligned, Support concerned, Security needs pre-read.&quot;</td>
+</tr>
+<tr>
+<td>Next moves</td>
+<td>&quot;Running alignment meeting Wednesday; will send options doc Tuesday.&quot;</td>
+</tr>
+</tbody>
+</table></div>
+<figure><pre class="mermaid">
+flowchart LR
+    A["Signal appears"] --&gt; B{"Could this affect commitments, trust, or sponsor context"}
+    B --&gt;|"No"| C["Track locally"]
+    B --&gt;|"Yes"| D["Send early update"]
+    D --&gt; E["Name impact and uncertainty"]
+    E --&gt; F["Offer options"]
+    F --&gt; G["Ask for sponsor guidance if needed"]
+    G --&gt; H["Close loop after decision"]
+</pre></figure>
+<p>Do not wait until you have a complete answer.
+Staff+ updates are valuable precisely when the situation is ambiguous.
+A useful message says: &quot;Here is what I know, what I do not know, what I am doing next, and when I will update you.&quot;</p>
+<h2 id="3-do-not-let-your-sponsor-surprise-you">3. Do not let your sponsor surprise you</h2>
+<p>The reciprocal rule is just as important: do not let your sponsor surprise you.
+If you only push information upward, you still might be steering against hidden priorities.
+Managing up means learning the terrain your sponsor sees before you feel it.</p>
+<p>Ask regularly:</p>
+<ul>
+<li>What are your top three priorities this quarter?</li>
+<li>What promises have you made upward that my work affects?</li>
+<li>Which stakeholders are most sensitive to this area?</li>
+<li>What risks would make you intervene?</li>
+<li>What would make this work obviously successful in your forum?</li>
+</ul>
+<p>This is not flattery.
+It is systems thinking applied to authority.
+Your manager is also operating inside constraints: headcount, executive narratives, budget, reorgs, customer commitments, and political promises.
+When you understand those constraints, you can make decisions that survive contact with the organization.</p>
+<p>A simple managing-up rhythm:</p>
+<ol>
+<li>Send a weekly written update.</li>
+<li>Keep a running list of decisions and assumptions.</li>
+<li>Ask what changed in leadership context.</li>
+<li>Preview escalations before they happen.</li>
+<li>After important meetings, send the interpretation you are acting on.</li>
+</ol>
+<h2 id="4-political-capital-as-a-bank-account">4. Political capital as a bank account</h2>
+<p>Tanya Reilly describes social or political capital like a bank account.
+You pay in by being reliable, generous, truthful, and useful.
+You spend it when you ask people to take risks, change plans, accept trade-offs, or trust your judgment over their local preference.</p>
+<p>Deposits and withdrawals are not moral labels.
+They are a way to reason about trust dynamics.
+If you make repeated withdrawals without deposits, people experience you as expensive.
+If you only deposit and never spend, you may become liked but ineffective.</p>
+<figure><pre class="mermaid">
+flowchart TD
+    subgraph sgDeposits["Deposits"]
+        A["Keep commitments"]
+        B["Share credit"]
+        C["Bring useful context"]
+        D["Protect others from surprises"]
+    end
+    subgraph sgWithdrawals["Withdrawals"]
+        E["Ask for priority change"]
+        F["Escalate a conflict"]
+        G["Challenge a plan"]
+        H["Request executive attention"]
+    end
+    I["Trust account"]
+    A --&gt; I
+    B --&gt; I
+    C --&gt; I
+    D --&gt; I
+    I --&gt; E
+    I --&gt; F
+    I --&gt; G
+    I --&gt; H
+</pre></figure>
+<p>The bank account metaphor helps you decide when to act.
+Before a hard ask, ask:</p>
+<ul>
+<li>Have I shown that I understand their goals?</li>
+<li>Have I helped them before asking them to help me?</li>
+<li>Have I made the trade-off explicit rather than personal?</li>
+<li>Have I given them time to react privately before a public forum?</li>
+<li>Am I spending capital on something that truly matters?</li>
+</ul>
+<p>Political capital is not manipulation.
+Manipulation hides intent.
+Healthy political capital makes intent legible and uses trust to move the organization toward better outcomes.</p>
+<h2 id="5-build-a-peer-network-before-you-need-it">5. Build a peer network before you need it</h2>
+<p>The most consistent advice from Staff+ engineers is to build a network of peers.
+The work gets lonelier as scope increases because fewer people share your exact context.
+You need peers who can sanity-check your read of the room, introduce you to the right owner, and tell you when you are over-rotating.</p>
+<p>Useful peer networks include:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Network</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Staff+ peers in your company</td>
+<td>Understand internal politics and precedent.</td>
+</tr>
+<tr>
+<td>Product and Design leads</td>
+<td>Shape product trade-offs before plans harden.</td>
+</tr>
+<tr>
+<td>Operations, Support, Security, Legal</td>
+<td>See risks engineering often misses.</td>
+</tr>
+<tr>
+<td>External communities</td>
+<td>Normalize challenges and learn patterns.</td>
+</tr>
+</tbody>
+</table></div>
+<p>The Rands Leadership Slack is an example of an external community where engineering leaders exchange practical advice.
+External networks are not substitutes for internal trust, but they reduce isolation and broaden your pattern library.</p>
+<p>Invest when nothing is on fire: ask what peers are worried about, review outside your team, share postmortem lessons, and keep a lightweight map of ownership and influence.</p>
+<h2 id="6-managing-up-help-your-boss-succeed">6. Managing up: help your boss succeed</h2>
+<p>Managing up means making your manager more effective: know how they are measured, which executives they influence, what risks they carry, and what evidence helps them advocate for engineering. Bring options instead of raw problems: &quot;Here are three paths, the trade-off I recommend, and the decision I need.&quot; Do not treat your manager as a rubber stamp or a rescue service; use them to improve judgment and sponsorship.</p>
+<h2 id="7-working-with-product-design-and-executives">7. Working with Product, Design, and executives</h2>
+<p>Cross-functional leadership is how technical reality enters product and business decisions. Represent all of engineering, not just your preference: gather context, distinguish &quot;I think&quot; from &quot;Engineering is concerned&quot;, and translate trade-offs into business, user, reliability, and delivery terms.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Partner</th>
+<th>What they need from you</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Product</td>
+<td>Feasible options, sequencing, risk, user impact.</td>
+</tr>
+<tr>
+<td>Design</td>
+<td>Constraints early enough to shape experience.</td>
+</tr>
+<tr>
+<td>Executives</td>
+<td>Recommendation, business trade-off, confidence level.</td>
+</tr>
+<tr>
+<td>Support and Success</td>
+<td>Operational consequences and customer messaging.</td>
+</tr>
+</tbody>
+</table></div>
+<figure><pre class="mermaid">
+sequenceDiagram
+    participant E as Engineer
+    participant P as Product
+    participant D as Design
+    participant X as Executive
+    E-&gt;&gt;P: Share options and trade-offs early
+    P-&gt;&gt;D: Explore product and experience paths
+    D-&gt;&gt;E: Ask about constraints and alternatives
+    E-&gt;&gt;X: Present recommendation with risk and confidence
+    X--&gt;&gt;E: Confirm priority and acceptable trade-off
+    E--&gt;&gt;P: Close loop and update plan
+</pre></figure>
+<p>Late technical feedback often sounds like obstruction because the plan has already become identity, schedule, and promise.</p>
+<h2 id="8-credibility-and-the-trust-equation">8. Credibility and the trust equation</h2>
+<p>Credibility is more than being technically correct. Stakeholders ask whether you are competent, reliable, candid, empathetic, and optimizing for the shared goal rather than your favorite solution. You can be right and lose trust if you are late or dismissive; you can be uncertain and gain trust if you are honest, prepared, and useful.</p>
+<p>Disagreeing while staying aligned requires a repeatable posture: state the shared goal, name the risk to that goal, offer a path, ask what constraints you are missing, and commit once the decision is made unless ethics or safety are at stake.</p>
+<h2 id="9-retiring-the-safety-net-expectation">9. Retiring the safety-net expectation</h2>
+<p>Earlier in your career, a manager may catch missed stakeholders and absorb communication mistakes. At Staff+, you own the stakeholder system around your work: who needs to know, who can block, who is affected, who can amplify, and who needs pre-alignment. If you repeatedly need rescue after avoidable surprises, the organization will limit your scope.</p>
+<h2 id="10-practice-drills">10. Practice drills</h2>
+<ul>
+<li>Write a weekly sponsor update for your current work for four weeks. Keep it under 200 words and include risks, decisions, and stakeholder temperature.</li>
+<li>Make a stakeholder map for one initiative: sponsor, blockers, affected teams, hidden influencers, and decision forums.</li>
+<li>Before your next cross-functional meeting, meet one key stakeholder privately and ask what outcome they need.</li>
+<li>Choose one relationship where you need to make a deposit before a withdrawal. Make the deposit this week.</li>
+<li>After any surprise, run a 15-minute personal postmortem: what signal was missed, who learned too late, and what cadence changes?</li>
+<li>Ask your manager: &quot;What promise have you made upward that my work most affects?&quot;</li>
+</ul>
+<h2 id="11-what-good-looks-like-at-staff">11. What &quot;good&quot; looks like at Staff+</h2>
+<ul>
+<li>Your manager can explain your work, risks, and reasoning without asking you first.</li>
+<li>Stakeholders hear bad news from you early, with options.</li>
+<li>You know when you are speaking for yourself versus representing engineering.</li>
+<li>You spend political capital on high-leverage issues, not personal preferences.</li>
+<li>You have peer relationships across teams before a crisis requires them.</li>
+<li>You disagree clearly, then align visibly once a decision is made.</li>
+<li>Your sponsor trusts you with ambiguous rooms because you protect context and commitments.</li>
+</ul>
+<h2 id="12-common-pitfalls">12. Common pitfalls</h2>
+<ul>
+<li>Treating political capital as dirty instead of as the operating currency of trust.</li>
+<li>Confusing autonomy with independence from your sponsor.</li>
+<li>Updating only when work is green, which makes red status feel like a betrayal.</li>
+<li>Speaking as &quot;engineering&quot; without gathering engineering input.</li>
+<li>Escalating publicly before pre-aligning privately.</li>
+<li>Becoming liked but ineffective because you never spend trust.</li>
+<li>Spending capital on style preferences rather than material outcomes.</li>
+</ul>
+<h2 id="13-further-reading">13. Further reading</h2>
+<ul>
+<li>StaffEng, &quot;Staying aligned with authority&quot;: <a href="https://staffeng.com/guides/staying-aligned-with-authority/" target="_blank" rel="noopener">https://staffeng.com/guides/staying-aligned-with-authority/</a></li>
+<li>StaffEng, &quot;Build a network of peers&quot;: <a href="https://staffeng.com/guides/network-of-peers/" target="_blank" rel="noopener">https://staffeng.com/guides/network-of-peers/</a></li>
+<li>StaffEng, &quot;What do Staff engineers actually do?&quot;: <a href="https://staffeng.com/guides/what-do-staff-engineers-actually-do/" target="_blank" rel="noopener">https://staffeng.com/guides/what-do-staff-engineers-actually-do/</a></li>
+<li>Rands Leadership Slack: <a href="https://randsinrepose.com/welcome-to-rands-leadership-slack/" target="_blank" rel="noopener">https://randsinrepose.com/welcome-to-rands-leadership-slack/</a></li>
+</ul>
+
+<div class="primary-source">
+  <span class="label">Read this next (primary source)</span>
+  <p><a href="https://staffeng.com/guides/staying-aligned-with-authority/" target="_blank" rel="noopener"><em>Staying aligned with authority</em></a> (StaffEng): borrowed authority, “never surprise your manager” and “do not let your sponsor surprise you”. Then <a href="https://staffeng.com/guides/network-of-peers/" target="_blank" rel="noopener"><em>Build a network of peers</em></a>, the most consistent advice Staff+ engineers give.</p>
+</div>
+
+<h2 id="14-check-yourself">14. Check yourself</h2>
+<p>Retrieve before revealing.</p>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 1 of 3</p>
+  <p class="quiz-q">Load tests show your launch will probably slip two weeks. You have a mitigation idea but no data yet. Your manager meets the VP tomorrow morning. What do you do today?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="Waiting for a complete answer turns an early warning into a surprise. Ambiguous updates are the valuable ones.">Wait until the mitigation has been validated, so you can report a complete picture with the fix</button></li>
+    <li><button data-correct="true" data-feedback="Right — never surprise your manager; give them the signal early enough to act before the VP meeting.">Message your manager now: what you know, what you don’t, your next step and when you will update</button></li>
+    <li><button data-correct="false" data-feedback="Your manager hearing about a slipped date from Product first is a textbook surprise.">Tell the Product lead first, since they own the launch date and the customer messaging for it</button></li>
+    <li><button data-correct="false" data-feedback="Escalating in a meeting without warning your sponsor makes them look uninformed and exposed.">Raise it in the VP meeting yourself, so leadership hears it directly from the source of the risk</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Never surprise your manager: “Here is what I know, what I do not know, what I am doing next, and when I will update you.” Treat each surprise as an incident."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 2 of 3</p>
+  <p class="quiz-q">You need the Payments team to delay a feature by two sprints so your platform migration can land. You have rarely worked with them. What is the strongest approach?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="Right — deposit before you withdraw, make the trade-off impersonal, and let them react privately first.">Help them with something they care about first, then ask privately with the trade-off explicit</button></li>
+    <li><button data-correct="false" data-feedback="Using escalation as a substitute for peer alignment is a large withdrawal and builds resentment.">Ask your director to request the delay through their director, so the ask carries organisational weight</button></li>
+    <li><button data-correct="false" data-feedback="A first-time ask in a public forum gives them no time to react privately and puts them on the spot.">Raise the request in the cross-team planning forum, so the trade-off is debated in the open</button></li>
+    <li><button data-correct="false" data-feedback="Arguing your work is more important makes the trade-off personal rather than shared.">Write a detailed doc on why the migration matters more to the company than their feature</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Political capital is a bank account. Deposits are reliability, generosity, context and protecting others from surprises; withdrawals are asks, escalations and challenges."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 3 of 3</p>
+  <p class="quiz-q">In product planning, the PM asks: “What does engineering think about building this in-house?” You have a strong personal view but have not talked to the other teams. What do you say?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="Speaking as “engineering” without gathering engineering input spends trust you have not earned.">Give your view as engineering’s position, since you are the most senior engineer in the room</button></li>
+    <li><button data-correct="false" data-feedback="Refusing to engage makes engineering look obstructive and pushes feedback late, when plans have hardened.">Decline to answer until a formal architecture review has been scheduled and completed</button></li>
+    <li><button data-correct="false" data-feedback="False alignment now becomes a surprise later; late technical feedback sounds like obstruction.">Say engineering is fine with it to keep the momentum going, and raise your concerns later by email</button></li>
+    <li><button data-correct="true" data-feedback="Right — separate “I think” from “Engineering is concerned”, and gather input before you represent the function.">Share it as your own view, name what you would check with other teams, and offer to come back</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Represent all of engineering, not just your preference: say whether you speak for yourself or for engineering, and translate trade-offs into business, user and delivery terms."></div>
+</div>
+
+<div class="callout tryit">
+  <span class="label">Try it in your own system</span>
+  <ul class="checklist">
+    <li>Send your manager a weekly update under 200 words for the next four weeks: outcomes, risks, decisions needed, stakeholder temperature, next moves.</li>
+    <li>Ask your manager: “What promise have you made upward that my work most affects?” Write the answer down.</li>
+    <li>Draw a stakeholder map for one initiative: sponsor, blockers, affected teams, hidden influencers, decision forums.</li>
+    <li>Pick one relationship where your next move is a withdrawal, and make a genuine deposit there this week first.</li>
+    <li>After the next surprise, run a 15-minute personal postmortem: which signal was missed, who learned too late, and what cadence would have prevented it.</li>
+  </ul>
+</div>
+
+<div class="followup">
+  <strong>I&rsquo;m your teacher &mdash; ask me anything.</strong> Draft this week’s sponsor update and I will tighten it, or describe a trade-off you need another team to accept and we will plan the deposits, the private pre-read and the ask.
+</div>
+
+<nav class="lesson-nav">
+  <span class="group">
+    <b>Previous</b>
+    <a href="0004-mentorship-and-sponsorship.html">&larr; Lesson 04 · Mentorship & sponsorship</a>
+  </span>
+  <span class="group">
+    <b>Reference</b>
+    <a href="../reference/0005-stakeholder-management-and-trust-cheatsheet.html">Stakeholders & trust cheat sheet &rarr;</a>
+  </span>
+  <span class="group">
+    <b>Course map</b>
+    <a href="../index.html">&uarr; All lessons</a>
+  </span>
+  <span class="group">
+    <b>Up next</b>
+    <a href="0006-glue-work.html">Lesson 06 · Glue work made visible &rarr;</a>
+  </span>
+</nav>
+
+</body>
+</html>

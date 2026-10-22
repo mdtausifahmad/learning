@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 07 · Back-of-the-Envelope Estimation</title>
+<link rel="stylesheet" href="../../assets/course/course.css">
+<link rel="stylesheet" href="../assets/theme.css">
+<script src="../../assets/course/links.js" defer></script>
+<script src="../../assets/course/quiz.js" defer></script>
+<script type="module" src="../../assets/course/mermaid.js"></script>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">System Design · Lesson 07</p>
+  <h1>Back-of-the-Envelope Estimation</h1>
+  <div class="meta">
+    <span>◷ ~11 min read</span>
+    <span class="dot">•</span>
+    <span>Quantitative glue</span>
+    <span class="dot">•</span>
+    <span>Prereq: <a href="0001-scalability-tradeoff-axes.html">Lesson 01</a>, <a href="0003-databases-and-data-modeling.html">Lesson 03</a>, <a href="0006-networking-and-api-design.html">Lesson 06</a></span>
+  </div>
+</header>
+
+<p class="mission-tie">
+  Estimation is step 1 of the 4-step method, and it turns hand-waving into engineering. Five minutes of arithmetic tells you <strong>which bottleneck to design for</strong> &mdash; cache-heavy, sharded, horizontally scaled &mdash; before you draw a box. Staff engineers round to orders of magnitude, state every assumption out loud, and tie each number to a decision.
+</p>
+
+<div class="callout insight">
+  <span class="label">TL;DR</span>
+  <p><strong>The core question:</strong> before you draw a single box, roughly how big is this system — how many requests per second, how much storage per year, how much bandwidth, how many servers? Estimation turns hand-waving into engineering: it tells you <em>which</em> bottleneck to design for and <em>which</em> trade-offs actually matter.</p>
+<ul>
+<li>Memorize three cheat sheets: <strong>powers of two</strong>, <strong>latency numbers</strong>, and <strong>availability nines</strong>.</li>
+<li>Estimate in a fixed order: <strong>users → QPS → storage → bandwidth → memory (cache) → servers.</strong></li>
+<li>Round aggressively (use <code>10^x</code>), keep one significant figure, and always state assumptions.</li>
+<li>Distinguish <strong>average QPS</strong> from <strong>peak QPS</strong> (peak ≈ 2–10× average).</li>
+</ul>
+</div>
+
+<h2 id="1-cheat-sheet-powers-of-two-data-sizes">1. Cheat sheet: Powers of two (data sizes)</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Power</th>
+<th>Exact-ish</th>
+<th>Name</th>
+<th>Bytes shorthand</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2^10</td>
+<td>~1 thousand</td>
+<td>Kilo</td>
+<td>1 KB</td>
+</tr>
+<tr>
+<td>2^20</td>
+<td>~1 million</td>
+<td>Mega</td>
+<td>1 MB</td>
+</tr>
+<tr>
+<td>2^30</td>
+<td>~1 billion</td>
+<td>Giga</td>
+<td>1 GB</td>
+</tr>
+<tr>
+<td>2^40</td>
+<td>~1 trillion</td>
+<td>Tera</td>
+<td>1 TB</td>
+</tr>
+<tr>
+<td>2^50</td>
+<td>~1 quadrillion</td>
+<td>Peta</td>
+<td>1 PB</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Useful anchors:</strong> ASCII char = 1 byte · UUID ≈ 16 bytes · a typical DB row ≈ 100 bytes–1 KB · a small image ≈ 100 KB–1 MB · 1 minute of video ≈ tens of MB.</p>
+<h2 id="2-cheat-sheet-latency-numbers-every-programmer-should-know">2. Cheat sheet: Latency numbers every programmer should know</h2>
+<p>Orders of magnitude matter far more than exact values.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Operation</th>
+<th>Latency</th>
+<th>Intuition</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>L1 cache reference</td>
+<td>~0.5 ns</td>
+<td></td>
+</tr>
+<tr>
+<td>Branch mispredict</td>
+<td>~5 ns</td>
+<td></td>
+</tr>
+<tr>
+<td>L2 cache reference</td>
+<td>~7 ns</td>
+<td>14× L1</td>
+</tr>
+<tr>
+<td>Mutex lock/unlock</td>
+<td>~25 ns</td>
+<td></td>
+</tr>
+<tr>
+<td>Main memory reference</td>
+<td>~100 ns</td>
+<td>200× L1</td>
+</tr>
+<tr>
+<td>Compress 1 KB (Zippy/Snappy)</td>
+<td>~3 µs</td>
+<td></td>
+</tr>
+<tr>
+<td>Send 1 KB over 1 Gbps network</td>
+<td>~10 µs</td>
+<td></td>
+</tr>
+<tr>
+<td>Read 4 KB randomly from SSD</td>
+<td>~150 µs</td>
+<td></td>
+</tr>
+<tr>
+<td>Read 1 MB sequentially from memory</td>
+<td>~250 µs</td>
+<td></td>
+</tr>
+<tr>
+<td>Round trip within same datacenter</td>
+<td>~500 µs</td>
+<td></td>
+</tr>
+<tr>
+<td>Read 1 MB sequentially from SSD</td>
+<td>~1 ms</td>
+<td>4× memory</td>
+</tr>
+<tr>
+<td>Disk seek (spinning)</td>
+<td>~10 ms</td>
+<td>20,000× datacenter RTT</td>
+</tr>
+<tr>
+<td>Read 1 MB sequentially from disk</td>
+<td>~20 ms</td>
+<td>80× SSD</td>
+</tr>
+<tr>
+<td>Packet round trip CA ↔ Netherlands</td>
+<td>~150 ms</td>
+<td>speed of light!</td>
+</tr>
+</tbody>
+</table></div>
+<figure><pre class="mermaid">
+flowchart LR
+    Mem["Memory&lt;br/&gt;~100 ns"] --&gt;|"~10×"| SSDr["SSD random&lt;br/&gt;~150 µs"]
+    SSDr --&gt;|"~3×"| DC["Datacenter RTT&lt;br/&gt;~500 µs"]
+    DC --&gt;|"~20×"| Disk["Disk seek&lt;br/&gt;~10 ms"]
+    Disk --&gt;|"~15×"| Inter["Cross-continent RTT&lt;br/&gt;~150 ms"]
+</pre></figure>
+<p><strong>The lessons baked into these numbers:</strong></p>
+<ul>
+<li><strong>Memory is ~1000× faster than disk</strong> → cache aggressively (<a href="0004-caching.html">Topic 4</a>).</li>
+<li><strong>SSD is ~20× faster than spinning disk</strong> for random reads.</li>
+<li><strong>Sequential ≫ random</strong> I/O → why LSM-trees and Kafka append sequentially (<a href="0003-databases-and-data-modeling.html">Topics 3</a>, <a href="0005-asynchronism-and-messaging.html">5</a>).</li>
+<li><strong>Cross-region RTT (~150 ms) is bound by the speed of light</strong> → you cannot &quot;optimize&quot; it away; you must move data/compute closer (CDN, regional replicas).</li>
+</ul>
+<h2 id="3-cheat-sheet-availability-nines">3. Cheat sheet: Availability nines</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Availability</th>
+<th>Downtime / year</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>99%</td>
+<td>3.65 days</td>
+</tr>
+<tr>
+<td>99.9%</td>
+<td>8.77 hours</td>
+</tr>
+<tr>
+<td>99.99%</td>
+<td>52.6 minutes</td>
+</tr>
+<tr>
+<td>99.999%</td>
+<td>5.26 minutes</td>
+</tr>
+</tbody>
+</table></div>
+<p>(See <a href="0001-scalability-tradeoff-axes.html#5-availability--the-nines">Topic 1 §5</a> for how availability composes in series vs parallel.)</p>
+<h2 id="4-the-estimation-method-a-repeatable-order">4. The estimation method (a repeatable order)</h2>
+<figure><pre class="mermaid">
+flowchart LR
+    U["1. Users&lt;br/&gt;(DAU)"] --&gt; Q["2. QPS&lt;br/&gt;(avg &amp; peak)"]
+    Q --&gt; St["3. Storage&lt;br/&gt;(per day / 5 yr)"]
+    St --&gt; Bw["4. Bandwidth&lt;br/&gt;(read/write)"]
+    Bw --&gt; Mem["5. Memory&lt;br/&gt;(cache, 80/20)"]
+    Mem --&gt; Srv["6. Servers"]
+</pre></figure>
+<p><strong>Handy conversions to memorize:</strong></p>
+<ul>
+<li>1 day ≈ <strong>86,400 s</strong> → round to <strong>10^5 s</strong>.</li>
+<li>So <strong>1 write/user/day at 1M users</strong> ≈ 1M / 10^5 = <strong>~10 QPS</strong>.</li>
+<li><strong>Peak QPS ≈ 2–10× average</strong> — design for peak.</li>
+<li>QPS a single commodity server handles: roughly <strong>hundreds to low thousands</strong> (depends heavily on work per request).</li>
+</ul>
+<p><strong>Method:</strong></p>
+<ol>
+<li><strong>Users</strong> — start from Daily Active Users (DAU) or total users × activity rate.</li>
+<li><strong>QPS</strong> — actions/user/day × users ÷ 86,400. Compute <strong>average</strong>, then multiply for <strong>peak</strong>. Separate <strong>read QPS</strong> from <strong>write QPS</strong> (reads usually dominate, e.g., 100:1).</li>
+<li><strong>Storage</strong> — writes/day × bytes/write × retention (e.g., × 365 × 5 for five years). Add replication factor.</li>
+<li><strong>Bandwidth</strong> — QPS × payload size, for reads and writes separately (bytes/sec).</li>
+<li><strong>Memory (cache)</strong> — apply the <strong>80/20 rule</strong>: cache the ~20% of data serving ~80% of reads. Sized as daily-read-volume × 20%.</li>
+<li><strong>Servers</strong> — total peak QPS ÷ QPS-per-server (round up, add headroom + redundancy).</li>
+</ol>
+<h2 id="5-worked-example-design-a-url-shortener-tinyurl">5. Worked example: design a URL shortener (TinyURL)</h2>
+<p><strong>Assumptions (state them!):</strong></p>
+<ul>
+<li>100M new URLs/day written; <strong>read:write = 100:1</strong> → 10B redirects/day.</li>
+<li>Store each mapping for <strong>5 years</strong>.</li>
+<li>Each record ≈ <strong>500 bytes</strong> (short code, long URL, metadata).</li>
+</ul>
+<p><strong>① QPS</strong></p>
+<pre><code>Writes: 100M / 86,400 s  ≈ 1,160  ≈ ~1.2K writes/sec (avg)
+Reads : 100 × writes     ≈ 116K   ≈ ~120K reads/sec (avg)
+Peak (×2):               writes ≈ 2.4K/s,  reads ≈ 240K/s
+</code></pre>
+<p><strong>② Storage (5 years)</strong></p>
+<pre><code>Records: 100M/day × 365 × 5 ≈ 1.825 × 10^11  ≈ ~180 billion records
+Size   : 180B × 500 bytes    ≈ 9 × 10^13 bytes ≈ ~90 TB (before replication)
+With 3× replication          ≈ ~270 TB
+</code></pre>
+<p><strong>③ Bandwidth</strong></p>
+<pre><code>Write BW: 1.2K/s × 500 B ≈ 600 KB/s   (trivial)
+Read  BW: 120K/s × 500 B ≈ 60 MB/s     (the dominant path)
+</code></pre>
+<p><strong>④ Memory (cache the hot 20% of a day's reads)</strong></p>
+<pre><code>Daily reads: 10B × 500 B ≈ 5 TB/day of read volume
+Cache 20%:   ≈ 1 TB in a distributed cache (shard across nodes)
+</code></pre>
+<figure><pre class="mermaid">
+flowchart TD
+    A["100M writes/day&lt;br/&gt;÷ 86,400"] --&gt; B["~1.2K writes/s"]
+    B --&gt;|"×100 read ratio"| C["~120K reads/s"]
+    B --&gt;|"×365×5 × 500B × 3"| D["~270 TB storage"]
+    C --&gt;|"×500B"| E["~60 MB/s read bandwidth"]
+    C --&gt;|"80/20 hot set"| F["~1 TB cache"]
+</pre></figure>
+<p><strong>What the numbers <em>tell you to design</em>:</strong></p>
+<ul>
+<li><strong>Read-dominated (100:1)</strong> → put a <strong>cache</strong> and <strong>CDN/read replicas</strong> front and center; the write path is easy.</li>
+<li><strong>~270 TB, 180B rows</strong> → a single DB won't hold it → <strong>shard</strong> (by hash of the short code) — see <a href="0003-databases-and-data-modeling.html#3-sharding-partitioning">Topic 3</a>.</li>
+<li><strong>Short codes</strong> → base-62 of a counter/hash; 7 chars of base-62 ≈ 3.5 trillion combos → plenty.</li>
+<li><strong>60 MB/s reads</strong> is modest bandwidth but <strong>240K peak QPS</strong> means you need <strong>many stateless app servers + a load balancer</strong> (<a href="0001-scalability-tradeoff-axes.html">Topics 1</a>, <a href="0006-networking-and-api-design.html">6</a>).</li>
+</ul>
+<p>That's the whole point of estimation: <strong>five minutes of arithmetic decided the architecture</strong> (cache-heavy, sharded, horizontally scaled) before drawing anything.</p>
+<h2 id="6-what-good-looks-like-at-staff">6. What &quot;good&quot; looks like at Staff+</h2>
+<ul>
+<li>You <strong>estimate first</strong> and let the numbers pick the bottleneck — you don't cache/shard reflexively, you do it because the math says so.</li>
+<li>You <strong>round to orders of magnitude</strong>, keep one significant figure, and <strong>state every assumption</strong> out loud.</li>
+<li>You separate <strong>average vs peak</strong> and <strong>read vs write</strong>, because they drive different parts of the design.</li>
+<li>You connect each number to a <strong>decision</strong> (&quot;120K reads/s → cache + replicas&quot;; &quot;270 TB → shard&quot;).</li>
+</ul>
+<h2 id="7-common-pitfalls">7. Common pitfalls</h2>
+<ul>
+<li><strong>False precision</strong> — computing 1,157.4 QPS instead of &quot;~1K/s&quot;. Precision you can't justify wastes time.</li>
+<li><strong>Forgetting peak</strong> — sizing for average and falling over at the daily spike.</li>
+<li><strong>Ignoring replication/overhead</strong> — real storage is 3× your raw estimate, plus indexes.</li>
+<li><strong>Not tying numbers to decisions</strong> — estimation is a means to choose an architecture, not a ritual.</li>
+<li><strong>Mixing bits and bytes</strong> — network is often quoted in <strong>bits</strong> (Gbps); storage in <strong>bytes</strong>. 1 Gbps ≈ 125 MB/s.</li>
+</ul>
+<h2 id="8-further-reading">8. Further reading</h2>
+<ul>
+<li>System Design Primer — &quot;Appendix: Powers of two&quot; &amp; &quot;Latency numbers every programmer should know&quot; — <a href="https://github.com/donnemartin/system-design-primer#appendix" target="_blank" rel="noopener">https://github.com/donnemartin/system-design-primer#appendix</a></li>
+<li>Jeff Dean's latency numbers (interactive) — <a href="https://colin-scott.github.io/personal_website/research/interactive_latency.html" target="_blank" rel="noopener">https://colin-scott.github.io/personal_website/research/interactive_latency.html</a></li>
+<li>Alex Xu, <em>System Design Interview</em> Vol 1 — Ch. 2 &quot;Back-of-the-envelope estimation&quot; — <a href="https://bytebytego.com" target="_blank" rel="noopener">https://bytebytego.com</a></li>
+<li>ByteByteGo — capacity planning cheat sheets — <a href="https://github.com/ByteByteGoHq/system-design-101" target="_blank" rel="noopener">https://github.com/ByteByteGoHq/system-design-101</a></li>
+</ul>
+
+<div class="primary-source">
+  <span class="label">Read this next (primary source)</span>
+  <p>Colin Scott &mdash; <a href="https://colin-scott.github.io/personal_website/research/interactive_latency.html" target="_blank" rel="noopener"><em>Latency numbers every programmer should know</em></a> (Jeff Dean&rsquo;s table, interactive by year &mdash; drill the orders of magnitude). Then the System Design Primer &mdash; <a href="https://github.com/donnemartin/system-design-primer#appendix" target="_blank" rel="noopener"><em>Appendix</em></a> for powers of two and the same numbers in one printable place.</p>
+</div>
+
+<h2 id="9-check-yourself">9. Check yourself</h2>
+<p>Retrieve before revealing.</p>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 1 of 3</p>
+  <p class="quiz-q">A new feature: 20M daily active users, each posting 5 times a day. Roughly what write QPS do you size the write path for?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="100M posts ÷ ~10^5 s is ~1K/s, not 100. And traffic is never even; peaks are 2–10× the average.">About 100 writes/s, since posts arrive at a fairly even pace</button></li>
+    <li><button data-correct="false" data-feedback="False precision, and sized for the average — you fall over at the daily peak.">Exactly 1,157 writes/s, sized for the computed daily average</button></li>
+    <li><button data-correct="false" data-feedback="Worst-case simultaneity isn't a realistic peak; you'd overbuild by roughly 10–50×.">About 100K writes/s, since all 20M users might post at once</button></li>
+    <li><button data-correct="true" data-feedback="Right — 20M × 5 = 10^8 per day ÷ 10^5 s ≈ 1K/s average, and peak is 2–10× that.">About 1K/s on average; size for 2–10K/s to cover the peak</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="QPS ≈ actions per day ÷ 10^5 s. Keep one significant figure and design for peak (2–10× average)."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 2 of 3</p>
+  <p class="quiz-q">Your estimate shows a 100:1 read:write ratio, about 240K peak reads/s, and about 270 TB of storage over five years. Which design conclusion do the numbers support?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="Writes are ~2.4K/s at peak — the easy path. The numbers point at reads and data volume.">Optimise the write path first, since writes drive storage size</button></li>
+    <li><button data-correct="false" data-feedback="270 TB and ~180B rows won't fit on one primary; the data volume forces sharding.">One large database server with read replicas will do for now</button></li>
+    <li><button data-correct="true" data-feedback="Right — read-dominated → cache + replicas; hundreds of TB → shard; 240K peak QPS → scale out.">Cache and replicas up front, shard storage, many stateless servers</button></li>
+    <li><button data-correct="false" data-feedback="Bandwidth is modest, but 240K QPS still needs many app servers and a shared, sharded cache.">A single in-process cache will do, since 60 MB/s is small bandwidth</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Tie each number to a decision: read-heavy → cache and replicas; hundreds of TB → shard; high peak QPS → a horizontally scaled stateless tier."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 3 of 3</p>
+  <p class="quiz-q">A teammate proposes serving EU users from a US-only cluster: &ldquo;we&rsquo;ll optimise the code to cut the 150 ms round trip.&rdquo; Your response:</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="Serialisation is microseconds. The ~150 ms is propagation delay, which no code change touches.">Agreed — faster serialisation and HTTP/2 will remove most of it</button></li>
+    <li><button data-correct="true" data-feedback="Right — you can't optimise physics away. Use a CDN, regional replicas or edge compute.">Cross-continent RTT is bound by light; move data or compute closer</button></li>
+    <li><button data-correct="false" data-feedback="Storage speed doesn't change the network round trip across the Atlantic.">Put SSDs in the US cluster; they are about 20× faster than disks</button></li>
+    <li><button data-correct="false" data-feedback="Less queueing helps under load, but the ~150 ms round trip stays on every request.">Grow the US cluster so each request spends less time in queues</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Know latency orders of magnitude. Cross-region RTT (~150 ms) is physics: bring data and compute closer with a CDN, regional replicas or the edge."></div>
+</div>
+
+<div class="callout tryit">
+  <span class="label">Try it in your own system</span>
+  <ul class="checklist">
+    <li>Without notes, redo the URL-shortener estimate (QPS, storage, bandwidth, cache) in under 10 minutes, then compare with the lesson.</li>
+    <li>Estimate one system you run from first principles, then check real dashboards. Where were you off by 10×, and why?</li>
+    <li>Pull the peak-to-average QPS ratio for your service over the last 30 days. Is capacity sized for the peak?</li>
+    <li>Check one capacity number in a recent design doc for bits vs bytes and for missing replication and index overhead.</li>
+  </ul>
+</div>
+
+<div class="followup">
+  <strong>I&rsquo;m your teacher &mdash; ask me anything.</strong> Give me a product idea or a system you&rsquo;re about to build and we&rsquo;ll estimate it together, out loud, in five minutes &mdash; then decide what the numbers force the design to be.
+</div>
+
+<nav class="lesson-nav">
+  <span class="group">
+    <b>Previous</b>
+    <a href="0006-networking-and-api-design.html">&larr; Lesson 06 · Networking & APIs</a>
+  </span>
+  <span class="group">
+    <b>Reference</b>
+    <a href="../reference/0007-back-of-envelope-estimation-cheatsheet.html">Estimation cheat sheet &rarr;</a>
+  </span>
+  <span class="group">
+    <b>Course map</b>
+    <a href="../index.html">&uarr; All lessons</a>
+  </span>
+  <span class="group">
+    <b>Up next</b>
+    <a href="0008-resilience-and-fault-tolerance.html">Lesson 08 · Resilience & fault tolerance &rarr;</a>
+  </span>
+</nav>
+
+</body>
+</html>

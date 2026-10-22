@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 03 · Technical &amp; Project Leadership</title>
+<link rel="stylesheet" href="../../assets/course/course.css">
+<link rel="stylesheet" href="../assets/theme.css">
+<script src="../../assets/course/links.js" defer></script>
+<script src="../../assets/course/quiz.js" defer></script>
+<script type="module" src="../../assets/course/mermaid.js"></script>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Leadership Skills · Lesson 03 · B3</p>
+  <h1>Technical &amp; Project Leadership</h1>
+  <div class="meta">
+    <span>◷ ~14 min read</span>
+    <span class="dot">•</span>
+    <span>Core practice</span>
+    <span class="dot">•</span>
+    <span>Prereq: <a href="0002-communication-and-executive-writing.html">Lesson 02</a></span>
+  </div>
+</header>
+
+<p class="mission-tie">
+  A Staff engineer who sets technical direction is a <strong>part-time product manager for the engineering system</strong>: platforms, reliability, cost and delivery capability are the product, and other teams are the customers. Big, ambiguous, multi-team initiatives are where Staff scope gets proven. You win them by scoping uncertainty, delegating the hard pieces, working the shadow org chart, and running the project until behaviour actually changes. This is the lesson behind the “Staff project” in your promotion packet.
+</p>
+
+<div class="callout insight">
+  <span class="label">TL;DR</span>
+  <p>How do you drive a big, ambiguous, multi-team initiative to a good outcome?</p>
+<ul>
+<li>Technical direction is part-time product management for technology: serve the organization’s real needs, not your favorite tools.</li>
+<li>Big projects require scoping ambiguity, breaking work down, and repeatedly talking to people who see the world differently.</li>
+<li>Aggressive delegation means giving hard, growth-producing work to others with enough scaffolding to succeed.</li>
+<li>Cross-team alignment depends on the shadow org chart as much as the formal one.</li>
+<li>Technical quality must be managed as a program, starting with the cheapest useful tool and escalating only when needed.</li>
+<li>Run projects with explicit kickoff, status, risks, unblocking, and landing rituals.</li>
+</ul>
+</div>
+
+<p class="related">Related: <a href="../../02-skills-to-upgrade.md">skills overview</a>, <a href="../../05-promotion-playbook.md">promotion playbook</a>, <a href="../../06-self-assessment-and-tracking.md">self-assessment</a>.</p>
+
+<h2 id="1-technical-direction-is-product-management-for-technology">1. Technical direction is product management for technology</h2>
+<p>A Staff+ engineer setting technical direction is acting as a part-time product manager for the technology organization.
+The “product” is not a feature.
+It is the engineering system: platforms, architecture, reliability, developer experience, security posture, cost profile, and delivery capability.</p>
+<p>That means the work begins with customer discovery.
+Your customers are product teams, operators, executives, compliance partners, support teams, and future engineers.
+The question is not “What architecture do I like?”
+The question is “What does the organization need the technology system to make easier, safer, cheaper, or faster?”</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Product management question</th>
+<th>Technical leadership version</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Who is the customer?</td>
+<td>Which teams and users are constrained by this system?</td>
+</tr>
+<tr>
+<td>What problem matters now?</td>
+<td>What technical limitation blocks strategy or safety?</td>
+</tr>
+<tr>
+<td>What is the smallest valuable slice?</td>
+<td>What migration or platform step changes behavior soon?</td>
+</tr>
+<tr>
+<td>How will we measure success?</td>
+<td>What operational, delivery, or quality metric moves?</td>
+</tr>
+<tr>
+<td>What trade-off are we making?</td>
+<td>What do we defer to create leverage now?</td>
+</tr>
+</tbody>
+</table></div>
+<p>The trap is technology-centered leadership: starting with a favored framework, platform, or pattern and searching for a problem.
+Staff+ leaders invert that.
+They start with strategy, constraints, and user pain, then choose technology as a means.</p>
+<h2 id="2-leading-big-projects-scoping-the-ambiguous">2. Leading big projects: scoping the ambiguous</h2>
+<p>Big projects begin blurry.
+The first job is not to write the perfect plan.
+It is to turn ambiguity into bounded uncertainty.
+You identify what is known, what is unknown, what must be decided, and what can safely wait.</p>
+<p>The traits that matter are not glamour traits.
+They are perseverance, courage, and a willingness to talk to other people.
+Perseverance keeps the project alive after the first plan breaks.
+Courage surfaces bad news and makes hard trade-offs visible.
+Talking to people reveals hidden constraints before they explode.</p>
+<p>A useful project scoping checklist:</p>
+<ul>
+<li>What outcome are we trying to create?</li>
+<li>Why now?</li>
+<li>Which teams must change behavior?</li>
+<li>What are the top three risks?</li>
+<li>What decisions are reversible?</li>
+<li>What dependency could silently block us?</li>
+<li>What is the first valuable slice?</li>
+<li>What would make us stop?</li>
+</ul>
+<figure><pre class="mermaid">
+flowchart TD
+    A["Ambiguous initiative"] --&gt; B["Name outcome"]
+    B --&gt; C["Map stakeholders"]
+    C --&gt; D["List unknowns"]
+    D --&gt; E["Choose first slice"]
+    E --&gt; F["Create decision log"]
+    F --&gt; G["Run delivery loop"]
+    G --&gt; H{"New information"}
+    H --&gt;|"Minor"| G
+    H --&gt;|"Major"| I["Re-scope openly"]
+    I --&gt; G
+</pre></figure>
+<p>Do not confuse a detailed plan with control.
+A plan is a communication tool and a learning hypothesis.
+The real leadership skill is adjusting the plan without losing trust.</p>
+<h2 id="3-aggressive-delegation-and-creating-space">3. Aggressive delegation and creating space</h2>
+<p>At Senior level, you may be essential to the hardest work.
+At Staff+, being essential to everything becomes a bottleneck.
+You have to move from essential to adjacent.
+Adjacent means close enough to guide, unblock, and protect quality, but not so central that work waits for you.</p>
+<p>Aggressive delegation is not dumping work.
+It means deliberately giving hard pieces to people who can grow from them, with scaffolding.
+The goal is to create more leaders, not merely to reduce your calendar load.</p>
+<figure><pre class="mermaid">
+flowchart TD
+    A["Hard piece of work arrives"] --&gt; B{"Who could grow from this"}
+    B --&gt; C["Select owner"]
+    C --&gt; D["Define success and guardrails"]
+    D --&gt; E["Offer support channels"]
+    E --&gt; F["Let them lead visibly"]
+    F --&gt; G{"Risk rising"}
+    G --&gt;|"No"| H["Stay adjacent"]
+    G --&gt;|"Yes"| I["Coach or unblock&lt;br/&gt;without taking over"]
+    I --&gt; F
+</pre></figure>
+<p>Delegation should include:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Element</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Outcome</td>
+<td>“Reduce export failure rate below 0.5 percent.”</td>
+</tr>
+<tr>
+<td>Authority</td>
+<td>“You own the design review and final recommendation.”</td>
+</tr>
+<tr>
+<td>Guardrails</td>
+<td>“Do not change customer-facing APIs without product sign-off.”</td>
+</tr>
+<tr>
+<td>Support</td>
+<td>“I will review drafts and join escalation meetings if needed.”</td>
+</tr>
+<tr>
+<td>Visibility</td>
+<td>“You present the update in the platform sync.”</td>
+</tr>
+</tbody>
+</table></div>
+<p>When the work becomes theirs, let it be theirs.
+Do not re-center yourself at the moment of success.
+That is how you create space and build future Staff engineers.</p>
+<h2 id="4-cross-team-alignment-and-the-shadow-org-chart">4. Cross-team alignment and the shadow org chart</h2>
+<p>The formal org chart tells you reporting lines.
+The shadow org chart tells you how work actually moves.
+It includes trusted reviewers, incident veterans, product whisperers, informal architects, managers with veto power, and people whose silence signals risk.</p>
+<p>Cross-team alignment requires both maps.
+If you only follow the formal chart, you may miss the person everyone waits for before committing.
+If you only follow the shadow chart, you may bypass accountable leaders and create resentment.</p>
+<figure><pre class="mermaid">
+flowchart LR
+    subgraph sgFormal["Formal org chart"]
+        A1["Director"] --&gt; A2["Manager A"]
+        A1 --&gt; A3["Manager B"]
+        A2 --&gt; A4["Team A"]
+        A3 --&gt; A5["Team B"]
+    end
+    subgraph sgShadow["Shadow org chart"]
+        B1["Trusted architect"] --&gt; B2["Review gate"]
+        B3["Incident expert"] --&gt; B4["Operational confidence"]
+        B5["Product partner"] --&gt; B6["Priority signal"]
+    end
+    A4 --&gt; B2
+    A5 --&gt; B4
+    B6 --&gt; A1
+</pre></figure>
+<p>To navigate alignment:</p>
+<ol>
+<li>Identify the accountable decision-maker.</li>
+<li>Identify veto holders and high-trust influencers.</li>
+<li>Meet teams in their context before asking for commitment.</li>
+<li>Write down decisions and assumptions.</li>
+<li>Make trade-offs explicit and visible.</li>
+<li>Keep managers informed without turning every issue into escalation.</li>
+</ol>
+<h2 id="5-managing-technical-quality-as-a-program">5. Managing technical quality as a program</h2>
+<p>Technical quality is not one cleanup epic.
+It is a management system.
+Start with the cheapest useful tool and escalate only when the cheaper tool is insufficient.</p>
+<p>The escalating toolkit:</p>
+<ol>
+<li>Hot spots: identify the places where defects, toil, incidents, or slow delivery cluster.</li>
+<li>Best practices: publish simple guidance that prevents repeated mistakes.</li>
+<li>Leverage points: improve the shared system that many teams touch.</li>
+<li>Technical vectors: name directional bets, such as “move writes behind durable queues.”</li>
+<li>Measurement: track signals that reveal whether quality is improving.</li>
+<li>Technical-quality team: dedicate people when coordination cost is too high.</li>
+<li>Quality program: create funding, governance, and portfolio-level accountability.</li>
+</ol>
+<figure><pre class="mermaid">
+flowchart TD
+    A["Hot spots"] --&gt; B["Best practices"]
+    B --&gt; C["Leverage points"]
+    C --&gt; D["Technical vectors"]
+    D --&gt; E["Measurement"]
+    E --&gt; F["Technical quality team"]
+    F --&gt; G["Quality program"]
+    A -.-&gt; H["Cheapest useful tool first"]
+    G -.-&gt; I["Escalate only when needed"]
+</pre></figure>
+<p>Quality programs fail when they are framed as morality.
+“Good engineers write good code” does not move organizations.
+Better framing is consequence-based: incidents, cycle time, customer trust, onboarding speed, compliance risk, cloud cost, or delivery predictability.</p>
+<p>A quality metric should be actionable.
+If no team can change behavior in response to it, it is a dashboard decoration.</p>
+<h2 id="6-running-the-project-day-to-day">6. Running the project day to day</h2>
+<p>A large initiative needs operating rituals.
+The goal is not ceremony.
+The goal is to keep reality visible and reduce coordination drag.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Ritual</th>
+<th>Purpose</th>
+<th>Output</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Kickoff</td>
+<td>Align on why, scope, roles, and risks</td>
+<td>Charter and owners</td>
+</tr>
+<tr>
+<td>Weekly status</td>
+<td>Make progress and risk visible</td>
+<td>Written update</td>
+</tr>
+<tr>
+<td>Risk review</td>
+<td>Prevent surprises</td>
+<td>Risk register and mitigations</td>
+</tr>
+<tr>
+<td>Decision review</td>
+<td>Resolve trade-offs</td>
+<td>Decision log</td>
+</tr>
+<tr>
+<td>Dependency sync</td>
+<td>Unblock teams</td>
+<td>Named asks and due dates</td>
+</tr>
+<tr>
+<td>Landing review</td>
+<td>Confirm adoption and cleanup</td>
+<td>Rollout and closeout plan</td>
+</tr>
+</tbody>
+</table></div>
+<p>A good status update includes:</p>
+<ul>
+<li>overall color with reason;</li>
+<li>progress since last update;</li>
+<li>risks and decisions needed;</li>
+<li>asks by owner and date;</li>
+<li>next milestone;</li>
+<li>confidence level.</li>
+</ul>
+<p>The project is not done when code merges.
+It is done when the intended behavior changes, the system is operating safely, owners know what remains, and the organization has learned something durable.</p>
+<h2 id="7-practice-drills">7. Practice drills</h2>
+<ul>
+<li>Take one ambiguous initiative and write a one-page charter: outcome, scope, owners, risks, first slice.</li>
+<li>Map the formal and shadow org chart for a current cross-team project.</li>
+<li>Identify one hard project piece you are currently holding and delegate it with guardrails.</li>
+<li>Create a risk register with probability, impact, owner, mitigation, and review date.</li>
+<li>Rewrite a technical quality argument in terms of customer, operational, or delivery consequences.</li>
+<li>Start a decision log for a project and record the first three decisions.</li>
+<li>Ask one adopting team what would make the initiative easier to consume.</li>
+</ul>
+<h2 id="8-what-good-looks-like-at-staff">8. What &quot;good&quot; looks like at Staff+</h2>
+<ul>
+<li>You connect technical direction to business and organizational needs.</li>
+<li>You break ambiguous work into slices that create learning and value.</li>
+<li>You make other engineers visible leaders of meaningful pieces.</li>
+<li>Teams understand the trade-offs even when they disagree.</li>
+<li>Risks are surfaced early, owned clearly, and revisited regularly.</li>
+<li>Technical quality work is prioritized by consequence and leverage.</li>
+<li>The initiative lands as changed behavior, not just merged code.</li>
+</ul>
+<h2 id="9-common-pitfalls">9. Common pitfalls</h2>
+<ul>
+<li>Starting with preferred technology instead of organizational need.</li>
+<li>Becoming the bottleneck because every hard decision routes through you.</li>
+<li>Delegating only easy work and keeping all growth opportunities.</li>
+<li>Ignoring informal influencers until they become blockers.</li>
+<li>Treating quality as a cleanup crusade rather than a managed program.</li>
+<li>Reporting green until a project is suddenly red.</li>
+<li>Declaring victory at launch while adoption, operations, and cleanup remain unfinished.</li>
+</ul>
+<h2 id="10-further-reading">10. Further reading</h2>
+<ul>
+<li>StaffEng, “What do Staff engineers actually do?”: <a href="https://staffeng.com/guides/what-do-staff-engineers-actually-do/" target="_blank" rel="noopener">https://staffeng.com/guides/what-do-staff-engineers-actually-do/</a></li>
+<li>StaffEng, “Manage technical quality”: <a href="https://staffeng.com/guides/manage-technical-quality/" target="_blank" rel="noopener">https://staffeng.com/guides/manage-technical-quality/</a></li>
+<li>StaffEng, “Create space for others”: <a href="https://staffeng.com/guides/create-space-for-others/" target="_blank" rel="noopener">https://staffeng.com/guides/create-space-for-others/</a></li>
+<li>The Pragmatic Engineer, “The Staff Engineer's Path”: <a href="https://newsletter.pragmaticengineer.com/p/the-staff-engineers-path" target="_blank" rel="noopener">https://newsletter.pragmaticengineer.com/p/the-staff-engineers-path</a></li>
+</ul>
+
+<div class="primary-source">
+  <span class="label">Read this next (primary source)</span>
+  <p><a href="https://staffeng.com/guides/manage-technical-quality/" target="_blank" rel="noopener"><em>Manage technical quality</em></a> (StaffEng): the escalating toolkit from hot spots to a quality program. Read it before you propose any “cleanup epic”. Pair it with <a href="https://staffeng.com/guides/what-do-staff-engineers-actually-do/" target="_blank" rel="noopener"><em>What do Staff engineers actually do?</em></a> for technical direction as product management for technology.</p>
+</div>
+
+<h2 id="11-check-yourself">11. Check yourself</h2>
+<p>Retrieve before revealing.</p>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 1 of 3</p>
+  <p class="quiz-q">You are asked to lead a vague initiative: “fix our deployment pain” across six teams. What is your first deliverable?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="Right — the first job is to turn ambiguity into bounded uncertainty, not to write the perfect plan.">A one-page charter naming the outcome, why now, owners, top risks and the first valuable slice</button></li>
+    <li><button data-correct="false" data-feedback="A detailed plan is not control. It is a hypothesis, and it will break; scope the outcome and first slice first.">A detailed twelve-month plan so that every team can see its exact tasks and deadlines up front</button></li>
+    <li><button data-correct="false" data-feedback="Starting from your preferred technology inverts the order. Start from the organisation’s need and constraints.">A reference architecture for the new deployment platform that you believe the teams really need</button></li>
+    <li><button data-correct="false" data-feedback="Talking to teams is essential, but a preference survey is not scoping. Name the outcome, then discover constraints.">A survey of every team’s tooling preferences, before deciding whether the initiative should start</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Scope the ambiguous: name the outcome, map stakeholders, list unknowns, choose a first slice and start a decision log. Then re-scope openly when major new information arrives."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 2 of 3</p>
+  <p class="quiz-q">You own the hardest piece of a cross-team migration, the dual-write cutover design. A strong Senior engineer on another team wants to grow. What is the Staff move?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="Delegating only easy work keeps every growth opportunity, and every bottleneck, with you.">Keep the cutover yourself because it carries the most risk, and give them the runbook updates</button></li>
+    <li><button data-correct="false" data-feedback="Aggressive delegation is not dumping. Without guardrails and support, this is exposure, not empowerment.">Hand them the cutover and step away entirely, so they get full ownership and plenty of room to grow</button></li>
+    <li><button data-correct="true" data-feedback="Right — hard work, scaffolded: outcome, authority, guardrails, support and visibility, while you stay adjacent.">Give them the cutover with an outcome, guardrails and review support, and let them present it</button></li>
+    <li><button data-correct="false" data-feedback="Co-ownership keeps you central. The work and the visibility should become theirs while you stay adjacent.">Co-own the cutover with them, and present the final design together at the platform sync</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Move from essential to adjacent: give hard, growth-producing work with outcome, authority, guardrails, support and visibility, then coach or unblock without taking over."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 3 of 3</p>
+  <p class="quiz-q">Two teams approved your migration plan in the formal review, but nothing has moved for three weeks. Engineers say they are “waiting for Priya to look at it”. Priya is on neither team. What is going on?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="Escalating before you understand the blockage uses capital on the wrong problem.">The teams are under-resourced, so ask their director to reprioritise both roadmaps this quarter</button></li>
+    <li><button data-correct="true" data-feedback="Right — the shadow org chart shows how work really moves; engage the trusted reviewer, keep managers informed.">Priya is an informal review gate in the shadow org chart; meet her and fold in her concerns</button></li>
+    <li><button data-correct="false" data-feedback="More detail does not help if the people who must commit are waiting on someone you have not engaged.">The plan lacks detail, so write a more thorough design doc and circulate it to both teams again</button></li>
+    <li><button data-correct="false" data-feedback="Ignoring informal influencers until they become blockers is a classic pitfall; the formal chart is not enough.">Priya has no formal authority here, so remind the teams that the decision was already made</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Cross-team alignment needs both maps. The formal org chart gives accountable decision-makers; the shadow org chart gives trusted reviewers, veto holders and people whose silence signals risk."></div>
+</div>
+
+<div class="callout tryit">
+  <span class="label">Try it in your own system</span>
+  <ul class="checklist">
+    <li>Write a one-page charter for the most ambiguous initiative you touch: outcome, why now, teams that must change behaviour, top three risks, first slice, and what would make you stop.</li>
+    <li>Map the formal and the shadow org chart for one cross-team project, and mark the person everyone waits for before committing.</li>
+    <li>Pick one hard piece of work you are holding and delegate it this week using the outcome, authority, guardrails, support and visibility checklist.</li>
+    <li>Rewrite one technical-quality argument in terms of consequences (incidents, cycle time, cost, onboarding), and decide which rung of the quality toolkit it really needs.</li>
+    <li>Start a decision log and a risk register (probability, impact, owner, mitigation, review date), and send one written status with colour, reason, asks and confidence.</li>
+  </ul>
+</div>
+
+<div class="followup">
+  <strong>I&rsquo;m your teacher &mdash; ask me anything.</strong> Describe the messiest initiative on your plate and we will turn it into a charter, a first slice and a delegation plan, or map its shadow org chart together.
+</div>
+
+<nav class="lesson-nav">
+  <span class="group">
+    <b>Previous</b>
+    <a href="0002-communication-and-executive-writing.html">&larr; Lesson 02 · Executive communication</a>
+  </span>
+  <span class="group">
+    <b>Reference</b>
+    <a href="../reference/0003-technical-and-project-leadership-cheatsheet.html">Project leadership cheat sheet &rarr;</a>
+  </span>
+  <span class="group">
+    <b>Course map</b>
+    <a href="../index.html">&uarr; All lessons</a>
+  </span>
+  <span class="group">
+    <b>Up next</b>
+    <a href="0004-mentorship-and-sponsorship.html">Lesson 04 · Mentorship & sponsorship &rarr;</a>
+  </span>
+</nav>
+
+</body>
+</html>

@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 03 · Databases &amp; Data Modeling</title>
+<link rel="stylesheet" href="../../assets/course/course.css">
+<link rel="stylesheet" href="../assets/theme.css">
+<script src="../../assets/course/links.js" defer></script>
+<script src="../../assets/course/quiz.js" defer></script>
+<script type="module" src="../../assets/course/mermaid.js"></script>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">System Design · Lesson 03</p>
+  <h1>Databases &amp; Data Modeling</h1>
+  <div class="meta">
+    <span>◷ ~17 min read</span>
+    <span class="dot">•</span>
+    <span>Building blocks</span>
+    <span class="dot">•</span>
+    <span>Prereq: <a href="0002-cap-theorem-consistency-models.html">Lesson 02</a></span>
+  </div>
+</header>
+
+<p class="mission-tie">
+  The database is the stateful heart of the system and usually the first thing to fall over. Staff engineers <strong>scale it cheapest-first</strong>, pick SQL or NoSQL from the <em>access pattern</em> rather than fashion, choose a shard key that won&rsquo;t create permanent hotspots, and know the isolation level they are really running on. These are the decisions that are hardest to undo later.
+</p>
+
+<div class="callout insight">
+  <span class="label">TL;DR</span>
+  <p><strong>The core question:</strong> where does the data live, how is it kept consistent, and how does it keep working when it outgrows a single machine? This is the stateful heart of every system — and usually the first thing to become a bottleneck.</p>
+<ul>
+<li>Scale a relational DB in this order: <strong>indexes &amp; query tuning → read replicas → caching → federation → sharding → denormalization.</strong> Each step adds complexity; stop when the numbers are satisfied.</li>
+<li><strong>SQL</strong> = structured, relational, strong consistency, joins, ACID. <strong>NoSQL</strong> = flexible schema, horizontal scale, high write throughput, usually BASE/eventual.</li>
+<li><strong>ACID</strong> (correctness) vs <strong>BASE</strong> (availability) is the philosophical split behind SQL vs NoSQL.</li>
+<li><strong>Isolation levels</strong> trade correctness for concurrency; know the anomalies each one allows.</li>
+<li><strong>Consistent hashing</strong> makes sharding elastic. <strong>B-Tree vs LSM-Tree</strong> is the read-optimized vs write-optimized storage-engine choice.</li>
+</ul>
+</div>
+
+<h2 id="1-scaling-a-relational-database-in-order">1. Scaling a relational database (in order)</h2>
+<figure><pre class="mermaid">
+flowchart LR
+    A["Single DB"] --&gt; B["Indexes +&lt;br/&gt;query tuning"]
+    B --&gt; C["Read replicas&lt;br/&gt;(scale reads)"]
+    C --&gt; D["Cache layer&lt;br/&gt;(offload reads)"]
+    D --&gt; E["Federation&lt;br/&gt;(split by function)"]
+    E --&gt; F["Sharding&lt;br/&gt;(split by data)"]
+    F --&gt; G["Denormalization&lt;br/&gt;(avoid joins)"]
+</pre></figure>
+<p>Apply the cheapest fix that meets your numbers; each step to the right adds operational cost.</p>
+<ul>
+<li><strong>Indexing &amp; query tuning</strong> — the highest-ROI step. A missing index turns a millisecond lookup into a full table scan. Tune with <code>EXPLAIN</code>.</li>
+<li><strong>Read replicas</strong> — the primary handles writes and replicates to read-only copies. Scales <em>reads</em> (most apps are read-heavy). Cost: <strong>replication lag</strong> → replicas can serve stale data.</li>
+<li><strong>Caching</strong> — put a cache in front (Topic 4) to absorb hot reads.</li>
+<li><strong>Federation</strong> — split databases <em>by function</em> (users DB, products DB, orders DB). Smaller tables, more write throughput, parallel query. Cost: cross-DB joins become app-side.</li>
+<li><strong>Sharding</strong> — split one big table <em>by data</em> across nodes (see §3). Scales <em>writes and data volume</em>.</li>
+<li><strong>Denormalization</strong> — duplicate data to avoid expensive joins across replicas/shards. Trades write complexity + storage for read speed.</li>
+</ul>
+<h2 id="2-replication">2. Replication</h2>
+<h3 id="single-leader-primaryreplica">Single-leader (primary/replica)</h3>
+<p>All writes go to the leader; reads can go to followers. Simple, strongly consistent if you read the leader; the standard RDBMS setup.</p>
+<figure><pre class="mermaid">
+flowchart TD
+    C["Clients"] --&gt;|writes| P["Leader (Primary)"]
+    P --&gt;|replicate| R1["Follower 1"]
+    P --&gt;|replicate| R2["Follower 2"]
+    C -.-&gt;|reads| R1
+    C -.-&gt;|reads| R2
+</pre></figure>
+<ul>
+<li><strong>Synchronous replication</strong> — leader waits for follower ack → no data loss on failover, higher write latency.</li>
+<li><strong>Asynchronous replication</strong> — leader acks immediately → fast, but a crash can lose the last writes (replication lag). Most deployments are async or semi-sync.</li>
+<li><strong>Failover</strong> — promote a follower when the leader dies; risk of split-brain and lost async writes.</li>
+</ul>
+<h3 id="multi-leader">Multi-leader</h3>
+<p>Multiple nodes accept writes (e.g., one per region). Higher write availability and locality, but <strong>write conflicts</strong> must be resolved (last-write-wins, version vectors, CRDTs).</p>
+<h3 id="leaderless-dynamo-style">Leaderless (Dynamo-style)</h3>
+<p>Any replica accepts writes; consistency tuned with quorums (<code>W + R &gt; N</code>, see <a href="0002-cap-theorem-consistency-models.html#4-replication--quorums--tuning-the-dial">Topic 2</a>). Used by Cassandra, DynamoDB, Riak.</p>
+<h2 id="3-sharding-partitioning">3. Sharding (partitioning)</h2>
+<p>Splitting one dataset across many nodes so each holds a subset. The way you choose the <strong>shard key</strong> determines everything.</p>
+<figure><pre class="mermaid">
+flowchart TD
+    R["Router / coordinator"] --&gt; S1["Shard 1&lt;br/&gt;users A–H"]
+    R --&gt; S2["Shard 2&lt;br/&gt;users I–P"]
+    R --&gt; S3["Shard 3&lt;br/&gt;users Q–Z"]
+</pre></figure>
+<p><strong>Sharding strategies:</strong></p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Strategy</th>
+<th>How</th>
+<th>Pro</th>
+<th>Con</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Range</strong></td>
+<td>Partition by key ranges (A–H, I–P…)</td>
+<td>Efficient range scans</td>
+<td><strong>Hotspots</strong> if data/traffic is skewed</td>
+</tr>
+<tr>
+<td><strong>Hash</strong></td>
+<td><code>hash(key) % N</code></td>
+<td>Even distribution</td>
+<td>Range queries scatter; resharding reshuffles everything</td>
+</tr>
+<tr>
+<td><strong>Consistent hash</strong></td>
+<td>Hash onto a ring (§6)</td>
+<td>Minimal reshuffle on node change</td>
+<td>More complex</td>
+</tr>
+<tr>
+<td><strong>Directory / lookup</strong></td>
+<td>A lookup service maps key → shard</td>
+<td>Flexible, easy rebalancing</td>
+<td>The lookup table is a SPOF/bottleneck</td>
+</tr>
+<tr>
+<td><strong>Geo</strong></td>
+<td>Partition by region</td>
+<td>Data locality, compliance</td>
+<td>Cross-region queries costly</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>The hard parts of sharding:</strong></p>
+<ul>
+<li><strong>Cross-shard joins &amp; transactions</strong> — no longer free; often pushed to the app or avoided by denormalizing.</li>
+<li><strong>Hotspots / celebrity problem</strong> — one shard gets disproportionate traffic (e.g., a viral user). Mitigate with a compound key or splitting hot keys.</li>
+<li><strong>Rebalancing</strong> — adding a shard shouldn't move <em>all</em> the data (that's why consistent hashing exists).</li>
+<li><strong>Choosing the shard key</strong> — pick high-cardinality, evenly-accessed keys. A bad key (e.g., <code>country</code>) creates permanent skew.</li>
+</ul>
+<h2 id="4-sql-vs-nosql">4. SQL vs NoSQL</h2>
+<h3 id="sql-relational">SQL (relational)</h3>
+<p>Tables, rows, fixed schema, relationships, <strong>joins</strong>, and <strong>ACID</strong> transactions. Best when data is structured and relationships/consistency matter (finance, orders, inventory). Examples: PostgreSQL, MySQL, SQL Server.</p>
+<h3 id="nosql--four-families">NoSQL — four families</h3>
+<figure><pre class="mermaid">
+flowchart TD
+    N["NoSQL"] --&gt; KV["Key–Value&lt;br/&gt;Redis, DynamoDB&lt;br/&gt;(caching, sessions)"]
+    N --&gt; Doc["Document&lt;br/&gt;MongoDB, Couchbase&lt;br/&gt;(semi-structured, nested)"]
+    N --&gt; Col["Wide-Column&lt;br/&gt;Cassandra, HBase, Bigtable&lt;br/&gt;(huge write volume, time-series)"]
+    N --&gt; Gr["Graph&lt;br/&gt;Neo4j, Neptune&lt;br/&gt;(relationships, social, fraud)"]
+</pre></figure>
+<ul>
+<li><strong>Key–Value</strong> — a giant hash map. Blazing fast <code>get/put</code> by key. Sessions, caches, feature flags.</li>
+<li><strong>Document</strong> — JSON-like documents; flexible schema; query within documents. Catalogs, user profiles, content.</li>
+<li><strong>Wide-Column</strong> — rows with dynamic columns grouped into families; optimized for massive write throughput and range scans over a partition key. Time-series, event logs, messaging.</li>
+<li><strong>Graph</strong> — nodes and edges as first-class citizens; traverse relationships cheaply. Social graphs, recommendations, fraud rings.</li>
+</ul>
+<h3 id="when-to-choose-which">When to choose which</h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Choose <strong>SQL</strong> when…</th>
+<th>Choose <strong>NoSQL</strong> when…</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Data is relational, schema is stable</td>
+<td>Schema is fluid / varies per record</td>
+</tr>
+<tr>
+<td>You need multi-row ACID transactions</td>
+<td>You need massive horizontal write scale</td>
+</tr>
+<tr>
+<td>Complex ad-hoc queries &amp; joins</td>
+<td>Access patterns are known &amp; simple (by key)</td>
+</tr>
+<tr>
+<td>Consistency &gt; raw availability</td>
+<td>Availability/latency &gt; strict consistency</td>
+</tr>
+</tbody>
+</table></div>
+<blockquote>
+<p><strong>Modern reality:</strong> the line blurs. Postgres has JSONB (document-style), and &quot;NewSQL&quot; (Spanner, CockroachDB, YugabyteDB) offers horizontal scale <em>with</em> SQL + ACID. Pick by <em>access pattern</em>, not hype.</p>
+</blockquote>
+<h2 id="5-acid-vs-base">5. ACID vs BASE</h2>
+<p>The two consistency philosophies — the root of the SQL/NoSQL divide.</p>
+<p><strong>ACID (traditional RDBMS):</strong></p>
+<ul>
+<li><strong>Atomicity</strong> — all-or-nothing; a transaction fully commits or fully rolls back.</li>
+<li><strong>Consistency</strong> — a transaction moves the DB from one valid state to another (invariants hold).</li>
+<li><strong>Isolation</strong> — concurrent transactions don't corrupt each other (see §7).</li>
+<li><strong>Durability</strong> — once committed, it survives crashes (written to disk/WAL).</li>
+</ul>
+<p><strong>BASE (many NoSQL):</strong></p>
+<ul>
+<li><strong>Basically Available</strong> — the system always responds (maybe with stale data).</li>
+<li><strong>Soft state</strong> — state may change over time even without input (due to async convergence).</li>
+<li><strong>Eventual consistency</strong> — replicas converge eventually.</li>
+</ul>
+<figure><pre class="mermaid">
+flowchart LR
+    ACID["ACID&lt;br/&gt;correctness first&lt;br/&gt;(banks, orders)"] &lt;--&gt;|"spectrum"| BASE["BASE&lt;br/&gt;availability first&lt;br/&gt;(feeds, carts, metrics)"]
+</pre></figure>
+<h2 id="6-consistent-hashing">6. Consistent Hashing</h2>
+<p><strong>Problem:</strong> with naïve <code>hash(key) % N</code>, adding/removing a node changes <code>N</code>, so <em>almost every key</em> remaps → a storm of cache misses / data movement.</p>
+<p><strong>Solution:</strong> map both <strong>nodes</strong> and <strong>keys</strong> onto a circular hash ring <code>[0, 2^32)</code>. A key belongs to the <strong>first node clockwise</strong> from its hash. Adding/removing a node only remaps the keys in <strong>one arc</strong> — on average <code>K/N</code> keys — instead of all of them.</p>
+<figure><pre class="mermaid">
+flowchart TD
+    subgraph ring["Hash ring (clockwise ownership)"]
+        N1["Node A @ 40"]
+        N2["Node B @ 120"]
+        N3["Node C @ 200"]
+        K1["key1 → 55 ⇒ Node B"]
+        K2["key2 → 150 ⇒ Node C"]
+        K3["key3 → 210 ⇒ Node A (wraps)"]
+    end
+</pre></figure>
+<p><strong>Virtual nodes:</strong> each physical node is placed at <em>many</em> points on the ring (e.g., 100–200 virtual nodes). This smooths out uneven distribution and lets heterogeneous machines take proportional load. Used by Cassandra, DynamoDB, and consistent-hash load balancers.</p>
+<p><strong>Payoff:</strong> adding a 4th node to a 3-node cluster moves ~25% of keys (to fill its arc), not ~100%.</p>
+<h2 id="7-transaction-isolation-levels">7. Transaction Isolation Levels</h2>
+<p>Isolation controls what concurrent transactions can see of each other. Stronger isolation = fewer anomalies but less concurrency (more locking/aborts).</p>
+<p><strong>The anomalies:</strong></p>
+<ul>
+<li><strong>Dirty read</strong> — read another transaction's <em>uncommitted</em> change.</li>
+<li><strong>Non-repeatable read</strong> — re-reading the same row returns a different value (someone committed an update in between).</li>
+<li><strong>Phantom read</strong> — re-running the same <em>query</em> returns new/<em>different rows</em> (someone inserted/deleted matching rows).</li>
+<li><strong>Lost update / write skew</strong> — two transactions read-modify-write and one clobbers the other, or two decisions based on the same read violate an invariant.</li>
+</ul>
+<p><strong>The standard levels (weak → strong):</strong></p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Level</th>
+<th>Dirty read</th>
+<th>Non-repeatable read</th>
+<th>Phantom read</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Read Uncommitted</strong></td>
+<td>✅ possible</td>
+<td>✅ possible</td>
+<td>✅ possible</td>
+</tr>
+<tr>
+<td><strong>Read Committed</strong></td>
+<td>❌ prevented</td>
+<td>✅ possible</td>
+<td>✅ possible</td>
+</tr>
+<tr>
+<td><strong>Repeatable Read</strong></td>
+<td>❌</td>
+<td>❌ prevented</td>
+<td>✅ possible*</td>
+</tr>
+<tr>
+<td><strong>Serializable</strong></td>
+<td>❌</td>
+<td>❌</td>
+<td>❌ prevented</td>
+</tr>
+</tbody>
+</table></div>
+<figure><pre class="mermaid">
+flowchart LR
+    RU["Read Uncommitted&lt;br/&gt;(fastest, least safe)"] --&gt; RC["Read Committed"]
+    RC --&gt; RR["Repeatable Read"]
+    RR --&gt; S["Serializable&lt;br/&gt;(safest, least concurrent)"]
+</pre></figure>
+<p>* In the SQL standard, Repeatable Read permits phantoms; <strong>MySQL InnoDB</strong> prevents most phantoms at this level via next-key locking, and <strong>Serializable</strong> (often via <strong>Serializable Snapshot Isolation</strong>) prevents all anomalies. <strong>Read Committed</strong> is the common default (Postgres, Oracle).</p>
+<blockquote>
+<p><strong>Staff+ nuance:</strong> most bugs come from <em>assuming</em> Serializable while running on Read Committed. Know your database's <strong>default</strong> and pick the weakest level that still protects your invariants — escalate specific transactions (e.g., <code>SELECT ... FOR UPDATE</code>) rather than globally serializing.</p>
+</blockquote>
+<h2 id="8-b-tree-vs-lsm-tree-storage-engines">8. B-Tree vs LSM-Tree (storage engines)</h2>
+<p>How a database physically stores and retrieves data on disk — the deepest layer, and a real Staff+ differentiator.</p>
+<figure><pre class="mermaid">
+flowchart TB
+    subgraph BT["B-Tree (read-optimized)"]
+        BTn["In-place updates&lt;br/&gt;Balanced tree of pages&lt;br/&gt;Reads: few seeks&lt;br/&gt;Writes: random I/O + WAL"]
+    end
+    subgraph LSM["LSM-Tree (write-optimized)"]
+        L1["1. Write → in-memory Memtable (fast)"]
+        L2["2. Flush → immutable SSTable on disk"]
+        L3["3. Compaction merges SSTables"]
+        L4["Reads check Memtable + SSTables&lt;br/&gt;(Bloom filters skip misses)"]
+        L1 --&gt; L2 --&gt; L3
+    end
+</pre></figure>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th></th>
+<th><strong>B-Tree</strong></th>
+<th><strong>LSM-Tree</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Writes</td>
+<td>In-place, random I/O</td>
+<td>Sequential appends (fast)</td>
+</tr>
+<tr>
+<td>Reads</td>
+<td>Fast, predictable</td>
+<td>Slower (check multiple SSTables; Bloom filters help)</td>
+</tr>
+<tr>
+<td>Write amplification</td>
+<td>Moderate</td>
+<td>Lower for writes, but <strong>compaction</strong> adds background I/O</td>
+</tr>
+<tr>
+<td>Space</td>
+<td>Fragmentation</td>
+<td>Better compression (sorted immutable files)</td>
+</tr>
+<tr>
+<td>Used by</td>
+<td>PostgreSQL, MySQL/InnoDB, most RDBMS</td>
+<td>Cassandra, RocksDB, LevelDB, HBase, ScyllaDB</td>
+</tr>
+<tr>
+<td>Pick when</td>
+<td>Read-heavy, range queries, transactions</td>
+<td>Write-heavy ingest, time-series, logs</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Bloom filter</strong> — a compact probabilistic set that answers &quot;is this key <em>definitely not</em> here?&quot; with no false negatives. LSM engines use it to avoid scanning SSTables that can't contain the key, rescuing read performance.</p>
+<h2 id="9-what-good-looks-like-at-staff">9. What &quot;good&quot; looks like at Staff+</h2>
+<ul>
+<li>You scale the DB in the <strong>cheapest-first order</strong> and know which step the current numbers justify.</li>
+<li>You choose SQL vs NoSQL (and the family) from the <strong>access pattern</strong>, not fashion — and can defend it.</li>
+<li>You choose a <strong>shard key</strong> that avoids hotspots and explain the cross-shard query cost.</li>
+<li>You know your DB's <strong>default isolation level</strong> and the anomalies it allows.</li>
+<li>You can reason about <strong>B-Tree vs LSM</strong> when picking a store for a write-heavy vs read-heavy workload.</li>
+</ul>
+<h2 id="10-common-pitfalls">10. Common pitfalls</h2>
+<ul>
+<li><strong>Sharding too early</strong> — it removes joins/transactions and multiplies ops burden. Exhaust replicas + caching + federation first.</li>
+<li><strong>A skewed shard key</strong> → permanent hotspots you can't fix without a migration.</li>
+<li><strong>Reading from async replicas</strong> and being surprised by stale data (add read-your-writes routing).</li>
+<li><strong>Denormalizing without an update strategy</strong> → duplicated data drifts out of sync.</li>
+<li><strong>Assuming ACID across services</strong> — distributed transactions are hard; prefer sagas / the outbox pattern (<a href="0005-asynchronism-and-messaging.html">Topic 5</a>).</li>
+</ul>
+<h2 id="11-further-reading">11. Further reading</h2>
+<ul>
+<li>System Design Primer — &quot;Database&quot; (replication, federation, sharding, denormalization, SQL tuning, NoSQL) — <a href="https://github.com/donnemartin/system-design-primer#database" target="_blank" rel="noopener">https://github.com/donnemartin/system-design-primer#database</a></li>
+<li>Kleppmann, <em>DDIA</em> Ch. 2 (data models), Ch. 3 (storage engines: B-Tree vs LSM), Ch. 6 (partitioning), Ch. 7 (transactions/isolation) — <a href="https://dataintensive.net/" target="_blank" rel="noopener">https://dataintensive.net/</a></li>
+<li>ByteByteGo — &quot;Data sharding&quot;, &quot;ACID&quot;, &quot;Isolation levels&quot;, &quot;B-Tree vs LSM-Tree&quot;, &quot;Consistent Hashing&quot; — <a href="https://github.com/ByteByteGoHq/system-design-101" target="_blank" rel="noopener">https://github.com/ByteByteGoHq/system-design-101</a></li>
+<li>Amazon Dynamo paper (consistent hashing, quorums) — <a href="https://www.allthingsdistributed.com/files/amazon-dynamo-sosp2007.pdf" target="_blank" rel="noopener">https://www.allthingsdistributed.com/files/amazon-dynamo-sosp2007.pdf</a></li>
+</ul>
+
+<div class="primary-source">
+  <span class="label">Read this next (primary source)</span>
+  <p><a href="https://dataintensive.net/" target="_blank" rel="noopener"><em>Designing Data-Intensive Applications</em></a> (Kleppmann): Ch. 3 for B-Tree vs LSM, Ch. 6 for partitioning, Ch. 7 for transactions and isolation anomalies such as write skew. Then the <a href="https://www.allthingsdistributed.com/files/amazon-dynamo-sosp2007.pdf" target="_blank" rel="noopener"><em>Amazon Dynamo paper</em></a> to see consistent hashing, virtual nodes and quorums working together in production.</p>
+</div>
+
+<h2 id="12-check-yourself">12. Check yourself</h2>
+<p>Retrieve before revealing.</p>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 1 of 3</p>
+  <p class="quiz-q">A single Postgres primary is at 85% CPU. 90% of traffic is reads, and the top query does a sequential scan on <code>orders</code>. Someone proposes sharding by <code>customer_id</code>. What do you push for first?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="Sharding too early removes joins and transactions and multiplies ops work. Exhaust the cheap steps first.">Shard now — growth forces it later, and migrating later costs more</button></li>
+    <li><button data-correct="false" data-feedback="Federation is a later rung. A missing index is a far cheaper fix for a read-heavy, scan-bound workload.">Federate into users, products and orders databases to split load</button></li>
+    <li><button data-correct="false" data-feedback="The pressure is from reads and one bad query. Changing the data model doesn't fit this access pattern.">Move to a wide-column NoSQL store so writes scale horizontally</button></li>
+    <li><button data-correct="true" data-feedback="Right — indexing and query tuning is the highest-ROI step; replicas then scale a read-heavy load.">Fix the query with an index and EXPLAIN, then add read replicas</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Scale cheapest-first: index and tune → read replicas → cache → federation → sharding → denormalisation. Stop when the numbers are met."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 2 of 3</p>
+  <p class="quiz-q">You are sharding a multi-tenant SaaS events table. One tenant drives 40% of traffic. The proposal shards by <code>country</code> &ldquo;because most queries filter by country&rdquo;. Your review comment:</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="Range sharding on a skewed, low-cardinality key creates hotspots; the big tenant's country shard melts.">Good — range sharding by country keeps range scans cheap and local</button></li>
+    <li><button data-correct="true" data-feedback="Right — a few countries can't spread load evenly, and a 40% tenant needs its own split or a compound key.">Low cardinality and skew: use a high-cardinality key, split hot tenants</button></li>
+    <li><button data-correct="false" data-feedback="Consistent hashing helps rebalancing, but a few hot key values still land on a few nodes.">Fine, as long as country values are placed with consistent hashing</button></li>
+    <li><button data-correct="false" data-feedback="A directory makes rebalancing flexible, but one tenant is still one hot key, and the lookup can become a bottleneck.">Use a directory service instead, which removes hotspots by design</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Choose a high-cardinality, evenly-accessed shard key; a skewed key creates permanent hotspots you can't fix without a migration."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 3 of 3</p>
+  <p class="quiz-q">Two doctors are on call. Each transaction checks &ldquo;at least one other doctor is on call&rdquo;, then takes itself off call. Both commit, and nobody is on call. The database runs Read Committed. The right fix is&hellip;</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="The database can prevent this. A nightly job finds the gap hours after patients needed a doctor.">nothing in the database; catch it with a nightly reconciliation job</button></li>
+    <li><button data-correct="false" data-feedback="Weaker isolation allows dirty reads and still doesn't make the check-then-write atomic.">drop to Read Uncommitted so each transaction sees the other's change</button></li>
+    <li><button data-correct="true" data-feedback="Right — this is write skew. Escalate this one transaction instead of serialising the whole database.">lock the rows you read (FOR UPDATE), or run this one as serializable</button></li>
+    <li><button data-correct="false" data-feedback="Replicas lag the primary; they make the check staler, not safer.">add a read replica so each check reads its own fresher copy of data</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Know your default isolation level. Protect invariants by escalating specific transactions (SELECT … FOR UPDATE, serializable), not by serialising everything."></div>
+</div>
+
+<div class="callout tryit">
+  <span class="label">Try it in your own system</span>
+  <ul class="checklist">
+    <li>Run <code>EXPLAIN</code> on your three slowest queries. For each, note the cheapest rung of the scaling ladder that would fix it.</li>
+    <li>Look up your database&rsquo;s default isolation level. Pick one invariant (balance, stock, uniqueness) and name the anomaly that could break it.</li>
+    <li>If you shard, or plan to: list your top ten queries and mark which go cross-shard with your key. Check the key&rsquo;s cardinality and skew.</li>
+    <li>Note whether each store is B-Tree or LSM based and whether its workload is read-heavy or write-heavy. Flag any mismatch.</li>
+    <li>Find one read from an async replica that follows a write by the same user. Is it routed for read-your-writes?</li>
+  </ul>
+</div>
+
+<div class="followup">
+  <strong>I&rsquo;m your teacher &mdash; ask me anything.</strong> Show me your schema and top queries and we&rsquo;ll pick a shard key, find the isolation-level bugs, and decide which rung of the scaling ladder you actually need next.
+</div>
+
+<nav class="lesson-nav">
+  <span class="group">
+    <b>Previous</b>
+    <a href="0002-cap-theorem-consistency-models.html">&larr; Lesson 02 · CAP & consistency</a>
+  </span>
+  <span class="group">
+    <b>Reference</b>
+    <a href="../reference/0003-databases-and-data-modeling-cheatsheet.html">Databases & data modeling cheat sheet &rarr;</a>
+  </span>
+  <span class="group">
+    <b>Course map</b>
+    <a href="../index.html">&uarr; All lessons</a>
+  </span>
+  <span class="group">
+    <b>Up next</b>
+    <a href="0004-caching.html">Lesson 04 · Caching &rarr;</a>
+  </span>
+</nav>
+
+</body>
+</html>

@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cheat Sheet · Distributed Systems</title>
+<link rel="stylesheet" href="../../assets/course/course.css">
+<link rel="stylesheet" href="../assets/theme.css">
+<script src="../../assets/course/links.js" defer></script>
+<style>
+  body { max-width: 52rem; }
+  @media print { body { margin: 0; } h2 { margin-top: 1.1rem; } }
+</style>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Technical Skills · Reference 01</p>
+  <h1>Distributed Systems Cheat Sheet</h1>
+  <div class="meta"><span>Compressed from Lesson 01</span><span class="dot">•</span><span>Print-friendly</span></div>
+</header>
+
+<div class="callout insight">
+  <span class="label">Mindset</span>
+  <p>Name the <strong>guarantee</strong> and the <strong>failure model</strong> before you name a technology.
+  &ldquo;Strong&rdquo; and &ldquo;eventual&rdquo; are not guarantees; linearizable, causal and convergent are.</p>
+</div>
+
+<h2>The three lenses</h2>
+<table>
+  <thead><tr><th>Property</th><th>Staff+ question</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Reliability</strong> &mdash; correct despite faults</td><td>Which failures do we assume, detect, mask or accept?</td></tr>
+    <tr><td><strong>Scalability</strong> &mdash; handles more load without collapsing cost</td><td>Which load dimension grows (reads, writes, fan-out, tenants, regions), and what breaks first?</td></tr>
+    <tr><td><strong>Maintainability</strong> &mdash; others can operate and evolve it for years</td><td>Can a new team change this without rediscovering hidden invariants?</td></tr>
+  </tbody>
+</table>
+
+<h2>Data models &amp; encodings</h2>
+<table>
+  <thead><tr><th>Choice</th><th>Best fit</th><th>Watch out for</th></tr></thead>
+  <tbody>
+    <tr><td>Relational</td><td>Joins, constraints, transactions, reporting</td><td>Migration discipline; shared-database coupling</td></tr>
+    <tr><td>Document</td><td>Aggregate-shaped, read-mostly, fast iteration</td><td>Cross-document joins; duplicated facts</td></tr>
+    <tr><td>Graph</td><td>Many-to-many traversals, permissions, lineage</td><td>Query predictability; partitioning</td></tr>
+    <tr><td>JSON / XML / CSV</td><td>Debuggable, ubiquitous</td><td>Ambiguous types; no schema unless added</td></tr>
+    <tr><td>Avro / Protobuf / Thrift</td><td>Compact, typed, explicit compatibility rules</td><td>Needs registry and tooling discipline</td></tr>
+    <tr><td>Java serialization / pickle</td><td>Convenience inside one runtime</td><td>Poor long-term compatibility; security risk</td></tr>
+  </tbody>
+</table>
+
+<h2>Schema evolution rules</h2>
+<ul class="checklist">
+  <li><strong>Backward</strong> &mdash; new code reads old data. <strong>Forward</strong> &mdash; old code reads new data. Rolling upgrades need <em>both</em>.</li>
+  <li><strong>Add only optional fields with defaults</strong> &mdash; old readers ignore them, new readers default them.</li>
+  <li><strong>Reserve removed tags / names</strong> &mdash; never reuse an identifier for a different meaning.</li>
+  <li><strong>Semantic compatibility</strong> &mdash; cents &rarr; dollars still parses but breaks every consumer.</li>
+  <li><strong>Compatibility tests in CI</strong> &mdash; check schemas against the registry before merge.</li>
+</ul>
+
+<h2>Storage engines</h2>
+<table>
+  <thead><tr><th>Engine</th><th>Good at</th><th>Cost</th></tr></thead>
+  <tbody>
+    <tr><td><strong>B-Tree</strong> (update pages in place)</td><td>Point reads, range scans, predictable latency</td><td>Random writes, page splits, write amplification</td></tr>
+    <tr><td><strong>LSM-Tree</strong> (append, compact later)</td><td>Write throughput, compression, sequential I/O</td><td>Read amplification, compaction stalls, tuning</td></tr>
+  </tbody>
+</table>
+
+<h2>Partial failure: what &ldquo;no response&rdquo; can mean</h2>
+<ul class="checklist">
+  <li><strong>Network</strong> &mdash; drops, delays, duplicates, reorders, partitions.</li>
+  <li><strong>Process pauses</strong> &mdash; GC, VM suspension, CPU throttling, page faults; a paused node may still think it holds a lease.</li>
+  <li><strong>Clocks</strong> &mdash; time-of-day clocks jump (NTP); use <em>monotonic</em> clocks for durations; never assume zero skew.</li>
+  <li><strong>Overload</strong> &mdash; a slow dependency is indistinguishable from a dead one.</li>
+  <li><strong>Failure model</strong> &mdash; business systems assume crash/omission; Byzantine tolerance costs far more.</li>
+</ul>
+
+<h2>Ordering tools</h2>
+<table>
+  <thead><tr><th>Tool</th><th>Gives</th><th>Limitation</th></tr></thead>
+  <tbody>
+    <tr><td>Wall-clock timestamp</td><td>Human ordering, approximate recency</td><td>Skew and jumps violate causality</td></tr>
+    <tr><td>Lamport timestamp</td><td>A&nbsp;&rarr;&nbsp;B implies L(A)&nbsp;&lt;&nbsp;L(B)</td><td>Smaller value does not prove causality; cannot detect concurrency</td></tr>
+    <tr><td>Vector clock</td><td>Detects causality <em>and</em> concurrency</td><td>Metadata grows with number of actors</td></tr>
+  </tbody>
+</table>
+
+<h2>Agreement mechanisms</h2>
+<table>
+  <thead><tr><th>Mechanism</th><th>Purpose</th><th>Failure behaviour</th></tr></thead>
+  <tbody>
+    <tr><td><strong>2PC</strong></td><td>Atomic commit across resources</td><td>Blocks if the coordinator dies at the wrong moment</td></tr>
+    <tr><td><strong>Consensus log</strong> (Raft, Paxos: etcd, ZooKeeper)</td><td>One agreed order of decisions; leader election, config</td><td>Progress with a majority; unavailable without one</td></tr>
+    <tr><td><strong>Saga</strong></td><td>Business transaction as local commits + compensations</td><td>Eventually consistent; needs domain-specific recovery</td></tr>
+    <tr><td><strong>Lease / idempotent workflow</strong></td><td>Simpler coordination when consensus is overkill</td><td>Needs fencing tokens against paused holders</td></tr>
+  </tbody>
+</table>
+
+<h2>Consistency &amp; processing</h2>
+<table>
+  <thead><tr><th>Term</th><th>Meaning / user expectation</th></tr></thead>
+  <tbody>
+    <tr><td>Linearizable</td><td>Atomic, real-time order &mdash; changed password is seen by every login check</td></tr>
+    <tr><td>Causal</td><td>Effects after causes &mdash; no reply before its comment</td></tr>
+    <tr><td>Eventual</td><td>Replicas converge when writes stop &mdash; search catches up</td></tr>
+    <tr><td>Lambda</td><td>Batch + speed layers; duplicate logic and reconciliation</td></tr>
+    <tr><td>Kappa</td><td>One stream pipeline; replay the durable log to rebuild</td></tr>
+    <tr><td>Warehouse-first</td><td>Central analytical store; higher latency, strong governance</td></tr>
+  </tbody>
+</table>
+
+<h2>Design-review questions</h2>
+<ul class="checklist">
+  <li><strong>Which invariant</strong> needs which guarantee (durability, ordering, idempotency, linearizability, freshness)?</li>
+  <li><strong>What happens mid-upgrade</strong> when v1 and v2 producers and consumers coexist?</li>
+  <li><strong>Where is partial failure</strong> drawn in the diagram, the tests and the runbook?</li>
+  <li><strong>Is consensus required</strong>, or will a lease, queue or idempotent workflow do?</li>
+  <li><strong>What is the replay story</strong> &mdash; time to rebuild, poison messages, schema drift?</li>
+</ul>
+
+<div class="callout warning"><span class="label">Traps</span><ul>
+  <li>Treating remote calls as local calls with extra latency.</li>
+  <li>Last-write-wins where concurrent edits carry user intent.</li>
+  <li>&ldquo;Eventually consistent&rdquo; used to mean &ldquo;no contract&rdquo;.</li>
+  <li>2PC as the default for cross-service consistency.</li>
+  <li>Microservices before data ownership, idempotency and operational maturity.</li>
+  <li>Streams without replay, schema evolution or poison-message handling.</li>
+</ul></div>
+
+<nav class="lesson-nav">
+  <span class="group"><b>From</b><a href="../lessons/0001-data-intensive-distributed-systems.html">&larr; Lesson 01 · Distributed systems</a></span>
+  <span class="group"><b>Course map</b><a href="../index.html">&uarr; All lessons</a></span>
+  <span class="group"><b>Canonical terms</b><a href="../GLOSSARY.md">GLOSSARY.md</a></span>
+  <span class="group"><b>Primary source</b><a href="https://dataintensive.net/" target="_blank" rel="noopener">Designing Data-Intensive Applications · Kleppmann</a></span>
+</nav>
+
+</body>
+</html>

@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cheat Sheet · Cloud Infrastructure</title>
+<link rel="stylesheet" href="../../assets/course/course.css">
+<link rel="stylesheet" href="../assets/theme.css">
+<script src="../../assets/course/links.js" defer></script>
+<style>
+  body { max-width: 52rem; }
+  @media print { body { margin: 0; } h2 { margin-top: 1.1rem; } }
+</style>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Technical Skills · Reference 07</p>
+  <h1>Cloud Infrastructure Cheat Sheet</h1>
+  <div class="meta"><span>Compressed from Lesson 07</span><span class="dot">•</span><span>Print-friendly</span></div>
+</header>
+
+<div class="callout insight">
+  <span class="label">Mindset</span>
+  <p>Not &ldquo;can we scale?&rdquo; but <strong>&ldquo;what scale and resilience does the business justify right now?&rdquo;</strong>
+  Choose boring, run less, and treat cost, RTO and RPO as design constraints.</p>
+</div>
+
+<h2>Scaling progression (move a step only under real pressure)</h2>
+<table>
+  <thead><tr><th>Stage</th><th>Improves</th><th>Gets harder</th></tr></thead>
+  <tbody>
+    <tr><td>Single box</td><td>Simplicity, debuggability</td><td>Capacity, availability</td></tr>
+    <tr><td>Separate database</td><td>Durability, specialisation</td><td>Network latency, backups</td></tr>
+    <tr><td>Load balancer + replicas</td><td>Throughput, availability</td><td>Statelessness, deploy coordination</td></tr>
+    <tr><td>Cache</td><td>Latency, read scale</td><td>Invalidation, consistency</td></tr>
+    <tr><td>CDN</td><td>Edge performance</td><td>Cache control, purge strategy</td></tr>
+    <tr><td>Autoscaling</td><td>Elastic capacity</td><td>Metrics, warm-up, cost surprises</td></tr>
+    <tr><td>Multi-AZ</td><td>Survives a zone failure</td><td>Replication, failover testing</td></tr>
+    <tr><td>Multi-region</td><td>Survives a region; global latency</td><td>Complexity, consistency, cost, operations</td></tr>
+  </tbody>
+</table>
+
+<h2>Primitives (vendor-neutral)</h2>
+<table>
+  <thead><tr><th>Primitive</th><th>Design question</th></tr></thead>
+  <tbody>
+    <tr><td>Compute</td><td>Who manages runtime and scaling?</td></tr>
+    <tr><td>Storage (object, block, file)</td><td>Which access pattern and durability model?</td></tr>
+    <tr><td>Networking (VPC, subnets, LB, DNS)</td><td>What talks to what, across which boundary?</td></tr>
+    <tr><td>Managed databases</td><td>Which data model, consistency and ops model?</td></tr>
+    <tr><td>Queues &amp; streams</td><td>Sync or async? Ordered? Replayable?</td></tr>
+    <tr><td>Identity &amp; secrets (IAM, KMS)</td><td>Who or what may access what?</td></tr>
+    <tr><td>Observability</td><td>Can operators understand behaviour and failure?</td></tr>
+  </tbody>
+</table>
+
+<h2>Compute options</h2>
+<table>
+  <thead><tr><th>Option</th><th>Best for</th><th>Trade-off</th></tr></thead>
+  <tbody>
+    <tr><td>VMs</td><td>Full control, legacy, special runtimes</td><td>Patching, images, capacity planning</td></tr>
+    <tr><td>Containers</td><td>Portable, repeatable packaging</td><td>Needs orchestration and runtime security</td></tr>
+    <tr><td>Managed container platform</td><td>Containers without owning a cluster</td><td>Less control than raw Kubernetes</td></tr>
+    <tr><td>Serverless functions</td><td>Event-driven, spiky, low-ops work</td><td>Cold starts, limits, vendor coupling</td></tr>
+    <tr><td>PaaS</td><td>Standard web apps and APIs</td><td>Opinionated runtime model</td></tr>
+  </tbody>
+</table>
+<p>Kubernetes vocabulary: <strong>Pod</strong> (smallest unit) &middot; <strong>Deployment</strong> (desired replicas, rollout) &middot; <strong>Service</strong> (stable identity, LB) &middot; <strong>Ingress</strong> (external routing) &middot; <strong>control plane</strong> &middot; <strong>node</strong>.</p>
+
+<div class="callout warning"><span class="label">Skip Kubernetes when&hellip;</span><ul>
+  <li>The team lacks operating experience and no managed platform exists.</li>
+  <li>You run a few simple services, or serverless / PaaS already fits.</li>
+  <li>The bottleneck is product discovery, not infrastructure flexibility.</li>
+  <li>Nobody will fund platform ownership: upgrades, security, observability.</li>
+</ul></div>
+
+<h2>Infrastructure as Code</h2>
+<ul class="checklist">
+  <li><strong>Code &rarr; review &rarr; plan &rarr; apply &rarr; drift detection</strong>; no console clicks.</li>
+  <li><strong>Immutable infrastructure</strong> &mdash; replace images and instances, don&rsquo;t mutate them.</li>
+  <li><strong>Reusable modules</strong> across separated environments.</li>
+  <li><strong>Secrets out of state and source control</strong>; policy checks on risky changes.</li>
+  <li><strong>Tags</strong> for owner, service, environment, cost centre.</li>
+</ul>
+
+<h2>Deployment strategies</h2>
+<table>
+  <thead><tr><th>Strategy</th><th>How</th><th>Best for</th></tr></thead>
+  <tbody>
+    <tr><td>Rolling</td><td>Replace instances gradually</td><td>Routine, low-risk releases</td></tr>
+    <tr><td>Blue-green</td><td>Two environments; switch traffic</td><td>Fast rollback, major changes</td></tr>
+    <tr><td>Canary</td><td>Small % of traffic first</td><td>Risky changes with clear health signals</td></tr>
+    <tr><td>Feature flags</td><td>Decouple deploy from release</td><td>Gradual exposure, experiments</td></tr>
+  </tbody>
+</table>
+<p>Define &ldquo;healthy&rdquo; before launch: error rate, latency, saturation, conversion, queue depth, rollback triggers.</p>
+
+<h2>Well-Architected pillars (review prompts)</h2>
+<table>
+  <thead><tr><th>Pillar</th><th>Ask</th></tr></thead>
+  <tbody>
+    <tr><td>Operational Excellence</td><td>Can we run, observe, change and improve it safely?</td></tr>
+    <tr><td>Security</td><td>Identity, data protection, detection and response built in?</td></tr>
+    <tr><td>Reliability</td><td>Correct under load, and recovers from failure?</td></tr>
+    <tr><td>Performance Efficiency</td><td>Right resources, scaled to demand?</td></tr>
+    <tr><td>Cost Optimization</td><td>Spending intentionally; waste removed?</td></tr>
+    <tr><td>Sustainability</td><td>Unnecessary consumption reduced?</td></tr>
+  </tbody>
+</table>
+
+<h2>Failure domains &amp; recovery</h2>
+<table>
+  <thead><tr><th>Term</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td>Availability Zone / Region</td><td>Isolated zone inside a region / geographic group of zones</td></tr>
+    <tr><td>Multi-AZ / Multi-region</td><td>Survive one zone / one region (or serve global latency)</td></tr>
+    <tr><td><strong>RTO</strong></td><td>Maximum acceptable downtime</td></tr>
+    <tr><td><strong>RPO</strong></td><td>Maximum acceptable data loss</td></tr>
+  </tbody>
+</table>
+<p>DR plan = owner, triggers, communication, RTO, RPO, verification steps. <strong>Backups don&rsquo;t count until a restore is tested.</strong></p>
+
+<h2>FinOps</h2>
+<ul class="checklist">
+  <li><strong>Watch the drivers</strong> &mdash; overprovisioned compute, unbounded telemetry retention, cross-region and egress transfer, idle dev environments, premium services without a value case.</li>
+  <li><strong>Unit economics</strong> (cost per request, tenant, order), not just the total bill.</li>
+  <li><strong>Budgets and anomaly alerts</strong>; right-size from measurements.</li>
+  <li><strong>Reserved capacity only for stable baseline</strong>; cost impact in every design doc.</li>
+</ul>
+
+<h2>Staff heuristics</h2>
+<ul class="checklist">
+  <li><strong>Choose boring technology</strong> &mdash; spend innovation tokens only where novelty is essential, with an owner and exit plan.</li>
+  <li><strong>Run less software</strong> &mdash; every self-run component is a security, upgrade, paging and continuity obligation.</li>
+  <li><strong>The question isn&rsquo;t &ldquo;can we build it?&rdquo;</strong> but &ldquo;should the organisation own it?&rdquo;</li>
+</ul>
+
+<div class="callout warning"><span class="label">Traps</span><ul>
+  <li>Multi-region before product and traffic justify it.</li>
+  <li>Kubernetes as a default rather than an operational commitment.</li>
+  <li>Manual console changes that bypass review and drift detection.</li>
+  <li>Autoscaling hiding inefficient code or a missing capacity model.</li>
+  <li>Ignoring data-transfer, observability and idle-resource costs.</li>
+</ul></div>
+
+<nav class="lesson-nav">
+  <span class="group"><b>From</b><a href="../lessons/0007-cloud-infrastructure.html">&larr; Lesson 07 · Cloud infrastructure</a></span>
+  <span class="group"><b>Course map</b><a href="../index.html">&uarr; All lessons</a></span>
+  <span class="group"><b>Canonical terms</b><a href="../GLOSSARY.md">GLOSSARY.md</a></span>
+  <span class="group"><b>Primary source</b><a href="https://aws.amazon.com/architecture/well-architected/" target="_blank" rel="noopener">AWS Well-Architected Framework</a></span>
+</nav>
+
+</body>
+</html>

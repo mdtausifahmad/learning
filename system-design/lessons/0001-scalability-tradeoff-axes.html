@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 01 · Scalability Trade-off Axes</title>
+<link rel="stylesheet" href="../../assets/course/course.css">
+<link rel="stylesheet" href="../assets/theme.css">
+<script src="../../assets/course/links.js" defer></script>
+<script src="../../assets/course/quiz.js" defer></script>
+<script type="module" src="../../assets/course/mermaid.js"></script>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">System Design · Lesson 01</p>
+  <h1>Scalability Trade-off Axes</h1>
+  <div class="meta">
+    <span>◷ ~11 min read</span>
+    <span class="dot">•</span>
+    <span>Foundations</span>
+    <span class="dot">•</span>
+    <span>Prereq: none</span>
+  </div>
+</header>
+
+<p class="mission-tie">
+  Every design review starts with the same question: <strong>what happens at 10× and 100× the load, and what does it cost?</strong> This lesson gives you the axes to answer it &mdash; percentiles instead of averages, stateless scale-out, the AKF cube and availability maths. A Staff engineer can point at any hop in a request path and say <em>&ldquo;this hop costs us a nine &mdash; here&rsquo;s how we make it redundant or async.&rdquo;</em>
+</p>
+
+<div class="callout insight">
+  <span class="label">TL;DR</span>
+  <p><strong>The core question:</strong> as load grows by 10×, 100×, 1000× — does your system keep working, and at what cost? Scalability is the ability to handle growth by <em>adding resources</em>, without a rewrite and without a collapse in latency.</p>
+<ul>
+<li><strong>Performance</strong> = fast for one user. <strong>Scalability</strong> = stays fast as users/data grow. They're different problems.</li>
+<li><strong>Latency</strong> = time for one operation. <strong>Throughput</strong> = operations per unit time. You usually optimize for max throughput at <em>acceptable</em> latency.</li>
+<li><strong>Vertical scaling</strong> (bigger machine) is simple but capped and a single point of failure. <strong>Horizontal scaling</strong> (more machines) is the real answer at scale — but forces you to handle statelessness, load balancing, and data partitioning.</li>
+<li><strong>Availability</strong> is measured in &quot;nines&quot; and <em>composes</em> — series multiplies, parallel improves.</li>
+</ul>
+</div>
+
+<h2 id="1-performance-vs-scalability">1. Performance vs Scalability</h2>
+<p>A useful litmus test (from the System Design Primer):</p>
+<ul>
+<li>If you have a <strong>performance</strong> problem, your system is <strong>slow for a single user</strong>.</li>
+<li>If you have a <strong>scalability</strong> problem, it's <strong>fast for a single user but slow under load</strong>.</li>
+</ul>
+<figure><pre class="mermaid">
+flowchart TD
+    subgraph Perf["Performance problem"]
+        P1["1 user → slow"]
+    end
+    subgraph Scale["Scalability problem"]
+        S1["1 user → fast"]
+        S2["10,000 users → slow"]
+    end
+</pre></figure>
+<p>A system is <strong>scalable</strong> if adding resources yields a <em>proportional</em> increase in capacity. The enemy is any component whose cost grows <strong>super-linearly</strong> with load (e.g., an O(n²) fan-out, a shared lock, or a single database everyone hits).</p>
+<h2 id="2-latency-vs-throughput">2. Latency vs Throughput</h2>
+<ul>
+<li><strong>Latency</strong> — the time to perform a single operation (e.g., 20 ms per request). Often quoted as percentiles: <strong>p50, p95, p99, p99.9</strong>. <em>Tail latency</em> (p99+) is what users actually feel at scale.</li>
+<li><strong>Throughput</strong> — the number of operations per unit time (e.g., 50,000 requests/sec).</li>
+</ul>
+<blockquote>
+<p><strong>Goal:</strong> maximize throughput while keeping latency under an acceptable threshold. They trade off — batching and queuing raise throughput but add latency; the two are linked by <strong>Little's Law</strong>: <code>Concurrency = Throughput × Latency</code>.</p>
+</blockquote>
+<p><strong>Why percentiles, not averages:</strong> if p99 latency is 1 s and each page makes 100 backend calls, the <em>majority</em> of page loads will hit at least one slow call. Averages hide this.</p>
+<figure><pre class="mermaid">
+flowchart LR
+    subgraph one["Latency = per-request time"]
+        R["Request"] --&gt;|20 ms| Resp["Response"]
+    end
+    subgraph many["Throughput = requests / sec"]
+        Sys["System"] --&gt;|50,000 req/s| Out["Completed"]
+    end
+</pre></figure>
+<h2 id="3-vertical-vs-horizontal-scaling">3. Vertical vs Horizontal Scaling</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th></th>
+<th><strong>Vertical (scale up)</strong></th>
+<th><strong>Horizontal (scale out)</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>How</td>
+<td>Bigger CPU / RAM / disk on one box</td>
+<td>More boxes behind a load balancer</td>
+</tr>
+<tr>
+<td>Ceiling</td>
+<td>Hard hardware limit</td>
+<td>Effectively unlimited</td>
+</tr>
+<tr>
+<td>Complexity</td>
+<td>Low — no code changes</td>
+<td>High — statelessness, LB, data partitioning</td>
+</tr>
+<tr>
+<td>Failure</td>
+<td>Single point of failure</td>
+<td>Fault-tolerant (lose one node, survive)</td>
+</tr>
+<tr>
+<td>Cost curve</td>
+<td>Super-linear (big machines cost a premium)</td>
+<td>~Linear (commodity hardware)</td>
+</tr>
+<tr>
+<td>Examples</td>
+<td>A single Postgres primary</td>
+<td>Web tier of 500 stateless app servers</td>
+</tr>
+</tbody>
+</table></div>
+<figure><pre class="mermaid">
+flowchart TB
+    subgraph V["Vertical scaling"]
+        direction TB
+        v1["Server&lt;br/&gt;4 CPU / 16 GB"] --&gt; v2["Server&lt;br/&gt;32 CPU / 256 GB"]
+    end
+    subgraph H["Horizontal scaling"]
+        direction TB
+        LB["Load Balancer"] --&gt; h1["Server 1"]
+        LB --&gt; h2["Server 2"]
+        LB --&gt; h3["Server 3"]
+        LB --&gt; h4["Server N ..."]
+    end
+</pre></figure>
+<p><strong>The unlock for horizontal scaling is statelessness.</strong> If application servers hold no session state locally (push it to a shared cache/DB or a signed token), any server can handle any request, and you can add/remove nodes freely. Stateful data is then concentrated in stores you scale deliberately (Topic 3).</p>
+<h2 id="4-the-akf-scale-cube-three-ways-to-scale">4. The AKF Scale Cube (three ways to scale)</h2>
+<p>A powerful model: any system can scale along three independent axes.</p>
+<figure><pre class="mermaid">
+flowchart LR
+    subgraph cube["AKF Scale Cube"]
+        X["X-axis: Horizontal duplication&lt;br/&gt;clone the whole thing behind a LB&lt;br/&gt;(easy, scales reads/traffic)"]
+        Y["Y-axis: Functional decomposition&lt;br/&gt;split by service/feature&lt;br/&gt;(microservices)"]
+        Z["Z-axis: Data partitioning / sharding&lt;br/&gt;split by data (user_id, geo)&lt;br/&gt;(scales data + writes)"]
+    end
+</pre></figure>
+<ul>
+<li><strong>X-axis — cloning:</strong> run N identical copies behind a load balancer. Scales <em>traffic</em> and <em>reads</em>; doesn't help if the dataset is too big for one node.</li>
+<li><strong>Y-axis — functional split:</strong> break the monolith into services by responsibility (auth, orders, search). Scales <em>team</em> and <em>complexity</em>, lets each service scale independently.</li>
+<li><strong>Z-axis — sharding:</strong> split the <em>data</em> across nodes by a key (e.g., <code>user_id % N</code>, geography). Scales <em>data volume</em> and <em>writes</em> — the hardest and most powerful axis (see Topic 3).</li>
+</ul>
+<p>Most large systems use all three: cloned stateless services (X), decomposed by domain (Y), each backed by a sharded data store (Z).</p>
+<h2 id="5-availability--the-nines">5. Availability &amp; the &quot;nines&quot;</h2>
+<p><strong>Availability</strong> = the fraction of time the system is up and correctly serving requests. Quoted as &quot;nines&quot;:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Availability</th>
+<th>Downtime / year</th>
+<th>Downtime / day</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>99% (&quot;two nines&quot;)</td>
+<td>3.65 days</td>
+<td>14.4 min</td>
+</tr>
+<tr>
+<td>99.9% (&quot;three nines&quot;)</td>
+<td>8.77 hours</td>
+<td>1.44 min</td>
+</tr>
+<tr>
+<td>99.99% (&quot;four nines&quot;)</td>
+<td>52.6 min</td>
+<td>8.6 sec</td>
+</tr>
+<tr>
+<td>99.999% (&quot;five nines&quot;)</td>
+<td>5.26 min</td>
+<td>0.86 sec</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="availability-composes--and-topology-matters">Availability composes — and topology matters</h3>
+<p><strong>In series</strong> (request must pass through <em>both</em> → multiply, availability drops):</p>
+<pre><code>A_total = A_1 × A_2      →   99.9% × 99.9% = 99.8%
+</code></pre>
+<p><strong>In parallel</strong> (either one works → availability <em>rises</em>):</p>
+<pre><code>A_total = 1 − (1 − A_1) × (1 − A_2)   →   99.9% + 99.9% ≈ 99.9999%
+</code></pre>
+<figure><pre class="mermaid">
+flowchart LR
+    subgraph series["Series — multiply (worse)"]
+        C1["Client"] --&gt; S1["Svc A 99.9%"] --&gt; S2["Svc B 99.9%"] --&gt; R1["= 99.8%"]
+    end
+    subgraph parallel["Parallel — redundancy (better)"]
+        C2["Client"] --&gt; P1["Replica 1 99.9%"]
+        C2 --&gt; P2["Replica 2 99.9%"]
+        P1 --&gt; R2["≈ 99.9999%"]
+        P2 --&gt; R2
+    end
+</pre></figure>
+<p><strong>Design implication:</strong> every hop in a request chain <em>reduces</em> availability, so long synchronous call chains are fragile — add redundancy (parallel replicas), remove hops, or make hops asynchronous. This is also why availability and consistency collide during failures — the subject of <a href="0002-cap-theorem-consistency-models.html">Topic 2</a>.</p>
+<blockquote>
+<p><strong>SLA vs SLO vs SLI:</strong> an <strong>SLI</strong> is the measured indicator (e.g., success rate), an <strong>SLO</strong> is your internal target (e.g., 99.95%), and an <strong>SLA</strong> is the contractual promise to customers (usually looser than the SLO). See the SRE deep-dive in <a href="../../02-skills-to-upgrade.md#a3-reliability-observability--operating-at-scale-sre">../02-skills-to-upgrade.md</a>.</p>
+</blockquote>
+<h2 id="6-what-good-looks-like-at-staff">6. What &quot;good&quot; looks like at Staff+</h2>
+<ul>
+<li>You <strong>quantify</strong> before you architect: state the target QPS, data size, and latency budget (Topic 7).</li>
+<li>You reach for <strong>horizontal + stateless</strong> by default and know <em>exactly</em> which component is the stateful bottleneck.</li>
+<li>You talk in <strong>percentiles</strong> (p99), not averages, and design for <strong>tail latency</strong>.</li>
+<li>You can point at any request path and say <em>&quot;this hop costs us a nine — here's how we make it redundant or async.&quot;</em></li>
+</ul>
+<h2 id="7-common-pitfalls">7. Common pitfalls</h2>
+<ul>
+<li><strong>Premature scaling</strong> — building for 1B users when you have 1,000. Scale the design when the numbers demand it; keep it simple until then (&quot;choose boring technology&quot;).</li>
+<li><strong>Hidden single points of failure</strong> — one primary DB, one cache, one AZ. Redundancy on paper, series dependency in practice.</li>
+<li><strong>Optimizing average latency</strong> while p99 quietly melts under load.</li>
+<li><strong>Stateful app servers</strong> that block horizontal scaling and make deploys/failover painful.</li>
+</ul>
+<h2 id="8-further-reading">8. Further reading</h2>
+<ul>
+<li>System Design Primer — &quot;Performance vs scalability&quot;, &quot;Latency vs throughput&quot;, &quot;Availability patterns&quot; — <a href="https://github.com/donnemartin/system-design-primer" target="_blank" rel="noopener">https://github.com/donnemartin/system-design-primer</a></li>
+<li>AKF Scale Cube — <a href="https://akfpartners.com/growth-blog/scale-cube" target="_blank" rel="noopener">https://akfpartners.com/growth-blog/scale-cube</a></li>
+<li><em>Designing Data-Intensive Applications</em>, Ch. 1 (Reliable, Scalable, Maintainable) — <a href="https://dataintensive.net/" target="_blank" rel="noopener">https://dataintensive.net/</a></li>
+<li>Google SRE Book — &quot;Embracing Risk&quot; (availability targets) — <a href="https://sre.google/sre-book/embracing-risk/" target="_blank" rel="noopener">https://sre.google/sre-book/embracing-risk/</a></li>
+</ul>
+
+<div class="primary-source">
+  <span class="label">Read this next (primary source)</span>
+  <p>AKF Partners &mdash; <a href="https://akfpartners.com/growth-blog/scale-cube" target="_blank" rel="noopener"><em>The Scale Cube</em></a> (the original X/Y/Z model; read it to see why the three axes are independent). Then Google SRE Book &mdash; <a href="https://sre.google/sre-book/embracing-risk/" target="_blank" rel="noopener"><em>Embracing Risk</em></a> for how availability targets are chosen and why each extra nine costs far more than the last.</p>
+</div>
+
+<h2 id="9-check-yourself">9. Check yourself</h2>
+<p>Retrieve before revealing.</p>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 1 of 3</p>
+  <p class="quiz-q">Checkout loads in 120 ms when an engineer tests it alone, but p99 climbs to 4 s at the daily peak while app-tier CPU sits at 30%. How do you frame the incident review?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="One user is fast, so the code path itself is not the problem. Profiling a single request will look fine.">A performance problem: profile the checkout code path for a single user</button></li>
+    <li><button data-correct="true" data-feedback="Right — fast for one user, slow under load. Look for a shared lock, a single database or a fan-out that grows super-linearly.">A scalability problem: find the shared part whose cost grows with load</button></li>
+    <li><button data-correct="false" data-feedback="App CPU is at 30%, so the app tier is not the bottleneck. More clones of a stateless tier won't fix a shared choke point.">A capacity problem: double the app-tier instance count before next peak</button></li>
+    <li><button data-correct="false" data-feedback="Averages hide the tail. Users feel p99 at scale; changing the panel only hides the incident.">A dashboard problem: switch the latency panel from p99 to the average</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Slow for one user is a performance problem; fast for one but slow under load is a scalability problem. Hunt the component whose cost grows super-linearly."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 2 of 3</p>
+  <p class="quiz-q">A product page fans out 100 backend calls in parallel. Each backend has a median of 20 ms and a p99 of 1 s. The team says &ldquo;average latency looks fine&rdquo;. Your review comment:</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="The average hides the tail. With 100 calls per page, the tail decides what the page feels like.">Agreed — the average reflects what a typical page load experiences</button></li>
+    <li><button data-correct="false" data-feedback="A page waits for its slowest call, not its fastest. Parallel fan-out amplifies tail latency.">Agreed — parallel calls mean the page waits only for the fastest one</button></li>
+    <li><button data-correct="false" data-feedback="Batching raises throughput but usually adds latency. It doesn't remove the slow tail.">Batch all 100 calls into one, as batching always lowers latency too</button></li>
+    <li><button data-correct="true" data-feedback="Right — 1 − 0.99^100 ≈ 63% of pages wait on at least one 1 s call. Design and alert on percentiles.">Most page loads hit at least one slow call; budget and alert on p99</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Fan-out amplifies tail latency: talk in percentiles (p99, p99.9), not averages, and design for the tail."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 3 of 3</p>
+  <p class="quiz-q">A request goes gateway &rarr; orders &rarr; payments, each 99.9% available and called synchronously in series. Product wants 99.9% end to end. Which change moves you toward it?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="Right — series multiplies to ≈ 99.7%. Parallel replicas raise each hop's availability, and an async hop leaves the chain.">Make each hop redundant, and take payments off the synchronous path</button></li>
+    <li><button data-correct="false" data-feedback="Vertical scaling keeps every hop a single point of failure and keeps them in series. Availability doesn't improve.">Move all three services to larger instances so each responds faster</button></li>
+    <li><button data-correct="false" data-feedback="Availability in series multiplies: 0.999 × 0.999 × 0.999 ≈ 99.7%, about three times the downtime.">Nothing — three hops at 99.9% each still compose to 99.9% overall</button></li>
+    <li><button data-correct="false" data-feedback="Another synchronous hop is another factor in the product, so it lowers availability unless it is itself redundant.">Add a retry-proxy service in front of payments to absorb failures</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Availability composes: series multiplies (worse), parallel redundancy improves it. Remove hops, make them redundant, or make them async."></div>
+</div>
+
+<div class="callout tryit">
+  <span class="label">Try it in your own system</span>
+  <ul class="checklist">
+    <li>Draw the busiest request path you own, hop by hop. Multiply the hops&rsquo; availabilities and compare the result with the SLO you promise.</li>
+    <li>Pull p50, p99 and p99.9 for that path at peak. If dashboards or alerts show only averages, move one alert to p99 this week.</li>
+    <li>List every piece of state on your app servers (sessions, local files, in-process caches). Which one stops you adding or removing nodes freely?</li>
+    <li>Place your system on the AKF cube: which axes (X clone, Y split, Z shard) do you use today, and which one will the next 10× need?</li>
+  </ul>
+</div>
+
+<div class="followup">
+  <strong>I&rsquo;m your teacher &mdash; ask me anything.</strong> Bring one request path from your system and we&rsquo;ll compute its availability together, find the stateful bottleneck, and decide which AKF axis it needs next.
+</div>
+
+<nav class="lesson-nav">
+  <span class="group">
+    <b>Reference</b>
+    <a href="../reference/0001-scalability-tradeoff-axes-cheatsheet.html">Scalability trade-offs cheat sheet &rarr;</a>
+  </span>
+  <span class="group">
+    <b>Course map</b>
+    <a href="../index.html">&uarr; All lessons</a>
+  </span>
+  <span class="group">
+    <b>Up next</b>
+    <a href="0002-cap-theorem-consistency-models.html">Lesson 02 · CAP & consistency &rarr;</a>
+  </span>
+</nav>
+
+</body>
+</html>

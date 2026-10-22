@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cheat Sheet · Decision-Making</title>
+<link rel="stylesheet" href="../../assets/course/course.css">
+<link rel="stylesheet" href="../assets/theme.css">
+<script src="../../assets/course/links.js" defer></script>
+<style>
+  body { max-width: 52rem; }
+  @media print { body { margin: 0; } h2 { margin-top: 1.1rem; } }
+</style>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Leadership Skills · Reference 07</p>
+  <h1>Decision-Making</h1>
+  <div class="meta"><span>Compressed from Lesson 07</span><span class="dot">•</span><span>Print-friendly</span></div>
+</header>
+
+<div class="callout insight">
+  <span class="label">Mindset</span>
+  <p>At Staff+ scale the job is <strong>transferring judgement</strong>, not making every call. The best evidence of your leadership is a good decision made when you weren&rsquo;t in the room. Be direct about the issue and curious about the person.</p>
+</div>
+
+<h2>Transfer judgement</h2>
+<ul class="checklist">
+  <li><strong>Explain reasoning</strong> &mdash; how you think, not just what you decided.</li>
+  <li><strong>Show trade-offs</strong> &mdash; and the constraints behind them.</li>
+  <li><strong>Delegate reversible calls</strong> &mdash; let others make them.</li>
+  <li><strong>Review decision quality</strong> &mdash; after the fact, without blame.</li>
+  <li><strong>Leave reusable artifacts</strong> &mdash; that future teams can copy.</li>
+</ul>
+
+<h2>Lightweight decision record</h2>
+<table>
+  <thead><tr><th>Section</th><th>Purpose</th></tr></thead>
+  <tbody>
+    <tr><td>Context</td><td>Why this decision exists now</td></tr>
+    <tr><td>Goals / non-goals</td><td>Stop accidental scope expansion</td></tr>
+    <tr><td>Options</td><td>Real alternatives, including the rejected ones</td></tr>
+    <tr><td>Trade-offs</td><td>Make the values explicit</td></tr>
+    <tr><td>Recommendation</td><td>The call, plus your confidence</td></tr>
+    <tr><td>Revisit trigger</td><td>The evidence that would change course</td></tr>
+  </tbody>
+</table>
+
+<h3>Circulate early: three passes</h3>
+<ul class="checklist">
+  <li><strong>Framing</strong> &mdash; &ldquo;Are we solving the right problem?&rdquo;</li>
+  <li><strong>Options</strong> &mdash; &ldquo;What alternatives or constraints am I missing?&rdquo;</li>
+  <li><strong>Review</strong> &mdash; &ldquo;Can you live with this recommendation?&rdquo;</li>
+</ul>
+
+<h2>Style vs substance: should I comment?</h2>
+<table>
+  <thead><tr><th>Type</th><th>Example</th><th>Give it?</th></tr></thead>
+  <tbody>
+    <tr><td>Correctness</td><td>&ldquo;This migration can lose writes during failover.&rdquo;</td><td>Yes</td></tr>
+    <tr><td>Risk</td><td>&ldquo;This assumes Security can review in one day.&rdquo;</td><td>Yes</td></tr>
+    <tr><td>Strategy</td><td>&ldquo;Faster locally, but more platform fragmentation.&rdquo;</td><td>Yes</td></tr>
+    <tr><td>Preference</td><td>&ldquo;I&rsquo;d have used a different library.&rdquo;</td><td>Usually no</td></tr>
+    <tr><td>Style</td><td>&ldquo;I dislike this diagram layout.&rdquo;</td><td>Only if it blocks understanding</td></tr>
+  </tbody>
+</table>
+<p>Test: <em>Would changing this affect the outcome?</em> Labels: <code>blocking</code> &middot; <code>risk</code> &middot; <code>question</code> &middot; <code>non-blocking preference</code> &middot; &ldquo;Nit, ignore if not useful.&rdquo;</p>
+
+<h3>Should I weigh in at all?</h3>
+<p>Context others lack? &middot; Irreversible or high blast radius? &middot; A principle to teach? &middot; A conflict to unblock? &middot; Would silence create risk, or would involvement create dependence? Attention is an intervention.</p>
+
+<h2>Pick the lightest framework</h2>
+<table>
+  <thead><tr><th>Framework</th><th>Best for</th><th>Key question</th><th>Watch out for</th></tr></thead>
+  <tbody>
+    <tr><td>DACI</td><td>Cross-functional decisions</td><td>Who drives, approves, contributes, is informed?</td><td>Approver &ne; consensus</td></tr>
+    <tr><td>RACI</td><td>Operational ownership</td><td>Responsible, accountable, consulted, informed?</td><td>Too many consulted</td></tr>
+    <tr><td>One-way door</td><td>Irreversible or costly</td><td>Can we undo this cheaply?</td><td>Treating fear as irreversibility</td></tr>
+    <tr><td>Two-way door</td><td>Reversible</td><td>Can we learn by trying?</td><td>Over-documenting low-risk calls</td></tr>
+    <tr><td>Disagree &amp; commit</td><td>After real debate</td><td>Can I support execution anyway?</td><td>Using it to silence dissent early</td></tr>
+  </tbody>
+</table>
+
+<h2>Decision quality &ne; outcome quality</h2>
+<table>
+  <thead><tr><th></th><th>Good outcome</th><th>Bad outcome</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Good decision</strong></td><td>Reinforce the principle; check for luck</td><td>Learn from uncertainty; don&rsquo;t blame the process unfairly</td></tr>
+    <tr><td><strong>Bad decision</strong></td><td>Don&rsquo;t let luck become precedent</td><td>Fix reasoning, roles, evidence paths</td></tr>
+  </tbody>
+</table>
+<p><strong>Judge the decision:</strong> best available evidence? base rates? assumptions named? real alternatives? process weight matched to risk? revisit triggers set? Judging only by outcome is <em>resulting</em>.</p>
+
+<h2>Uncertainty template (script)</h2>
+<p><code>I am 70% confident in option B because it reduces migration risk and keeps customer commitments. The biggest uncertainty is support load. If tickets exceed X per week after beta, we pause rollout and revisit option C.</code></p>
+<ul class="checklist">
+  <li><strong>State confidence</strong> &mdash; a number, not an adjective.</li>
+  <li><strong>Base rates + leading indicators</strong> &mdash; from similar projects.</li>
+  <li><strong>Prefer reversible experiments.</strong></li>
+  <li><strong>Revisit date</strong> &mdash; set before emotions attach to the plan.</li>
+  <li><strong>Premortem</strong> &mdash; &ldquo;Six months on, this failed. What happened?&rdquo;</li>
+</ul>
+
+<h2>Productive disagreement</h2>
+<h3>Calibrated questions</h3>
+<ul>
+  <li>&ldquo;What problem are you solving?&rdquo;</li>
+  <li>&ldquo;How would we know this works?&rdquo;</li>
+  <li>&ldquo;What would make this unsafe?&rdquo;</li>
+  <li>&ldquo;What am I missing?&rdquo;</li>
+</ul>
+<h3>Change your mind visibly</h3>
+<p>&ldquo;The operational data changes my view.&rdquo; &middot; &ldquo;I optimised for build cost and missed support cost.&rdquo;</p>
+<h3>Escalate cleanly</h3>
+<p>When: trade-offs local teams can&rsquo;t make &middot; disagreement is stuck &middot; risk exceeds delegated authority. Bring: <strong>shared goal, options, trade-offs, recommendation, decision needed</strong>.</p>
+
+<div class="callout warning"><span class="label">Traps</span><ul>
+  <li>Every decision routed through Staff+ approval (&ldquo;just tell me what to do&rdquo;).</li>
+  <li>Circulating only after your mind has hardened: review as theatre.</li>
+  <li>Drive-by style feedback that causes churn.</li>
+  <li>&ldquo;Strong opinions loosely held&rdquo; used as a licence to dominate.</li>
+  <li>Disagree-and-commit used to shut debate down instead of closing it cleanly.</li>
+  <li>Confusing confidence with certainty; escalation used as a threat.</li>
+</ul></div>
+
+<nav class="lesson-nav">
+  <span class="group"><b>From</b><a href="../lessons/0007-decision-making.html">&larr; Lesson 07 · Decision-making</a></span>
+  <span class="group"><b>Course map</b><a href="../index.html">&uarr; All lessons</a></span>
+  <span class="group"><b>Canonical terms</b><a href="../GLOSSARY.md">GLOSSARY.md</a></span>
+  <span class="group"><b>Primary source</b><a href="https://www.amazon.jobs/content/en/our-workplace/leadership-principles" target="_blank" rel="noopener">Amazon Leadership Principles</a></span>
+</nav>
+
+</body>
+</html>

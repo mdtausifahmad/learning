@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cheat Sheet · Back-of-the-Envelope Estimation</title>
+<link rel="stylesheet" href="../../assets/course/course.css">
+<link rel="stylesheet" href="../assets/theme.css">
+<script src="../../assets/course/links.js" defer></script>
+<script type="module" src="../../assets/course/mermaid.js"></script>
+<style>
+  body { max-width: 52rem; }
+  @media print { body { margin: 0; } h2 { margin-top: 1.1rem; } }
+</style>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">System Design · Reference 07</p>
+  <h1>Back-of-the-Envelope Estimation</h1>
+  <div class="meta"><span>Compressed from Lesson 07</span><span class="dot">•</span><span>Print-friendly</span></div>
+</header>
+
+<div class="callout insight">
+  <span class="label">Mindset</span>
+  <p><strong>Estimate first and let the numbers pick the bottleneck.</strong> Round to powers of ten, keep one significant figure,
+  state every assumption out loud, and tie each number to a design decision.</p>
+</div>
+
+<h2>The order (always the same)</h2>
+<figure>
+<pre class="mermaid">
+flowchart LR
+    U["1. Users&lt;br/&gt;(DAU)"] --&gt; Q["2. QPS&lt;br/&gt;avg and peak"]
+    Q --&gt; St["3. Storage&lt;br/&gt;x retention x replicas"]
+    St --&gt; Bw["4. Bandwidth&lt;br/&gt;read and write"]
+    Bw --&gt; Mem["5. Memory&lt;br/&gt;80/20 cache"]
+    Mem --&gt; Srv["6. Servers&lt;br/&gt;+ headroom"]
+</pre>
+<figcaption>Users &rarr; QPS &rarr; storage &rarr; bandwidth &rarr; memory &rarr; servers. Separate reads from writes at every step.</figcaption>
+</figure>
+
+<h2>Conversions to memorise</h2>
+<ul class="checklist">
+  <li><strong>1 day &asymp; 86,400 s &asymp; 10<sup>5</sup> s</strong> &rarr; 1M actions/day &asymp; ~10 QPS.</li>
+  <li><strong>Peak &asymp; 2&ndash;10&times; average</strong> &mdash; design for peak.</li>
+  <li>One commodity server: <strong>hundreds to low thousands</strong> of QPS, depending on work per request.</li>
+  <li><strong>1 Gbps &asymp; 125 MB/s</strong> &mdash; networks quote bits, storage quotes bytes.</li>
+  <li>Real storage &asymp; <strong>3&times; raw</strong> (replication) plus indexes.</li>
+</ul>
+
+<h2>Powers of two &amp; nines</h2>
+<table>
+  <thead><tr><th>Power</th><th>&asymp;</th><th>Unit</th><th></th><th>Availability</th><th>Downtime / year</th></tr></thead>
+  <tbody>
+    <tr><td>2<sup>10</sup></td><td>10<sup>3</sup></td><td>KB</td><td></td><td>99%</td><td>3.65 days</td></tr>
+    <tr><td>2<sup>20</sup></td><td>10<sup>6</sup></td><td>MB</td><td></td><td>99.9%</td><td>8.77 hours</td></tr>
+    <tr><td>2<sup>30</sup></td><td>10<sup>9</sup></td><td>GB</td><td></td><td>99.99%</td><td>52.6 minutes</td></tr>
+    <tr><td>2<sup>40</sup></td><td>10<sup>12</sup></td><td>TB</td><td></td><td>99.999%</td><td>5.26 minutes</td></tr>
+    <tr><td>2<sup>50</sup></td><td>10<sup>15</sup></td><td>PB</td><td></td><td></td><td></td></tr>
+  </tbody>
+</table>
+
+<h2>Latency numbers (orders of magnitude)</h2>
+<table>
+  <thead><tr><th>Operation</th><th>Latency</th></tr></thead>
+  <tbody>
+    <tr><td>L1 cache reference</td><td>~0.5 ns</td></tr>
+    <tr><td>Main memory reference</td><td>~100 ns</td></tr>
+    <tr><td>Send 1 KB over 1 Gbps</td><td>~10 &micro;s</td></tr>
+    <tr><td>Random 4 KB read from SSD</td><td>~150 &micro;s</td></tr>
+    <tr><td>Read 1 MB sequentially from memory</td><td>~250 &micro;s</td></tr>
+    <tr><td>Round trip within a datacenter</td><td>~500 &micro;s</td></tr>
+    <tr><td>Read 1 MB sequentially from SSD</td><td>~1 ms</td></tr>
+    <tr><td>Disk seek</td><td>~10 ms</td></tr>
+    <tr><td>Read 1 MB sequentially from disk</td><td>~20 ms</td></tr>
+    <tr><td>Round trip California &harr; Netherlands</td><td>~150 ms</td></tr>
+  </tbody>
+</table>
+<p>Memory &asymp; 1000&times; faster than disk &rarr; cache. Sequential &#8811; random &rarr; LSM-trees and Kafka append. Cross-region RTT is
+the speed of light &rarr; move data closer (CDN, regional replicas).</p>
+
+<h2>Worked numbers: URL shortener</h2>
+<pre><code>Assume: 100M new URLs/day, read:write = 100:1, 500 B/record, keep 5 years
+QPS       writes 100M / 10^5     &asymp; 1.2K/s     peak (x2) &asymp; 2.4K/s
+          reads  x100            &asymp; 120K/s     peak (x2) &asymp; 240K/s
+Storage   100M x 365 x 5         &asymp; 180B rows  x 500 B &asymp; 90 TB raw, ~270 TB at 3x
+Bandwidth reads 120K/s x 500 B   &asymp; 60 MB/s    (writes &asymp; 600 KB/s)
+Cache     10B reads/day x 500 B  &asymp; 5 TB/day   hot 20% &asymp; 1 TB
+Codes     base-62, 7 chars       &asymp; 3.5 trillion combinations</code></pre>
+<p><strong>Decisions the numbers force:</strong> read-dominated &rarr; cache + replicas/CDN first; ~270 TB &rarr; shard by hash of the short code;
+240K peak QPS &rarr; many stateless app servers behind a load balancer.</p>
+
+<h2>Review questions</h2>
+<ul class="checklist">
+  <li>What are the stated assumptions (DAU, ratio, payload, retention)?</li>
+  <li>Are average and peak, read and write, computed separately?</li>
+  <li>Does storage include replication and indexes?</li>
+  <li>Is bandwidth in bytes or bits &mdash; consistently?</li>
+  <li>Which number justifies each cache, replica and shard in the design?</li>
+</ul>
+
+<div class="callout warning">
+  <span class="label">Traps</span>
+  <ul>
+    <li><strong>False precision</strong> &mdash; &ldquo;1,157.4 QPS&rdquo; instead of &ldquo;~1K/s&rdquo;.</li>
+    <li><strong>Forgetting peak</strong> &mdash; sized for average, down at the daily spike.</li>
+    <li><strong>Ignoring replication and overhead</strong> &mdash; real storage is ~3&times; raw.</li>
+    <li><strong>Mixing bits and bytes</strong> &mdash; an 8&times; error.</li>
+    <li><strong>Numbers not tied to decisions</strong> &mdash; estimation as ritual, not design.</li>
+  </ul>
+</div>
+
+<nav class="lesson-nav">
+  <span class="group"><b>From</b><a href="../lessons/0007-back-of-envelope-estimation.html">&larr; Lesson 07 · Back-of-envelope estimation</a></span>
+  <span class="group"><b>Course map</b><a href="../index.html">&uarr; All lessons</a></span>
+  <span class="group"><b>Canonical terms</b><a href="../GLOSSARY.md">GLOSSARY.md</a></span>
+  <span class="group"><b>Primary source</b><a href="https://colin-scott.github.io/personal_website/research/interactive_latency.html" target="_blank" rel="noopener">Latency numbers every programmer should know (interactive)</a></span>
+</nav>
+
+</body>
+</html>

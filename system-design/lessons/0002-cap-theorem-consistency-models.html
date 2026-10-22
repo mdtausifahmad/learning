@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 02 · CAP Theorem &amp; Consistency Models</title>
+<link rel="stylesheet" href="../../assets/course/course.css">
+<link rel="stylesheet" href="../assets/theme.css">
+<script src="../../assets/course/links.js" defer></script>
+<script src="../../assets/course/quiz.js" defer></script>
+<script type="module" src="../../assets/course/mermaid.js"></script>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">System Design · Lesson 02</p>
+  <h1>CAP Theorem &amp; Consistency Models</h1>
+  <div class="meta">
+    <span>◷ ~13 min read</span>
+    <span class="dot">•</span>
+    <span>Foundations</span>
+    <span class="dot">•</span>
+    <span>Prereq: <a href="0001-scalability-tradeoff-axes.html">Lesson 01</a></span>
+  </div>
+</header>
+
+<p class="mission-tie">
+  &ldquo;What happens during a partition?&rdquo; is the question that separates a box diagram from a design. Staff engineers match the <strong>consistency model to the business need</strong> &mdash; strong for money, inventory and uniqueness; eventual for feeds and metrics &mdash; and can tune <code>N/W/R</code> and explain the guarantee they get. This lesson gives you that vocabulary, and the judgement to reach for consensus only where you need coordination.
+</p>
+
+<div class="callout insight">
+  <span class="label">TL;DR</span>
+  <p><strong>The core question:</strong> when the network breaks and your nodes can't talk to each other, do you keep answering (risking stale/wrong data) or refuse to answer (staying correct)? You cannot have both. This is the single most important trade-off in distributed data.</p>
+<ul>
+<li><strong>CAP:</strong> in the presence of a network <strong>Partition</strong>, you must choose <strong>Consistency</strong> <em>or</em> <strong>Availability</strong>. Partition tolerance isn't optional in a distributed system — so the real choice is <strong>CP vs AP</strong>.</li>
+<li><strong>PACELC</strong> extends it: <strong>E</strong>lse (when there's no partition) you still trade <strong>L</strong>atency vs <strong>C</strong>onsistency.</li>
+<li>Consistency is a <strong>spectrum</strong>, not a boolean: <em>linearizable → sequential → causal → eventual</em> (strong to weak).</li>
+<li><strong>Quorums</strong> (<code>N</code>, <code>W</code>, <code>R</code>) let you tune the consistency/availability dial: <code>W + R &gt; N</code> gives strong reads.</li>
+</ul>
+</div>
+
+<h2 id="1-the-cap-theorem">1. The CAP Theorem</h2>
+<p>In a distributed data store you can guarantee at most <strong>two of three</strong>:</p>
+<ul>
+<li><strong>C — Consistency:</strong> every read sees the most recent write (or an error). All nodes agree. <em>(This is &quot;linearizability&quot;, not the C in ACID.)</em></li>
+<li><strong>A — Availability:</strong> every request gets a non-error response — but not necessarily the latest data.</li>
+<li><strong>P — Partition tolerance:</strong> the system keeps working despite dropped/delayed messages between nodes.</li>
+</ul>
+<figure><pre class="mermaid">
+flowchart TD
+    P{"Network partition&lt;br/&gt;happening right now?"}
+    P --&gt;|"No"| Both["Serve normally&lt;br/&gt;(C and A both fine)"]
+    P --&gt;|"Yes"| Choice{"You must choose:"}
+    Choice --&gt;|"Keep answering"| AP["AP: Availability&lt;br/&gt;→ may return stale data"]
+    Choice --&gt;|"Stay correct"| CP["CP: Consistency&lt;br/&gt;→ reject / block some requests"]
+</pre></figure>
+<p><strong>The key insight:</strong> partitions <em>will</em> happen (cables cut, switches fail, GC pauses, network blips). Since you can't sacrifice <strong>P</strong> in a real distributed system, CAP reduces to a decision you make <strong>only during a partition</strong>: <strong>CP or AP</strong>.</p>
+<h3 id="cp-vs-ap-in-practice">CP vs AP in practice</h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th></th>
+<th><strong>CP (choose Consistency)</strong></th>
+<th><strong>AP (choose Availability)</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>During a partition</td>
+<td>Rejects/blocks writes or reads on the minority side</td>
+<td>Accepts reads/writes everywhere, reconciles later</td>
+</tr>
+<tr>
+<td>Good for</td>
+<td>Money, inventory, bookings, unique constraints</td>
+<td>Feeds, likes, carts, presence, metrics</td>
+</tr>
+<tr>
+<td>Examples</td>
+<td>ZooKeeper, etcd, HBase, Spanner, most RDBMS w/ sync replication</td>
+<td>Cassandra, DynamoDB (default), Riak, DNS</td>
+</tr>
+<tr>
+<td>Failure feel</td>
+<td>&quot;Try again later&quot;</td>
+<td>&quot;You might see slightly old data&quot;</td>
+</tr>
+</tbody>
+</table></div>
+<blockquote>
+<p>There is <strong>no &quot;CA&quot; system</strong> in the real world: you cannot drop partition tolerance and still be distributed. A single-node database is &quot;CA&quot; only because it isn't distributed.</p>
+</blockquote>
+<h2 id="2-pacelc--the-more-complete-model">2. PACELC — the more complete model</h2>
+<p>CAP only describes behavior <em>during</em> a partition. <strong>PACELC</strong> captures the everyday trade-off too:</p>
+<blockquote>
+<p><strong>If Partition (P): choose A or C. Else (E): choose L (latency) or C (consistency).</strong></p>
+</blockquote>
+<figure><pre class="mermaid">
+flowchart LR
+    Start["Request"] --&gt; Q{"Partition?"}
+    Q --&gt;|"P"| AC{"A or C?"}
+    Q --&gt;|"E (normal)"| LC{"L or C?"}
+    AC --&gt; A1["Availability"]
+    AC --&gt; C1["Consistency"]
+    LC --&gt; L1["Low latency&lt;br/&gt;(async replication)"]
+    LC --&gt; C2["Strong consistency&lt;br/&gt;(sync replication, slower)"]
+</pre></figure>
+<p>Even with a healthy network, keeping replicas perfectly in sync means <strong>waiting</strong> for acknowledgements (higher latency). So systems like DynamoDB and Cassandra are <strong>PA/EL</strong> (favor availability <em>and</em> latency), while Spanner is <strong>PC/EC</strong> (favor consistency in both modes, paying latency for it).</p>
+<h2 id="3-consistency-is-a-spectrum">3. Consistency is a spectrum</h2>
+<p>&quot;Consistency&quot; isn't on/off. From strongest (most intuitive, most expensive) to weakest (cheapest, most available):</p>
+<figure><pre class="mermaid">
+flowchart LR
+    Lin["Linearizable&lt;br/&gt;(strong)"] --&gt; Seq["Sequential"]
+    Seq --&gt; Cau["Causal"]
+    Cau --&gt; Eve["Eventual&lt;br/&gt;(weak)"]
+    Lin -.-&gt;|"more available,&lt;br/&gt;lower latency →"| Eve
+    Eve -.-&gt;|"← stronger guarantees,&lt;br/&gt;more coordination"| Lin
+</pre></figure>
+<ul>
+<li><strong>Linearizable (strong):</strong> the system behaves as if there's a single copy of the data and every operation happens atomically at a single instant. A read always returns the latest committed write. <em>Most intuitive, most expensive — requires coordination/consensus.</em></li>
+<li><strong>Sequential:</strong> all nodes see operations in the <em>same order</em>, but that order need not match real-time wall-clock order.</li>
+<li><strong>Causal:</strong> operations that are causally related (A &quot;happened before&quot; B) are seen in that order by everyone; concurrent operations may be seen in any order. A great middle ground — preserves &quot;reply after post&quot; style ordering without global coordination.</li>
+<li><strong>Eventual:</strong> if writes stop, all replicas <em>eventually</em> converge to the same value. Reads may return stale data in the meantime. Cheapest, most available (DNS, S3 historically, shopping-cart merges).</li>
+</ul>
+<h3 id="the-three-consistency-patterns-a-simpler-practitioners-lens">The three consistency <em>patterns</em> (a simpler practitioner's lens)</h3>
+<ul>
+<li><strong>Weak consistency</strong> — after a write, reads may or may not see it. No guarantees. (Live video, VoIP, online games — stale data is simply dropped.)</li>
+<li><strong>Eventual consistency</strong> — reads will see the write <em>after a delay</em>, and replicas converge. (DNS, email, most AP stores.)</li>
+<li><strong>Strong consistency</strong> — after a write, every read sees it. (RDBMS, file systems, anything with transactions.)</li>
+</ul>
+<h3 id="client-centric-guarantees-worth-knowing">Client-centric guarantees worth knowing</h3>
+<ul>
+<li><strong>Read-your-writes</strong> — you always see your <em>own</em> latest write (even if others don't yet). Common UX fix on eventually-consistent stores.</li>
+<li><strong>Monotonic reads</strong> — you never see time &quot;go backwards&quot; (a later read won't return older data than an earlier one).</li>
+</ul>
+<h2 id="4-replication--quorums--tuning-the-dial">4. Replication &amp; Quorums — tuning the dial</h2>
+<p>Data is replicated to <code>N</code> nodes. On each operation you decide how many must acknowledge:</p>
+<ul>
+<li><code>N</code> = number of replicas</li>
+<li><code>W</code> = replicas that must <strong>ack a write</strong> before it's considered successful</li>
+<li><code>R</code> = replicas that must <strong>respond to a read</strong></li>
+</ul>
+<p><strong>The magic inequality:</strong> if <code>W + R &gt; N</code>, the read and write sets are guaranteed to <strong>overlap</strong> on at least one node → the read sees the latest write → <strong>strong consistency</strong>. If <code>W + R ≤ N</code>, you get <strong>eventual consistency</strong> but higher availability and lower latency.</p>
+<figure><pre class="mermaid">
+flowchart TD
+    subgraph ex["N = 3, W = 2, R = 2  so  W + R = 4, which exceeds N = 3  ✅ strong"]
+        W1["Write to A, B ✔ (acked)"]
+        W2["... C lags behind"]
+        R1["Read from B, C"]
+        R1 --&gt; Ov["B is in BOTH sets&lt;br/&gt;→ read sees latest write"]
+    end
+</pre></figure>
+<p><strong>Common configurations:</strong></p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Config</th>
+<th>Property</th>
+<th>Use when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>W=N, R=1</code></td>
+<td>Fast reads, slow/fragile writes</td>
+<td>Read-heavy, rarely written data</td>
+</tr>
+<tr>
+<td><code>W=1, R=N</code></td>
+<td>Fast writes, slow reads</td>
+<td>Write-heavy logging/ingest</td>
+</tr>
+<tr>
+<td><code>W=quorum, R=quorum</code> (e.g. N=3,W=2,R=2)</td>
+<td>Balanced strong consistency, tolerates 1 node down</td>
+<td>The usual default</td>
+</tr>
+<tr>
+<td><code>W+R ≤ N</code></td>
+<td>Eventual, max availability</td>
+<td>AP systems (Cassandra tunable)</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Replication topologies</strong> (see <a href="0003-databases-and-data-modeling.html#2-replication">Topic 3</a> for details): single-leader (primary/replica), multi-leader, and leaderless (Dynamo-style quorum). The more leaders, the higher the availability but the harder the <strong>conflict resolution</strong> (last-write-wins, version vectors, CRDTs).</p>
+<h2 id="5-how-consistency-is-actually-achieved-consensus">5. How consistency is actually achieved: consensus</h2>
+<p>Strong consistency across nodes requires the nodes to <strong>agree</strong> on an order of operations despite failures. That's the job of <strong>consensus algorithms</strong> — <strong>Paxos</strong> and the more understandable <strong>Raft</strong>. They elect a leader and replicate an ordered log to a majority quorum; a value is committed once a majority persists it. This underpins etcd, ZooKeeper, Spanner, CockroachDB, and Kafka's controller.</p>
+<figure><pre class="mermaid">
+sequenceDiagram
+    participant C as Client
+    participant L as Leader
+    participant F1 as Follower 1
+    participant F2 as Follower 2
+    C-&gt;&gt;L: propose(x = 5)
+    L-&gt;&gt;F1: replicate(x = 5)
+    L-&gt;&gt;F2: replicate(x = 5)
+    F1--&gt;&gt;L: ack
+    Note over L: majority (L + F1) reached
+    L--&gt;&gt;C: committed ✅
+    L-&gt;&gt;F2: (catches up later)
+</pre></figure>
+<blockquote>
+<p>You rarely implement consensus yourself — you <em>use</em> a system that provides it (etcd, ZooKeeper) for leader election, config, and locks. The Staff+ skill is knowing <strong>when</strong> you need it (coordination, uniqueness, ordering) versus when eventual consistency is fine.</p>
+</blockquote>
+<h2 id="6-what-good-looks-like-at-staff">6. What &quot;good&quot; looks like at Staff+</h2>
+<ul>
+<li>You ask <strong>&quot;what happens during a partition?&quot;</strong> for every stateful component and can state whether it's CP or AP — <em>and why that's the right call for this data</em>.</li>
+<li>You match the <strong>consistency model to the business need</strong>: strong for money/inventory/uniqueness; eventual for feeds/likes/metrics.</li>
+<li>You can tune <code>N/W/R</code> quorums and explain the resulting guarantee.</li>
+<li>You reach for <strong>consensus (etcd/ZooKeeper)</strong> only where you truly need coordination, not everywhere.</li>
+</ul>
+<h2 id="7-common-pitfalls">7. Common pitfalls</h2>
+<ul>
+<li><strong>Assuming &quot;eventual&quot; means &quot;a few milliseconds.&quot;</strong> Under load or partition, replication lag can be seconds to minutes — plan the UX (read-your-writes) around it.</li>
+<li><strong>Treating CAP's C as ACID's C.</strong> They're different: CAP-C is linearizability; ACID-C is preserving invariants within a transaction.</li>
+<li><strong>Believing you picked &quot;CA.&quot;</strong> You didn't — you picked CP or AP; you just haven't had a partition <em>yet</em>.</li>
+<li><strong>Multi-leader without a conflict strategy</strong> — silent lost updates. Decide LWW vs version vectors vs CRDTs up front.</li>
+</ul>
+<h2 id="8-further-reading">8. Further reading</h2>
+<ul>
+<li>System Design Primer — &quot;CAP theorem&quot;, &quot;Consistency patterns&quot;, &quot;Availability patterns&quot; — <a href="https://github.com/donnemartin/system-design-primer#consistency-patterns" target="_blank" rel="noopener">https://github.com/donnemartin/system-design-primer#consistency-patterns</a></li>
+<li>Kleppmann, <em>DDIA</em> Ch. 5 (Replication) &amp; Ch. 9 (Consistency &amp; Consensus) — <a href="https://dataintensive.net/" target="_blank" rel="noopener">https://dataintensive.net/</a></li>
+<li>&quot;Please stop calling databases CP or AP&quot; (Kleppmann) — <a href="https://martin.kleppmann.com/2015/05/11/please-stop-calling-databases-cp-or-ap.html" target="_blank" rel="noopener">https://martin.kleppmann.com/2015/05/11/please-stop-calling-databases-cp-or-ap.html</a></li>
+<li>PACELC — <a href="https://en.wikipedia.org/wiki/PACELC_design_principle" target="_blank" rel="noopener">https://en.wikipedia.org/wiki/PACELC_design_principle</a></li>
+<li>The Raft paper / visualization — <a href="https://raft.github.io/" target="_blank" rel="noopener">https://raft.github.io/</a></li>
+</ul>
+
+<div class="primary-source">
+  <span class="label">Read this next (primary source)</span>
+  <p>Martin Kleppmann &mdash; <a href="https://martin.kleppmann.com/2015/05/11/please-stop-calling-databases-cp-or-ap.html" target="_blank" rel="noopener"><em>Please stop calling databases CP or AP</em></a> (why the labels mislead and what to say instead). Go deeper with <a href="https://dataintensive.net/" target="_blank" rel="noopener"><em>Designing Data-Intensive Applications</em></a>, Ch. 5 (Replication) and Ch. 9 (Consistency and Consensus), and the <a href="https://raft.github.io/" target="_blank" rel="noopener"><em>Raft</em></a> visualisation.</p>
+</div>
+
+<h2 id="9-check-yourself">9. Check yourself</h2>
+<p>Retrieve before revealing.</p>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 1 of 3</p>
+  <p class="quiz-q">A partition splits your inventory cluster across two AZs during a flash sale. Overselling the last 50 units means refunds and angry customers. The minority side should&hellip;</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="That is the AP choice. Last-write-wins silently drops updates, so you oversell — wrong for inventory.">keep taking orders and reconcile stock with last-write-wins afterwards</button></li>
+    <li><button data-correct="false" data-feedback="Partitions will happen: cut cables, failed switches, GC pauses. You only find out which side you chose when one does.">keep taking orders, since partitions are too rare to design around</button></li>
+    <li><button data-correct="true" data-feedback="Right — inventory needs CP. A short ‘try again later’ is cheaper than overselling.">reject or block writes, and tell users to try again in a moment</button></li>
+    <li><button data-correct="false" data-feedback="There is no CA in a distributed system. You can't drop partition tolerance; you choose CP or AP.">switch the cluster into CA mode until the network link is restored</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="During a partition you choose CP or AP per data type: strong for money, inventory and uniqueness; eventual for feeds, likes and metrics."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 2 of 3</p>
+  <p class="quiz-q">A user edits their bio, refreshes, and sees the old text. Reads go to async replicas that are usually 50 ms behind but lag seconds under load. The cheapest fix that meets the need is&hellip;</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="Right — a client-centric guarantee fixes the UX without paying for global strong consistency.">read-your-writes: route this user's reads to the leader after a write</button></li>
+    <li><button data-correct="false" data-feedback="That pays latency on every write for everyone (PACELC: E → L or C) to fix one user's view of their own data.">make every replica synchronous so all reads everywhere are linearizable</button></li>
+    <li><button data-correct="false" data-feedback="Consensus is for coordination, uniqueness and ordering. It doesn't fix reads from lagging replicas.">put profile writes through a consensus layer such as etcd with Raft</button></li>
+    <li><button data-correct="false" data-feedback="The stale data comes from replication lag, not a cache. A shorter TTL just reloads from the same lagging replica.">lower the cache TTL on profile pages so the stale copy expires sooner</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Eventual doesn't mean ‘a few ms’. Plan the UX with read-your-writes or monotonic reads before buying global strong consistency."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 3 of 3</p>
+  <p class="quiz-q">A leaderless store runs with N = 3. The team wants reads to always see the latest acknowledged write, and to keep serving reads and writes with one node down. Which setting fits?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="W + R = 2 ≤ N, so read and write sets may not overlap. That is eventual consistency.">W = 1, R = 1 — fastest path, and the replicas converge eventually</button></li>
+    <li><button data-correct="false" data-feedback="W + R > N gives strong reads, but writes need all three nodes, so one node down blocks every write.">W = 3, R = 1 — fast reads, and every replica holds every write</button></li>
+    <li><button data-correct="false" data-feedback="Strong reads, but reads need all three nodes, so one node down blocks every read.">W = 1, R = 3 — fast writes, and every read checks every replica</button></li>
+    <li><button data-correct="true" data-feedback="Right — W + R = 4 > 3, so reads see the latest write, and either quorum survives one node down.">W = 2, R = 2 — read and write sets overlap on at least one node</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="If W + R > N, read and write quorums overlap and reads are strong. Quorum/quorum (N=3, W=2, R=2) is the usual balanced default."></div>
+</div>
+
+<div class="callout tryit">
+  <span class="label">Try it in your own system</span>
+  <ul class="checklist">
+    <li>For each stateful store your team owns, write one line: CP or AP during a partition, and why that is right for <em>this</em> data.</li>
+    <li>Find one read path served from an async replica or eventually-consistent store. Measure replication lag at peak, not at idle.</li>
+    <li>Pick a flow where users edit and then view their own data. Does it guarantee read-your-writes? If not, sketch the routing fix.</li>
+    <li>If you run a tunable store (Cassandra, DynamoDB, Riak), record N/W/R or the consistency level per table, and whether W + R &gt; N.</li>
+  </ul>
+</div>
+
+<div class="followup">
+  <strong>I&rsquo;m your teacher &mdash; ask me anything.</strong> List the data your service stores and we&rsquo;ll classify each piece as CP or AP together, then pick quorum settings and the client guarantees your UX actually needs.
+</div>
+
+<nav class="lesson-nav">
+  <span class="group">
+    <b>Previous</b>
+    <a href="0001-scalability-tradeoff-axes.html">&larr; Lesson 01 · Scalability trade-offs</a>
+  </span>
+  <span class="group">
+    <b>Reference</b>
+    <a href="../reference/0002-cap-theorem-consistency-models-cheatsheet.html">CAP & consistency cheat sheet &rarr;</a>
+  </span>
+  <span class="group">
+    <b>Course map</b>
+    <a href="../index.html">&uarr; All lessons</a>
+  </span>
+  <span class="group">
+    <b>Up next</b>
+    <a href="0003-databases-and-data-modeling.html">Lesson 03 · Databases & data modeling &rarr;</a>
+  </span>
+</nav>
+
+</body>
+</html>

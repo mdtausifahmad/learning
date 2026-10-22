@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 05 · Asynchronism &amp; Messaging</title>
+<link rel="stylesheet" href="../../assets/course/course.css">
+<link rel="stylesheet" href="../assets/theme.css">
+<script src="../../assets/course/links.js" defer></script>
+<script src="../../assets/course/quiz.js" defer></script>
+<script type="module" src="../../assets/course/mermaid.js"></script>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">System Design · Lesson 05</p>
+  <h1>Asynchronism &amp; Messaging</h1>
+  <div class="meta">
+    <span>◷ ~13 min read</span>
+    <span class="dot">•</span>
+    <span>Building blocks</span>
+    <span class="dot">•</span>
+    <span>Prereq: <a href="0001-scalability-tradeoff-axes.html">Lesson 01</a>, <a href="0004-caching.html">Lesson 04</a></span>
+  </div>
+</header>
+
+<p class="mission-tie">
+  Async messaging turns fragile synchronous chains into pipelines that scale and fail independently &mdash; if you get the guarantees right. Staff engineers <strong>assume at-least-once and make consumers idempotent</strong>, bound every queue, remove dual writes with CDC or an outbox, and choose Kafka partition keys for the ordering they need. For the full deep dive, the <em>Async &amp; Messaging</em> course picks up where this lesson stops.
+</p>
+
+<div class="callout insight">
+  <span class="label">TL;DR</span>
+  <p><strong>The core question:</strong> how do you decouple a fast producer from a slow consumer so neither takes the other down — and how do you guarantee the work eventually happens, even across failures? Asynchronous messaging turns tightly-coupled, synchronous call chains into resilient, independently-scalable pipelines.</p>
+<ul>
+<li><strong>Async decoupling</strong> lets producers and consumers scale and fail independently; a queue absorbs bursts.</li>
+<li><strong>Message queue</strong> (point-to-point, one consumer per message) vs <strong>pub/sub</strong> (fan-out to many subscribers).</li>
+<li><strong>Back-pressure</strong> protects an overwhelmed consumer instead of letting it fall over.</li>
+<li><strong>Delivery semantics:</strong> at-most-once (may lose), at-least-once (may duplicate → need <strong>idempotency</strong>), exactly-once (hardest).</li>
+<li><strong>Event sourcing</strong> stores changes as an immutable log; <strong>CDC</strong> streams DB changes; <strong>Kafka</strong> is the durable, partitioned log that powers both.</li>
+</ul>
+</div>
+
+<h2 id="1-why-go-asynchronous">1. Why go asynchronous?</h2>
+<p>Synchronous: the caller <strong>waits</strong> for the callee. One slow/failed downstream stalls the whole chain (and hurts availability — remember series multiplication from <a href="0001-scalability-tradeoff-axes.html#5-availability--the-nines">Topic 1</a>).</p>
+<p>Asynchronous: the caller <strong>hands off</strong> the work and moves on; a broker holds the message until a consumer processes it.</p>
+<figure><pre class="mermaid">
+flowchart LR
+    subgraph sync["Synchronous (coupled)"]
+        A1["API"] --&gt;|blocks| B1["Email service"]
+        B1 --&gt;|slow/down| A1
+    end
+    subgraph async["Asynchronous (decoupled)"]
+        A2["API"] --&gt;|enqueue, return 202| Q["Queue"]
+        Q --&gt; W["Worker(s)"]
+        W --&gt; E2["Email service"]
+    end
+</pre></figure>
+<p><strong>Benefits:</strong> burst absorption (buffering), independent scaling (add workers), fault isolation (broker retries if a worker dies), and lower user-facing latency (return immediately, do the work later).</p>
+<h2 id="2-message-queue-vs-publishsubscribe">2. Message Queue vs Publish/Subscribe</h2>
+<figure><pre class="mermaid">
+flowchart TB
+    subgraph queue["Message Queue (point-to-point)"]
+        P1["Producer"] --&gt; Q1["Queue"]
+        Q1 --&gt; C1["Consumer A"]
+        Q1 --&gt; C2["Consumer B"]
+        note1["Each message → exactly ONE consumer&lt;br/&gt;(competing consumers = parallelism)"]
+    end
+    subgraph pubsub["Publish / Subscribe (fan-out)"]
+        P2["Publisher"] --&gt; T["Topic"]
+        T --&gt; S1["Subscriber 1"]
+        T --&gt; S2["Subscriber 2"]
+        T --&gt; S3["Subscriber 3"]
+        note2["Each message → ALL subscribers"]
+    end
+</pre></figure>
+<ul>
+<li><strong>Queue (competing consumers):</strong> many workers pull from one queue; each message is delivered to <em>one</em> worker. This is how you parallelize a workload — add workers to drain faster. (RabbitMQ, SQS, Celery.)</li>
+<li><strong>Pub/Sub:</strong> a message published to a topic is delivered to <em>every</em> subscriber independently. This is how you fan out an event to multiple systems. (Kafka, SNS, Google Pub/Sub, Redis pub/sub.)</li>
+</ul>
+<p><strong>Task queue</strong> = a queue specialized for background jobs (image resize, email, report generation), often with retries, scheduling, and priorities.</p>
+<h2 id="3-back-pressure">3. Back-pressure</h2>
+<p>If producers outpace consumers, the queue grows unboundedly → memory exhaustion, ballooning latency, eventual collapse. <strong>Back-pressure</strong> is the system pushing back to slow producers down.</p>
+<figure><pre class="mermaid">
+flowchart LR
+    P["Producer"] --&gt;|"fast"| Q["Bounded queue"]
+    Q --&gt;|"slow"| C["Consumer"]
+    Q -.-&gt;|"queue full →&lt;br/&gt;reject / slow / block producer"| P
+</pre></figure>
+<p><strong>Techniques:</strong> bounded queues that reject or block when full (returning <code>429/503</code>), rate limiting at the producer, load shedding (drop low-priority work), and buffering with a <strong>dead-letter queue (DLQ)</strong> for messages that repeatedly fail. The principle: <strong>fail fast and predictably</strong> rather than degrade unboundedly.</p>
+<h2 id="4-delivery-semantics-and-idempotency">4. Delivery Semantics (and idempotency)</h2>
+<p>The hardest part of messaging: guarantees about <em>how many times</em> a message is processed when failures and retries happen.</p>
+<figure><pre class="mermaid">
+flowchart TD
+    M["Message sent"] --&gt; S{"Delivery guarantee"}
+    S --&gt; AM["At-most-once&lt;br/&gt;ack before processing&lt;br/&gt;→ may LOSE, never duplicate"]
+    S --&gt; AL["At-least-once&lt;br/&gt;ack after processing + retries&lt;br/&gt;→ never lose, may DUPLICATE"]
+    S --&gt; EO["Exactly-once&lt;br/&gt;at-least-once + dedup/idempotency&lt;br/&gt;→ hardest, most expensive"]
+</pre></figure>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Semantic</th>
+<th>Guarantee</th>
+<th>Cost</th>
+<th>Typical use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>At-most-once</strong></td>
+<td>Never duplicated, may be lost</td>
+<td>Cheapest</td>
+<td>Metrics, non-critical telemetry</td>
+</tr>
+<tr>
+<td><strong>At-least-once</strong></td>
+<td>Never lost, may be duplicated</td>
+<td>Moderate</td>
+<td><strong>The common default</strong> — pair with idempotency</td>
+</tr>
+<tr>
+<td><strong>Exactly-once</strong></td>
+<td>Processed once, effectively</td>
+<td>Highest (transactions/dedup)</td>
+<td>Payments, financial ledgers</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Idempotency is the practical answer.</strong> Since most brokers give <em>at-least-once</em>, make processing <strong>idempotent</strong> so duplicates are harmless:</p>
+<ul>
+<li>Attach an <strong>idempotency key</strong> (unique message/request ID); record processed IDs and skip repeats.</li>
+<li>Use <strong>upserts</strong> / conditional writes instead of blind inserts/increments.</li>
+<li>Design operations so applying them twice equals applying them once (<code>set balance = X</code>, not <code>balance += 10</code>).</li>
+</ul>
+<blockquote>
+<p><strong>&quot;Exactly-once delivery&quot; is largely a myth over an unreliable network; &quot;exactly-once <em>processing</em>&quot; is achievable</strong> via at-least-once delivery + idempotent consumers, or transactional systems (Kafka transactions, the outbox pattern).</p>
+</blockquote>
+<h2 id="5-event-sourcing">5. Event Sourcing</h2>
+<p>Instead of storing only the <em>current state</em>, store the <strong>immutable sequence of events</strong> that produced it. Current state is derived by replaying events.</p>
+<figure><pre class="mermaid">
+flowchart LR
+    subgraph traditional["Traditional (state)"]
+        T["balance = 120"]
+    end
+    subgraph es["Event Sourcing (log of facts)"]
+        E1["Deposited 100"] --&gt; E2["Deposited 50"] --&gt; E3["Withdrew 30"]
+        E3 --&gt; D["fold → balance = 120"]
+    end
+</pre></figure>
+<ul>
+<li>✅ Full audit trail, time-travel/replay, natural fit for CQRS (separate read models), enables rebuilding any projection.</li>
+<li>❌ More complex; queries need materialized read models; schema/versioning of events needs care.</li>
+<li><strong>Use for:</strong> finance/ledgers, order lifecycles, anything needing &quot;how did we get here?&quot; and strong auditability.</li>
+</ul>
+<h2 id="6-change-data-capture-cdc">6. Change Data Capture (CDC)</h2>
+<p>Stream a database's changes (inserts/updates/deletes) as events by tailing its <strong>write-ahead log</strong> (WAL/binlog). Lets other systems react to DB changes without dual-writes.</p>
+<figure><pre class="mermaid">
+flowchart LR
+    App["App"] --&gt; DB[("Primary DB")]
+    DB --&gt;|WAL / binlog| CDC["CDC (Debezium)"]
+    CDC --&gt; K["Kafka topic"]
+    K --&gt; Search["Search index"]
+    K --&gt; Cache["Cache invalidation"]
+    K --&gt; DW["Data warehouse"]
+</pre></figure>
+<p>CDC is the clean solution to the <strong>dual-write problem</strong> (writing to the DB <em>and</em> a cache/queue and having them drift): write only to the DB, and let CDC reliably propagate the change everywhere else. It powers cache invalidation (<a href="0004-caching.html#5-invalidation--keeping-the-cache-honest">Topic 4</a>), search indexing, and analytics pipelines.</p>
+<h2 id="7-kafka-internals-the-durable-log">7. Kafka internals (the durable log)</h2>
+<p>Kafka is the de-facto backbone for high-throughput event streaming. Its model is a <strong>distributed, partitioned, replicated commit log</strong>.</p>
+<figure><pre class="mermaid">
+flowchart TB
+    P["Producers"] --&gt; TP
+    subgraph TP["Topic 'orders' split into partitions"]
+        P0["Partition 0:  m0 m1 m2 m3 ..."]
+        P1["Partition 1:  m0 m1 m2 ..."]
+        P2["Partition 2:  m0 m1 ..."]
+    end
+    P0 --&gt; CG["Consumer Group"]
+    P1 --&gt; CG
+    P2 --&gt; CG
+    CG --&gt; C0["Consumer A (part 0)"]
+    CG --&gt; C1["Consumer B (part 1)"]
+    CG --&gt; C2["Consumer C (part 2)"]
+</pre></figure>
+<p><strong>Key concepts:</strong></p>
+<ul>
+<li><strong>Topic</strong> — a named stream, split into <strong>partitions</strong>.</li>
+<li><strong>Partition</strong> — an ordered, immutable, append-only log. Ordering is guaranteed <strong>within</strong> a partition, not across them. Messages with the same <strong>key</strong> go to the same partition (preserving per-key order).</li>
+<li><strong>Offset</strong> — each message's position in a partition. Consumers track their offset; they can replay by rewinding it. Kafka <strong>retains</strong> messages (by time/size) regardless of consumption — a durable log, not a transient queue.</li>
+<li><strong>Consumer group</strong> — consumers sharing a group split the partitions among themselves → parallelism. <strong>Max parallelism = number of partitions.</strong> Different groups each get the full stream (pub/sub).</li>
+<li><strong>Replication</strong> — each partition has a <strong>leader</strong> and follower replicas; <strong>ISR</strong> (in-sync replicas) enable failover without data loss. <code>acks=all</code> waits for the ISR to persist.</li>
+</ul>
+<p><strong>Why Kafka is fast:</strong> sequential disk I/O (append-only), zero-copy transfers, batching + compression, and no per-message broker bookkeeping (consumers track their own offsets).</p>
+<blockquote>
+<p><strong>Queue vs Kafka:</strong> a traditional queue (RabbitMQ/SQS) <em>deletes</em> a message once acked. Kafka <em>retains</em> the log so multiple independent consumers can read it, replay it, and join it — which is why it underpins event sourcing, CDC, and stream processing.</p>
+</blockquote>
+<h2 id="8-what-good-looks-like-at-staff">8. What &quot;good&quot; looks like at Staff+</h2>
+<ul>
+<li>You <strong>decouple</strong> with async messaging where latency, bursts, or fault isolation demand it — and keep truly synchronous paths short.</li>
+<li>You assume <strong>at-least-once</strong> delivery and make consumers <strong>idempotent</strong> by default.</li>
+<li>You add <strong>back-pressure and a DLQ</strong> so overload degrades gracefully.</li>
+<li>You reach for <strong>CDC/outbox</strong> to avoid dual-write inconsistency, and <strong>Kafka</strong> when you need a replayable, multi-consumer log.</li>
+<li>You partition by a <strong>key that preserves the ordering you need</strong> and know max parallelism = partition count.</li>
+</ul>
+<h2 id="9-common-pitfalls">9. Common pitfalls</h2>
+<ul>
+<li><strong>Assuming exactly-once delivery</strong> and skipping idempotency → duplicate charges/emails.</li>
+<li><strong>Unbounded queues</strong> with no back-pressure → memory blowups and hidden latency.</li>
+<li><strong>Dual writes</strong> (DB + queue) without CDC/outbox → the two drift apart on partial failure.</li>
+<li><strong>Too few Kafka partitions</strong> → a hard ceiling on consumer parallelism (repartitioning is disruptive).</li>
+<li><strong>Relying on cross-partition ordering</strong> — it doesn't exist; design keys accordingly.</li>
+</ul>
+<h2 id="10-further-reading">10. Further reading</h2>
+<ul>
+<li>System Design Primer — &quot;Asynchronism&quot; (message queues, task queues, back pressure) — <a href="https://github.com/donnemartin/system-design-primer#asynchronism" target="_blank" rel="noopener">https://github.com/donnemartin/system-design-primer#asynchronism</a></li>
+<li>ByteByteGo — &quot;Why is Kafka fast?&quot;, &quot;Kafka use cases&quot;, messaging patterns — <a href="https://github.com/ByteByteGoHq/system-design-101" target="_blank" rel="noopener">https://github.com/ByteByteGoHq/system-design-101</a></li>
+<li>Kleppmann, <em>DDIA</em> Ch. 11 (Stream Processing) &amp; the &quot;logs&quot; chapter — <a href="https://dataintensive.net/" target="_blank" rel="noopener">https://dataintensive.net/</a></li>
+<li>&quot;The Log: What every software engineer should know about real-time data&quot; (Jay Kreps) — <a href="https://engineering.linkedin.com/distributed-systems/log-what-every-software-engineer-should-know-about-real-time-datas-unifying" target="_blank" rel="noopener">https://engineering.linkedin.com/distributed-systems/log-what-every-software-engineer-should-know-about-real-time-datas-unifying</a></li>
+<li>Debezium (CDC) — <a href="https://debezium.io/" target="_blank" rel="noopener">https://debezium.io/</a></li>
+</ul>
+
+<div class="primary-source">
+  <span class="label">Read this next (primary source)</span>
+  <p>Jay Kreps &mdash; <a href="https://engineering.linkedin.com/distributed-systems/log-what-every-software-engineer-should-know-about-real-time-datas-unifying" target="_blank" rel="noopener"><em>The Log: What every software engineer should know about real-time data&rsquo;s unifying abstraction</em></a> (why a durable, ordered log underpins Kafka, CDC and event sourcing). Then the <a href="https://debezium.io/" target="_blank" rel="noopener"><em>Debezium</em></a> docs for how CDC tails the WAL in practice.</p>
+</div>
+
+<h2 id="11-check-yourself">11. Check yourself</h2>
+<p>Retrieve before revealing.</p>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 1 of 3</p>
+  <p class="quiz-q">A payment consumer reads from SQS, which delivers at least once. After a deploy, some customers are charged twice. What's the durable fix?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="At-most-once may lose messages. For payments, a lost charge is as bad as a double one.">Switch the queue to at-most-once so no message is delivered twice</button></li>
+    <li><button data-correct="false" data-feedback="Acking first is at-most-once: a crash mid-processing loses the payment.">Ack each message before processing so the broker never redelivers</button></li>
+    <li><button data-correct="true" data-feedback="Right — at-least-once plus an idempotent consumer gives exactly-once processing.">Record processed idempotency keys and skip any message seen before</button></li>
+    <li><button data-correct="false" data-feedback="Exactly-once delivery over an unreliable network is largely a myth. Duplicates will arrive.">Get exactly-once delivery by moving to a more reliable network</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Assume at-least-once and make consumers idempotent: idempotency keys, upserts or conditional writes, ‘set’ rather than ‘increment’."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 2 of 3</p>
+  <p class="quiz-q">The order service writes to Postgres, then publishes <code>OrderPlaced</code> to Kafka. A crash between the two left 0.1% of orders never shipped. What do you propose?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="Swapping the order is still a dual write; a crash between the two now ships orders that don't exist.">Publish to Kafka first, then write to Postgres, retrying on failure</button></li>
+    <li><button data-correct="false" data-feedback="The process can crash between the calls, and the rollback itself can fail. Partial failure remains.">Wrap both calls in a try/catch and roll back the DB if publish fails</button></li>
+    <li><button data-correct="false" data-feedback="A band-aid: orders sit unshipped for up to a day, and the job is another thing to keep correct.">Add a nightly job that compares both systems and patches the gaps</button></li>
+    <li><button data-correct="true" data-feedback="Right — one atomic write, then CDC (e.g. Debezium) reliably propagates it. No dual write.">Write only to the DB, with an outbox, and let CDC publish the change</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Dual writes drift on partial failure. Write once to the database and propagate with CDC or the outbox pattern."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 3 of 3</p>
+  <p class="quiz-q">An <code>orders</code> topic has 6 partitions keyed by <code>order_id</code>. Lag is growing, so the team scales the consumer group from 6 to 20 instances. Lag doesn't move. Why?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="Right — each partition goes to one consumer in a group. More partitions, not more consumers, adds parallelism.">Max parallelism is the partition count, so 14 consumers sit idle</button></li>
+    <li><button data-correct="false" data-feedback="Offsets are tracked per partition per group; new members don't replay data. They get no partition at all.">Group members share offsets, so new consumers re-read old messages</button></li>
+    <li><button data-correct="false" data-feedback="Kafka retains messages by time or size regardless of consumption. That's the difference from a queue.">Kafka deletes each message on ack, so new consumers find nothing</button></li>
+    <li><button data-correct="false" data-feedback="Same key → same partition, but different order IDs spread across all six partitions.">Keying by order_id forces every message onto one single partition</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Within a consumer group, max parallelism = number of partitions. Size partitions up front; repartitioning is disruptive and reshuffles key ordering."></div>
+</div>
+
+<div class="callout tryit">
+  <span class="label">Try it in your own system</span>
+  <ul class="checklist">
+    <li>Pick one consumer you own. Write down its delivery semantics, its idempotency key, and what happens if the same message arrives twice.</li>
+    <li>Search your code for &ldquo;write to the DB, then publish or update a cache&rdquo;. Each one is a dual write; mark it for outbox or CDC.</li>
+    <li>Check every queue for a bound, a DLQ, and an alert on depth or age. Unbounded and unalerted means hidden latency.</li>
+    <li>For each Kafka topic, compare partition count with peak consumer count, and confirm the key preserves the ordering you rely on.</li>
+  </ul>
+</div>
+
+<div class="followup">
+  <strong>I&rsquo;m your teacher &mdash; ask me anything.</strong> Bring one async flow from your system and we&rsquo;ll trace it end to end: delivery semantics, idempotency, back-pressure, DLQ, and where a dual write is hiding.
+</div>
+
+<nav class="lesson-nav">
+  <span class="group">
+    <b>Previous</b>
+    <a href="0004-caching.html">&larr; Lesson 04 · Caching</a>
+  </span>
+  <span class="group">
+    <b>Reference</b>
+    <a href="../reference/0005-asynchronism-and-messaging-cheatsheet.html">Async & messaging cheat sheet &rarr;</a>
+  </span>
+  <span class="group">
+    <b>Course map</b>
+    <a href="../index.html">&uarr; All lessons</a>
+  </span>
+  <span class="group">
+    <b>Up next</b>
+    <a href="0006-networking-and-api-design.html">Lesson 06 · Networking & APIs &rarr;</a>
+  </span>
+</nav>
+
+</body>
+</html>

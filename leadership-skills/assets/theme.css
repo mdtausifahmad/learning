@@ -1,0 +1,16 @@
+/* ===========================================================================
+   Leadership Skills — course theme (loaded after /assets/course/course.css)
+   Distinct PLUM identity (people, influence).
+   =========================================================================== */
+
+:root {
+  --accent:        #6d2e6b;   /* plum — primary identity, used sparingly */
+  --link:          #6d2e6b;
+  --insight-bg:    #f5edf4;
+  --insight-br:    #8a4387;
+  --correct-ink:   #4a1f48;
+  --accent-hover:  #561f54;
+  --accent-glow:   rgba(138, 67, 135, .55);
+  --accent-past:   rgba(138, 67, 135, .4);
+  --accent-shadow: rgba(109, 46, 107, .4);
+}

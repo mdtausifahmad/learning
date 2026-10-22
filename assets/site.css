@@ -6,6 +6,7 @@
   --ink: #1a1a1a; --paper: #fcfcfa; --muted: #63625c; --rule: #e2e2da;
   --accent: #2e5a7a; --link: #2e5a7a; --code-bg: #eef0f2;
   --c-obs: #14615f; --c-async: #7a2e2e; --c-es: #4b3f8f;
+  --c-sd: #1f4f8f; --c-ts: #8a5a12; --c-ls: #6d2e6b;
   --maxw: 50rem;
 }
 html { font-size: 17px; }
@@ -50,6 +51,9 @@ hr { border: 0; border-top: 1px solid var(--rule); margin: 2rem 0; }
 .course p { margin: 0 0 .6rem; font-size: .95rem; }
 .course .meta { margin: 0; }
 .course.obs { --c: var(--c-obs); } .course.async { --c: var(--c-async); } .course.es { --c: var(--c-es); }
+.course.sd { --c: var(--c-sd); } .course.ts { --c: var(--c-ts); } .course.ls { --c: var(--c-ls); }
+h3.group { color: var(--ink); font-variant: small-caps; letter-spacing: .06em; font-size: 1.05rem; margin: 2rem 0 .2rem; }
+h3.group + .desc { margin: 0 0 .4rem; }
 details { margin: .6rem 0 1.2rem; }
 summary { cursor: pointer; color: var(--muted); font-size: .95rem; }
 .cols { columns: 2 18rem; column-gap: 2rem; padding-left: 1.2rem; font-size: .95rem; }

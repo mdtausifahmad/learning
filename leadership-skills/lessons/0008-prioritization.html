@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 08 · Prioritization at Scale — "Work on What Matters"</title>
+<link rel="stylesheet" href="../../assets/course/course.css">
+<link rel="stylesheet" href="../assets/theme.css">
+<script src="../../assets/course/links.js" defer></script>
+<script src="../../assets/course/quiz.js" defer></script>
+<script type="module" src="../../assets/course/mermaid.js"></script>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Leadership Skills · Lesson 08 · B8</p>
+  <h1>Prioritization at Scale — "Work on What Matters"</h1>
+  <div class="meta">
+    <span>◷ ~15 min read</span>
+    <span class="dot">•</span>
+    <span>Staff judgement</span>
+    <span class="dot">•</span>
+    <span>Prereq: <a href="0007-decision-making.html">Lesson 07</a></span>
+  </div>
+</header>
+
+<p class="mission-tie">
+  At Staff+, the opportunity surface is bigger than any calendar, so <strong>leverage comes mostly from what you choose not to do</strong>. This lesson names the traps that feel like work (snacking, preening, chasing ghosts) and gives you an order of investment: existential issues first, then work where matter, room and attention overlap, with Future You as a stakeholder. Committees do not promote busy people. They promote people who worked on what mattered, which is also the single best route to visibility.
+</p>
+
+<div class="callout insight">
+  <span class="label">TL;DR</span>
+  <p>With more to do than time, how do you choose the work that actually creates leverage?</p>
+<ul>
+<li>Senior+ roles require accomplishing more in less time; leverage mostly comes from what you choose not to do.</li>
+<li>Avoid snacking, preening, and chasing ghosts: low-impact work can feel productive, visible, or heroic while wasting scarce attention.</li>
+<li>Invest first in existential issues, then in important areas with room and attention.</li>
+<li>Use longer time horizons: Future You is a stakeholder in Present You's calendar.</li>
+<li>Prioritize for impact, leverage, and energy; sustainability beats heroics over a forty-year career.</li>
+</ul>
+</div>
+
+<p class="related">Back to the main map: <a href="../../02-skills-to-upgrade.md">Skills to upgrade</a>. Related leadership lessons: <a href="0001-influence-without-authority.html">B1 influence</a>, <a href="0002-communication-and-executive-writing.html">B2 communication</a>, <a href="0003-technical-and-project-leadership.html">B3 technical leadership</a>, <a href="0004-mentorship-and-sponsorship.html">B4 mentorship</a>, <a href="0005-stakeholder-management-and-trust.html">B5 stakeholders</a>, <a href="0006-glue-work.html">B6 glue work</a>, <a href="0007-decision-making.html">B7 decisions</a>. Convert priorities into evidence with the <a href="../../05-promotion-playbook.md">promotion playbook</a> and <a href="../../06-self-assessment-and-tracking.md">self-assessment tracker</a>.</p>
+
+<h2 id="1-leverage-starts-with-choice">1. Leverage starts with choice</h2>
+<p>At Senior levels, doing more can still work.
+At Staff+ levels, the opportunity surface becomes too large.
+There are more meetings, more documents, more incidents, more mentoring requests, more architecture questions, and more cross-team dependencies than one person can handle.</p>
+<p>Leverage is the value created per unit of scarce attention.
+That means prioritization is not an administrative task.
+It is the core leadership mechanism.</p>
+<p>You create leverage by choosing work that:</p>
+<ul>
+<li>Changes many decisions, not only one decision.</li>
+<li>Removes recurring friction.</li>
+<li>Develops other people.</li>
+<li>Reduces future risk.</li>
+<li>Aligns teams around a durable direction.</li>
+<li>Connects directly to business, customer, or reliability outcomes.</li>
+</ul>
+<figure><pre class="mermaid">
+flowchart TD
+    A["Too much work"] --&gt; B["Clarify goals"]
+    B --&gt; C["Estimate leverage"]
+    C --&gt; D["Choose few bets"]
+    D --&gt; E["Say no or not now"]
+    E --&gt; F["Protect attention"]
+    F --&gt; G["Create visible outcomes"]
+    G --&gt; B
+</pre></figure>
+<p>A Staff+ engineer is not promoted for being busy.
+They are trusted because they can identify what matters before the organization has fully named it.</p>
+<h2 id="2-the-three-anti-patterns">2. The three anti-patterns</h2>
+<p>StaffEng's &quot;Work on what matters&quot; names traps that feel like work but do not create enough leverage.
+The three most common are snacking, preening, and chasing ghosts.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Anti-pattern</th>
+<th>What it feels like</th>
+<th>Why it is dangerous</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Snacking</td>
+<td>Quick wins, easy fixes, inbox clearing.</td>
+<td>Creates motion without meaningful progress.</td>
+</tr>
+<tr>
+<td>Preening</td>
+<td>Visible work that looks impressive.</td>
+<td>Visibility can be mistaken for impact.</td>
+</tr>
+<tr>
+<td>Chasing ghosts</td>
+<td>Hard, vague, low-impact problems.</td>
+<td>Burns effort on work the org will not value.</td>
+</tr>
+</tbody>
+</table></div>
+<p>Snacking is especially tempting during ambiguity.
+When the important work feels unclear, easy work gives a sense of control.
+But a calendar full of snacks can starve the strategic work.</p>
+<p>Preening is low-impact but high-visibility work.
+It is dangerous because companies often conflate visibility with impact.
+A flashy migration, talk, dashboard, or architecture review may look important while failing to change outcomes.</p>
+<p>Chasing ghosts is high-effort, low-impact work.
+It often appears as an elegant technical problem no one has sponsored, a quality crusade with no adoption path, or a future risk with no plausible trigger.</p>
+<figure><pre class="mermaid">
+flowchart LR
+    subgraph sgMatrix["Impact versus effort and visibility"]
+        A["Low impact&lt;br/&gt;Low effort&lt;br/&gt;Snacking"]
+        B["Low impact&lt;br/&gt;High visibility&lt;br/&gt;Preening"]
+        C["Low impact&lt;br/&gt;High effort&lt;br/&gt;Chasing ghosts"]
+        D["High impact&lt;br/&gt;Right-sized effort&lt;br/&gt;Leverage"]
+    end
+    A --&gt; E["Feels productive"]
+    B --&gt; F["Looks important"]
+    C --&gt; G["Feels heroic"]
+    D --&gt; H["Changes outcomes"]
+</pre></figure>
+<p>The antidote is not contempt for small work.
+Small work is sometimes necessary.
+The antidote is honesty about whether the work deserves your Staff+ attention.</p>
+<h2 id="3-invest-first-in-existential-issues">3. Invest first in existential issues</h2>
+<p>Existential issues are problems that can seriously damage the organization, product, customer trust, reliability, security, or strategic position.
+They deserve attention even when they are politically awkward or technically unglamorous.</p>
+<p>Examples:</p>
+<ul>
+<li>A reliability risk that could take down a core customer journey.</li>
+<li>A security gap with credible exposure.</li>
+<li>A platform constraint that will block the next product strategy.</li>
+<li>A talent or knowledge concentration risk around a critical system.</li>
+<li>A delivery commitment that is impossible under current assumptions.</li>
+</ul>
+<p>Existential work often has three features:</p>
+<ol>
+<li>The downside is large.</li>
+<li>The organization is underestimating it.</li>
+<li>A Staff+ engineer can create clarity, options, or momentum.</li>
+</ol>
+<p>Do not confuse existential with loud.
+The loudest problem may be a stakeholder's preference.
+The existential problem may be a quiet architectural limit or team health issue.</p>
+<h2 id="4-then-invest-where-matter-room-and-attention-overlap">4. Then invest where matter, room, and attention overlap</h2>
+<p>After existential issues, look for work that satisfies three conditions:</p>
+<ul>
+<li>It matters to the business, customers, reliability, or engineering system.</li>
+<li>There is room for meaningful improvement.</li>
+<li>The organization has enough attention or sponsorship to act.</li>
+</ul>
+<figure><pre class="mermaid">
+flowchart TD
+    A["Candidate work"] --&gt; B{"Does it matter"}
+    B --&gt;|"No"| C["Decline"]
+    B --&gt;|"Yes"| D{"Is there room to improve"}
+    D --&gt;|"No"| E["Monitor"]
+    D --&gt;|"Yes"| F{"Is there attention or sponsor"}
+    F --&gt;|"No"| G["Reframe or wait"]
+    F --&gt;|"Yes"| H["Invest"]
+</pre></figure>
+<p>Work the organization is built to ignore can produce early wins but may struggle for support.
+Before committing, ask whether you can connect the work to an outcome leadership already values.
+If not, you may need to build sponsorship first or choose a different lever.</p>
+<h2 id="5-future-you-is-a-stakeholder">5. Future You is a stakeholder</h2>
+<p>Staff+ prioritization requires a longer time horizon.
+Ask: &quot;What will Future You wish Present You had done?&quot;</p>
+<p>Future You often wishes Present You had:</p>
+<ul>
+<li>Written down the decision.</li>
+<li>Made the migration reversible.</li>
+<li>Built the dashboard before the incident.</li>
+<li>Trained another engineer before going on leave.</li>
+<li>Cleaned the ownership boundary before the reorg.</li>
+<li>Started the executive alignment before the deadline hardened.</li>
+<li>Said no to the low-leverage request.</li>
+</ul>
+<p>Long-horizon work is rarely urgent when it is most valuable.
+That is why you must telegraph what is coming.
+Tell stakeholders what risk is forming, what investment will be needed, and what decision window is approaching.</p>
+<h2 id="6-telegraph-tidy-up-and-create-institutional-memory">6. Telegraph, tidy up, and create institutional memory</h2>
+<p>Telegraphing is the practice of making future constraints visible early.
+It gives the organization time to adapt before urgency narrows options.</p>
+<p>Tidy-up work is not random cleanup.
+At Staff+ level, worthwhile tidy-up work increases future leverage:</p>
+<ul>
+<li>Simplifying an ownership boundary.</li>
+<li>Removing a recurring source of incidents.</li>
+<li>Clarifying a de facto architecture rule.</li>
+<li>Retiring a confusing process.</li>
+<li>Creating a decision log for a debated area.</li>
+</ul>
+<p>Institutional memory matters because people leave, teams reorganize, and decisions repeat.
+A short document can prevent months of recurring debate.</p>
+<p>The best time to create memory is while context is fresh.
+The second-best time is before the next team has to rediscover it under pressure.</p>
+<h2 id="7-leverage-and-energy">7. Leverage and energy</h2>
+<p>Michelle Bu has advised considering what is energizing, not only what is impactful.
+This is not self-indulgence.
+Energy affects sustainability, creativity, and persistence.
+A high-impact project that drains you completely may not be a good bet if it prevents the next three high-impact projects.</p>
+<p>Use four questions:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Question</th>
+<th>Why it matters</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Is it impactful?</td>
+<td>Connects to outcomes.</td>
+</tr>
+<tr>
+<td>Is it leveraged?</td>
+<td>Multiplies beyond your direct effort.</td>
+</tr>
+<tr>
+<td>Is it energizing enough?</td>
+<td>Supports sustained performance.</td>
+</tr>
+<tr>
+<td>Is it sponsored?</td>
+<td>Increases chance of adoption.</td>
+</tr>
+</tbody>
+</table></div>
+<p>Sometimes you must do draining work because it matters.
+But if all your important work is draining, redesign your portfolio.
+Staff+ careers are long games.</p>
+<h2 id="8-no-snacking-defend-your-time">8. No snacking: defend your time</h2>
+<p>&quot;No snacking&quot; does not mean ignoring small tasks.
+It means refusing to let easy tasks consume the attention required for leverage.</p>
+<p>Defend your time with explicit policies:</p>
+<ul>
+<li>Office hours for advisory requests.</li>
+<li>Written intake for architecture reviews.</li>
+<li>Clear criteria for joining meetings.</li>
+<li>Delegation paths for reversible decisions.</li>
+<li>Calendar blocks for deep work.</li>
+<li>A public list of current priorities and non-priorities.</li>
+</ul>
+<p>Useful ways to say no:</p>
+<ul>
+<li>&quot;I cannot take this on this week without dropping the migration review. Which is more important?&quot;</li>
+<li>&quot;This looks reversible; I trust the team to decide and I can review outcomes later.&quot;</li>
+<li>&quot;I agree it is useful, but I do not think it is Staff+ leverage right now.&quot;</li>
+<li>&quot;I can help frame the problem, but I should not be the owner.&quot;</li>
+</ul>
+<p>Saying no is easier when your yes is visible.
+People accept trade-offs more readily when they understand what your time is protecting.</p>
+<h2 id="9-frameworks-for-prioritization">9. Frameworks for prioritization</h2>
+<p>Frameworks do not make decisions for you.
+They force explicit trade-offs.
+Use them to structure judgment, not replace it.</p>
+<p>The Eisenhower matrix separates urgency and importance:</p>
+<figure><pre class="mermaid">
+flowchart LR
+    subgraph sgEisenhower["Urgency versus importance"]
+        A["Important&lt;br/&gt;Urgent&lt;br/&gt;Do now"]
+        B["Important&lt;br/&gt;Not urgent&lt;br/&gt;Schedule"]
+        C["Not important&lt;br/&gt;Urgent&lt;br/&gt;Delegate or contain"]
+        D["Not important&lt;br/&gt;Not urgent&lt;br/&gt;Delete"]
+    end
+    A --&gt; E["Crisis and commitments"]
+    B --&gt; F["Strategy and prevention"]
+    C --&gt; G["Interruptions"]
+    D --&gt; H["Noise"]
+</pre></figure>
+<p>High-output thinking asks: what output does this activity create, and can that output be multiplied?
+Opportunity cost asks: what valuable work becomes impossible if I say yes?</p>
+<p>A practical Staff+ prioritization filter:</p>
+<ol>
+<li>Is this connected to a meaningful organizational goal?</li>
+<li>Is there a clear owner and decision forum?</li>
+<li>Is my involvement uniquely useful?</li>
+<li>Can the work create durable leverage?</li>
+<li>What will I stop doing to make room?</li>
+<li>How will I know it worked?</li>
+</ol>
+<h2 id="10-pacing-the-forty-year-career">10. Pacing: the forty-year career</h2>
+<p>Will Larson's &quot;forty year career&quot; is a reminder that sustainable pacing matters.
+A career is not a single launch, reorg, incident, or promotion cycle.
+Heroics can be necessary in rare moments, but heroics as an operating model destroy judgment.</p>
+<p>Sustainable Staff+ pacing means choosing fewer better bets, alternating intensity with recovery, building systems instead of dependency, delegating growth opportunities, and keeping your tools sharp.</p>
+<p>A tired Staff+ engineer often compensates with control: more reviews, more meetings, more direct decisions.
+A sustainable Staff+ engineer creates systems that keep working without constant personal force.</p>
+<h2 id="11-practice-drills">11. Practice drills</h2>
+<ul>
+<li>Audit your calendar for one week. Mark each block as leverage, snack, preen, ghost, or necessary maintenance.</li>
+<li>Pick one current commitment and write the opportunity cost of continuing it.</li>
+<li>Create a &quot;not doing&quot; list and share it with your manager.</li>
+<li>Identify one Future You investment you can complete this month: decision log, dashboard, ownership map, or delegation plan.</li>
+<li>Use the matter-room-attention filter on five candidate projects.</li>
+<li>Practice saying no once this week with a trade-off statement rather than an apology.</li>
+</ul>
+<h2 id="12-what-good-looks-like-at-staff">12. What &quot;good&quot; looks like at Staff+</h2>
+<ul>
+<li>You can explain why your current work is the right work, not merely assigned work.</li>
+<li>Your calendar reflects your stated priorities.</li>
+<li>You stop or delegate work that is useful but not leveraged.</li>
+<li>You invest ahead of future constraints before they become emergencies.</li>
+<li>Your sponsor understands your trade-offs and can defend them.</li>
+<li>You avoid high-visibility low-impact work unless there is a strategic reason.</li>
+<li>You pace your contribution so your judgment remains sharp over years.</li>
+</ul>
+<h2 id="13-common-pitfalls">13. Common pitfalls</h2>
+<ul>
+<li>Mistaking busyness for impact.</li>
+<li>Saying yes to easy work because strategic work feels ambiguous.</li>
+<li>Pursuing visible work because promotion systems notice it, even when outcomes do not matter.</li>
+<li>Fighting ignored problems without sponsorship or adoption path.</li>
+<li>Treating all urgent requests as important.</li>
+<li>Letting your calendar be designed by other people's anxiety.</li>
+<li>Burning out and calling it commitment.</li>
+</ul>
+<h2 id="14-further-reading">14. Further reading</h2>
+<ul>
+<li>StaffEng, &quot;Work on what matters&quot;: <a href="https://staffeng.com/guides/work-on-what-matters/" target="_blank" rel="noopener">https://staffeng.com/guides/work-on-what-matters/</a></li>
+<li>The Staff Engineer's Path, Pragmatic Engineer: <a href="https://newsletter.pragmaticengineer.com/p/the-staff-engineers-path" target="_blank" rel="noopener">https://newsletter.pragmaticengineer.com/p/the-staff-engineers-path</a></li>
+<li>Will Larson, &quot;The forty year career&quot;: <a href="https://lethain.com/forty-year-career/" target="_blank" rel="noopener">https://lethain.com/forty-year-career/</a></li>
+</ul>
+
+<div class="primary-source">
+  <span class="label">Read this next (primary source)</span>
+  <p><a href="https://staffeng.com/guides/work-on-what-matters/" target="_blank" rel="noopener"><em>Work on what matters</em></a> (StaffEng): snacking, preening, chasing ghosts, existential issues and “Future You”. Read it twice. Then <a href="https://lethain.com/forty-year-career/" target="_blank" rel="noopener"><em>The forty year career</em></a> (Will Larson) on pacing and choosing bets that compound.</p>
+</div>
+
+<h2 id="15-check-yourself">15. Check yourself</h2>
+<p>Retrieve before revealing.</p>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 1 of 3</p>
+  <p class="quiz-q">You are invited to rebuild the team’s internal dashboard in a new framework; leadership would see it at the all-hands demo. Meanwhile, a quiet capacity limit in the order database will likely block next year’s product strategy. What do you prioritise?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="This is preening: high visibility, low impact. Companies often confuse the two, and you should not.">The dashboard, because visible work builds the reputation you need for your promotion</button></li>
+    <li><button data-correct="true" data-feedback="Right — an existential issue the organisation is underestimating, where you can create clarity and options.">The capacity limit: frame its risk and the options for leadership before it becomes urgent</button></li>
+    <li><button data-correct="false" data-feedback="Splitting attention starves the existential work and still spends half your time preening.">Both at half capacity, so you show visible progress while the risk work carries on quietly</button></li>
+    <li><button data-correct="false" data-feedback="This is snacking. Easy work gives a sense of control while the strategic work waits.">Neither for now; clear your backlog of small fixes first, to create more focus time for later</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Invest first in existential issues: large downside, underestimated by the organisation, and a place where a Staff+ engineer can create clarity, options or momentum."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 2 of 3</p>
+  <p class="quiz-q">Your calendar audit shows 60% of your week goes to quick reviews, Slack answers and small fixes. The strategic migration plan has not moved in a month. What is the best change?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="Heroics as an operating model burn out judgement. Sustainable pacing beats heroics.">Work evenings on the migration plan, so you can keep helping everyone else during the day</button></li>
+    <li><button data-correct="false" data-feedback="No snacking does not mean ignoring small tasks. It means they cannot consume your leverage time.">Stop answering questions entirely until the migration plan is finished and approved</button></li>
+    <li><button data-correct="false" data-feedback="This hands your calendar to someone else. Explicit policies work better than hoping.">Ask your manager to schedule fewer meetings for you, so the calendar clears up by itself</button></li>
+    <li><button data-correct="true" data-feedback="Right — explicit policies defend attention, and a visible not-doing list makes your yes legible.">Add office hours and written review intake, block deep-work time, share a not-doing list</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Defend your time with explicit policies: office hours, written intake, criteria for joining meetings, deep-work blocks and a public list of priorities and non-priorities."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 3 of 3</p>
+  <p class="quiz-q">A peer asks you to own a new cross-team linting initiative. It is useful, but you are already leading a critical migration review. Which reply fits Staff+ prioritisation?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="Saying yes without naming what you will drop is how the calendar gets designed by other people.">“Sure, I’ll fit it in. It matters, and honestly nobody else has the context to own it well.”</button></li>
+    <li><button data-correct="false" data-feedback="An apology with no trade-off gives them nothing to act on, and you will not be free next quarter.">“Sorry, I’m far too busy right now. Maybe ask me again next quarter, when I should be free.”</button></li>
+    <li><button data-correct="true" data-feedback="Right — a no with an explicit opportunity cost, plus the part where your involvement is uniquely useful.">“Not without dropping the migration review. I can help frame it; someone else should own it.”</button></li>
+    <li><button data-correct="false" data-feedback="This trades away the critical work to take on less leveraged work.">“Yes, as long as you take over my part of the migration review, so my load stays the same.”</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Say no with a trade-off, not an apology. Name the opportunity cost, and offer only the part where your involvement is uniquely useful."></div>
+</div>
+
+<div class="callout tryit">
+  <span class="label">Try it in your own system</span>
+  <ul class="checklist">
+    <li>Audit one week of your calendar and mark each block as leverage, snack, preen, ghost or necessary maintenance.</li>
+    <li>Write a not-doing list and share it with your manager, alongside your top three priorities.</li>
+    <li>Run the matter, room and attention filter on five candidate projects, and pick at most two.</li>
+    <li>Choose one Future You investment to finish this month: a decision log, a dashboard, an ownership map or a delegation plan.</li>
+    <li>Say no once this week with a trade-off statement rather than an apology.</li>
+  </ul>
+</div>
+
+<div class="followup">
+  <strong>I&rsquo;m your teacher &mdash; ask me anything.</strong> Share your calendar audit or your list of candidate projects and we will run the filters together, or draft the “no” you have been putting off.
+</div>
+
+<nav class="lesson-nav">
+  <span class="group">
+    <b>Previous</b>
+    <a href="0007-decision-making.html">&larr; Lesson 07 · Decision-making</a>
+  </span>
+  <span class="group">
+    <b>Reference</b>
+    <a href="../reference/0008-prioritization-cheatsheet.html">Prioritization cheat sheet &rarr;</a>
+  </span>
+  <span class="group">
+    <b>Course map</b>
+    <a href="../index.html">&uarr; All lessons</a>
+  </span>
+  <span class="group">
+    <b>Up next</b>
+    <a href="../GUIDE.md#capstone-project">Capstone project &rarr;</a>
+  </span>
+</nav>
+
+</body>
+</html>

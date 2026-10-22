@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 02 · Reliability, Observability &amp; SRE</title>
+<link rel="stylesheet" href="../../assets/course/course.css">
+<link rel="stylesheet" href="../assets/theme.css">
+<script src="../../assets/course/links.js" defer></script>
+<script src="../../assets/course/quiz.js" defer></script>
+<script type="module" src="../../assets/course/mermaid.js"></script>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Technical Skills · Lesson 02 · A3</p>
+  <h1>Reliability, Observability &amp; SRE</h1>
+  <div class="meta">
+    <span>◷ ~14 min read</span>
+    <span class="dot">•</span>
+    <span>Foundations</span>
+    <span class="dot">•</span>
+    <span>Prereq: <a href="0001-data-intensive-distributed-systems.html">Lesson 01</a></span>
+  </div>
+</header>
+
+<p class="mission-tie">
+  Staff engineers are judged on whether systems stay dependable as the organisation grows &mdash; <strong>measurably, not heroically</strong>. This lesson gives you the operating model: user-centred SLOs with an error-budget policy, telemetry that answers new questions, incident roles, and the overload patterns that stop a local fault becoming an outage. For the hands-on deep dive (PromQL, OpenTelemetry, simulators), take the <a href="../../Observability/index.html">Reliability, Observability &amp; SRE course</a>.
+</p>
+
+<div class="callout insight">
+  <span class="label">TL;DR</span>
+  <p>How do you keep a large system dependable in production — measurably, not heroically?</p>
+<ul>
+<li>Reliability is managed through explicit user-centered objectives, not vague aspirations to have fewer incidents.</li>
+<li>SLOs and error budgets create a shared policy for balancing feature velocity and operational risk.</li>
+<li>Observability combines metrics, logs, and traces so teams can ask new questions about production behavior.</li>
+<li>Incident response is a system: roles, severity, communication, mitigation, learning, and follow-through.</li>
+<li>Resilience patterns such as load shedding, jittered retries, circuit breakers, and graceful degradation prevent local faults from becoming global outages.</li>
+<li>Staff+ SRE leadership reduces toil and complexity so reliability scales with the organization.</li>
+</ul>
+</div>
+
+<p class="related">Skill map: return to <a href="../../02-skills-to-upgrade.md">Skills to upgrade</a>. Related deep dives: <a href="0001-data-intensive-distributed-systems.html">A2 distributed systems</a>, <a href="../../system-design/lessons/0004-caching.html">caching</a>, <a href="../../system-design/lessons/0005-asynchronism-and-messaging.html">asynchronism and messaging</a>, and <a href="../../system-design/lessons/0006-networking-and-api-design.html">networking and API design</a>.</p>
+
+<h2 id="1-sli-slo-sla-and-error-budgets">1. SLI, SLO, SLA, and error budgets</h2>
+<p>Reliability must be expressed from the user's point of view. A server can be healthy while the product is unusable. A database can be up while checkout is failing.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Term</th>
+<th>Definition</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SLI</td>
+<td>Service Level Indicator: a measured signal that approximates user experience.</td>
+<td>Percentage of valid checkout requests completing under 800 ms.</td>
+</tr>
+<tr>
+<td>SLO</td>
+<td>Service Level Objective: the target range for an SLI over a window.</td>
+<td>99.9 percent of checkout requests succeed over 30 days.</td>
+</tr>
+<tr>
+<td>SLA</td>
+<td>Service Level Agreement: an external promise with consequences.</td>
+<td>Customer contract gives credits if monthly availability is below 99.5 percent.</td>
+</tr>
+</tbody>
+</table></div>
+<p>An error budget is the allowed unreliability implied by an SLO. If the SLO is 99.9 percent success over 30 days, the budget is 0.1 percent unsuccessful requests in that window.</p>
+<p>The policy is the important part. When the budget is healthy, teams can ship normally. When burn rate is high or the budget is exhausted, the policy may freeze risky launches, prioritize reliability work, or require executive approval for changes.</p>
+<figure><pre class="mermaid">
+flowchart LR
+    A["User journey"] --&gt; B["SLI&lt;br/&gt;measured user signal"]
+    B --&gt; C["SLO&lt;br/&gt;target over window"]
+    C --&gt; D["Error budget&lt;br/&gt;allowed unreliability"]
+    D --&gt; E["Policy&lt;br/&gt;ship or stabilize"]
+    E --&gt; F["Reliability work and launch decisions"]
+</pre></figure>
+<p>Good SLOs are few, understandable, and tied to behavior users care about. Bad SLOs measure host uptime, CPU, or internal component health without proving user impact.</p>
+<h2 id="2-golden-signals-observability-pillars-red-and-use">2. Golden signals, observability pillars, RED, and USE</h2>
+<p>The four golden signals are a practical dashboard baseline for user-facing systems.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Signal</th>
+<th>Meaning</th>
+<th>Typical questions</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Latency</td>
+<td>How long successful and failed requests take.</td>
+<td>Are users waiting, and where is the tail?</td>
+</tr>
+<tr>
+<td>Traffic</td>
+<td>How much demand the system receives.</td>
+<td>Is load normal, spiky, or shifting by tenant?</td>
+</tr>
+<tr>
+<td>Errors</td>
+<td>Rate of failed work.</td>
+<td>Are failures user-visible, dependency-related, or validation-related?</td>
+</tr>
+<tr>
+<td>Saturation</td>
+<td>How full critical resources are.</td>
+<td>Which resource runs out first?</td>
+</tr>
+</tbody>
+</table></div>
+<p>The three pillars of observability are metrics, logs, and traces. Metrics are numeric time series, logs are discrete event records, and traces show request paths across components. None is sufficient alone.</p>
+<p>RED focuses on request-driven services: Rate, Errors, Duration. USE focuses on resources: Utilization, Saturation, Errors. Together they connect user symptoms to infrastructure constraints.</p>
+<figure><pre class="mermaid">
+flowchart TD
+    A["Production behavior"] --&gt; B["Metrics&lt;br/&gt;trends and alerts"]
+    A --&gt; C["Logs&lt;br/&gt;event detail"]
+    A --&gt; D["Traces&lt;br/&gt;request path"]
+    B --&gt; E["RED&lt;br/&gt;rate errors duration"]
+    B --&gt; F["USE&lt;br/&gt;utilization saturation errors"]
+    C --&gt; G["Debug specific cases"]
+    D --&gt; H["Find distributed bottlenecks"]
+</pre></figure>
+<p>Staff+ observability work is less about buying tools and more about designing useful telemetry: stable names, controlled cardinality, correlation IDs, sampling strategy, ownership, and retention.</p>
+<h2 id="3-toil-and-automation">3. Toil and automation</h2>
+<p>Toil is manual, repetitive, automatable, tactical work that grows with service size and provides little enduring value. Examples include manually restarting jobs, copying data between systems, hand-validating deployments, and repeatedly performing the same customer repair.</p>
+<p>Not all operational work is toil. Debugging a novel incident, designing a safer deployment system, and improving an SLO are engineering work. The problem with toil is that it scales linearly with load and steals capacity from improvements.</p>
+<p>A toil budget is a cap on how much human capacity the organization will spend on toil. When toil exceeds the budget, teams invest in automation, self-healing, better product flows, or service redesign.</p>
+<p>Automation should remove judgment-free repetition, not hide dangerous complexity. Automating a bad process can make failure faster.</p>
+<h2 id="4-simplicity-as-a-reliability-value">4. Simplicity as a reliability value</h2>
+<p>Simplicity is not aesthetic minimalism. It is a reliability control. Every moving part creates state, ownership, configuration, failure modes, and cognitive load.</p>
+<p>Simple systems are easier to observe, test, roll back, and explain during incidents. Complex systems can be reliable, but only with matching investment in expertise and automation.</p>
+<p>Staff+ engineers should ask whether a proposed component pays rent. Does it remove more complexity than it adds? Does it reduce blast radius? Does it have a clear owner? Can the on-call engineer explain it at 03:00?</p>
+<h2 id="5-on-call-and-incident-response">5. On-call and incident response</h2>
+<p>On-call is a socio-technical system for detecting, triaging, mitigating, and learning from production harm. It should not rely on heroism.</p>
+<p>Common incident roles:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Role</th>
+<th>Responsibility</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Incident Commander</td>
+<td>Owns coordination, priorities, timeline, and decision-making.</td>
+</tr>
+<tr>
+<td>Operations Lead</td>
+<td>Drives technical investigation and mitigation.</td>
+</tr>
+<tr>
+<td>Communications Lead</td>
+<td>Updates stakeholders, status pages, support, and executives.</td>
+</tr>
+<tr>
+<td>Scribe</td>
+<td>Captures timeline, decisions, commands, and hypotheses.</td>
+</tr>
+</tbody>
+</table></div>
+<p>Severity levels should be defined by user and business impact, not internal panic. A useful severity model maps impact to response expectations, escalation, and communication cadence.</p>
+<figure><pre class="mermaid">
+flowchart TD
+    A["Alert or report"] --&gt; B["Triage severity"]
+    B --&gt; C["Assign roles"]
+    C --&gt; D["Stabilize and mitigate"]
+    D --&gt; E["Communicate status"]
+    E --&gt; F["Resolve incident"]
+    F --&gt; G["Postmortem"]
+    G --&gt; H["Track follow ups"]
+    H --&gt; I["Verify risk reduced"]
+</pre></figure>
+<p>Healthy on-call programs have actionable alerts, runbooks, escalation paths, training, reasonable rotations, and authority to improve the systems that page them.</p>
+<h2 id="6-blameless-postmortems">6. Blameless postmortems</h2>
+<p>A blameless postmortem asks how the system allowed a failure, not which person to punish. Blame reduces learning because people hide context. Accountability still exists: teams own follow-up actions and risk reduction.</p>
+<p>A strong postmortem includes:</p>
+<ul>
+<li>Impact: who was affected, how badly, and for how long.</li>
+<li>Detection: how the incident was discovered and whether detection was late.</li>
+<li>Timeline: key events, decisions, and signals.</li>
+<li>Contributing factors: technical, organizational, process, and knowledge gaps.</li>
+<li>What went well: defenses that worked.</li>
+<li>What went poorly: defenses that failed or did not exist.</li>
+<li>Action items: specific, owned, prioritized, and verified.</li>
+</ul>
+<p>Avoid action items that only say train people, be careful, or add more monitoring. Prefer changes that alter defaults, automate checks, reduce blast radius, or make failure visible sooner.</p>
+<h2 id="7-handling-overload-and-cascading-failures">7. Handling overload and cascading failures</h2>
+<p>Overload is a primary cause of outages. A service under stress gets slower; clients retry; retries add load; queues grow; timeouts fire; dependencies saturate; the failure spreads.</p>
+<figure><pre class="mermaid">
+flowchart LR
+    A["Initial latency spike"] --&gt; B["Client timeouts"]
+    B --&gt; C["Retries without jitter"]
+    C --&gt; D["More traffic to weak service"]
+    D --&gt; E["Thread pools and queues fill"]
+    E --&gt; F["Dependency saturation"]
+    F --&gt; G["Cascading failure"]
+</pre></figure>
+<p>Key resilience patterns:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Pattern</th>
+<th>Purpose</th>
+<th>Watch out for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Load shedding</td>
+<td>Reject excess work before the system collapses.</td>
+<td>Must shed low-value work first and return clear errors.</td>
+</tr>
+<tr>
+<td>Graceful degradation</td>
+<td>Preserve critical user journeys while disabling non-critical features.</td>
+<td>Requires product decisions before the incident.</td>
+</tr>
+<tr>
+<td>Exponential backoff with jitter</td>
+<td>Spread retry load and reduce synchronization.</td>
+<td>Retrying non-idempotent operations can duplicate effects.</td>
+</tr>
+<tr>
+<td>Circuit breaker</td>
+<td>Stop calling a failing dependency temporarily.</td>
+<td>Bad thresholds can create oscillation or hide recovery.</td>
+</tr>
+<tr>
+<td>Bulkhead</td>
+<td>Isolate resources by tenant, feature, or dependency.</td>
+<td>Too much partitioning can waste capacity.</td>
+</tr>
+</tbody>
+</table></div>
+<p>The thundering herd problem occurs when many clients wake, retry, refresh caches, or reconnect simultaneously. Jitter, request coalescing, token buckets, and cache stampede controls help.</p>
+<h2 id="8-canarying-progressive-rollouts-feature-flags-and-rollback">8. Canarying, progressive rollouts, feature flags, and rollback</h2>
+<p>Progressive delivery reduces blast radius by exposing change gradually. A canary sends a small slice of traffic to a new version and compares key signals before wider rollout.</p>
+<p>Feature flags separate deploy from release. They allow dark launches, targeted exposure, emergency disablement, and experimentation. They also create configuration complexity and must be cleaned up.</p>
+<p>Fast rollback is a reliability feature. A rollback plan should be tested, compatible with database changes, and safe for mixed versions. If rollback is impossible, the rollout needs extra safeguards.</p>
+<figure><pre class="mermaid">
+flowchart LR
+    A["Build artifact"] --&gt; B["Deploy dark"]
+    B --&gt; C["Canary small cohort"]
+    C --&gt; D{"SLIs healthy"}
+    D -- "yes" --&gt; E["Expand rollout"]
+    D -- "no" --&gt; F["Rollback or disable flag"]
+    E --&gt; G["Full release"]
+</pre></figure>
+<h2 id="9-nalsd-non-abstract-large-system-design">9. NALSD: non-abstract large system design</h2>
+<p>Non-abstract large system design is the practice of reasoning from concrete production constraints rather than generic boxes. It asks for realistic numbers, traffic patterns, failure domains, data ownership, operational processes, and rollout mechanics.</p>
+<p>For Staff+ engineers, NALSD bridges architecture and SRE. A design is incomplete if it cannot explain how it is monitored, how it fails, how it recovers, who owns it, and how it changes safely.</p>
+<h2 id="10-what-good-looks-like-at-staff">10. What &quot;good&quot; looks like at Staff+</h2>
+<ul>
+<li>You define reliability in terms of user-visible SLOs and business impact.</li>
+<li>You use error budgets as decision policy, not dashboard decoration.</li>
+<li>You reduce alert noise and make pages actionable.</li>
+<li>You design for overload before overload happens.</li>
+<li>You make incident roles, severity, communication, and follow-up routine.</li>
+<li>You remove toil by improving systems, not by asking people to work harder.</li>
+<li>You keep architectures simple enough for the operating model.</li>
+</ul>
+<h2 id="11-common-pitfalls">11. Common pitfalls</h2>
+<ul>
+<li>Alerting on every metric anomaly instead of user impact and burn rate.</li>
+<li>Setting SLOs so strict that teams ignore them or so loose that users suffer.</li>
+<li>Retrying everything without timeouts, idempotency, budgets, or jitter.</li>
+<li>Treating postmortems as paperwork rather than risk reduction.</li>
+<li>Measuring mean latency while users experience tail latency.</li>
+<li>Leaving feature flags permanent and undocumented.</li>
+<li>Expecting on-call to compensate for unclear ownership or excessive complexity.</li>
+</ul>
+<h2 id="12-further-reading">12. Further reading</h2>
+<ul>
+<li>Google SRE Book: <a href="https://sre.google/sre-book/table-of-contents/" target="_blank" rel="noopener">https://sre.google/sre-book/table-of-contents/</a></li>
+<li>SRE Workbook: <a href="https://sre.google/workbook/table-of-contents/" target="_blank" rel="noopener">https://sre.google/workbook/table-of-contents/</a></li>
+<li>All SRE books: <a href="https://sre.google/books/" target="_blank" rel="noopener">https://sre.google/books/</a></li>
+</ul>
+
+<div class="primary-source">
+  <span class="label">Read this next (primary source)</span>
+  <p>Google &mdash; <a href="https://sre.google/sre-book/table-of-contents/" target="_blank" rel="noopener"><em>Site Reliability Engineering</em></a>: read <em>Service Level Objectives</em>, <em>Embracing Risk</em>, <em>Monitoring Distributed Systems</em> (the four golden signals), <em>Eliminating Toil</em>, <em>Addressing Cascading Failures</em> and <em>Postmortem Culture</em>. Then the <a href="https://sre.google/workbook/table-of-contents/" target="_blank" rel="noopener"><em>SRE Workbook</em></a> chapters on implementing SLOs and alerting on SLOs, for the practical version.</p>
+</div>
+
+<h2 id="13-check-yourself">13. Check yourself</h2>
+<p>Retrieve before revealing.</p>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 1 of 3</p>
+  <p class="quiz-q">Checkout&rsquo;s SLO is 99.9% successful requests over 30 days. Halfway through the window the error budget is spent, and the team wants to ship a large, risky checkout redesign next week. What should happen?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="An SLO without a policy is decoration. The point of the budget is to change launch decisions.">ship it &mdash; the SLO is a dashboard target, not a launch gate</button></li>
+    <li><button data-correct="true" data-feedback="Right — an exhausted budget triggers the agreed policy: stabilise first, ship risky change later.">apply the budget policy: hold risky launches, do reliability work</button></li>
+    <li><button data-correct="false" data-feedback="Moving the target to fit the launch destroys trust in the SLO and in the policy.">loosen the SLO to 99.5% this window so that the launch can go ahead</button></li>
+    <li><button data-correct="false" data-feedback="Host metrics do not prove user impact, and more alerts do not reduce risk to a spent budget.">ship it with extra alerts on host CPU and memory for the release</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="An error budget only matters if a written policy changes behaviour: budget healthy, ship normally; budget spent, stabilise first."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 2 of 3</p>
+  <p class="quiz-q">A dependency slows down. Clients time out after 2 s and retry immediately, up to 3 times. Ten minutes later its queues are full and two other services are failing. Which change most directly breaks this cascade?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="Longer timeouts hold threads and connections longer; the clients saturate sooner.">raise the client timeout to 10 s so fewer requests fail</button></li>
+    <li><button data-correct="false" data-feedback="More clients means more retries: you add load to the service that is already struggling.">add client replicas so retries are spread across more pods</button></li>
+    <li><button data-correct="false" data-feedback="Seeing the problem is not stopping it, and the mean hides the tail users actually feel.">add a dashboard for the dependency&rsquo;s mean latency</button></li>
+    <li><button data-correct="true" data-feedback="Right — retries are load. Bound them, spread them out, and only retry idempotent work.">retry with backoff and jitter, capped by a retry budget</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Retries amplify overload. Use timeouts, exponential backoff with jitter and a retry budget; shed load or open a circuit breaker when a dependency saturates."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 3 of 3</p>
+  <p class="quiz-q">A postmortem&rsquo;s action items read: &ldquo;remind engineers to be careful with config&rdquo;, &ldquo;add more monitoring&rdquo;, &ldquo;run training&rdquo;. As the Staff reviewer, what do you ask for?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="Right — action items should change the system, be owned, and be verified, not rely on vigilance.">changes that alter defaults, automate checks or shrink blast radius</button></li>
+    <li><button data-correct="false" data-feedback="Blame hides context and reduces learning. Accountability is owning the follow-up, not naming a culprit.">the name of the engineer who pushed the config, for accountability</button></li>
+    <li><button data-correct="false" data-feedback="A longer timeline does not reduce risk. The weak part here is the action items.">a longer and more detailed timeline so the document is thorough</button></li>
+    <li><button data-correct="false" data-feedback="Severity reflects user and business impact, not how urgent you want follow-ups to feel.">a higher severity rating so leadership takes the follow-ups seriously</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Good action items are specific, owned, prioritised and verified, and change defaults, checks, blast radius or detection speed."></div>
+</div>
+
+<div class="callout tryit">
+  <span class="label">Try it in your own system</span>
+  <ul class="checklist">
+    <li>Pick your most important user journey. Write one SLI as good events over valid events, plus an SLO with a window. Is it measured from the user&rsquo;s side?</li>
+    <li>Count last month&rsquo;s pages. What fraction were actionable and tied to user impact or burn rate? Delete or demote one noisy alert.</li>
+    <li>List the toil your team did last sprint (manual restarts, data fixes, hand-checked deploys). Estimate the hours and pick one item to automate.</li>
+    <li>Find one client that retries. Check for a timeout, backoff with jitter, a retry cap, and idempotency on the server side.</li>
+    <li>Open your last postmortem. Rewrite one &ldquo;be more careful&rdquo; action item as a change to defaults, automation or blast radius.</li>
+  </ul>
+</div>
+
+<div class="followup">
+  <strong>I&rsquo;m your teacher &mdash; ask me anything.</strong> Bring a service and we&rsquo;ll draft its SLI, SLO and error-budget policy together &mdash; or paste a recent postmortem and we&rsquo;ll sharpen its action items.
+</div>
+
+<nav class="lesson-nav">
+  <span class="group">
+    <b>Previous</b>
+    <a href="0001-data-intensive-distributed-systems.html">&larr; Lesson 01 · Distributed systems</a>
+  </span>
+  <span class="group">
+    <b>Reference</b>
+    <a href="../reference/0002-reliability-observability-sre-cheatsheet.html">Reliability & SRE cheat sheet &rarr;</a>
+  </span>
+  <span class="group">
+    <b>Course map</b>
+    <a href="../index.html">&uarr; All lessons</a>
+  </span>
+  <span class="group">
+    <b>Up next</b>
+    <a href="0003-software-architecture.html">Lesson 03 · Software architecture &rarr;</a>
+  </span>
+</nav>
+
+</body>
+</html>

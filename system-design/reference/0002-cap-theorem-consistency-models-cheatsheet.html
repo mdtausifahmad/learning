@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cheat Sheet · CAP Theorem &amp; Consistency Models</title>
+<link rel="stylesheet" href="../../assets/course/course.css">
+<link rel="stylesheet" href="../assets/theme.css">
+<script src="../../assets/course/links.js" defer></script>
+<script type="module" src="../../assets/course/mermaid.js"></script>
+<style>
+  body { max-width: 52rem; }
+  @media print { body { margin: 0; } h2 { margin-top: 1.1rem; } }
+</style>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">System Design · Reference 02</p>
+  <h1>CAP Theorem &amp; Consistency Models</h1>
+  <div class="meta"><span>Compressed from Lesson 02</span><span class="dot">•</span><span>Print-friendly</span></div>
+</header>
+
+<div class="callout insight">
+  <span class="label">Mindset</span>
+  <p>Partitions <strong>will</strong> happen, so the real choice is <strong>CP or AP</strong> &mdash; made per data type, from the
+  business need. When the network is healthy you still pay: latency or consistency (PACELC).</p>
+</div>
+
+<figure>
+<pre class="mermaid">
+flowchart LR
+    P{"Partition right now?"} --&gt;|"No"| E{"Else: latency or consistency?"}
+    P --&gt;|"Yes"| AC{"Availability or consistency?"}
+    AC --&gt; AP["AP: keep answering,&lt;br/&gt;may be stale"]
+    AC --&gt; CP["CP: reject or block,&lt;br/&gt;stay correct"]
+    E --&gt; EL["EL: async replication,&lt;br/&gt;low latency"]
+    E --&gt; EC["EC: sync replication,&lt;br/&gt;slower writes"]
+</pre>
+<figcaption>PACELC: CAP decides behaviour during a partition; the &ldquo;else&rdquo; branch is the everyday trade-off.</figcaption>
+</figure>
+
+<h2>CP vs AP</h2>
+<table>
+  <thead><tr><th></th><th>CP (consistency)</th><th>AP (availability)</th></tr></thead>
+  <tbody>
+    <tr><td>During a partition</td><td>Rejects or blocks on the minority side</td><td>Accepts everywhere, reconciles later</td></tr>
+    <tr><td>Use for</td><td>Money, inventory, bookings, uniqueness</td><td>Feeds, likes, carts, presence, metrics</td></tr>
+    <tr><td>Examples</td><td>ZooKeeper, etcd, HBase, Spanner, RDBMS with sync replication</td><td>Cassandra, DynamoDB (default), Riak, DNS</td></tr>
+    <tr><td>User feels</td><td>&ldquo;Try again later&rdquo;</td><td>&ldquo;Slightly old data&rdquo;</td></tr>
+    <tr><td>PACELC labels</td><td>Spanner: PC/EC</td><td>Cassandra, DynamoDB: PA/EL</td></tr>
+  </tbody>
+</table>
+<p>There is <strong>no CA</strong> distributed system. A single node is &ldquo;CA&rdquo; only because it isn&rsquo;t distributed.
+CAP&rsquo;s C is <strong>linearizability</strong>, not ACID&rsquo;s C (invariants inside a transaction).</p>
+
+<h2>The consistency spectrum (strong &rarr; weak)</h2>
+<table>
+  <thead><tr><th>Model</th><th>Guarantee</th><th>Cost</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Linearizable</strong></td><td>Acts like one copy; a read returns the latest committed write</td><td>Coordination / consensus; highest latency</td></tr>
+    <tr><td><strong>Sequential</strong></td><td>Everyone sees the same order, not necessarily real-time order</td><td>High</td></tr>
+    <tr><td><strong>Causal</strong></td><td>Cause before effect for everyone (reply after post); concurrent ops in any order</td><td>Moderate &mdash; no global coordination</td></tr>
+    <tr><td><strong>Eventual</strong></td><td>If writes stop, replicas converge; reads may be stale meanwhile</td><td>Cheapest, most available</td></tr>
+  </tbody>
+</table>
+<ul class="checklist">
+  <li><strong>Read-your-writes</strong> &mdash; you always see your own latest write. The usual UX fix on eventual stores.</li>
+  <li><strong>Monotonic reads</strong> &mdash; time never goes backwards for one client.</li>
+  <li><strong>Practitioner lens</strong> &mdash; weak (VoIP, games) &middot; eventual (DNS, email) &middot; strong (RDBMS, file systems).</li>
+</ul>
+
+<h2>Quorums: N, W, R</h2>
+<pre><code>N = replicas   W = acks per write   R = replies per read
+W + R &gt; N   &rarr; read and write sets overlap &rarr; strong reads
+W + R &le; N  &rarr; eventual, higher availability, lower latency</code></pre>
+<table>
+  <thead><tr><th>Config</th><th>Property</th><th>Use when</th></tr></thead>
+  <tbody>
+    <tr><td><code>W=N, R=1</code></td><td>Fast reads; slow, fragile writes</td><td>Read-heavy, rarely written</td></tr>
+    <tr><td><code>W=1, R=N</code></td><td>Fast writes, slow reads</td><td>Write-heavy ingest</td></tr>
+    <tr><td><code>N=3, W=2, R=2</code></td><td>Strong; tolerates one node down</td><td>The usual default</td></tr>
+    <tr><td><code>W+R &le; N</code></td><td>Eventual, max availability</td><td>AP systems</td></tr>
+  </tbody>
+</table>
+<p>Topologies: single-leader &rarr; multi-leader &rarr; leaderless. More leaders = more availability, harder <strong>conflict resolution</strong>
+(last-write-wins, version vectors, CRDTs).</p>
+
+<h2>Consensus</h2>
+<ul class="checklist">
+  <li><strong>Paxos / Raft</strong> &mdash; elect a leader, replicate an ordered log; a value commits once a <strong>majority</strong> persists it.</li>
+  <li><strong>Use, don&rsquo;t build</strong> &mdash; etcd, ZooKeeper for leader election, config and locks.</li>
+  <li><strong>Need it for</strong> coordination, uniqueness and ordering &mdash; not for every piece of data.</li>
+</ul>
+
+<h2>Review questions</h2>
+<ul class="checklist">
+  <li>For each stateful component: what happens during a partition? CP or AP, and why is that right for this data?</li>
+  <li>Which reads need read-your-writes or monotonic reads? How are they routed?</li>
+  <li>What is replication lag at peak (not idle)? What does the UX do while lagging?</li>
+  <li>What are N/W/R per table, and is W + R &gt; N where it must be?</li>
+  <li>With multiple leaders: what is the conflict strategy?</li>
+</ul>
+
+<div class="callout warning">
+  <span class="label">Traps</span>
+  <ul>
+    <li><strong>&ldquo;Eventual&rdquo; = a few ms</strong> &mdash; under load or partition, lag runs to seconds or minutes.</li>
+    <li><strong>CAP&rsquo;s C confused with ACID&rsquo;s C.</strong></li>
+    <li><strong>&ldquo;We picked CA&rdquo;</strong> &mdash; no: you picked CP or AP and haven&rsquo;t had a partition yet.</li>
+    <li><strong>Multi-leader without a conflict strategy</strong> &mdash; silent lost updates.</li>
+  </ul>
+</div>
+
+<nav class="lesson-nav">
+  <span class="group"><b>From</b><a href="../lessons/0002-cap-theorem-consistency-models.html">&larr; Lesson 02 · CAP &amp; consistency</a></span>
+  <span class="group"><b>Course map</b><a href="../index.html">&uarr; All lessons</a></span>
+  <span class="group"><b>Canonical terms</b><a href="../GLOSSARY.md">GLOSSARY.md</a></span>
+  <span class="group"><b>Primary source</b><a href="https://martin.kleppmann.com/2015/05/11/please-stop-calling-databases-cp-or-ap.html" target="_blank" rel="noopener">Kleppmann · Please stop calling databases CP or AP</a></span>
+</nav>
+
+</body>
+</html>

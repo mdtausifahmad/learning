@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 08 · Resilience &amp; Fault Tolerance Patterns</title>
+<link rel="stylesheet" href="../../assets/course/course.css">
+<link rel="stylesheet" href="../assets/theme.css">
+<script src="../../assets/course/links.js" defer></script>
+<script src="../../assets/course/quiz.js" defer></script>
+<script type="module" src="../../assets/course/mermaid.js"></script>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">System Design · Lesson 08</p>
+  <h1>Resilience &amp; Fault Tolerance Patterns</h1>
+  <div class="meta">
+    <span>◷ ~12 min read</span>
+    <span class="dot">•</span>
+    <span>Staying up</span>
+    <span class="dot">•</span>
+    <span>Prereq: <a href="0005-asynchronism-and-messaging.html">Lesson 05</a>, <a href="0007-back-of-envelope-estimation.html">Lesson 07</a></span>
+  </div>
+</header>
+
+<p class="mission-tie">
+  In a distributed system, failure is constant, not exceptional. The Staff job is to <strong>contain the blast radius</strong> so one slow dependency doesn&rsquo;t become a fleet-wide outage: every call has a timeout, retries are bounded and jittered, breakers fail fast with a fallback, bulkheads isolate pools, and what you shed first is a design decision. The <em>Reliability, Observability &amp; SRE</em> course covers how to see and operate it.
+</p>
+
+<div class="callout insight">
+  <span class="label">TL;DR</span>
+  <p><strong>The core question:</strong> in a distributed system, failures are not exceptional — they're constant (a slow dependency, a dead node, a network blip). How do you stop one failing component from cascading into a full outage? Resilience patterns are the standard toolkit for containing failure blast radius.</p>
+<ul>
+<li><strong>Timeouts</strong> bound how long you wait; without them, a slow dependency hangs you forever.</li>
+<li><strong>Retries</strong> help with transient failures but must use <strong>exponential backoff + jitter</strong> to avoid retry storms.</li>
+<li><strong>Circuit breakers</strong> stop calling a failing dependency, giving it time to recover and freeing your own threads.</li>
+<li><strong>Bulkheads</strong> isolate resource pools per-dependency so one bad dependency can't starve all others.</li>
+<li><strong>Graceful degradation</strong> and <strong>load shedding</strong> trade full functionality for staying up under overload.</li>
+</ul>
+</div>
+
+<h2 id="1-timeouts">1. Timeouts</h2>
+<p>Every network call must have a timeout. Without one, a hung dependency holds a thread/connection indefinitely, and those pile up until your service itself runs out of resources and dies — a slow dependency becomes <em>your</em> outage.</p>
+<figure><pre class="mermaid">
+flowchart LR
+    A["Service A"] --&gt;|"call with 500ms timeout"| B["Service B (slow/hung)"]
+    B -.-&gt;|"no response in time"| A
+    A --&gt; T["Timeout fires →&lt;br/&gt;fail fast, free the thread"]
+</pre></figure>
+<p><strong>Rule of thumb:</strong> set timeouts based on the downstream's own SLO (p99 latency) plus margin — not an arbitrary round number. Chain timeouts should shrink as you go deeper in a call graph so the outermost caller times out <em>last</em>.</p>
+<h2 id="2-retries-with-backoff--jitter">2. Retries with Backoff &amp; Jitter</h2>
+<p>Transient failures (a blip, a momentary overload) often succeed on retry. But naive immediate retries can amplify an outage — thousands of clients retrying at the same instant hit an already-struggling service even harder (a <strong>retry storm</strong>).</p>
+<figure><pre class="mermaid">
+flowchart TD
+    F["Request fails"] --&gt; R1["Retry 1: wait ~1s"]
+    R1 --&gt;|"fail"| R2["Retry 2: wait ~2s + jitter"]
+    R2 --&gt;|"fail"| R3["Retry 3: wait ~4s + jitter"]
+    R3 --&gt;|"fail"| G["Give up → surface error / DLQ"]
+</pre></figure>
+<ul>
+<li><strong>Exponential backoff</strong> — each retry waits longer (<code>base × 2^attempt</code>), giving the dependency room to recover.</li>
+<li><strong>Jitter</strong> — add randomness to the wait so many clients don't retry in lockstep.</li>
+<li><strong>Retry budget / max attempts</strong> — cap total retries; only retry <strong>idempotent</strong> operations (see <a href="0005-asynchronism-and-messaging.html#4-delivery-semantics-and-idempotency">Topic 5</a>).</li>
+<li><strong>Only retry retryable errors</strong> — retry <code>503</code>/timeouts, never retry <code>400</code>/<code>404</code> (the request itself is wrong, retrying won't help).</li>
+</ul>
+<h2 id="3-circuit-breaker">3. Circuit Breaker</h2>
+<p>Modeled on an electrical circuit breaker: if a dependency keeps failing, <strong>stop calling it</strong> for a while instead of piling up timeouts and retries against it.</p>
+<figure><pre class="mermaid">
+stateDiagram-v2
+    [*] --&gt; Closed
+    Closed --&gt; Open: failure rate &gt; threshold
+    Open --&gt; HalfOpen: after cooldown timer
+    HalfOpen --&gt; Closed: trial request succeeds
+    HalfOpen --&gt; Open: trial request fails
+    Closed --&gt; Closed: request succeeds
+</pre></figure>
+<ul>
+<li><strong>Closed</strong> — requests flow normally; failures are counted.</li>
+<li><strong>Open</strong> — failure threshold exceeded → <strong>fail fast immediately</strong> (no call made), protecting both the caller's threads and the struggling dependency. A fallback (cached value, default response) can be returned instead.</li>
+<li><strong>Half-Open</strong> — after a cooldown, let a <em>trial</em> request through. Success → close the breaker; failure → reopen and wait again.</li>
+</ul>
+<p><strong>Why it matters at Staff+:</strong> without a breaker, a single degraded dependency can exhaust caller thread pools/connections across an entire fleet — turning one bad component into a full-system outage. Libraries: Resilience4j, Hystrix (legacy), Envoy/Istio built-in breakers.</p>
+<h2 id="4-bulkheads">4. Bulkheads</h2>
+<p>Named after a ship's watertight compartments: partition resources (thread pools, connection pools) <strong>per dependency</strong> so exhaustion in one doesn't starve the others.</p>
+<figure><pre class="mermaid">
+flowchart TB
+    subgraph noBulkhead["Without bulkheads"]
+        Pool["Shared thread pool"] --&gt; Dep1["Dependency A (slow)"]
+        Pool --&gt; Dep2["Dependency B (fine)"]
+        Note1["A hangs → pool exhausted →&lt;br/&gt;B calls starve too"]
+    end
+    subgraph withBulkhead["With bulkheads"]
+        PoolA["Pool A (dedicated)"] --&gt; DepA["Dependency A (slow)"]
+        PoolB["Pool B (dedicated)"] --&gt; DepB["Dependency B (fine)"]
+        Note2["A hangs → only Pool A drains&lt;br/&gt;B keeps working"]
+    end
+</pre></figure>
+<p>Combine with circuit breakers: bulkheads limit <em>how much damage</em> a failing dependency can do while the breaker decides <em>when to stop calling it at all</em>.</p>
+<h2 id="5-graceful-degradation--load-shedding">5. Graceful Degradation &amp; Load Shedding</h2>
+<p>When you can't serve every request at full quality, decide <strong>what to sacrifice</strong> deliberately rather than collapsing entirely.</p>
+<ul>
+<li><strong>Graceful degradation</strong> — serve a reduced experience instead of an error: stale cache instead of live data, a simplified UI without recommendations, core checkout without the &quot;you might also like&quot; widget.</li>
+<li><strong>Load shedding</strong> — under overload, deliberately reject <em>some</em> requests (usually low-priority ones) so the system stays healthy for the rest, instead of every request slowing down until all of them time out. Often implemented with priority queues or simple random sampling at the edge.</li>
+<li><strong>Feature flags / kill switches</strong> — the operational lever to turn off an expensive, non-critical feature during an incident without a deploy.</li>
+</ul>
+<figure><pre class="mermaid">
+flowchart LR
+    Load["Incoming load spikes"] --&gt; Q{"Above capacity?"}
+    Q --&gt;|"No"| Normal["Serve everything normally"]
+    Q --&gt;|"Yes"| Shed["Shed low-priority requests&lt;br/&gt;+ degrade non-critical features"]
+    Shed --&gt; Healthy["Core path stays healthy"]
+</pre></figure>
+<h2 id="6-health-checks--self-healing">6. Health Checks &amp; Self-Healing</h2>
+<ul>
+<li><strong>Liveness probe</strong> — &quot;is the process alive?&quot; A failing liveness check triggers a <strong>restart</strong>.</li>
+<li><strong>Readiness probe</strong> — &quot;is the process ready to take traffic?&quot; A failing readiness check pulls the instance <strong>out of the load balancer</strong> (without restarting it) — critical for slow-starting services or ones warming a cache.</li>
+<li><strong>Health checks feed the load balancer/orchestrator</strong> (Kubernetes, ELB) so unhealthy nodes are automatically routed around — the infrastructure-level counterpart to the app-level patterns above.</li>
+</ul>
+<h2 id="7-putting-it-together-defense-in-depth">7. Putting it together: defense in depth</h2>
+<p>A resilient call from Service A to Service B typically layers <em>all</em> of these:</p>
+<figure><pre class="mermaid">
+flowchart TD
+    A["Service A"] --&gt; BH["Bulkhead&lt;br/&gt;(dedicated pool for B)"]
+    BH --&gt; CB["Circuit breaker&lt;br/&gt;(fail fast if B is unhealthy)"]
+    CB --&gt; TO["Timeout&lt;br/&gt;(bound the wait)"]
+    TO --&gt; RT["Retry w/ backoff + jitter&lt;br/&gt;(only if idempotent)"]
+    RT --&gt; B["Service B"]
+    CB -.-&gt;|"open"| FB["Fallback:&lt;br/&gt;cache / default / degrade"]
+</pre></figure>
+<p>No single pattern is sufficient alone — timeouts without breakers still hammer a dying dependency with retries; breakers without bulkheads still let one dependency's threads starve others.</p>
+<h2 id="8-what-good-looks-like-at-staff">8. What &quot;good&quot; looks like at Staff+</h2>
+<ul>
+<li>Every network call in your system has an explicit <strong>timeout</strong>, and timeouts shrink appropriately down a call chain.</li>
+<li>Retries are <strong>bounded, backed off, jittered, and limited to idempotent operations</strong> — never a bare retry loop.</li>
+<li>You reach for a <strong>circuit breaker</strong> for any dependency that can degrade, and always define a <strong>fallback</strong>.</li>
+<li>You isolate blast radius with <strong>bulkheads</strong> so a single bad dependency can't take down the whole fleet.</li>
+<li>You've deliberately decided <strong>what to shed first</strong> under overload — it's a design decision, not an accident.</li>
+</ul>
+<h2 id="9-common-pitfalls">9. Common pitfalls</h2>
+<ul>
+<li><strong>No timeout</strong> — a single hung dependency slowly exhausts every caller's resources.</li>
+<li><strong>Naive retries</strong> (no backoff/jitter) — turns a small blip into a self-inflicted retry storm.</li>
+<li><strong>Retrying non-idempotent operations</strong> — duplicate charges, duplicate emails.</li>
+<li><strong>Shared resource pools across dependencies</strong> — one slow dependency starves all traffic, not just its own.</li>
+<li><strong>No fallback behind the circuit breaker</strong> — &quot;fail fast&quot; still means the user sees an error; pair it with degraded functionality where possible.</li>
+</ul>
+<h2 id="10-further-reading">10. Further reading</h2>
+<ul>
+<li>Release It! (Michael Nygard) — the book that popularized circuit breakers and bulkheads — <a href="https://pragprog.com/titles/mnee2/release-it-second-edition/" target="_blank" rel="noopener">https://pragprog.com/titles/mnee2/release-it-second-edition/</a></li>
+<li>Google SRE Book — &quot;Addressing Cascading Failures&quot; — <a href="https://sre.google/sre-book/addressing-cascading-failures/" target="_blank" rel="noopener">https://sre.google/sre-book/addressing-cascading-failures/</a></li>
+<li>Resilience4j docs (circuit breaker, retry, bulkhead, rate limiter) — <a href="https://resilience4j.readme.io/" target="_blank" rel="noopener">https://resilience4j.readme.io/</a></li>
+<li>AWS Builders' Library — &quot;Timeouts, retries, and backoff with jitter&quot; — <a href="https://aws.amazon.com/builders-library/timeouts-retries-and-backoff-with-jitter/" target="_blank" rel="noopener">https://aws.amazon.com/builders-library/timeouts-retries-and-backoff-with-jitter/</a></li>
+<li>Kubernetes — &quot;Liveness, Readiness and Startup Probes&quot; — <a href="https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/" target="_blank" rel="noopener">https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/</a></li>
+</ul>
+
+<div class="primary-source">
+  <span class="label">Read this next (primary source)</span>
+  <p>AWS Builders&rsquo; Library &mdash; <a href="https://aws.amazon.com/builders-library/timeouts-retries-and-backoff-with-jitter/" target="_blank" rel="noopener"><em>Timeouts, retries, and backoff with jitter</em></a> (how Amazon sets timeouts and budgets retries). Then Google SRE Book &mdash; <a href="https://sre.google/sre-book/addressing-cascading-failures/" target="_blank" rel="noopener"><em>Addressing Cascading Failures</em></a> for load shedding and graceful degradation, and Nygard&rsquo;s <a href="https://pragprog.com/titles/mnee2/release-it-second-edition/" target="_blank" rel="noopener"><em>Release It!</em></a> for the stability patterns.</p>
+</div>
+
+<h2 id="11-check-yourself">11. Check yourself</h2>
+<p>Retrieve before revealing.</p>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 1 of 3</p>
+  <p class="quiz-q">Recommendations starts answering in 30 s instead of 50 ms. Within minutes checkout, which calls it from a shared thread pool with no timeout, stops serving every request. Which pair of changes would have contained this?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="Right — the timeout bounds the wait; the bulkhead bounds the damage to that one pool.">A timeout on the call plus a dedicated, bounded pool for that call</button></li>
+    <li><button data-correct="false" data-feedback="Retries add load to a struggling dependency, and a bigger shared pool just takes longer to exhaust.">Immediate retries on the call plus a bigger shared thread pool</button></li>
+    <li><button data-correct="false" data-feedback="Restarted pods call the same slow dependency and hang again; you get a restart loop, not containment.">A liveness probe on checkout so Kubernetes restarts it when hung</button></li>
+    <li><button data-correct="false" data-feedback="That may fix this cause, but the next slow dependency takes checkout down the same way.">Moving recommendations to a bigger instance so it answers faster</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Timeouts bound the wait; bulkheads bound the damage. Together they stop one slow dependency from exhausting every caller's resources."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 2 of 3</p>
+  <p class="quiz-q">A downstream API blips for 10 seconds. 5,000 clients each retry immediately, three times. The API then stays down for 10 minutes. What should the retry policy have been?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="Unbounded retries are the retry storm, made permanent.">Retry without limit, so every request eventually gets through</button></li>
+    <li><button data-correct="true" data-feedback="Right — backoff gives the service room, jitter breaks lockstep, caps bound the load.">Exponential backoff with jitter, capped, idempotent calls only</button></li>
+    <li><button data-correct="false" data-feedback="Fixed waits keep 5,000 clients in lockstep; they all hit the service again together.">A fixed one-second wait between retries, the same for all clients</button></li>
+    <li><button data-correct="false" data-feedback="A 400 or 404 means the request is wrong; retrying adds load and never succeeds.">Retry every error, including 400 and 404, to maximise success</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Bounded retries with exponential backoff and jitter, only for idempotent operations and retryable errors (503, timeouts), prevent retry storms."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 3 of 3</p>
+  <p class="quiz-q">A circuit breaker on the pricing service has been Open for 30 seconds and its cooldown just ended. What happens next, and what should users have seen while it was open?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="Closing straight away would flood a possibly still-broken service. And raw errors waste the breaker's benefit.">It closes at once and all traffic flows; users saw raw errors</button></li>
+    <li><button data-correct="false" data-feedback="Breakers recover automatically through Half-Open; a manual reset is not the pattern.">It stays open until an operator resets it; users saw a 503 page</button></li>
+    <li><button data-correct="true" data-feedback="Right — trial success closes it, failure reopens it; meanwhile a cached or default price keeps users moving.">It goes Half-Open and lets one trial through; users got a fallback</button></li>
+    <li><button data-correct="false" data-feedback="Breakers fail fast; they don't queue. Queueing behind a dead dependency is what they exist to prevent.">It replays every queued request in order; users waited for them</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Closed → Open on the failure threshold → Half-Open after cooldown → Closed if the trial succeeds. Pair fail-fast with a fallback."></div>
+</div>
+
+<div class="callout tryit">
+  <span class="label">Try it in your own system</span>
+  <ul class="checklist">
+    <li>List your top five downstream calls. For each, record the timeout, retry policy (backoff, jitter, max attempts), breaker, bulkhead and fallback. Fill the gaps.</li>
+    <li>Check that timeouts shrink as you go deeper in the call chain. Flag any inner call with a longer timeout than its caller.</li>
+    <li>Review liveness vs readiness: a slow cache warm-up should fail <em>readiness</em> (no traffic), not <em>liveness</em> (restart loop).</li>
+    <li>Write your shedding order: which features or request classes go first under overload? Confirm each has a kill switch that needs no deploy.</li>
+  </ul>
+</div>
+
+<div class="followup">
+  <strong>I&rsquo;m your teacher &mdash; ask me anything.</strong> Pick one critical call path and we&rsquo;ll design its defence in depth together &mdash; timeout values, retry budget, breaker thresholds, bulkhead sizes and the fallback users will see.
+</div>
+
+<nav class="lesson-nav">
+  <span class="group">
+    <b>Previous</b>
+    <a href="0007-back-of-envelope-estimation.html">&larr; Lesson 07 · Back-of-envelope estimation</a>
+  </span>
+  <span class="group">
+    <b>Reference</b>
+    <a href="../reference/0008-resilience-and-fault-tolerance-cheatsheet.html">Resilience patterns cheat sheet &rarr;</a>
+  </span>
+  <span class="group">
+    <b>Course map</b>
+    <a href="../index.html">&uarr; All lessons</a>
+  </span>
+  <span class="group">
+    <b>Up next</b>
+    <a href="../GUIDE.md#capstone-project">Capstone project &rarr;</a>
+  </span>
+</nav>
+
+</body>
+</html>

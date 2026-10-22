@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 04 · Caching</title>
+<link rel="stylesheet" href="../../assets/course/course.css">
+<link rel="stylesheet" href="../assets/theme.css">
+<script src="../../assets/course/links.js" defer></script>
+<script src="../../assets/course/quiz.js" defer></script>
+<script type="module" src="../../assets/course/mermaid.js"></script>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">System Design · Lesson 04</p>
+  <h1>Caching</h1>
+  <div class="meta">
+    <span>◷ ~12 min read</span>
+    <span class="dot">•</span>
+    <span>Building blocks</span>
+    <span class="dot">•</span>
+    <span>Prereq: <a href="0003-databases-and-data-modeling.html">Lesson 03</a></span>
+  </div>
+</header>
+
+<p class="mission-tie">
+  Caching is the highest-leverage performance tool you have &mdash; and a common cause of the outages it was meant to prevent. Staff engineers place caches <strong>deliberately per layer</strong>, choose the write pattern from consistency, latency and durability needs, and design for stampede, hot keys and penetration <em>before</em> the load arrives. The rule underneath: the system must be correct, if slower, with the cache empty.
+</p>
+
+<div class="callout insight">
+  <span class="label">TL;DR</span>
+  <p><strong>The core question:</strong> how do you serve the same expensive result many times without recomputing it? Caching stores a copy of data closer to the consumer to cut latency and offload the origin. It's the single highest-leverage performance tool — and the source of the two hardest problems in CS (naming, cache invalidation, and off-by-one errors).</p>
+<ul>
+<li>Cache at <strong>every layer</strong>: client → CDN → load balancer → app (in-memory) → distributed cache → database.</li>
+<li>Know the <strong>read patterns</strong> (cache-aside, read-through) and <strong>write patterns</strong> (write-through, write-behind, refresh-ahead) and their consistency/latency trade-offs.</li>
+<li><strong>Cache-aside</strong> is the default; <strong>write-through</strong> for consistency; <strong>write-behind</strong> for write-heavy speed (with data-loss risk).</li>
+<li>The dangerous failure modes are <strong>stampede/thundering herd</strong>, <strong>hot keys</strong>, and <strong>penetration</strong> — each has a standard fix.</li>
+</ul>
+</div>
+
+<h2 id="1-where-to-cache--the-layers">1. Where to cache — the layers</h2>
+<figure><pre class="mermaid">
+flowchart LR
+    U["User"] --&gt; B["Browser cache&lt;br/&gt;(local, fastest)"]
+    B --&gt; CDN["CDN / edge&lt;br/&gt;(static + close to user)"]
+    CDN --&gt; LB["Reverse proxy&lt;br/&gt;(Nginx/Varnish)"]
+    LB --&gt; App["App server&lt;br/&gt;(in-process, e.g. Caffeine)"]
+    App --&gt; DC["Distributed cache&lt;br/&gt;(Redis / Memcached)"]
+    DC --&gt; DB["Database&lt;br/&gt;(buffer pool, query cache)"]
+</pre></figure>
+<p>Each layer that satisfies a request saves <em>all</em> the work downstream. The closer to the user, the lower the latency but the harder to invalidate.</p>
+<ul>
+<li><strong>Client / browser</strong> — HTTP caching via <code>Cache-Control</code>, <code>ETag</code>, <code>Expires</code>. Zero server cost.</li>
+<li><strong>CDN</strong> — caches static (and cacheable dynamic) content at edge PoPs near users (Topic 6).</li>
+<li><strong>Reverse proxy</strong> — Nginx/Varnish cache full responses in front of app servers.</li>
+<li><strong>Application (in-process)</strong> — an in-memory map in the app (Guava/Caffeine). Nanosecond access, but per-instance (not shared) and lost on restart.</li>
+<li><strong>Distributed cache</strong> — Redis/Memcached: a shared, network-accessible cache all app instances use. The workhorse.</li>
+<li><strong>Database</strong> — buffer pool / page cache keeps hot pages in RAM.</li>
+</ul>
+<h2 id="2-read-patterns">2. Read patterns</h2>
+<h3 id="cache-aside-lazy-loading--the-default">Cache-Aside (lazy loading) — the default</h3>
+<p>The application manages the cache. On a miss, it loads from the DB and populates the cache.</p>
+<figure><pre class="mermaid">
+sequenceDiagram
+    participant App
+    participant Cache
+    participant DB
+    App-&gt;&gt;Cache: get(key)
+    alt hit
+        Cache--&gt;&gt;App: value ✅
+    else miss
+        Cache--&gt;&gt;App: nil
+        App-&gt;&gt;DB: query
+        DB--&gt;&gt;App: value
+        App-&gt;&gt;Cache: set(key, value, TTL)
+    end
+</pre></figure>
+<ul>
+<li>✅ Only requested data is cached (lazy); cache failure doesn't break the app (falls back to DB).</li>
+<li>❌ First request per key is always a miss (cold cache); risk of stale data until TTL expiry; app owns the logic.</li>
+</ul>
+<h3 id="read-through">Read-Through</h3>
+<p>The cache library sits inline: the app asks the <em>cache</em>, and the cache itself loads from the DB on a miss. Same effect as cache-aside but the loading logic lives in the cache layer, not the app.</p>
+<h2 id="3-write-patterns">3. Write patterns</h2>
+<figure><pre class="mermaid">
+flowchart TB
+    subgraph WT["Write-Through"]
+        WTa["App writes → Cache → DB&lt;br/&gt;(both synchronously)"]
+        WTb["✅ Cache always fresh&lt;br/&gt;❌ Higher write latency"]
+    end
+    subgraph WB["Write-Behind (Write-Back)"]
+        WBa["App writes → Cache (ack now)&lt;br/&gt;→ async flush to DB later"]
+        WBb["✅ Very fast writes, absorbs bursts&lt;br/&gt;❌ Data loss if cache dies before flush"]
+    end
+    subgraph RA["Refresh-Ahead"]
+        RAa["Cache proactively reloads&lt;br/&gt;hot keys before they expire"]
+        RAb["✅ Hides latency for hot keys&lt;br/&gt;❌ Wasted refreshes for cold keys"]
+    end
+</pre></figure>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Pattern</th>
+<th>Consistency</th>
+<th>Write latency</th>
+<th>Risk</th>
+<th>Use when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Write-through</strong></td>
+<td>Strong (cache = DB)</td>
+<td>Higher (2 writes)</td>
+<td>None extra</td>
+<td>Read-heavy, must be fresh</td>
+</tr>
+<tr>
+<td><strong>Write-behind</strong></td>
+<td>Eventual</td>
+<td>Lowest</td>
+<td>Data loss on cache crash</td>
+<td>Write-heavy, tolerant of loss (metrics, counters)</td>
+</tr>
+<tr>
+<td><strong>Write-around</strong></td>
+<td>—</td>
+<td>Normal</td>
+<td>Cache stays cold for new data</td>
+<td>Writes rarely re-read soon</td>
+</tr>
+<tr>
+<td><strong>Refresh-ahead</strong></td>
+<td>Fresh for hot keys</td>
+<td>—</td>
+<td>Wasted work on cold keys</td>
+<td>Predictable hot keys</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Write-around</strong> = write straight to the DB, bypassing the cache; the key is only cached later on a read. Prevents flooding the cache with write-once data.</p>
+<h2 id="4-eviction--expiration">4. Eviction &amp; expiration</h2>
+<p>The cache is smaller than the origin, so it must decide what to keep.</p>
+<ul>
+<li><strong>TTL (time-to-live)</strong> — every entry expires after a set time. The simplest freshness control; combine with everything below.</li>
+<li><strong>LRU (Least Recently Used)</strong> — evict what hasn't been touched longest. The most common; great for temporal locality.</li>
+<li><strong>LFU (Least Frequently Used)</strong> — evict the least-accessed; good when popularity is stable.</li>
+<li><strong>FIFO</strong> — evict oldest inserted, regardless of use.</li>
+<li><strong>Random</strong> — cheap, surprisingly okay under uniform access.</li>
+</ul>
+<figure><pre class="mermaid">
+flowchart LR
+    New["New entry"] --&gt;|cache full| Evict{"Eviction policy"}
+    Evict --&gt;|LRU| E1["Drop least-recently-used"]
+    Evict --&gt;|LFU| E2["Drop least-frequently-used"]
+    Evict --&gt;|TTL| E3["Drop expired"]
+</pre></figure>
+<h2 id="5-invalidation--keeping-the-cache-honest">5. Invalidation — keeping the cache honest</h2>
+<p><em>&quot;There are only two hard things in Computer Science: cache invalidation and naming things.&quot;</em> — Phil Karlton</p>
+<p>Strategies to avoid serving stale data:</p>
+<ul>
+<li><strong>TTL expiry</strong> — accept staleness up to the TTL. Simplest; tune TTL to tolerance.</li>
+<li><strong>Write-through / write-behind</strong> — update the cache on write (§3).</li>
+<li><strong>Explicit invalidation</strong> — on a DB write, delete/update the affected keys (event-driven, often via a CDC stream from <a href="0005-asynchronism-and-messaging.html">Topic 5</a>).</li>
+<li><strong>Versioned keys</strong> — embed a version/hash in the key (<code>user:123:v7</code>); a new version naturally bypasses old entries.</li>
+</ul>
+<h2 id="6-the-dangerous-failure-modes-and-their-fixes">6. The dangerous failure modes (and their fixes)</h2>
+<h3 id="cache-stampede--thundering-herd">Cache stampede / thundering herd</h3>
+<p>A hot key expires → thousands of concurrent requests all miss and hammer the DB at once, potentially collapsing it.</p>
+<figure><pre class="mermaid">
+sequenceDiagram
+    participant Users as 10,000 users
+    participant Cache
+    participant DB
+    Note over Cache: hot key "homepage" expires
+    Users-&gt;&gt;Cache: get(homepage) — all miss
+    Users-&gt;&gt;DB: 10,000 simultaneous queries 💥
+    Note over DB: overload / cascading failure
+</pre></figure>
+<p><strong>Fixes:</strong></p>
+<ul>
+<li><strong>Request coalescing / single-flight</strong> — only the <em>first</em> miss recomputes; others wait for its result.</li>
+<li><strong>Lock/mutex per key</strong> — one loader repopulates; others read the fresh value.</li>
+<li><strong>TTL jitter</strong> — randomize expiry (<code>TTL ± random</code>) so keys don't expire together.</li>
+<li><strong>Early/probabilistic refresh</strong> — refresh slightly <em>before</em> expiry (refresh-ahead).</li>
+</ul>
+<h3 id="hot-key">Hot key</h3>
+<p>One key gets so much traffic it saturates a single cache node. <strong>Fix:</strong> replicate the key across nodes, add a small local (in-process) cache in front of the distributed cache, or split the value.</p>
+<h3 id="cache-penetration">Cache penetration</h3>
+<p>Requests for keys that <strong>don't exist</strong> always miss and fall through to the DB (common in attacks). <strong>Fix:</strong> cache the &quot;not found&quot; result (with a short TTL), or use a <strong>Bloom filter</strong> to reject impossible keys before hitting the DB.</p>
+<h3 id="cache-avalanche">Cache avalanche</h3>
+<p>Many keys expire simultaneously (e.g., after a cache restart) → mass misses. <strong>Fix:</strong> TTL jitter + warm the cache on startup.</p>
+<h2 id="7-redis-vs-memcached-the-two-workhorses">7. Redis vs Memcached (the two workhorses)</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th></th>
+<th><strong>Redis</strong></th>
+<th><strong>Memcached</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Data types</td>
+<td>Rich (strings, hashes, lists, sets, sorted sets, streams, HLL)</td>
+<td>Strings/blobs only</td>
+</tr>
+<tr>
+<td>Persistence</td>
+<td>Optional (RDB snapshots, AOF)</td>
+<td>None (pure cache)</td>
+</tr>
+<tr>
+<td>Replication/HA</td>
+<td>Yes (replicas, Sentinel, Cluster)</td>
+<td>No (client-side sharding)</td>
+</tr>
+<tr>
+<td>Threading</td>
+<td>Mostly single-threaded (fast, simple)</td>
+<td>Multi-threaded</td>
+</tr>
+<tr>
+<td>Use when</td>
+<td>You need structures, persistence, pub/sub, atomic ops</td>
+<td>Pure, simple, multi-threaded key-value cache</td>
+</tr>
+</tbody>
+</table></div>
+<blockquote>
+<p>Redis is the default choice today because its data structures and HA cover far more use cases (rate limiters, leaderboards, sessions, queues, locks).</p>
+</blockquote>
+<h2 id="8-what-good-looks-like-at-staff">8. What &quot;good&quot; looks like at Staff+</h2>
+<ul>
+<li>You place caches <strong>deliberately at the right layers</strong> and know the invalidation cost of each.</li>
+<li>You pick the <strong>write pattern</strong> from the consistency/latency/durability needs, not by habit.</li>
+<li>You <strong>design for the failure modes</strong> up front — stampede, hot key, penetration — because they only appear under load.</li>
+<li>You treat the cache as an <strong>optimization, not a source of truth</strong>: the system must be correct (if slower) with the cache empty.</li>
+</ul>
+<h2 id="9-common-pitfalls">9. Common pitfalls</h2>
+<ul>
+<li><strong>Caching without a TTL or invalidation plan</strong> → permanent staleness.</li>
+<li><strong>Making the app depend on the cache</strong> — a cache outage must degrade latency, not correctness.</li>
+<li><strong>No stampede protection</strong> on hot keys → the cache <em>causes</em> the outage it was meant to prevent.</li>
+<li><strong>Caching highly personalized data</strong> with low hit rates → all cost, no benefit.</li>
+<li><strong>Ignoring cache-hit-ratio metrics</strong> — you can't tune what you don't measure.</li>
+</ul>
+<h2 id="10-further-reading">10. Further reading</h2>
+<ul>
+<li>System Design Primer — &quot;Cache&quot; (layers, cache-aside, write-through, write-behind, refresh-ahead) — <a href="https://github.com/donnemartin/system-design-primer#cache" target="_blank" rel="noopener">https://github.com/donnemartin/system-design-primer#cache</a></li>
+<li>ByteByteGo — caching strategies &amp; &quot;Top caching strategies&quot; — <a href="https://github.com/ByteByteGoHq/system-design-101" target="_blank" rel="noopener">https://github.com/ByteByteGoHq/system-design-101</a></li>
+<li>AWS — &quot;Caching best practices&quot; &amp; ElastiCache docs — <a href="https://aws.amazon.com/caching/best-practices/" target="_blank" rel="noopener">https://aws.amazon.com/caching/best-practices/</a></li>
+<li>Redis vs Memcached — <a href="https://aws.amazon.com/elasticache/redis-vs-memcached/" target="_blank" rel="noopener">https://aws.amazon.com/elasticache/redis-vs-memcached/</a></li>
+</ul>
+
+<div class="primary-source">
+  <span class="label">Read this next (primary source)</span>
+  <p>AWS &mdash; <a href="https://aws.amazon.com/caching/best-practices/" target="_blank" rel="noopener"><em>Caching best practices</em></a> (lazy loading vs write-through, TTLs, thundering herds, from a team that runs caches at scale). Then the System Design Primer &mdash; <a href="https://github.com/donnemartin/system-design-primer#cache" target="_blank" rel="noopener"><em>Cache</em></a> section for compact diagrams of every pattern in this lesson.</p>
+</div>
+
+<h2 id="11-check-yourself">11. Check yourself</h2>
+<p>Retrieve before revealing.</p>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 1 of 3</p>
+  <p class="quiz-q">The homepage key is cached with a 60 s TTL. Every minute, database CPU spikes to 100% for two seconds and p99 jumps. What's the most direct fix?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="Right — this is a stampede. Coalescing (or a per-key lock, TTL jitter or early refresh) stops the herd.">Single-flight the reload so one request recomputes while others wait</button></li>
+    <li><button data-correct="false" data-feedback="The stampede still happens on every expiry, and users now see data up to an hour stale.">Raise the TTL to one hour so the spike happens sixty times less often</button></li>
+    <li><button data-correct="false" data-feedback="The key isn't being evicted; it expires by TTL. Eviction policy doesn't change what happens on expiry.">Switch the eviction policy for the homepage key from LRU to LFU</button></li>
+    <li><button data-correct="false" data-feedback="The cache isn't the bottleneck; the database is. Thousands of simultaneous misses hit it either way.">Move the homepage key from Redis to Memcached for multi-threading</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Stampede fixes: request coalescing / single-flight, a lock per key, TTL jitter, early refresh. Build them in before the load arrives."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 2 of 3</p>
+  <p class="quiz-q">A metrics service records billions of counter increments a day. Losing a few seconds of increments in a crash is acceptable; write latency must be minimal. Which write pattern fits?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="Write-through writes both synchronously, which adds write latency — the one thing you must minimise.">Write-through, so the cache and the database never disagree</button></li>
+    <li><button data-correct="false" data-feedback="Every increment still hits the database synchronously; you get no latency benefit.">Write-around, so counters skip the cache and go straight to the DB</button></li>
+    <li><button data-correct="true" data-feedback="Right — lowest write latency and burst absorption; the accepted risk is losing unflushed data.">Write-behind: ack from the cache and flush to the DB asynchronously</button></li>
+    <li><button data-correct="false" data-feedback="Cache-aside is a read pattern. It says nothing about making writes fast.">Cache-aside, loading each counter into the cache lazily on reads</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Pick the write pattern from consistency, latency and durability needs: write-through for freshness, write-behind for speed with loss risk, write-around for write-once data."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 3 of 3</p>
+  <p class="quiz-q">A bot hammers <code>/users/{id}</code> with random IDs that don't exist. The hit ratio for real users is fine, but database load triples. What do you add?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="Jitter fixes avalanches of simultaneous expiry. These keys were never in the cache at all.">TTL jitter on all user keys so that they never expire together</button></li>
+    <li><button data-correct="true" data-feedback="Right — this is cache penetration. Negative-cache misses or reject impossible keys cheaply.">Cache &lsquo;not found&rsquo; briefly, or put a Bloom filter before the DB</button></li>
+    <li><button data-correct="false" data-feedback="That fixes a hot key. Here every request is a different key that doesn't exist.">Replicate the hottest user keys across several cache nodes</button></li>
+    <li><button data-correct="false" data-feedback="Write-through caches real users; random non-existent IDs still miss and fall through.">Switch to write-through so every new user is cached on creation</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Penetration means misses for keys that don't exist. Cache the ‘not found’ with a short TTL, or reject impossible keys with a Bloom filter."></div>
+</div>
+
+<div class="callout tryit">
+  <span class="label">Try it in your own system</span>
+  <ul class="checklist">
+    <li>Inventory your caches by layer (browser, CDN, reverse proxy, in-process, distributed). For each, write the TTL and the invalidation path.</li>
+    <li>Find your hottest key. What happens when it expires at peak? Look for single-flight, a lock or TTL jitter. If none, file the ticket.</li>
+    <li>Check the hit ratio of each cache. Low hit ratios on personalised data may cost more than they save.</li>
+    <li>Game day or thought experiment: flush the distributed cache. Does the system stay correct, and how far does latency degrade?</li>
+  </ul>
+</div>
+
+<div class="followup">
+  <strong>I&rsquo;m your teacher &mdash; ask me anything.</strong> Describe one cache you run &mdash; layer, pattern, TTL, how it&rsquo;s invalidated &mdash; and we&rsquo;ll stress-test it for stampede, hot keys, penetration and the empty-cache case.
+</div>
+
+<nav class="lesson-nav">
+  <span class="group">
+    <b>Previous</b>
+    <a href="0003-databases-and-data-modeling.html">&larr; Lesson 03 · Databases & data modeling</a>
+  </span>
+  <span class="group">
+    <b>Reference</b>
+    <a href="../reference/0004-caching-cheatsheet.html">Caching cheat sheet &rarr;</a>
+  </span>
+  <span class="group">
+    <b>Course map</b>
+    <a href="../index.html">&uarr; All lessons</a>
+  </span>
+  <span class="group">
+    <b>Up next</b>
+    <a href="0005-asynchronism-and-messaging.html">Lesson 05 · Async & messaging &rarr;</a>
+  </span>
+</nav>
+
+</body>
+</html>

@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cheat Sheet · Databases &amp; Data Modeling</title>
+<link rel="stylesheet" href="../../assets/course/course.css">
+<link rel="stylesheet" href="../assets/theme.css">
+<script src="../../assets/course/links.js" defer></script>
+<style>
+  body { max-width: 52rem; }
+  @media print { body { margin: 0; } h2 { margin-top: 1.1rem; } }
+</style>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">System Design · Reference 03</p>
+  <h1>Databases &amp; Data Modeling</h1>
+  <div class="meta"><span>Compressed from Lesson 03</span><span class="dot">•</span><span>Print-friendly</span></div>
+</header>
+
+<div class="callout insight">
+  <span class="label">Mindset</span>
+  <p>Apply the <strong>cheapest fix that meets the numbers</strong>, and choose stores from the <strong>access pattern</strong>, not fashion.
+  Shard keys and isolation levels are the decisions that are hardest to undo.</p>
+</div>
+
+<h2>The scaling ladder (stop at the first rung that works)</h2>
+<table>
+  <thead><tr><th>#</th><th>Step</th><th>Buys you</th><th>Costs you</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td><strong>Indexes &amp; query tuning</strong> (<code>EXPLAIN</code>)</td><td>Highest ROI: ms instead of full scans</td><td>Write overhead per index</td></tr>
+    <tr><td>2</td><td><strong>Read replicas</strong></td><td>Read scale (most apps are read-heavy)</td><td>Replication lag &rarr; stale reads</td></tr>
+    <tr><td>3</td><td><strong>Cache</strong> (Lesson 04)</td><td>Offloads hot reads</td><td>Invalidation</td></tr>
+    <tr><td>4</td><td><strong>Federation</strong> (split by function)</td><td>Smaller DBs, more write throughput</td><td>Cross-DB joins move to the app</td></tr>
+    <tr><td>5</td><td><strong>Sharding</strong> (split by data)</td><td>Write and data-volume scale</td><td>Cross-shard joins/transactions, rebalancing</td></tr>
+    <tr><td>6</td><td><strong>Denormalisation</strong></td><td>Avoids expensive joins</td><td>Write complexity, drift without an update plan</td></tr>
+  </tbody>
+</table>
+
+<h2>Replication</h2>
+<table>
+  <thead><tr><th>Topology</th><th>Writes</th><th>Trade-off</th></tr></thead>
+  <tbody>
+    <tr><td>Single-leader</td><td>One primary; reads from followers</td><td>Simple; strong if you read the leader. Failover risks split-brain and lost async writes.</td></tr>
+    <tr><td>Multi-leader</td><td>Several (e.g. one per region)</td><td>Write locality and availability; needs conflict resolution (LWW, version vectors, CRDTs)</td></tr>
+    <tr><td>Leaderless (Dynamo)</td><td>Any replica, quorum <code>W + R &gt; N</code></td><td>High availability; tunable consistency (Cassandra, DynamoDB, Riak)</td></tr>
+  </tbody>
+</table>
+<p><strong>Sync</strong> replication: no loss on failover, slower writes. <strong>Async</strong>: fast, can lose the last writes. Most run async or semi-sync.</p>
+
+<h2>Sharding strategies</h2>
+<table>
+  <thead><tr><th>Strategy</th><th>Pro</th><th>Con</th></tr></thead>
+  <tbody>
+    <tr><td>Range</td><td>Efficient range scans</td><td>Hotspots on skewed data</td></tr>
+    <tr><td>Hash <code>hash(k) % N</code></td><td>Even spread</td><td>Range queries scatter; changing N reshuffles almost everything</td></tr>
+    <tr><td>Consistent hash</td><td>Adding a node moves ~K/N keys</td><td>More complex</td></tr>
+    <tr><td>Directory / lookup</td><td>Flexible rebalancing</td><td>Lookup is a SPOF / bottleneck</td></tr>
+    <tr><td>Geo</td><td>Locality, compliance</td><td>Cross-region queries are costly</td></tr>
+  </tbody>
+</table>
+<p><strong>Shard key:</strong> high cardinality, evenly accessed. Bad keys (e.g. <code>country</code>) create permanent skew.
+Split celebrity keys with a compound key. <strong>Consistent hashing</strong> with 100&ndash;200 <strong>virtual nodes</strong> per machine: a 4th node joining
+3 moves ~25% of keys, not ~100%.</p>
+
+<h2>SQL vs NoSQL</h2>
+<table>
+  <thead><tr><th>Choose SQL when&hellip;</th><th>Choose NoSQL when&hellip;</th></tr></thead>
+  <tbody>
+    <tr><td>Relational data, stable schema</td><td>Fluid schema per record</td></tr>
+    <tr><td>Multi-row ACID transactions</td><td>Massive horizontal write scale</td></tr>
+    <tr><td>Ad-hoc queries and joins</td><td>Known, simple access by key</td></tr>
+    <tr><td>Consistency over raw availability</td><td>Availability and latency over strict consistency</td></tr>
+  </tbody>
+</table>
+<ul class="checklist">
+  <li><strong>Key&ndash;value</strong> (Redis, DynamoDB) &mdash; sessions, caches, flags.</li>
+  <li><strong>Document</strong> (MongoDB, Couchbase) &mdash; catalogues, profiles, nested content.</li>
+  <li><strong>Wide-column</strong> (Cassandra, HBase, Bigtable) &mdash; huge write volume, time series, range scans per partition key.</li>
+  <li><strong>Graph</strong> (Neo4j, Neptune) &mdash; social graphs, recommendations, fraud rings.</li>
+  <li><strong>Blur:</strong> Postgres JSONB; NewSQL (Spanner, CockroachDB, YugabyteDB) = SQL + ACID + horizontal scale.</li>
+</ul>
+<p><strong>ACID</strong> (atomic, consistent, isolated, durable) = correctness first. <strong>BASE</strong> (basically available, soft state, eventual) = availability first.</p>
+
+<h2>Isolation levels</h2>
+<table>
+  <thead><tr><th>Level</th><th>Dirty read</th><th>Non-repeatable</th><th>Phantom</th></tr></thead>
+  <tbody>
+    <tr><td>Read Uncommitted</td><td>possible</td><td>possible</td><td>possible</td></tr>
+    <tr><td>Read Committed <em>(Postgres, Oracle default)</em></td><td>prevented</td><td>possible</td><td>possible</td></tr>
+    <tr><td>Repeatable Read</td><td>prevented</td><td>prevented</td><td>possible*</td></tr>
+    <tr><td>Serializable (often SSI)</td><td>prevented</td><td>prevented</td><td>prevented</td></tr>
+  </tbody>
+</table>
+<p>* InnoDB prevents most phantoms at Repeatable Read via next-key locks. <strong>Lost update / write skew</strong>: two read-modify-writes clobber each other,
+or two decisions on the same read break an invariant. Escalate the specific transaction (<code>SELECT &hellip; FOR UPDATE</code>, serializable) rather than serialising everything.</p>
+
+<h2>Storage engines</h2>
+<table>
+  <thead><tr><th></th><th>B-Tree</th><th>LSM-Tree</th></tr></thead>
+  <tbody>
+    <tr><td>Writes</td><td>In place, random I/O + WAL</td><td>Memtable &rarr; SSTable, sequential (fast)</td></tr>
+    <tr><td>Reads</td><td>Fast, predictable</td><td>Check memtable + SSTables; <strong>Bloom filters</strong> skip misses</td></tr>
+    <tr><td>Background cost</td><td>Fragmentation</td><td>Compaction I/O</td></tr>
+    <tr><td>Used by</td><td>PostgreSQL, MySQL/InnoDB</td><td>Cassandra, RocksDB, LevelDB, HBase, ScyllaDB</td></tr>
+    <tr><td>Pick for</td><td>Read-heavy, ranges, transactions</td><td>Write-heavy ingest, time series, logs</td></tr>
+  </tbody>
+</table>
+
+<h2>Review questions</h2>
+<ul class="checklist">
+  <li>Which rung of the ladder do the current numbers justify? Were the cheaper rungs exhausted?</li>
+  <li>Why SQL or this NoSQL family &mdash; which access pattern drove it?</li>
+  <li>What is the shard key&rsquo;s cardinality and skew? Which queries go cross-shard?</li>
+  <li>What is the default isolation level, and which invariant could an anomaly break?</li>
+  <li>Who reads from async replicas, and is read-your-writes handled?</li>
+  <li>Is the engine (B-Tree vs LSM) matched to a read- or write-heavy workload?</li>
+</ul>
+
+<div class="callout warning">
+  <span class="label">Traps</span>
+  <ul>
+    <li><strong>Sharding too early</strong> &mdash; loses joins and transactions, multiplies ops.</li>
+    <li><strong>Skewed shard key</strong> &mdash; permanent hotspots, fixable only by migration.</li>
+    <li><strong>Stale reads from async replicas</strong> with no read-your-writes routing.</li>
+    <li><strong>Denormalising without an update strategy</strong> &mdash; copies drift.</li>
+    <li><strong>Assuming ACID across services</strong> &mdash; use sagas or the outbox (Lesson 05).</li>
+  </ul>
+</div>
+
+<nav class="lesson-nav">
+  <span class="group"><b>From</b><a href="../lessons/0003-databases-and-data-modeling.html">&larr; Lesson 03 · Databases &amp; data modeling</a></span>
+  <span class="group"><b>Course map</b><a href="../index.html">&uarr; All lessons</a></span>
+  <span class="group"><b>Canonical terms</b><a href="../GLOSSARY.md">GLOSSARY.md</a></span>
+  <span class="group"><b>Primary source</b><a href="https://dataintensive.net/" target="_blank" rel="noopener">Kleppmann · Designing Data-Intensive Applications</a></span>
+</nav>
+
+</body>
+</html>

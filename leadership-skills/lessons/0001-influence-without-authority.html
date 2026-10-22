@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 01 · Influence Without Authority</title>
+<link rel="stylesheet" href="../../assets/course/course.css">
+<link rel="stylesheet" href="../assets/theme.css">
+<script src="../../assets/course/links.js" defer></script>
+<script src="../../assets/course/quiz.js" defer></script>
+<script type="module" src="../../assets/course/mermaid.js"></script>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Leadership Skills · Lesson 01 · B1</p>
+  <h1>Influence Without Authority</h1>
+  <div class="meta">
+    <span>◷ ~15 min read</span>
+    <span class="dot">•</span>
+    <span>Foundations</span>
+    <span class="dot">•</span>
+    <span>Prereq: none</span>
+  </div>
+</header>
+
+<p class="mission-tie">
+  At Staff+, most of the teams whose decisions you need to change do not report to you. Your authority is <strong>borrowed</strong> from expertise, trust, context, relationships and sponsorship, and you spend some of it every time you push. This lesson gives you the moves (three questions, naming the purpose, reading the room, following quickly) that let you be <em>right in a way that leaves others owning the answer</em>. It is the master skill the rest of Part B builds on, and the first thing a promotion committee probes under cross-team influence.
+</p>
+
+<div class="callout insight">
+  <span class="label">TL;DR</span>
+  <p>How do you drive change across teams you do not manage?</p>
+<ul>
+<li>At Staff+, authority is borrowed: you steer through trust, context, and clarity, not command.</li>
+<li>“Never be wrong” means being accurate while creating space for others to contribute and improve the answer.</li>
+<li>Use three moves before asserting: ask good questions, define the purpose, and read the room.</li>
+<li>Difficult people are handled before the meeting, with allies, boundaries, and shared incentives.</li>
+<li>To lead well, follow well: choose battles, support trustworthy leaders quickly, and mark feedback as non-blocking when it is.</li>
+<li>Passive influence is being a role model; active influence is deliberately shaping decisions, norms, and outcomes.</li>
+</ul>
+</div>
+
+<p class="related">Related: <a href="../../02-skills-to-upgrade.md">skills overview</a>, <a href="../../05-promotion-playbook.md">promotion playbook</a>, <a href="../../06-self-assessment-and-tracking.md">self-assessment</a>.</p>
+
+<h2 id="1-the-staff-influence-problem">1. The Staff+ influence problem</h2>
+<p>Senior engineers often succeed by owning a component and being the best implementer in the room.
+Staff and Principal engineers succeed when teams they do not manage make better decisions because of their involvement.
+That shift changes the source of power.</p>
+<p>You may have a title, but you usually do not control roadmaps, people allocation, product trade-offs, or team rituals.
+The people you need to influence have their own managers, goals, deadlines, and local context.
+Your authority is therefore borrowed from:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Source of authority</th>
+<th>How it is earned</th>
+<th>How it is lost</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Expertise</td>
+<td>Clear reasoning, accurate judgment, useful patterns</td>
+<td>Overstating certainty or being out of date</td>
+</tr>
+<tr>
+<td>Trust</td>
+<td>Keeping commitments, being fair, protecting people</td>
+<td>Surprises, blame, or hidden agendas</td>
+</tr>
+<tr>
+<td>Context</td>
+<td>Understanding product, operations, and org constraints</td>
+<td>Ignoring realities outside your specialty</td>
+</tr>
+<tr>
+<td>Relationships</td>
+<td>Helping people succeed before you need them</td>
+<td>Only appearing when you want something</td>
+</tr>
+<tr>
+<td>Executive sponsorship</td>
+<td>Aligning with business priorities</td>
+<td>Using escalation as a substitute for influence</td>
+</tr>
+</tbody>
+</table></div>
+<p>The paradox is that authority shrinks as scope grows.
+You can no longer command the system directly.
+You have to make the system want to move.</p>
+<h2 id="2-learn-to-never-be-wrong-without-dominating-the-room">2. “Learn to never be wrong” without dominating the room</h2>
+<p>“Never be wrong” does not mean pretending to be infallible.
+It means developing judgment, preparation, and communication habits that make your contributions reliably useful.
+You are right in a Staff+ way when the group gets closer to the truth and still feels ownership of the answer.</p>
+<p>The anti-pattern is sucking the oxygen out of the room.
+It looks like:</p>
+<ul>
+<li>answering before others have processed the problem;</li>
+<li>correcting every imprecise statement;</li>
+<li>turning every discussion into a proof of your competence;</li>
+<li>winning by exhaustion, silence, or resignation;</li>
+<li>leaving peers technically convinced but socially disengaged.</li>
+</ul>
+<p>That version of “being right” is fragile.
+People may stop arguing because they agree, or because they no longer believe arguing is worth the cost.
+Staff+ influence requires you to tell the difference.</p>
+<p>A better standard is: be precise, generous, and explicit about what would change your mind.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Less effective</th>
+<th>More effective</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>“That will not work.”</td>
+<td>“I see one risk: migration ordering. How are we thinking about that?”</td>
+</tr>
+<tr>
+<td>“We already tried this.”</td>
+<td>“We tried a similar approach in billing. The failure mode was load shape; maybe this context is different.”</td>
+</tr>
+<tr>
+<td>“The right answer is X.”</td>
+<td>“My current recommendation is X because of A and B. I would change it if C is true.”</td>
+</tr>
+<tr>
+<td>“You are missing the point.”</td>
+<td>“Can we separate the reliability goal from the implementation choice?”</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="3-the-three-moves-questions-purpose-and-room-reading">3. The three moves: questions, purpose, and room-reading</h2>
+<p>When a discussion gets messy, do not begin by pushing harder.
+Use three moves.</p>
+<p>First, listen through questions.
+A useful rule is: ask three good questions before sharing your perspective.
+Good questions reveal constraints, values, and assumptions.
+They also lower defensiveness because people experience you as trying to understand rather than trying to win.</p>
+<p>Second, define the purpose.
+Many meetings fail because people are solving different problems.
+One person wants a decision, another wants brainstorming, another wants risk review, and another wants status.
+Reframing the purpose can unlock progress.
+Do not overuse this move: constantly resetting purpose can create churn and make you feel like a process tax.</p>
+<p>Third, read the room.
+If people are close, summarize and converge.
+If people are far apart, split into a subgroup, gather data, or escalate with options.
+Escalation is not failure; premature escalation is.</p>
+<figure><pre class="mermaid">
+flowchart TD
+    A["Discussion feels stuck"] --&gt; B["Ask three good questions"]
+    B --&gt; C{"Is the purpose clear"}
+    C --&gt;|"No"| D["Name the purpose"]
+    C --&gt;|"Yes"| E["Read the room"]
+    D --&gt; E
+    E --&gt; F{"Are positions close enough"}
+    F --&gt;|"Yes"| G["Summarize agreement&lt;br/&gt;and decide next step"]
+    F --&gt;|"No"| H{"Is missing data the issue"}
+    H --&gt;|"Yes"| I["Assign data gathering&lt;br/&gt;and reconvene"]
+    H --&gt;|"No"| J["Split subgroup&lt;br/&gt;or escalate with options"]
+</pre></figure>
+<p>Examples of questions that create movement:</p>
+<ul>
+<li>“What outcome are we optimizing for: latency, operability, cost, or time to learn?”</li>
+<li>“What would make this proposal unacceptable?”</li>
+<li>“Who has to live with this decision after launch?”</li>
+<li>“What evidence would change our minds?”</li>
+</ul>
+<h2 id="4-handling-difficult-people-without-making-the-meeting-about-them">4. Handling difficult people without making the meeting about them</h2>
+<p>Difficult behavior is common in cross-team work: interruption, sarcasm, constant objections, status games, or refusal to decide.
+Treat it as a leadership problem, not a personality contest.</p>
+<p>The best work happens before the meeting.
+If you expect conflict, align with the person beforehand.
+Ask what they are worried about.
+Give them a chance to shape the agenda.
+Look for the legitimate concern under the difficult behavior.
+Many “blockers” are protecting a real risk badly.</p>
+<p>Also include someone they cannot be a jerk to.
+That may be their manager, a respected peer, a product leader, an incident commander, or a customer-facing partner.
+The goal is not intimidation.
+The goal is to create a room where professional behavior is the easiest behavior.</p>
+<p>Use a simple escalation ladder: private curiosity, shared framing, meeting boundary, structured decision, then manager or sponsor alignment.</p>
+<figure><pre class="mermaid">
+sequenceDiagram
+    participant You as You
+    participant Peer as Difficult peer
+    participant Ally as Respected ally
+    participant Group as Meeting group
+    You-&gt;&gt;Peer: Ask concerns before the meeting
+    Peer--&gt;&gt;You: Names risks and objections
+    You-&gt;&gt;Ally: Share agenda and ask for support on norms
+    You-&gt;&gt;Group: Frame purpose and decision needed
+    Peer--&gt;&gt;Group: Raises objection
+    Ally-&gt;&gt;Group: Refocus on shared criteria
+    You-&gt;&gt;Group: Convert objection into an action or decision
+</pre></figure>
+<h2 id="5-to-lead-you-have-to-follow">5. To lead, you have to follow</h2>
+<p>Staff+ engineers often overestimate how many battles matter.
+Influence is finite.
+If you spend it on every naming debate, every local implementation preference, and every imperfect proposal, people learn that your involvement means delay.</p>
+<p>Ask: “Will this matter to me in six months?”
+If not, consider following.
+Following is not passivity.
+It is an active choice to support someone else’s leadership so the organization moves faster.</p>
+<p>Give support quickly to trustworthy leaders.
+If a peer has context, credibility, and a reasonable plan, back them.
+You can still add feedback, but label it honestly.
+Use phrases like:</p>
+<ul>
+<li>“Optional nit: this name may age poorly.”</li>
+<li>“Non-blocking concern: consider an escape hatch for rollout.”</li>
+<li>“I support the direction; this comment should not delay the decision.”</li>
+<li>“I am aligned. If helpful, I can review the migration plan.”</li>
+</ul>
+<figure><pre class="mermaid">
+flowchart TD
+    A["You disagree or see an improvement"] --&gt; B{"Will it matter in six months"}
+    B --&gt;|"No"| C["Follow quickly"]
+    C --&gt; D["Mark feedback optional&lt;br/&gt;or stay quiet"]
+    B --&gt;|"Yes"| E{"Is the leader trustworthy"}
+    E --&gt;|"Yes"| F["Support direction&lt;br/&gt;offer targeted help"]
+    E --&gt;|"No"| G["Ask clarifying questions&lt;br/&gt;and surface risks"]
+    F --&gt; H{"Is risk existential"}
+    H --&gt;|"No"| I["Disagree and commit"]
+    H --&gt;|"Yes"| J["Escalate with options&lt;br/&gt;not complaints"]
+</pre></figure>
+<p>Following creates reciprocal influence.
+People you support today are more likely to support your initiatives tomorrow, and they will trust that your objections are meaningful when you do object.</p>
+<h2 id="6-passive-versus-active-influence">6. Passive versus active influence</h2>
+<p>Tanya Reilly’s distinction is useful: passive influence is being a role model; active influence is deliberately shaping the organization.
+Both matter.</p>
+<p>Passive influence includes how you review code, talk in incidents, admit mistakes, write documents, and handle ambiguity.
+People copy the behavior of high-status engineers.
+If you think out loud carelessly, others may treat speculation as direction.
+If you dismiss a team casually, others may copy that contempt.</p>
+<p>Active influence is more deliberate.
+It includes building coalitions, writing strategy, aligning managers, pre-meeting stakeholders, creating rituals, and changing decision systems.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Mode</th>
+<th>What it sounds like</th>
+<th>When to use it</th>
+<th>Risk</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Passive influence</td>
+<td>“Here is how I approach incidents.”</td>
+<td>Norms, craft, judgment, culture</td>
+<td>Unintended signals</td>
+</tr>
+<tr>
+<td>Active influence</td>
+<td>“I want us to adopt this migration pattern.”</td>
+<td>Direction, alignment, priorities</td>
+<td>Overreach or fatigue</td>
+</tr>
+</tbody>
+</table></div>
+<figure><pre class="mermaid">
+flowchart LR
+    A["Influence"] --&gt; B["Passive role model"]
+    A --&gt; C["Active org shaping"]
+    B --&gt; D["Behavior copied"]
+    B --&gt; E["Norms formed"]
+    C --&gt; F["Stakeholders aligned"]
+    C --&gt; G["Systems changed"]
+</pre></figure>
+<p>Staff+ engineers combine both.
+They are careful about the shadow they cast, and they deliberately intervene where the system needs help.</p>
+<h2 id="7-a-practical-influence-operating-model">7. A practical influence operating model</h2>
+<p>Before entering an influence-heavy situation, write a one-page plan.
+It does not need to be formal.
+It should answer:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Question</th>
+<th>Why it matters</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>What decision or behavior needs to change?</td>
+<td>Prevents vague “alignment” work</td>
+</tr>
+<tr>
+<td>Who owns the decision?</td>
+<td>Avoids influencing the wrong room</td>
+</tr>
+<tr>
+<td>Who is impacted?</td>
+<td>Reveals hidden stakeholders</td>
+</tr>
+<tr>
+<td>What does each party care about?</td>
+<td>Converts arguments into trade-offs</td>
+</tr>
+<tr>
+<td>What proof is needed?</td>
+<td>Replaces opinion loops with evidence</td>
+</tr>
+<tr>
+<td>What is my fallback?</td>
+<td>Keeps you from escalating emotionally</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="8-practice-drills">8. Practice drills</h2>
+<ul>
+<li>In your next design review, ask three substantive questions before stating your opinion.</li>
+<li>Pick one active initiative and list the real decision-maker, veto holders, and impacted teams.</li>
+<li>Rewrite one blocking code review comment as a non-blocking suggestion.</li>
+<li>Before a contentious meeting, pre-align with the person most likely to object.</li>
+<li>After a meeting, ask a trusted peer: “Did I create space, or did I dominate?”</li>
+<li>Identify one issue you care about but that will not matter in six months; deliberately follow.</li>
+<li>Keep a two-week influence log: goal, stakeholders, move used, result, and lesson.</li>
+</ul>
+<h2 id="9-what-good-looks-like-at-staff">9. What &quot;good&quot; looks like at Staff+</h2>
+<ul>
+<li>People seek your input early because it improves outcomes rather than slows them down.</li>
+<li>You can name the decision-maker, the real trade-off, and the missing evidence.</li>
+<li>Your objections are rare enough that they carry weight.</li>
+<li>You make others feel smarter and more capable after working with you.</li>
+<li>You support peer leaders visibly and quickly when their direction is sound.</li>
+<li>You can de-escalate conflict without avoiding hard truths.</li>
+<li>Your influence survives when you are not in the room.</li>
+</ul>
+<h2 id="10-common-pitfalls">10. Common pitfalls</h2>
+<ul>
+<li>Confusing being right with being effective.</li>
+<li>Using executive escalation before doing peer alignment.</li>
+<li>Reframing every discussion until people experience you as churn.</li>
+<li>Treating difficult people as enemies instead of constraints to manage.</li>
+<li>Giving “optional” feedback in a tone that sounds mandatory.</li>
+<li>Being a role model accidentally, especially when frustrated.</li>
+<li>Spending influence on small preferences and lacking it for existential issues.</li>
+</ul>
+<h2 id="11-further-reading">11. Further reading</h2>
+<ul>
+<li>StaffEng, “Operating at Staff”: <a href="https://staffeng.com/guides/operating-at-staff/" target="_blank" rel="noopener">https://staffeng.com/guides/operating-at-staff/</a></li>
+<li>StaffEng, “Learn to never be wrong”: <a href="https://staffeng.com/guides/learn-to-never-be-wrong/" target="_blank" rel="noopener">https://staffeng.com/guides/learn-to-never-be-wrong/</a></li>
+<li>StaffEng, “To lead, you have to follow”: <a href="https://staffeng.com/guides/to-lead-follow/" target="_blank" rel="noopener">https://staffeng.com/guides/to-lead-follow/</a></li>
+<li>The Pragmatic Engineer, “The Staff Engineer's Path”: <a href="https://newsletter.pragmaticengineer.com/p/the-staff-engineers-path" target="_blank" rel="noopener">https://newsletter.pragmaticengineer.com/p/the-staff-engineers-path</a></li>
+</ul>
+
+<div class="primary-source">
+  <span class="label">Read this next (primary source)</span>
+  <p><a href="https://staffeng.com/guides/learn-to-never-be-wrong/" target="_blank" rel="noopener"><em>Learn to never be wrong</em></a> (StaffEng): the three moves and how to handle difficult people before the meeting. Then read <a href="https://staffeng.com/guides/to-lead-follow/" target="_blank" rel="noopener"><em>To lead, you have to follow</em></a> on when to back someone else’s leadership and how to make feedback explicitly non-blocking.</p>
+</div>
+
+<h2 id="12-check-yourself">12. Check yourself</h2>
+<p>Retrieve before revealing.</p>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 1 of 3</p>
+  <p class="quiz-q">In a cross-team design review, a peer presents a queue-based migration. You see a real risk in the migration ordering and you are fairly sure you are right. What is your <em>first</em> move?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="Answering before others have processed the problem sucks the oxygen out of the room, even when you are right.">State the ordering flaw up front so the group does not waste time on a plan that will fail</button></li>
+    <li><button data-correct="true" data-feedback="Right — questions surface constraints and lower defensiveness, and the author may find the risk themselves.">Ask how they plan to sequence the migration, then ask what would make the plan unacceptable</button></li>
+    <li><button data-correct="false" data-feedback="A real risk should surface while the group is deciding; a private critique afterwards looks like avoidance.">Say nothing in the meeting and send the author a detailed written critique of the plan afterwards</button></li>
+    <li><button data-correct="false" data-feedback="Escalation is not failure, but premature escalation is. Nobody has even discussed the risk yet.">Escalate to the director straight away, because a migration risk is too important to debate</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Ask three good questions before you share your perspective: they reveal constraints and assumptions, and people experience you as trying to understand rather than trying to win."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 2 of 3</p>
+  <p class="quiz-q">A trusted peer with good context leads an API redesign. You would have named two resources differently and you prefer another pagination style, but the plan is sound. How do you respond?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="Spending influence on local preferences teaches people that your involvement means delay.">Raise both points as blocking so the API stays consistent with the standards you care about</button></li>
+    <li><button data-correct="false" data-feedback="Withholding approval turns a preference into a veto; it will not matter in six months.">Hold your approval until the naming is settled, since names are hard to change after launch</button></li>
+    <li><button data-correct="false" data-feedback="Following is active, not silent. You can still add feedback, as long as you label it honestly.">Stay out of it completely, because any comment from you would undermine their leadership</button></li>
+    <li><button data-correct="true" data-feedback="Right — support a trustworthy leader quickly and label the feedback so it cannot slow the decision.">Back the direction publicly and mark both points as optional, non-blocking suggestions</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Ask “Will this matter in six months?” If not, follow quickly and mark feedback as optional. Rare objections carry weight; constant ones are noise."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 3 of 3</p>
+  <p class="quiz-q">You expect a senior engineer from another team to derail Thursday’s decision meeting with repeated objections, as he did last time. What is the best preparation?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="Right — the real work happens before the meeting: find the legitimate concern and make professional behaviour the easy path.">Meet him first to hear his concerns, let him shape the agenda, and invite a peer he respects</button></li>
+    <li><button data-correct="false" data-feedback="Excluding a stakeholder creates a hidden veto holder and burns trust; he will reopen the decision later.">Leave him off the invite and brief him on the outcome once the decision has been made and recorded</button></li>
+    <li><button data-correct="false" data-feedback="Manager alignment is the last rung of the escalation ladder, not the first; start with private curiosity.">Ask his manager to tell him to be more constructive before Thursday’s meeting takes place</button></li>
+    <li><button data-correct="false" data-feedback="Winning by exhaustion leaves people technically convinced but disengaged, and ignores the risk he may be protecting.">Prepare a longer deck that pre-empts every single objection he raised in the last meeting</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Handle difficult behaviour before the meeting: ask what worries them, let them shape the agenda, and include someone they cannot be a jerk to. Many blockers are protecting a real risk badly."></div>
+</div>
+
+<div class="callout tryit">
+  <span class="label">Try it in your own system</span>
+  <ul class="checklist">
+    <li>In your next design review, ask three substantive questions before you state any opinion. Note one thing you learned that you would otherwise have missed.</li>
+    <li>Pick one live initiative and write a one-page influence plan: the decision or behaviour to change, who owns it, who is impacted, what each party cares about, the proof needed, and your fallback.</li>
+    <li>Find a blocking review comment you wrote recently. Rewrite it as a labelled non-blocking suggestion, or delete it if it will not matter in six months.</li>
+    <li>Before your next contentious meeting, spend 15 minutes 1:1 with the person most likely to object and ask what outcome they need.</li>
+    <li>Keep a two-week influence log (goal, stakeholders, move used, result, lesson). Your best entry is cross-team-influence evidence for your brag doc.</li>
+  </ul>
+</div>
+
+<div class="followup">
+  <strong>I&rsquo;m your teacher &mdash; ask me anything.</strong> Describe a cross-team decision you are stuck on (who owns it, who objects, what you want) and we will build the one-page influence plan together, or role-play the pre-meeting with your hardest stakeholder.
+</div>
+
+<nav class="lesson-nav">
+  <span class="group">
+    <b>Reference</b>
+    <a href="../reference/0001-influence-without-authority-cheatsheet.html">Influence without authority cheat sheet &rarr;</a>
+  </span>
+  <span class="group">
+    <b>Course map</b>
+    <a href="../index.html">&uarr; All lessons</a>
+  </span>
+  <span class="group">
+    <b>Up next</b>
+    <a href="0002-communication-and-executive-writing.html">Lesson 02 · Executive communication &rarr;</a>
+  </span>
+</nav>
+
+</body>
+</html>

@@ -1,0 +1,17 @@
+/* ===========================================================================
+   Technical Skills — course theme (loaded after /assets/course/course.css)
+   Distinct BRONZE identity (craft, tooling). Insight callouts stay slate-green
+   so they never read as the amber "warning" callout.
+   =========================================================================== */
+
+:root {
+  --accent:        #8a5a12;   /* bronze — primary identity, used sparingly */
+  --link:          #7a4f10;
+  --insight-bg:    #ecf3f1;
+  --insight-br:    #2f6f62;
+  --correct-ink:   #4f340b;
+  --accent-hover:  #6e480e;
+  --accent-glow:   rgba(138, 90, 18, .55);
+  --accent-past:   rgba(138, 90, 18, .4);
+  --accent-shadow: rgba(138, 90, 18, .4);
+}

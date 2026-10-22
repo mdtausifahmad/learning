@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 08 · T-shaped Breadth + Depth</title>
+<link rel="stylesheet" href="../../assets/course/course.css">
+<link rel="stylesheet" href="../assets/theme.css">
+<script src="../../assets/course/links.js" defer></script>
+<script src="../../assets/course/quiz.js" defer></script>
+<script type="module" src="../../assets/course/mermaid.js"></script>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Technical Skills · Lesson 08 · A9</p>
+  <h1>T-shaped Breadth + Depth</h1>
+  <div class="meta">
+    <span>◷ ~15 min read</span>
+    <span class="dot">•</span>
+    <span>Synthesis</span>
+    <span class="dot">•</span>
+    <span>Prereq: <a href="0001-data-intensive-distributed-systems.html">Lesson 01</a>, <a href="0003-software-architecture.html">Lesson 03</a></span>
+  </div>
+</header>
+
+<p class="mission-tie">
+  Staff+ engineers are rarely the best at every layer, but they are <strong>credible across all of them and the authority in one</strong>. This lesson ties A1&ndash;A8 together: breadth for architectural judgement, a deep spike aligned with durable business needs, and a quarterly loop that turns what you learn into artifacts that scale. It builds on <a href="0001-data-intensive-distributed-systems.html">Lesson 01</a> and <a href="0003-software-architecture.html">Lesson 03</a>.
+</p>
+
+<div class="callout insight">
+  <span class="label">TL;DR</span>
+  <p>How do you become broadly credible across the whole stack AND the deep authority in one area?</p>
+<ul>
+<li>T-shaped engineers combine broad working fluency across many domains with one or more deep spikes of authority.</li>
+<li>Breadth gives Staff+ engineers architectural judgment and credibility in rooms where frontend, backend, data, infra, product, and operations collide.</li>
+<li>Depth gives you irreplaceable value: the ability to solve hard problems, set direction, and teach a domain from first principles.</li>
+<li>Generalist context compounds early; specialist authority compounds when aligned with enduring business needs.</li>
+<li>Over a career, many Staff+ engineers become pi-shaped: broad base plus two deep spikes.</li>
+</ul>
+</div>
+
+<p class="related">Back to the roadmap: <a href="../../02-skills-to-upgrade.md">Skills to upgrade</a>. Related deep dives: <a href="../../01-what-is-required.md">what is required</a>, <a href="../../system-design/lessons/0001-scalability-tradeoff-axes.html">scalability trade-offs</a>, <a href="../../system-design/lessons/0002-cap-theorem-consistency-models.html">CAP and consistency</a>, <a href="../../system-design/lessons/0003-databases-and-data-modeling.html">databases and data modeling</a>, <a href="0006-security-and-privacy.html">security and privacy</a>, <a href="0007-cloud-infrastructure.html">cloud infrastructure</a>, and the rest of technical skills A1–A8.</p>
+
+<h2 id="1-the-t-shape-metaphor">1. The T-shape metaphor</h2>
+<p>The T-shape is a simple model for Staff+ technical growth.</p>
+<ul>
+<li>The <strong>horizontal bar</strong> is breadth: enough fluency across A1–A8 and related system-design domains to reason about trade-offs.</li>
+<li>The <strong>vertical bar</strong> is depth: a domain where you are a recognized authority and can create direction, not just execute tasks.</li>
+</ul>
+<figure><pre class="mermaid">
+flowchart TD
+    subgraph sgBreadth["Breadth across the stack"]
+        A1["Product and domain"]
+        A2["Backend and APIs"]
+        A3["Data and storage"]
+        A4["Distributed systems"]
+        A5["Observability and operations"]
+        A6["Technical writing"]
+        A7["Security and privacy"]
+        A8["Cloud infrastructure"]
+    end
+    A4 --&gt; Spike["Deep spike of authority"]
+    Spike --&gt; Impact["Staff plus impact"]
+</pre></figure>
+<p>The metaphor is imperfect, but useful. Staff+ engineers are rarely the best person at every layer. They are credible enough across layers to ask good questions, spot missing constraints, and connect specialists.</p>
+<h2 id="2-why-breadth-matters">2. Why breadth matters</h2>
+<p>Breadth gives you architectural judgment. Most important engineering decisions are not isolated to one layer:</p>
+<ul>
+<li>A database choice affects API latency, product flexibility, privacy, and disaster recovery.</li>
+<li>A frontend performance issue may be caused by backend aggregation, cache policy, or CDN configuration.</li>
+<li>A security requirement may reshape identity, data retention, logging, and support tooling.</li>
+<li>A cloud cost issue may involve query plans, autoscaling, observability retention, and customer behavior.</li>
+</ul>
+<p>Staff+ engineers are often &quot;in the room&quot; for ambiguous decisions. Breadth lets you contribute without pretending to be the domain expert in every topic.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Breadth capability</th>
+<th>Why it matters</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Ask cross-domain questions</td>
+<td>Prevents local optimization</td>
+</tr>
+<tr>
+<td>Understand specialist language</td>
+<td>Reduces translation loss</td>
+</tr>
+<tr>
+<td>Notice missing stakeholders</td>
+<td>Avoids late surprises</td>
+</tr>
+<tr>
+<td>Connect incidents to design</td>
+<td>Turns pain into architecture learning</td>
+</tr>
+<tr>
+<td>Evaluate trade-offs</td>
+<td>Improves decisions under uncertainty</td>
+</tr>
+</tbody>
+</table></div>
+<p>Breadth is also credibility. Teams trust advice more when you understand enough of their constraints to avoid naive recommendations.</p>
+<h2 id="3-why-depth-matters">3. Why depth matters</h2>
+<p>Depth is what makes you more than a coordinator. It is the ability to solve problems others cannot, set technical direction, and teach a domain from first principles.</p>
+<p>Depth shows up when you can:</p>
+<ul>
+<li>Diagnose hard production failures in your domain.</li>
+<li>Recognize patterns across years of incidents and designs.</li>
+<li>Explain trade-offs simply to executives and deeply to experts.</li>
+<li>Build reusable mental models, libraries, platforms, or standards.</li>
+<li>Know when common advice does not apply to your context.</li>
+</ul>
+<p>Depth supports the Architect archetype from <a href="../../01-what-is-required.md">what is required</a>, but it also helps Tech Leads, Solvers, and Right Hands. Without depth, your influence depends too much on process and relationships. With depth, your judgment has technical weight.</p>
+<h2 id="4-how-breadth-compounds">4. How breadth compounds</h2>
+<p>Charity Majors has argued that useful engineering growth often rewards generalists because broad context accelerates learning. Early breadth compounds because each new domain gives you more hooks for understanding the next one.</p>
+<p>For example:</p>
+<ul>
+<li>Knowing networking helps you debug API latency.</li>
+<li>Knowing databases helps you design better product boundaries.</li>
+<li>Knowing observability helps you learn from every incident.</li>
+<li>Knowing security helps you see trust boundaries in architecture.</li>
+<li>Knowing cloud primitives helps you reason about cost and reliability.</li>
+</ul>
+<figure><pre class="mermaid">
+flowchart LR
+    A["Early broad exposure"] --&gt; B["More mental hooks"]
+    B --&gt; C["Faster learning"]
+    C --&gt; D["Better cross-domain judgment"]
+    D --&gt; E["More strategic opportunities"]
+    E --&gt; C
+</pre></figure>
+<p>Breadth does not mean shallow trivia. It means enough working knowledge to reason about constraints, risks, and interfaces.</p>
+<h2 id="5-choosing-your-spike">5. Choosing your spike</h2>
+<p>Your deep spike should be both personally energizing and enduringly central to the business.</p>
+<p>Good spike candidates often sit where:</p>
+<ul>
+<li>The company repeatedly makes expensive decisions.</li>
+<li>Incidents or bottlenecks cluster.</li>
+<li>Product differentiation depends on technical excellence.</li>
+<li>The organization lacks a clear authority.</li>
+<li>The domain will matter for years, not one quarter.</li>
+</ul>
+<p>Examples:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Company context</th>
+<th>Possible spike</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>High-scale consumer product</td>
+<td>Reliability, latency, experimentation platform</td>
+</tr>
+<tr>
+<td>Fintech or regulated platform</td>
+<td>Security, privacy, ledger correctness, compliance architecture</td>
+</tr>
+<tr>
+<td>Data-heavy SaaS</td>
+<td>Analytics infrastructure, data modeling, search, ML platform</td>
+</tr>
+<tr>
+<td>Developer tools company</td>
+<td>API design, platform extensibility, build systems</td>
+</tr>
+<tr>
+<td>Marketplace</td>
+<td>Ranking, payments, fraud, event-driven systems</td>
+</tr>
+</tbody>
+</table></div>
+<p>Align the spike with company needs. A deep specialty that the business does not need may be intellectually satisfying but strategically limiting.</p>
+<h2 id="6-pitfalls-of-extremes">6. Pitfalls of extremes</h2>
+<p>Pure specialists and pure generalists both face Staff+ risks.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Extreme</th>
+<th>Strength</th>
+<th>Risk</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Pure specialist</td>
+<td>Deep authority in a niche</td>
+<td>Fragile if the niche fades or becomes less central</td>
+</tr>
+<tr>
+<td>Pure generalist</td>
+<td>Can navigate many domains</td>
+<td>May lack the technical depth to set direction</td>
+</tr>
+<tr>
+<td>T-shaped engineer</td>
+<td>Breadth plus one spike</td>
+<td>Can become overloaded as the bridge for everything</td>
+</tr>
+<tr>
+<td>Pi-shaped engineer</td>
+<td>Breadth plus two spikes</td>
+<td>Requires deliberate focus to avoid dilution</td>
+</tr>
+</tbody>
+</table></div>
+<figure><pre class="mermaid">
+flowchart TD
+    A["Career growth"] --&gt; B["Pure specialist"]
+    A --&gt; C["Pure generalist"]
+    A --&gt; D["T-shaped"]
+    D --&gt; E["Pi-shaped over time"]
+    B --&gt; F["Fragility if niche fades"]
+    C --&gt; G["Shallow influence"]
+    D --&gt; H["Broad credibility and deep authority"]
+    E --&gt; I["Two durable authority zones"]
+</pre></figure>
+<p>The pi-shaped model is common over longer careers. You may build one spike in distributed systems, then another in developer productivity, security, data, or organizational architecture.</p>
+<h2 id="7-deliberately-building-breadth">7. Deliberately building breadth</h2>
+<p>Breadth should be built through real exposure, not just reading summaries.</p>
+<p>High-leverage ways to build breadth:</p>
+<ul>
+<li>Rotate across teams or take temporary assignments in adjacent domains.</li>
+<li>Read real architecture docs, RFCs, incident reviews, and engineering blogs.</li>
+<li>Shadow on-call for systems you depend on.</li>
+<li>Join design reviews outside your immediate area.</li>
+<li>Pair with specialists during migrations, outages, or performance work.</li>
+<li>Build small prototypes to understand unfamiliar tools.</li>
+<li>Ask &quot;what breaks at 10x?&quot; and &quot;who operates this?&quot; in every design.</li>
+</ul>
+<p>Breadth learning checklist:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Domain</th>
+<th>Minimum useful fluency</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Frontend</td>
+<td>Rendering model, performance, accessibility, client-state trade-offs</td>
+</tr>
+<tr>
+<td>Backend</td>
+<td>API boundaries, concurrency, failure handling, deployment</td>
+</tr>
+<tr>
+<td>Data</td>
+<td>Modeling, indexing, transactions, retention, analytics constraints</td>
+</tr>
+<tr>
+<td>Infrastructure</td>
+<td>Compute, networking, scaling, IAM, cost</td>
+</tr>
+<tr>
+<td>Security</td>
+<td>AuthN, AuthZ, threat modeling, secure defaults</td>
+</tr>
+<tr>
+<td>Operations</td>
+<td>Observability, SLOs, incident response, capacity</td>
+</tr>
+<tr>
+<td>Product</td>
+<td>User workflows, business model, customer pain</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="8-deliberately-building-depth">8. Deliberately building depth</h2>
+<p>Depth requires ownership under pressure. You do not become deep by passively consuming content.</p>
+<p>Depth-building practices:</p>
+<ul>
+<li>Own a critical domain for multiple years.</li>
+<li>Read source code, design docs, postmortems, and historical decisions.</li>
+<li>Lead incident root-cause analysis and follow through on systemic fixes.</li>
+<li>Benchmark and measure instead of relying on folklore.</li>
+<li>Teach others through docs, talks, office hours, and design reviews.</li>
+<li>Build tools or abstractions that encode your domain knowledge.</li>
+<li>Track external developments but filter them through local constraints.</li>
+</ul>
+<figure><pre class="mermaid">
+flowchart TD
+    A["Own critical domain"] --&gt; B["Handle hard incidents"]
+    B --&gt; C["Find root causes"]
+    C --&gt; D["Improve architecture"]
+    D --&gt; E["Teach and standardize"]
+    E --&gt; F["Recognized authority"]
+    F --&gt; A
+</pre></figure>
+<p>Depth should produce artifacts: standards, libraries, runbooks, decision records, platform capabilities, or mentoring systems. If your expertise only exists in your head, it does not scale.</p>
+<h2 id="9-mapping-to-the-four-staff-archetypes">9. Mapping to the four Staff archetypes</h2>
+<p>StaffEng describes common Staff archetypes: Tech Lead, Architect, Solver, and Right Hand. T-shaped growth supports all four.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Archetype</th>
+<th>Breadth need</th>
+<th>Depth need</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Tech Lead</td>
+<td>Coordinate product, team, architecture, and delivery trade-offs</td>
+<td>Enough domain depth to make credible technical calls</td>
+</tr>
+<tr>
+<td>Architect</td>
+<td>See system-wide interactions and future constraints</td>
+<td>Deep architectural authority in one or more core domains</td>
+</tr>
+<tr>
+<td>Solver</td>
+<td>Understand where the hardest problem sits across layers</td>
+<td>Very deep debugging and problem-solving capability</td>
+</tr>
+<tr>
+<td>Right Hand</td>
+<td>Translate executive priorities across technical domains</td>
+<td>Deep trust and judgment in the organization's critical systems</td>
+</tr>
+</tbody>
+</table></div>
+<p>See <a href="../../01-what-is-required.md">what is required</a> for the repo's broader Staff+ framing.</p>
+<p>Your archetype may change by role, company stage, or business need. The T-shape is portable because it creates both adaptability and authority.</p>
+<h2 id="10-a-practical-development-plan">10. A practical development plan</h2>
+<p>Use a simple quarterly loop:</p>
+<ol>
+<li>Pick one breadth domain to improve.</li>
+<li>Pick one depth capability to strengthen.</li>
+<li>Find real work that forces learning.</li>
+<li>Produce an artifact that scales the learning.</li>
+<li>Ask specialists to critique your understanding.</li>
+</ol>
+<p>Example:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Quarter goal</th>
+<th>Real work</th>
+<th>Scaling artifact</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Improve security breadth</td>
+<td>Threat model a new API</td>
+<td>Security review checklist</td>
+</tr>
+<tr>
+<td>Deepen database authority</td>
+<td>Lead high-write migration</td>
+<td>Migration playbook and ADR</td>
+</tr>
+<tr>
+<td>Improve cloud breadth</td>
+<td>Join cost-reduction effort</td>
+<td>Cost review guide</td>
+</tr>
+<tr>
+<td>Deepen observability spike</td>
+<td>Redesign service SLOs</td>
+<td>SLO template and dashboard standard</td>
+</tr>
+</tbody>
+</table></div>
+<p>The point is deliberate compounding. Staff+ growth is not &quot;learn everything.&quot; It is &quot;learn the right adjacent things while deepening the authority the business needs.&quot;</p>
+<h2 id="11-what-good-looks-like-at-staff">11. What &quot;good&quot; looks like at Staff+</h2>
+<ul>
+<li>You are credible across product, system design, data, infrastructure, security, operations, and delivery discussions.</li>
+<li>You have at least one domain where engineers seek your judgment before committing to major decisions.</li>
+<li>You can translate specialist concerns into executive and cross-team language.</li>
+<li>You keep broadening enough to avoid local optimization and deepening enough to remain technically authoritative.</li>
+<li>Your expertise creates artifacts, standards, and people development, not just personal heroics.</li>
+<li>You align your spike with durable business needs.</li>
+</ul>
+<h2 id="12-common-pitfalls">12. Common pitfalls</h2>
+<ul>
+<li>Treating breadth as shallow awareness rather than working fluency.</li>
+<li>Choosing a spike because it is fashionable rather than business-critical.</li>
+<li>Becoming the only bridge across teams and creating a bottleneck.</li>
+<li>Staying in a comfortable niche after the company's needs move elsewhere.</li>
+<li>Confusing years of experience with depth.</li>
+<li>Reading broadly without doing real cross-domain work.</li>
+<li>Building expertise that remains private instead of teachable.</li>
+</ul>
+<h2 id="13-further-reading">13. Further reading</h2>
+<ul>
+<li>StaffEng staff archetypes: <a href="https://staffeng.com/guides/staff-archetypes/" target="_blank" rel="noopener">https://staffeng.com/guides/staff-archetypes/</a></li>
+<li>Charity Majors on engineering levels: <a href="https://charity.wtf/p/useful-things-to-know-about-engineering-levels" target="_blank" rel="noopener">https://charity.wtf/p/useful-things-to-know-about-engineering-levels</a></li>
+<li>System Design Primer: <a href="https://github.com/donnemartin/system-design-primer" target="_blank" rel="noopener">https://github.com/donnemartin/system-design-primer</a></li>
+</ul>
+
+<div class="primary-source">
+  <span class="label">Read this next (primary source)</span>
+  <p>Will Larson &mdash; <a href="https://staffeng.com/guides/staff-archetypes/" target="_blank" rel="noopener"><em>Staff archetypes</em></a>: Tech Lead, Architect, Solver and Right Hand. Read it to decide which archetype your breadth and spike should serve. Then revisit the <a href="https://github.com/donnemartin/system-design-primer" target="_blank" rel="noopener"><em>System Design Primer</em></a> as a checklist of breadth topics to test yourself against.</p>
+</div>
+
+<h2 id="14-check-yourself">14. Check yourself</h2>
+<p>Retrieve before revealing.</p>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 1 of 3</p>
+  <p class="quiz-q">You are choosing a deep spike. You work at a regulated fintech where costly decisions and incidents keep clustering around ledger correctness. A trendy frontend framework excites you most. The best choice:</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="Energy matters, but a spike the business does not need is strategically limiting.">the frontend framework, because personal energy matters more than fit</button></li>
+    <li><button data-correct="false" data-feedback="Fashion is a poor guide; you want a domain that matters for years.">whatever skill is most in demand on the job market this year</button></li>
+    <li><button data-correct="false" data-feedback="Pure generalists risk lacking the depth to set direction. Pick a spike and adjust later.">no spike yet: stay a pure generalist until the path is clear</button></li>
+    <li><button data-correct="true" data-feedback="Right — central, durable and lacking an authority. Find the part of it that energises you.">ledger correctness, where costly decisions and incidents recur</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="A good spike is energising and enduringly central to the business: where expensive decisions recur, incidents cluster and no clear authority exists."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 2 of 3</p>
+  <p class="quiz-q">A Staff engineer has become the only bridge between the data and platform teams. Every cross-team decision now waits for them. What does this lesson recommend?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="Becoming the only bridge creates a bottleneck. That is a named pitfall of the T-shape.">keep going: being the bridge for everything is exactly what Staff means</button></li>
+    <li><button data-correct="false" data-feedback="Breadth is still needed for judgement. The problem is that the knowledge does not scale.">drop cross-team work and focus only on deepening their spike</button></li>
+    <li><button data-correct="true" data-feedback="Right — expertise should produce artifacts and people development, not personal heroics.">turn the knowledge into docs, standards and people who share it</button></li>
+    <li><button data-correct="false" data-feedback="That moves the bottleneck around instead of making the knowledge teachable.">ask management to hire a second bridge with the same profile</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Breadth and depth must produce artifacts (standards, runbooks, ADRs, mentoring) so expertise scales instead of becoming a bottleneck."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 3 of 3</p>
+  <p class="quiz-q">An engineer says: &ldquo;I&rsquo;ve read summaries of security, cloud and data for a year, so my breadth is done.&rdquo; What is missing?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="Right — breadth is working fluency, and it comes from real exposure: reviews, rotations, on-call, prototypes.">real cross-domain work, such as threat-modelling an actual API</button></li>
+    <li><button data-correct="false" data-feedback="Breadth is not shallow awareness; it is enough working knowledge to reason about constraints.">more summaries, since breadth is mostly about awareness of key terms</button></li>
+    <li><button data-correct="false" data-feedback="Certificates test recall. The lesson asks for real work that forces learning.">a certification in each domain to prove the knowledge is real</button></li>
+    <li><button data-correct="false" data-feedback="Reading without doing real cross-domain work is a listed pitfall.">nothing: reading broadly is exactly how breadth compounds</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Breadth means working fluency, built through real exposure (rotations, design reviews, on-call shadowing, prototypes), not reading alone."></div>
+</div>
+
+<div class="callout tryit">
+  <span class="label">Try it in your own system</span>
+  <ul class="checklist">
+    <li>Score yourself 0&ndash;3 on each breadth domain: frontend, backend, data, infrastructure, security, operations, product. Circle your two weakest.</li>
+    <li>Write down your current or intended spike, plus three pieces of evidence that the business will need it for years.</li>
+    <li>Join one design review outside your area this month, with one cross-domain question prepared in advance.</li>
+    <li>Plan next quarter with the loop: one breadth domain, one depth capability, the real work that forces learning, and the artifact you will publish.</li>
+    <li>List knowledge only you hold. Pick one item and turn it into a doc, a runbook or a talk.</li>
+  </ul>
+</div>
+
+<div class="followup">
+  <strong>I&rsquo;m your teacher &mdash; ask me anything.</strong> Share your breadth scores and the hardest recurring problems at your company, and we&rsquo;ll pick a spike and draft next quarter&rsquo;s plan together.
+</div>
+
+<nav class="lesson-nav">
+  <span class="group">
+    <b>Previous</b>
+    <a href="0007-cloud-infrastructure.html">&larr; Lesson 07 · Cloud infrastructure</a>
+  </span>
+  <span class="group">
+    <b>Reference</b>
+    <a href="../reference/0008-tshaped-breadth-and-depth-cheatsheet.html">T-shape development cheat sheet &rarr;</a>
+  </span>
+  <span class="group">
+    <b>Course map</b>
+    <a href="../index.html">&uarr; All lessons</a>
+  </span>
+  <span class="group">
+    <b>Up next</b>
+    <a href="../GUIDE.md#capstone-project">Capstone project &rarr;</a>
+  </span>
+</nav>
+
+</body>
+</html>

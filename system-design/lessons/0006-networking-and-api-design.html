@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 06 · Networking &amp; API Design</title>
+<link rel="stylesheet" href="../../assets/course/course.css">
+<link rel="stylesheet" href="../assets/theme.css">
+<script src="../../assets/course/links.js" defer></script>
+<script src="../../assets/course/quiz.js" defer></script>
+<script type="module" src="../../assets/course/mermaid.js"></script>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">System Design · Lesson 06</p>
+  <h1>Networking &amp; API Design</h1>
+  <div class="meta">
+    <span>◷ ~13 min read</span>
+    <span class="dot">•</span>
+    <span>Building blocks</span>
+    <span class="dot">•</span>
+    <span>Prereq: <a href="0005-asynchronism-and-messaging.html">Lesson 05</a></span>
+  </div>
+</header>
+
+<p class="mission-tie">
+  Networking is the substrate; the API is the contract that outlives every implementation behind it. Staff engineers <strong>pick the communication style per boundary</strong>, know where TLS terminates and what is L4 versus L7, and ship APIs that are idempotent, paginated, versioned and rate-limited from day one &mdash; because the contract is the hardest thing to change later.
+</p>
+
+<div class="callout insight">
+  <span class="label">TL;DR</span>
+  <p><strong>The core question:</strong> how do bytes actually get from one machine to another, and how do you design the contract (the API) that many teams and clients will depend on for years? Networking is the substrate; API design is the interface that outlives every implementation behind it.</p>
+<ul>
+<li><strong>TCP</strong> = reliable, ordered, connection-based. <strong>UDP</strong> = fast, connectionless, best-effort.</li>
+<li><strong>HTTP/1.1 → 2 → 3</strong>: from one-request-per-connection, to multiplexed streams, to QUIC-over-UDP that kills TCP head-of-line blocking.</li>
+<li><strong>REST vs gRPC vs GraphQL</strong>: resource CRUD over HTTP, high-performance binary RPC, and client-shaped queries — each fits different needs.</li>
+<li><strong>L4 vs L7 load balancers</strong>: transport-level (fast, IP:port) vs application-level (HTTP-aware, content routing).</li>
+<li>Great <strong>API design</strong> = predictable resources, correct status codes, versioning, pagination, idempotency, and rate limiting.</li>
+</ul>
+</div>
+
+<h2 id="1-tcp-vs-udp">1. TCP vs UDP</h2>
+<p>Both run over IP. The choice is reliability vs speed.</p>
+<figure><pre class="mermaid">
+flowchart TB
+    subgraph tcp["TCP — reliable stream"]
+        T1["3-way handshake (SYN/SYN-ACK/ACK)"]
+        T2["Ordered, acknowledged, retransmitted"]
+        T3["Flow + congestion control"]
+        T4["Uses: HTTP, DB connections, email"]
+    end
+    subgraph udp["UDP — fire and forget"]
+        U1["No handshake, no ordering, no retransmit"]
+        U2["Low latency, low overhead"]
+        U3["May drop / reorder packets"]
+        U4["Uses: DNS, video/voice, gaming, QUIC"]
+    end
+</pre></figure>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th></th>
+<th><strong>TCP</strong></th>
+<th><strong>UDP</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Connection</td>
+<td>Yes (handshake)</td>
+<td>No</td>
+</tr>
+<tr>
+<td>Reliability</td>
+<td>Guaranteed delivery + order</td>
+<td>Best-effort</td>
+</tr>
+<tr>
+<td>Speed/overhead</td>
+<td>Higher latency, more overhead</td>
+<td>Fast, minimal</td>
+</tr>
+<tr>
+<td>Use</td>
+<td>Correctness matters (web, DBs)</td>
+<td>Speed &gt; perfection (streaming, DNS)</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="2-http-evolution-11--2--3">2. HTTP evolution: 1.1 → 2 → 3</h2>
+<figure><pre class="mermaid">
+flowchart LR
+    H1["HTTP/1.1&lt;br/&gt;text, 1 request at a time&lt;br/&gt;per connection&lt;br/&gt;→ head-of-line blocking"] --&gt; H2["HTTP/2&lt;br/&gt;binary framing,&lt;br/&gt;multiplexed streams,&lt;br/&gt;header compression,&lt;br/&gt;server push"]
+    H2 --&gt; H3["HTTP/3&lt;br/&gt;runs on QUIC (UDP),&lt;br/&gt;no TCP head-of-line blocking,&lt;br/&gt;faster connection setup (0-RTT)"]
+</pre></figure>
+<ul>
+<li><strong>HTTP/1.1</strong> — one outstanding request per TCP connection (browsers open ~6 to parallelize). Later requests wait behind earlier ones = <strong>head-of-line (HOL) blocking</strong>. Keep-alive reuses connections.</li>
+<li><strong>HTTP/2</strong> — one connection, many concurrent <strong>streams</strong> (multiplexing), binary framing, <strong>HPACK</strong> header compression. Solves <em>application-level</em> HOL blocking — but a lost TCP packet still stalls all streams (transport-level HOL).</li>
+<li><strong>HTTP/3</strong> — swaps TCP for <strong>QUIC</strong> (over UDP). Each stream is independent, so one lost packet doesn't block the others; faster handshakes (often 0-RTT) and connection migration across networks.</li>
+</ul>
+<h2 id="3-communication-styles-rest-vs-grpc-vs-graphql-vs-soap">3. Communication styles: REST vs gRPC vs GraphQL vs SOAP</h2>
+<figure><pre class="mermaid">
+flowchart TD
+    subgraph rest["REST"]
+        R["Resources + HTTP verbs&lt;br/&gt;GET/POST/PUT/DELETE&lt;br/&gt;Stateless, cacheable"]
+    end
+    subgraph grpc["gRPC"]
+        G["HTTP/2 + Protobuf&lt;br/&gt;Binary, fast, streaming&lt;br/&gt;Strong contracts"]
+    end
+    subgraph gql["GraphQL"]
+        Q["Single endpoint,&lt;br/&gt;client specifies exact fields&lt;br/&gt;Solves over/under-fetching"]
+    end
+</pre></figure>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th></th>
+<th><strong>REST</strong></th>
+<th><strong>gRPC</strong></th>
+<th><strong>GraphQL</strong></th>
+<th><strong>SOAP</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Transport/format</td>
+<td>HTTP + JSON</td>
+<td>HTTP/2 + Protobuf (binary)</td>
+<td>HTTP + JSON</td>
+<td>HTTP/other + XML</td>
+</tr>
+<tr>
+<td>Best for</td>
+<td>Public APIs, CRUD, broad compatibility</td>
+<td>Internal service-to-service, low latency</td>
+<td>Rich clients, aggregating many sources</td>
+<td>Legacy/enterprise, strict contracts</td>
+</tr>
+<tr>
+<td>Strengths</td>
+<td>Simple, cacheable, ubiquitous</td>
+<td>Fast, streaming, codegen, typed</td>
+<td>No over/under-fetch, one round trip</td>
+<td>Formal contracts (WSDL), built-in security</td>
+</tr>
+<tr>
+<td>Weaknesses</td>
+<td>Over/under-fetching, many endpoints</td>
+<td>Not browser-native, binary is opaque</td>
+<td>Caching &amp; rate-limiting harder, complex</td>
+<td>Verbose, heavy, dated</td>
+</tr>
+</tbody>
+</table></div>
+<ul>
+<li><strong>Over-fetching</strong> (REST returns more than you need) and <strong>under-fetching</strong> (you must call several endpoints) are the classic REST pains GraphQL targets.</li>
+<li><strong>gRPC</strong> shines <em>inside</em> your system (microservice ↔ microservice) where you control both ends and want speed + streaming.</li>
+<li><strong>REST</strong> remains the default for <strong>public</strong> APIs due to simplicity, cacheability, and tooling.</li>
+</ul>
+<h2 id="4-load-balancers-reverse-proxies--api-gateways">4. Load balancers, reverse proxies &amp; API gateways</h2>
+<figure><pre class="mermaid">
+flowchart TB
+    C["Clients"] --&gt; GW["API Gateway&lt;br/&gt;(auth, rate limit, routing, aggregation)"]
+    GW --&gt; LB["Load Balancer"]
+    LB --&gt; S1["Service instance 1"]
+    LB --&gt; S2["Service instance 2"]
+    LB --&gt; S3["Service instance 3"]
+</pre></figure>
+<h3 id="l4-vs-l7-load-balancing">L4 vs L7 load balancing</h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th></th>
+<th><strong>L4 (transport)</strong></th>
+<th><strong>L7 (application)</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Sees</td>
+<td>IP + port (TCP/UDP)</td>
+<td>Full HTTP (URL, headers, cookies)</td>
+</tr>
+<tr>
+<td>Routing</td>
+<td>By connection</td>
+<td>By content (path, host, header)</td>
+</tr>
+<tr>
+<td>Speed</td>
+<td>Faster, less CPU</td>
+<td>Slightly slower, smarter</td>
+</tr>
+<tr>
+<td>Can do</td>
+<td>Simple even distribution</td>
+<td>Path routing, sticky sessions, TLS termination, canary</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Balancing algorithms:</strong> round-robin, weighted round-robin, <strong>least connections</strong>, least response time, IP/consistent hash (sticky).</p>
+<ul>
+<li><strong>Reverse proxy</strong> — sits in front of servers; terminates TLS, caches, compresses, hides backend topology (Nginx, Varnish, Envoy). A load balancer is a specialized reverse proxy.</li>
+<li><strong>API gateway</strong> — the single front door for clients: authentication, rate limiting, request routing, response aggregation, protocol translation. Prevents each microservice from re-implementing cross-cutting concerns.</li>
+</ul>
+<h2 id="5-dns--turning-names-into-addresses">5. DNS — turning names into addresses</h2>
+<figure><pre class="mermaid">
+sequenceDiagram
+    participant B as Browser
+    participant R as Recursive Resolver
+    participant Root as Root
+    participant TLD as .com TLD
+    participant Auth as Authoritative NS
+    B-&gt;&gt;R: example.com?
+    R-&gt;&gt;Root: example.com?
+    Root--&gt;&gt;R: ask .com TLD
+    R-&gt;&gt;TLD: example.com?
+    TLD--&gt;&gt;R: ask example.com's NS
+    R-&gt;&gt;Auth: example.com?
+    Auth--&gt;&gt;R: 93.184.216.34
+    R--&gt;&gt;B: 93.184.216.34 (cached for TTL)
+</pre></figure>
+<ul>
+<li><strong>Record types:</strong> <code>A</code> (IPv4), <code>AAAA</code> (IPv6), <code>CNAME</code> (alias), <code>MX</code> (mail), <code>NS</code> (nameserver), <code>TXT</code> (verification/SPF).</li>
+<li><strong>TTL</strong> controls how long resolvers cache an answer — low TTL = faster failover, more lookups.</li>
+<li>DNS also does <strong>traffic management</strong>: round-robin DNS, <strong>GeoDNS</strong> (route to nearest region), and latency/health-based routing (e.g., Route 53). It's the first layer of load balancing.</li>
+</ul>
+<h2 id="6-cdn--content-close-to-the-user">6. CDN — content close to the user</h2>
+<p>A <strong>Content Delivery Network</strong> caches content at edge PoPs around the world so users fetch from a nearby server instead of the origin — cutting latency and offloading the origin.</p>
+<figure><pre class="mermaid">
+flowchart LR
+    O["Origin server"] --- E1["Edge PoP (US)"]
+    O --- E2["Edge PoP (EU)"]
+    O --- E3["Edge PoP (Asia)"]
+    U1["US user"] --&gt; E1
+    U2["EU user"] --&gt; E2
+    U3["Asia user"] --&gt; E3
+</pre></figure>
+<ul>
+<li><strong>Pull CDN</strong> — the edge fetches from the origin on the first request for a URL, then caches it (TTL). Easy; first hit is slow. Good for large/varied catalogs.</li>
+<li><strong>Push CDN</strong> — you proactively upload/publish content to the edge. More control; you manage what's stored and when it expires. Good for infrequently-changing or large media you know will be requested.</li>
+</ul>
+<h2 id="7-api-design-best-practices">7. API design best practices</h2>
+<p>The contract you'll live with for years. Aim for <strong>predictable, consistent, evolvable</strong>.</p>
+<ul>
+<li><strong>Resource-oriented URLs</strong> — nouns, not verbs: <code>GET /users/123/orders</code>, not <code>/getUserOrders</code>.</li>
+<li><strong>Correct HTTP methods &amp; status codes</strong> — <code>GET</code> (safe), <code>POST</code> (create), <code>PUT</code>/<code>PATCH</code> (update), <code>DELETE</code>. Return <code>200/201/204</code>, <code>400/401/403/404/409/422</code>, <code>429</code>, <code>500/503</code> meaningfully.</li>
+<li><strong>Idempotency</strong> — <code>GET/PUT/DELETE</code> should be idempotent; make <code>POST</code> idempotent for retries via an <strong><code>Idempotency-Key</code></strong> header (critical for payments).</li>
+<li><strong>Pagination</strong> — never return unbounded lists. <strong>Offset/limit</strong> (simple, but drifts and is slow deep in) vs <strong>cursor/keyset</strong> (stable, scales) — prefer cursors for large/real-time data.</li>
+<li><strong>Versioning</strong> — <code>/{v1}/…</code> in the path or an <code>Accept</code> header; version to evolve without breaking clients.</li>
+<li><strong>Filtering/sorting/field selection</strong> — query params (<code>?status=open&amp;sort=-created&amp;fields=id,name</code>).</li>
+<li><strong>Rate limiting</strong> — protect the API; communicate limits via <code>429</code> + <code>Retry-After</code> and <code>X-RateLimit-*</code> headers. Common algorithms: <strong>token bucket</strong> (allows bursts), <strong>leaky bucket</strong> (smooths), fixed/sliding window.</li>
+<li><strong>Consistent errors</strong> — a stable JSON error shape (<code>code</code>, <code>message</code>, <code>details</code>) so clients can handle failures programmatically.</li>
+<li><strong>Security</strong> — HTTPS everywhere, <code>OAuth2</code>/JWT for authZ, validate input, least privilege (see the Security topic in <a href="../../02-skills-to-upgrade.md#a7-security--privacy-as-a-design-concern">../02-skills-to-upgrade.md</a>).</li>
+</ul>
+<figure><pre class="mermaid">
+flowchart LR
+    Req["Client request"] --&gt; A["AuthN/AuthZ"]
+    A --&gt; RL["Rate limit (429 if over)"]
+    RL --&gt; V["Validate input (400)"]
+    V --&gt; H["Handle → 2xx / 4xx / 5xx"]
+    H --&gt; P["Paginate + consistent error shape"]
+</pre></figure>
+<h2 id="8-what-good-looks-like-at-staff">8. What &quot;good&quot; looks like at Staff+</h2>
+<ul>
+<li>You pick the <strong>communication style per boundary</strong>: REST for public/CRUD, gRPC for internal high-throughput, GraphQL for aggregation-heavy clients.</li>
+<li>You know <strong>where TLS terminates</strong>, what's <strong>L4 vs L7</strong>, and place the <strong>API gateway</strong> to centralize cross-cutting concerns.</li>
+<li>You design APIs that are <strong>idempotent, paginated, versioned, and rate-limited</strong> from day one — because the contract is the hardest thing to change later.</li>
+<li>You use <strong>DNS + CDN</strong> as the outermost scaling/latency layers, not afterthoughts.</li>
+</ul>
+<h2 id="9-common-pitfalls">9. Common pitfalls</h2>
+<ul>
+<li><strong>Unbounded list endpoints</strong> (no pagination) → they fall over the day data grows.</li>
+<li><strong>No versioning</strong> → you can't evolve without breaking clients; you get stuck.</li>
+<li><strong>Non-idempotent POSTs</strong> for payments/orders → retries create duplicates.</li>
+<li><strong>Chatty REST</strong> forcing clients into N+1 calls (consider GraphQL or aggregation endpoints).</li>
+<li><strong>Verbs in URLs / misused status codes</strong> → an unpredictable API nobody can cache or reason about.</li>
+</ul>
+<h2 id="10-further-reading">10. Further reading</h2>
+<ul>
+<li>System Design Primer — &quot;Communication&quot; (TCP/UDP, RPC, REST), &quot;DNS&quot;, &quot;CDN&quot;, &quot;Load balancer&quot;, &quot;Reverse proxy&quot; — <a href="https://github.com/donnemartin/system-design-primer#communication" target="_blank" rel="noopener">https://github.com/donnemartin/system-design-primer#communication</a></li>
+<li>ByteByteGo — &quot;REST vs GraphQL vs gRPC&quot;, &quot;HTTP/1 vs 2 vs 3&quot;, &quot;API design tips&quot;, &quot;How does gRPC work?&quot; — <a href="https://github.com/ByteByteGoHq/system-design-101" target="_blank" rel="noopener">https://github.com/ByteByteGoHq/system-design-101</a></li>
+<li>Google API Design Guide — <a href="https://cloud.google.com/apis/design" target="_blank" rel="noopener">https://cloud.google.com/apis/design</a></li>
+<li>Cloudflare Learning — &quot;What is QUIC/HTTP/3?&quot; — <a href="https://www.cloudflare.com/learning/performance/what-is-http3/" target="_blank" rel="noopener">https://www.cloudflare.com/learning/performance/what-is-http3/</a></li>
+</ul>
+
+<div class="primary-source">
+  <span class="label">Read this next (primary source)</span>
+  <p>Google &mdash; <a href="https://cloud.google.com/apis/design" target="_blank" rel="noopener"><em>API Design Guide</em></a> (resource-oriented design, standard methods, errors, versioning; the rules Google applies to its own APIs). For the transport layer, Cloudflare &mdash; <a href="https://www.cloudflare.com/learning/performance/what-is-http3/" target="_blank" rel="noopener"><em>What is HTTP/3?</em></a> explains QUIC and head-of-line blocking clearly.</p>
+</div>
+
+<h2 id="11-check-yourself">11. Check yourself</h2>
+<p>Retrieve before revealing.</p>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 1 of 3</p>
+  <p class="quiz-q">You're designing a payments API for mobile apps on flaky networks. Clients retry <code>POST /payments</code> when a request times out. What must the contract include?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="Speed isn't the issue. A retried create must not create a second payment.">A PUT endpoint instead, since PUT requests are faster than POST</button></li>
+    <li><button data-correct="true" data-feedback="Right — the server stores the key and returns the original result for repeats.">An Idempotency-Key header so a retried POST makes one payment</button></li>
+    <li><button data-correct="false" data-feedback="Misusing status codes makes the API unpredictable, and the duplicate may already exist.">A 500 status on every retry so that clients know they must stop</button></li>
+    <li><button data-correct="false" data-feedback="Pagination bounds list endpoints; it does nothing to prevent duplicate creates.">Offset pagination so the client can look up the payment it made</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Non-idempotent POSTs plus retries create duplicates. Make POST idempotent with an Idempotency-Key — critical for payments and orders."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 2 of 3</p>
+  <p class="quiz-q">Internal services exchange high-volume, low-latency calls with streaming, and you control both ends. Separately, third parties need a public API they can cache. Which split fits?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="Right — gRPC is fast and typed where you own both ends; REST is simple, cacheable and ubiquitous for the public.">gRPC between internal services; REST for the public, cacheable API</button></li>
+    <li><button data-correct="false" data-feedback="GraphQL suits aggregation-heavy clients, but caching and rate limiting are harder, which hurts the public use case.">GraphQL everywhere, since one endpoint suits every kind of client</button></li>
+    <li><button data-correct="false" data-feedback="Inverted: gRPC isn't browser-native and is opaque to third parties, and internal calls lose speed and streaming.">REST internally for simplicity; gRPC for the public-facing API</button></li>
+    <li><button data-correct="false" data-feedback="SOAP is verbose, heavy and dated; its strict contracts don't justify the cost here.">SOAP on both sides, because WSDL gives the strictest contracts</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Pick the style per boundary: REST for public/CRUD, gRPC for internal high-throughput, GraphQL for aggregation-heavy clients."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 3 of 3</p>
+  <p class="quiz-q">You want to route <code>/api/v2/*</code> to a new service and send 5% of traffic to a canary, based on a request header. What do you need in front of the services?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="L4 sees only IP and port. It can't read paths or headers, so it can't route by them.">An L4 load balancer, since it routes by IP and port with less CPU</button></li>
+    <li><button data-correct="false" data-feedback="DNS can't see URL paths or headers, and resolvers cache answers, so the split is neither precise nor fast.">Round-robin DNS with a low TTL pointing at both service versions</button></li>
+    <li><button data-correct="false" data-feedback="A CDN caches content near users; it doesn't do header-based canary routing to backends.">A push CDN that publishes the v2 responses out to edge locations</button></li>
+    <li><button data-correct="true" data-feedback="Right — L7 sees full HTTP, so it can do path routing, header-based canaries and TLS termination.">An L7 load balancer or gateway that routes on paths and headers</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="L4 balances connections by IP:port; L7 understands HTTP (path, host, headers, cookies) and enables content routing, TLS termination and canaries."></div>
+</div>
+
+<div class="callout tryit">
+  <span class="label">Try it in your own system</span>
+  <ul class="checklist">
+    <li>Audit one API you own: resource-style URLs, correct status codes, pagination on every list, versioning, a consistent error shape, <code>429</code> with <code>Retry-After</code>.</li>
+    <li>Find every <code>POST</code> that creates money, orders or messages. Does it accept an <code>Idempotency-Key</code>? If not, write the ticket.</li>
+    <li>Draw your main ingress path: where TLS terminates, which hops are L4 and which L7, and which cross-cutting concerns live in the gateway.</li>
+    <li>Check the DNS TTL on your primary records and work out what it means for failover time.</li>
+  </ul>
+</div>
+
+<div class="followup">
+  <strong>I&rsquo;m your teacher &mdash; ask me anything.</strong> Paste an endpoint list or an OpenAPI file and we&rsquo;ll review it together: naming, status codes, idempotency, pagination, versioning and what belongs in the gateway.
+</div>
+
+<nav class="lesson-nav">
+  <span class="group">
+    <b>Previous</b>
+    <a href="0005-asynchronism-and-messaging.html">&larr; Lesson 05 · Async & messaging</a>
+  </span>
+  <span class="group">
+    <b>Reference</b>
+    <a href="../reference/0006-networking-and-api-design-cheatsheet.html">Networking & API design cheat sheet &rarr;</a>
+  </span>
+  <span class="group">
+    <b>Course map</b>
+    <a href="../index.html">&uarr; All lessons</a>
+  </span>
+  <span class="group">
+    <b>Up next</b>
+    <a href="0007-back-of-envelope-estimation.html">Lesson 07 · Back-of-envelope estimation &rarr;</a>
+  </span>
+</nav>
+
+</body>
+</html>

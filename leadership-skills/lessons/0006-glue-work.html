@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 06 · Glue Work — Made Visible</title>
+<link rel="stylesheet" href="../../assets/course/course.css">
+<link rel="stylesheet" href="../assets/theme.css">
+<script src="../../assets/course/links.js" defer></script>
+<script src="../../assets/course/quiz.js" defer></script>
+<script type="module" src="../../assets/course/mermaid.js"></script>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Leadership Skills · Lesson 06 · B6</p>
+  <h1>Glue Work — Made Visible</h1>
+  <div class="meta">
+    <span>◷ ~16 min read</span>
+    <span class="dot">•</span>
+    <span>Core practice</span>
+    <span class="dot">•</span>
+    <span>Prereq: <a href="0005-stakeholder-management-and-trust.html">Lesson 05</a></span>
+  </div>
+</header>
+
+<p class="mission-tie">
+  Onboarding, roadmap upkeep, noticing dropped balls, keeping teams aligned: <strong>glue work</strong> is often why a team works at all. Managed deliberately, it is technical leadership. Left unconscious, it limits careers, and it falls disproportionately on junior and underrepresented engineers. This lesson shows how to name it in planning, translate it into outcomes, rotate it, and put it in the brag doc and the promotion packet, which asks directly: “What glue work have you done?”
+</p>
+
+<div class="callout insight">
+  <span class="label">TL;DR</span>
+  <p>How do you handle the invisible work that holds teams together without letting it derail your career?</p>
+<ul>
+<li>Glue work is the coordination, care, alignment, and question-asking that keeps teams effective.</li>
+<li>Managed deliberately, it demonstrates technical leadership; left unconscious, it can become career-limiting.</li>
+<li>The risk is highest when glue work is expected but not named, measured, rotated, or rewarded.</li>
+<li>Make glue work visible in planning, metrics, brag docs, and promotion packets.</li>
+<li>If you are junior or underrepresented, do not become the default sink for invisible work.</li>
+<li>Staff+ engineers advocate for the organization to value glue work instead of quietly exploiting it.</li>
+</ul>
+</div>
+
+<p class="related">Back to the main map: <a href="../../02-skills-to-upgrade.md">Skills to upgrade</a>. Related leadership lessons: <a href="0001-influence-without-authority.html">B1 influence</a>, <a href="0002-communication-and-executive-writing.html">B2 communication</a>, <a href="0003-technical-and-project-leadership.html">B3 technical leadership</a>, <a href="0004-mentorship-and-sponsorship.html">B4 mentorship</a>, <a href="0005-stakeholder-management-and-trust.html">B5 stakeholders</a>, <a href="0007-decision-making.html">B7 decisions</a>, <a href="0008-prioritization.html">B8 prioritization</a>. Track evidence in <a href="../../06-self-assessment-and-tracking.md">self-assessment and tracking</a> and package it with the <a href="../../05-promotion-playbook.md">promotion playbook</a>.</p>
+
+<h2 id="1-what-glue-work-is">1. What glue work is</h2>
+<p>Tanya Reilly's &quot;Being Glue&quot; names a pattern many engineers recognize immediately.
+Glue work is the work that holds a team together but is often not counted as engineering output.
+It is not one task; it is a category of coordination and care that makes technical work possible.</p>
+<p>Examples include:</p>
+<ul>
+<li>Onboarding junior engineers.</li>
+<li>Updating the roadmap so reality and plan stay connected.</li>
+<li>Talking to users or support to understand pain.</li>
+<li>Noticing dropped balls and quietly picking them up.</li>
+<li>Asking clarifying questions on design docs.</li>
+<li>Keeping everyone aligned across meetings, Slack, docs, and tickets.</li>
+<li>Translating between Product, Design, Engineering, Support, and leadership.</li>
+<li>Making sure decisions have owners and follow-up.</li>
+</ul>
+<p>If this describes you, you may be the glue.
+That can be good.
+Teams need glue.
+But careers are built on work the organization sees, values, and rewards.</p>
+<figure><pre class="mermaid">
+flowchart TD
+    A["Ambiguous team need"] --&gt; B{"Does anyone own it"}
+    B --&gt;|"Yes"| C["Support the owner"]
+    B --&gt;|"No"| D["Glue worker notices gap"]
+    D --&gt; E["Coordination happens"]
+    E --&gt; F{"Is work named and valued"}
+    F --&gt;|"Yes"| G["Leadership evidence"]
+    F --&gt;|"No"| H["Invisible labor"]
+    H --&gt; I["Career risk"]
+</pre></figure>
+<p>Glue work is often the reason a team feels functional.
+The problem is not the work itself.
+The problem is invisible allocation and invisible credit.</p>
+<h2 id="2-the-core-tension">2. The core tension</h2>
+<p>Glue work has a paradox.
+Managed deliberately, it builds and demonstrates the skills expected at Staff+: influence, prioritization, systems thinking, mentoring, communication, and organizational judgment.
+Left unconscious, it can push an engineer away from technical growth, away from promotable work, and even out of the industry.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Managed deliberately</th>
+<th>Left unconscious</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Named in planning</td>
+<td>Assumed as personality or helpfulness</td>
+</tr>
+<tr>
+<td>Connected to outcomes</td>
+<td>Treated as background hygiene</td>
+</tr>
+<tr>
+<td>Distributed across team</td>
+<td>Falls to the same person repeatedly</td>
+</tr>
+<tr>
+<td>Included in promotion evidence</td>
+<td>Missing from performance review</td>
+</tr>
+<tr>
+<td>Paired with technical ownership</td>
+<td>Replaces technical ownership</td>
+</tr>
+</tbody>
+</table></div>
+<figure><pre class="mermaid">
+flowchart LR
+    A["Glue work appears"] --&gt; B{"Deliberate allocation"}
+    B --&gt;|"Yes"| C["Frame as leadership"]
+    C --&gt; D["Measure outcomes"]
+    D --&gt; E["Promotion evidence"]
+    B --&gt;|"No"| F["Default sink"]
+    F --&gt; G["Less technical visibility"]
+    G --&gt; H["Career-limiting pattern"]
+</pre></figure>
+<p>The same action can be either leadership or trap depending on context.
+Onboarding a new engineer can be a high-impact leadership contribution if it improves ramp time and is recognized.
+It can be career-limiting if you do it repeatedly while others take the visible technical projects.</p>
+<h2 id="3-promotable-and-non-promotable-work">3. Promotable and non-promotable work</h2>
+<p>Organizations do not reward all useful work equally.
+Promotable work is work that decision-makers associate with the next level.
+Non-promotable work is necessary but rarely converted into advancement.</p>
+<p>At Staff+, promotable glue work usually has these properties:</p>
+<ul>
+<li>It changes how a team or organization works, not only how one task gets finished.</li>
+<li>It reduces future coordination cost.</li>
+<li>It creates durable artifacts: docs, process, templates, dashboards, rituals, ownership maps.</li>
+<li>It develops other engineers.</li>
+<li>It improves delivery, quality, reliability, or decision-making.</li>
+<li>It is visible to the right stakeholders.</li>
+</ul>
+<p>Non-promotable glue work often looks like:</p>
+<ul>
+<li>Always taking notes without being asked.</li>
+<li>Always scheduling meetings.</li>
+<li>Always smoothing conflict privately.</li>
+<li>Always onboarding because you are patient.</li>
+<li>Always cleaning tickets because you notice disorder.</li>
+<li>Always translating leadership messages without credit or authority.</li>
+</ul>
+<p>This trap disproportionately affects underrepresented engineers.
+People may expect them to do care work, coordination, emotional labor, or diversity work while evaluating them against technical output.
+That is an allocation problem and a fairness problem.</p>
+<h2 id="4-make-glue-work-explicit-in-planning">4. Make glue work explicit in planning</h2>
+<p>Invisible work becomes more visible when it competes honestly for capacity.
+Planning should name glue work as work.
+If onboarding will take 20% of your time, say so.
+If cross-team alignment is required, put it on the plan.
+If a roadmap cleanup enables better prioritization, define the outcome.</p>
+<p>A useful planning sentence:</p>
+<p>&quot;I will spend one day per week for six weeks on onboarding and alignment for the payments migration; expected outcomes are two ramped engineers, reduced review bottlenecks, and a decision log that prevents repeat debates.&quot;</p>
+<p>Turn vague helpfulness into scoped leadership:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Vague</th>
+<th>Better</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>&quot;Helping with onboarding&quot;</td>
+<td>&quot;Reducing ramp time for two new engineers from six weeks to four.&quot;</td>
+</tr>
+<tr>
+<td>&quot;Keeping roadmap updated&quot;</td>
+<td>&quot;Creating a single source of truth for migration dependencies.&quot;</td>
+</tr>
+<tr>
+<td>&quot;Asking questions&quot;</td>
+<td>&quot;Surfacing unresolved API ownership and security assumptions before build.&quot;</td>
+</tr>
+<tr>
+<td>&quot;Keeping people aligned&quot;</td>
+<td>&quot;Running weekly dependency sync until launch readiness is stable.&quot;</td>
+</tr>
+</tbody>
+</table></div>
+<figure><pre class="mermaid">
+flowchart TD
+    A["Glue task"] --&gt; B["Name the problem"]
+    B --&gt; C["Define expected outcome"]
+    C --&gt; D["Estimate capacity"]
+    D --&gt; E["Assign owner and rotation"]
+    E --&gt; F["Track evidence"]
+    F --&gt; G["Review impact"]
+</pre></figure>
+<p>Do not smuggle glue work into evenings or margins.
+If it matters, it deserves capacity.
+If it does not deserve capacity, ask why you are doing it.</p>
+<h2 id="5-frame-glue-work-as-technical-leadership">5. Frame glue work as technical leadership</h2>
+<p>Glue work counts when it is connected to engineering outcomes.
+The word &quot;helped&quot; is too weak.
+Use verbs that show leadership and system change:</p>
+<ul>
+<li>aligned</li>
+<li>unblocked</li>
+<li>reduced</li>
+<li>clarified</li>
+<li>delegated</li>
+<li>accelerated</li>
+<li>de-risked</li>
+<li>standardized</li>
+<li>mentored</li>
+<li>operationalized</li>
+</ul>
+<p>Instead of &quot;I helped the team stay aligned,&quot; write:</p>
+<p>&quot;I created a dependency map and weekly decision review that reduced cross-team launch blockers from seven to two and allowed the team to cut scope before the freeze date.&quot;</p>
+<p>Instead of &quot;I onboarded juniors,&quot; write:</p>
+<p>&quot;I built a ramp plan, review checklist, and pairing rotation that made two new engineers independently ship production changes by week four.&quot;</p>
+<p>This is not exaggeration.
+It is translation.
+Performance systems often miss invisible work unless you connect it to measurable outcomes.</p>
+<h2 id="6-make-glue-work-visible">6. Make glue work visible</h2>
+<p>Visibility is not vanity.
+Visibility is how an organization learns what work mattered.
+If the only record of your glue work is that things did not fall apart, your evidence will be weak.</p>
+<p>Places to make glue work visible:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Place</th>
+<th>How to use it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Planning docs</td>
+<td>Name coordination work as capacity and scope.</td>
+</tr>
+<tr>
+<td>Weekly updates</td>
+<td>Report risks reduced, decisions made, people unblocked.</td>
+</tr>
+<tr>
+<td>Brag doc</td>
+<td>Capture before and after evidence.</td>
+</tr>
+<tr>
+<td>Promotion packet</td>
+<td>Frame work as leadership, leverage, and organizational impact.</td>
+</tr>
+<tr>
+<td>Retrospectives</td>
+<td>Make invisible coordination part of the team learning.</td>
+</tr>
+<tr>
+<td>Manager one-on-ones</td>
+<td>Confirm whether the work maps to level expectations.</td>
+</tr>
+</tbody>
+</table></div>
+<p>Cross-link your evidence to <a href="../../06-self-assessment-and-tracking.md">self-assessment and tracking</a>.
+A brag doc is not only a list of accomplishments.
+It is a memory system for outcomes that are otherwise easy to forget.</p>
+<figure><pre class="mermaid">
+sequenceDiagram
+    participant E as Engineer
+    participant M as Manager
+    participant T as Team
+    participant P as Promo
+    E-&gt;&gt;T: Names glue work in planning
+    E-&gt;&gt;M: Reports capacity and expected outcomes
+    T--&gt;&gt;E: Provides evidence of reduced friction
+    E-&gt;&gt;P: Converts evidence into leadership narrative
+    M--&gt;&gt;P: Sponsors impact with context
+</pre></figure>
+<p>Visibility should happen while the work is happening, not only at review time.
+Late visibility can sound like self-justification.
+Early visibility helps the organization allocate and value the work correctly.</p>
+<h2 id="7-distribute-and-rotate-glue-work">7. Distribute and rotate glue work</h2>
+<p>If the same person always performs glue work, the team has an unhealthy dependency.
+Staff+ engineers should make glue work systematic enough to rotate.
+That protects individuals and builds organizational capacity.</p>
+<p>Rotatable glue work includes:</p>
+<ul>
+<li>Meeting facilitation.</li>
+<li>Note-taking and decision logging.</li>
+<li>On-call process cleanup.</li>
+<li>Roadmap hygiene.</li>
+<li>New-hire onboarding buddy work.</li>
+<li>Postmortem follow-up tracking.</li>
+<li>Design doc question review.</li>
+</ul>
+<p>Some glue work should be owned by the person with the right context.
+But repeated default assignment is a smell.
+Ask: &quot;Is this assigned because it is the best use of this person's growth path, or because they are reliable and no one else wants it?&quot;</p>
+<p>A rotation should define scope, time commitment, success criteria, training, rotation date, and recognition mechanism.</p>
+<h2 id="8-protect-against-default-sink-dynamics">8. Protect against default-sink dynamics</h2>
+<p>Junior and underrepresented engineers are often asked, implicitly, to absorb notes, onboarding, emotional labor, and coordination. Be explicit: rotate the work, name it in planning, and ask what would make it count toward growth goals. A healthy Staff+ engineer notices when invisible work concentrates on people with less power.</p>
+<h2 id="9-work-the-organization-is-built-to-ignore">9. Work the organization is built to ignore</h2>
+<p>StaffEng warns that some valuable work is structurally ignored or devalued. Glue work often sits there: it creates early wins, then struggles for support. Before investing heavily, connect it to customer pain, delivery risk, quality, reliability, or talent development; find a sponsor; or reduce and rotate the work so it does not become private unpaid infrastructure.</p>
+<h2 id="10-how-to-make-glue-work-count">10. How to make glue work count</h2>
+<p>Glue work counts when you can show a before and after. Use metrics, artifacts, and stakeholder quotes: onboarding time, decision latency, blockers resolved, risks found before build, support escalations reduced, or engineers ramped. In your brag doc, capture the problem, action, outcome, beneficiaries, artifacts, and feedback, then translate it into the level language in <a href="../../05-promotion-playbook.md">promotion playbook</a>.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Glue work</th>
+<th>Evidence</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Onboarding</td>
+<td>Time to first merged PR, independent on-call, new-hire survey.</td>
+</tr>
+<tr>
+<td>Roadmap alignment</td>
+<td>Fewer priority reversals and clearer dependency dates.</td>
+</tr>
+<tr>
+<td>Design review</td>
+<td>Risks found before build and decisions logged.</td>
+</tr>
+<tr>
+<td>Coordination</td>
+<td>Blockers resolved and launch readiness improved.</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="11-practice-drills">11. Practice drills</h2>
+<ul>
+<li>For one week, write down every piece of glue work you do. Categorize it as planning, coordination, mentoring, emotional labor, or operational hygiene.</li>
+<li>Pick one recurring glue task and propose a rotation with a template.</li>
+<li>Convert one invisible contribution into a brag-doc bullet with before, action, and result.</li>
+<li>Ask your manager which glue work maps to your growth goals and which work should be reduced.</li>
+<li>In the next planning cycle, explicitly estimate glue capacity rather than absorbing it silently.</li>
+<li>Review a design doc by asking only clarifying questions that improve team reasoning, then record the impact.</li>
+</ul>
+<h2 id="12-what-good-looks-like-at-staff">12. What &quot;good&quot; looks like at Staff+</h2>
+<ul>
+<li>You perform glue work deliberately and connect it to engineering outcomes.</li>
+<li>You make invisible work visible without making everything about yourself.</li>
+<li>You protect junior and underrepresented engineers from default-sink dynamics.</li>
+<li>You create systems, templates, and rotations that reduce dependence on heroic coordinators.</li>
+<li>Your promotion evidence includes leadership impact, not only coding output.</li>
+<li>You challenge the organization to value necessary work it has historically ignored.</li>
+<li>You stop doing low-value glue work when it crowds out higher-leverage responsibilities.</li>
+</ul>
+<h2 id="13-common-pitfalls">13. Common pitfalls</h2>
+<ul>
+<li>Calling all coordination &quot;glue work&quot; without distinguishing high-leverage leadership from low-value chores.</li>
+<li>Assuming being helpful will automatically be rewarded.</li>
+<li>Waiting until review season to explain the impact.</li>
+<li>Letting glue work replace technical growth unintentionally.</li>
+<li>Becoming the private conflict sponge for the team.</li>
+<li>Taking on ignored work without a sponsor or path to recognition.</li>
+<li>Making work visible only as activity rather than outcomes.</li>
+</ul>
+<h2 id="14-further-reading">14. Further reading</h2>
+<ul>
+<li>Tanya Reilly, &quot;Being Glue&quot;: <a href="https://www.noidea.dog/glue" target="_blank" rel="noopener">https://www.noidea.dog/glue</a></li>
+<li>Tanya Reilly, &quot;The Staff Engineer's Path&quot;: <a href="https://noidea.dog/staff" target="_blank" rel="noopener">https://noidea.dog/staff</a></li>
+<li>StaffEng, &quot;Work on what matters&quot;: <a href="https://staffeng.com/guides/work-on-what-matters/" target="_blank" rel="noopener">https://staffeng.com/guides/work-on-what-matters/</a></li>
+</ul>
+
+<div class="primary-source">
+  <span class="label">Read this next (primary source)</span>
+  <p><a href="https://www.noidea.dog/glue" target="_blank" rel="noopener"><em>Being Glue</em></a> (Tanya Reilly): the original talk and essay. Read it end to end and compare your own work with her examples. Her book <a href="https://noidea.dog/staff" target="_blank" rel="noopener"><em>The Staff Engineer’s Path</em></a> develops the idea into deliberate, visible technical leadership.</p>
+</div>
+
+<h2 id="15-check-yourself">15. Check yourself</h2>
+<p>Retrieve before revealing.</p>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 1 of 3</p>
+  <p class="quiz-q">For two quarters you have run the weekly dependency sync, kept the roadmap current and onboarded three hires. None of it is in planning, and your review says “strong collaborator, needs more technical impact.” What is the best next step?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="Dropping it abruptly hurts the team and does not fix the real problem: invisible allocation and credit.">Stop all glue work at once and take only coding tasks until the next review cycle comes round</button></li>
+    <li><button data-correct="false" data-feedback="Being helpful is not automatically rewarded. If the only record is that nothing fell apart, evidence is weak.">Keep going quietly, because leaders will eventually notice how smoothly the whole team now runs</button></li>
+    <li><button data-correct="true" data-feedback="Right — make it explicit in planning and confirm with your manager which glue work maps to your level.">Put it in planning as scoped capacity with outcomes, and agree with your manager what counts</button></li>
+    <li><button data-correct="false" data-feedback="Activity lists at review time sound like self-justification. Show outcomes, and show them early.">List every meeting you ran and every doc you updated this cycle in your self-review</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="The problem is not the work; it is invisible allocation and invisible credit. Name the problem, the expected outcome and the capacity, then track evidence while the work happens."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 2 of 3</p>
+  <p class="quiz-q">Which brag-doc bullet best turns glue work into promotion evidence?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="“Helped” is too weak and there is no outcome. This describes activity, not leadership.">“Helped the team stay aligned across many meetings, docs and Slack threads this half.”</button></li>
+    <li><button data-correct="false" data-feedback="This is non-promotable glue described as chores, with no before and after.">“Took notes in every planning meeting and kept the shared roadmap tidy each and every week.”</button></li>
+    <li><button data-correct="false" data-feedback="This describes personality, not impact. Patience is not evidence a committee can weigh.">“Was always available to onboard new joiners and to answer all their questions patiently.”</button></li>
+    <li><button data-correct="true" data-feedback="Right — a leadership verb, a durable artifact and a measurable outcome.">“Built a ramp plan and pairing rotation: two new hires shipped to prod by week four.”</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Glue work counts when it shows a before and after: use verbs like aligned, reduced, de-risked or operationalized, plus a metric, an artifact or a stakeholder quote."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 3 of 3</p>
+  <p class="quiz-q">On your team, the only woman engineer has been the default note-taker and onboarding buddy for a year, while others take the visible design work. As the Staff engineer, what do you do?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="Right — fix the allocation: rotate the glue and pair it with visible technical ownership.">Propose a rotation for notes and onboarding, and steer the next design lead role to her</button></li>
+    <li><button data-correct="false" data-feedback="Recognition without changing allocation reinforces the default-sink pattern.">Thank her publicly for the notes in the next team meeting, so her effort is recognised</button></li>
+    <li><button data-correct="false" data-feedback="She needs opportunity, not more advice. This is the over-mentored, under-sponsored trap.">Offer to mentor her on technical design, so she is better prepared for future design projects</button></li>
+    <li><button data-correct="false" data-feedback="A healthy Staff+ engineer notices when invisible work concentrates on people with less power.">Leave it to her manager, since deciding work allocation is a management responsibility</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Protect against default-sink dynamics: rotate the work, name it in planning, and ask whether an assignment fits the person’s growth path or just their reliability."></div>
+</div>
+
+<div class="callout tryit">
+  <span class="label">Try it in your own system</span>
+  <ul class="checklist">
+    <li>For one week, log every piece of glue work you do and tag it: planning, coordination, mentoring, emotional labour or operational hygiene.</li>
+    <li>Take your most frequent recurring glue task and propose a rotation with scope, time commitment, success criteria, a template and a rotation date.</li>
+    <li>Rewrite one invisible contribution as a brag-doc bullet with before, action and result (a number, an artifact or a quote).</li>
+    <li>In your next 1:1, ask your manager which of your glue work maps to your growth goals, and which you should reduce or hand off.</li>
+    <li>In the next planning cycle, estimate glue capacity explicitly (for example “one day a week for six weeks”) with the expected outcomes.</li>
+  </ul>
+</div>
+
+<div class="followup">
+  <strong>I&rsquo;m your teacher &mdash; ask me anything.</strong> Paste your glue-work log or three vague brag-doc bullets and we will translate them into outcome-based evidence, or design a rotation your team will actually accept.
+</div>
+
+<nav class="lesson-nav">
+  <span class="group">
+    <b>Previous</b>
+    <a href="0005-stakeholder-management-and-trust.html">&larr; Lesson 05 · Stakeholders & trust</a>
+  </span>
+  <span class="group">
+    <b>Reference</b>
+    <a href="../reference/0006-glue-work-cheatsheet.html">Glue work cheat sheet &rarr;</a>
+  </span>
+  <span class="group">
+    <b>Course map</b>
+    <a href="../index.html">&uarr; All lessons</a>
+  </span>
+  <span class="group">
+    <b>Up next</b>
+    <a href="0007-decision-making.html">Lesson 07 · Decision-making &rarr;</a>
+  </span>
+</nav>
+
+</body>
+</html>

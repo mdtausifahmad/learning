@@ -39,6 +39,21 @@ Read the files in order the first time, then return to them as reference and re-
 
 ---
 
+## Courses
+
+Every course folder has the same shape: an `index.html` course map, one interactive lesson per chapter in `lessons/`, a cheat sheet per lesson in `reference/`, and a single **`GUIDE.md`** with the whole course in one Markdown file. Shared styles and scripts live in `assets/course/`; each course keeps only its colour theme in `<course>/assets/theme.css`.
+
+| Course | Covers | Interactive | Full guide |
+|---|---|---|---|
+| **System Design & Architecture at Scale** | Skill A1 — scalability, CAP, data, caching, messaging, APIs, estimation, resilience | [8 lessons](system-design/index.html) | [GUIDE.md](system-design/GUIDE.md) |
+| **Technical Skills** | Skills A2–A9 — distributed data, SRE, architecture, strategy, writing, security, cloud, T-shape | [8 lessons](technical-skills/index.html) | [GUIDE.md](technical-skills/GUIDE.md) |
+| **Leadership Skills** | Skills B1–B8 — influence, exec writing, tech leadership, sponsorship, trust, glue work, decisions, prioritization | [8 lessons](leadership-skills/index.html) | [GUIDE.md](leadership-skills/GUIDE.md) |
+| **Async Messaging** | Queues, Kafka, delivery guarantees, idempotency, outbox, sagas, CDC | [19 lessons](async-messaging/index.html) | [GUIDE.md](async-messaging/GUIDE.md) |
+| **Event Sourcing** | Deciders, event stores, projections, schema evolution, GDPR | [16 lessons](event-sourcing/index.html) | [GUIDE.md](event-sourcing/GUIDE.md) |
+| **Reliability & Observability** | SLOs, error budgets, golden signals, incidents, overload, safe change | [16 lessons](Observability/index.html) | [GUIDE.md](Observability/GUIDE.md) |
+
+---
+
 ## Quick start — do these 5 things this week
 
 1. **Self-assess.** Score yourself 1–5 on the [jorgef radar](06-self-assessment-and-tracking.md) (Technology, System, People, Process, Influence). The **Influence axis** — Team → Multiple Teams → Company — is the one to over-index on.[^7]

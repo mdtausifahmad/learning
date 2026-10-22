@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cheat Sheet · Strategy &amp; Vision</title>
+<link rel="stylesheet" href="../../assets/course/course.css">
+<link rel="stylesheet" href="../assets/theme.css">
+<script src="../../assets/course/links.js" defer></script>
+<script type="module" src="../../assets/course/mermaid.js"></script>
+<style>
+  body { max-width: 52rem; }
+  @media print { body { margin: 0; } h2 { margin-top: 1.1rem; } }
+</style>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Technical Skills · Reference 04</p>
+  <h1>Strategy &amp; Vision Cheat Sheet</h1>
+  <div class="meta"><span>Compressed from Lesson 04</span><span class="dot">•</span><span>Print-friendly</span></div>
+</header>
+
+<div class="callout insight">
+  <span class="label">Mindset</span>
+  <p>Strategy is useful only if it <strong>changes what teams do when you are not in the room</strong>.
+  If a policy implies no trade-off, it is an aspiration, not a strategy.</p>
+</div>
+
+<h2>Rumelt&rsquo;s kernel</h2>
+<table>
+  <thead><tr><th>Part</th><th>Definition</th><th>Engineering example</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Diagnosis</strong></td><td>The challenge and why it is hard</td><td>Cross-region launches are unsafe because data ownership is ambiguous</td></tr>
+    <tr><td><strong>Guiding policy</strong></td><td>The chosen approach &mdash; a trade-off</td><td>One owning service per customer domain; derived views via events</td></tr>
+    <tr><td><strong>Coherent action</strong></td><td>Coordinated steps that implement it</td><td>Ownership map, migrate three tables, event contracts, block new shared writes</td></tr>
+  </tbody>
+</table>
+
+<h2>Which document is it?</h2>
+<table>
+  <thead><tr><th>Artifact</th><th>Horizon</th><th>Answers</th></tr></thead>
+  <tbody>
+    <tr><td>Design doc</td><td>One project</td><td>How will we build this, and what did we reject?</td></tr>
+    <tr><td>Roadmap</td><td>Quarters</td><td>What ships when? (no diagnosis, no trade-off)</td></tr>
+    <tr><td><strong>Strategy</strong></td><td>~6&ndash;18 months</td><td>What is today&rsquo;s key challenge and which trade-off do we choose?</td></tr>
+    <tr><td><strong>Vision</strong></td><td>~2&ndash;3 years</td><td>What plausible, optimistic future are we steering toward?</td></tr>
+  </tbody>
+</table>
+<p>A vision without strategy is a poster; a strategy without vision can optimise the wrong future.</p>
+
+<h2>The Staff-engineer recipe</h2>
+<figure>
+<pre class="mermaid">
+flowchart LR
+    D["Five real design docs"] --&gt; T["Extract repeated&lt;br/&gt;themes and debates"]
+    T --&gt; S["Engineering strategy"]
+    S --&gt; F["Forecast five strategies&lt;br/&gt;two years out"]
+    F --&gt; V["Common destination =&lt;br/&gt;technical vision"]
+</pre>
+<figcaption>Bottom-up evidence makes the strategy credible and builds the coalition you need to enforce it.</figcaption>
+</figure>
+
+<h2>Weak &rarr; strong</h2>
+<table>
+  <thead><tr><th>Weak (everyone agrees, nobody acts)</th><th>Strong (constrains decisions)</th></tr></thead>
+  <tbody>
+    <tr><td>Improve platform reliability.</td><td>Tier-one APIs adopt 99.9% SLOs, dependency timeouts and 10-minute rollback before new feature work.</td></tr>
+    <tr><td>Teams should own their services.</td><td>One service owner and one data owner per customer domain; no new shared DB writes after Q2.</td></tr>
+    <tr><td>Modernise the frontend.</td><td>New checkout uses the design system; legacy checkout gets compliance fixes only.</td></tr>
+  </tbody>
+</table>
+<p>Good strategy is <strong>specific, opinionated, boring, evidence-backed and enforceable</strong>. It shows its work: evidence, rejected alternatives, risks, why now.</p>
+
+<h2>Guiding-policy types (right altitude: not slogans, not task lists)</h2>
+<table>
+  <thead><tr><th>Type</th><th>Example</th></tr></thead>
+  <tbody>
+    <tr><td>Resource allocation</td><td>30% of platform capacity on migration until shared writes are gone</td></tr>
+    <tr><td>Priority rule</td><td>Data correctness beats launch speed for billing flows</td></tr>
+    <tr><td>Fundamental rule</td><td>No new synchronous calls from checkout to experimental services</td></tr>
+    <tr><td>Escalation rule</td><td>Exceptions need domain-lead and SRE approval</td></tr>
+    <tr><td>Sequencing</td><td>What must land before other work becomes safe or useful</td></tr>
+  </tbody>
+</table>
+<p>A good policy makes some teams unhappy in understandable ways.</p>
+
+<h2>When to write one</h2>
+<ul class="checklist">
+  <li><strong>The same debate recurs 3&ndash;4 times</strong> &mdash; you need a policy, not another meeting.</li>
+  <li><strong>Teams solve one problem inconsistently</strong>, or a migration needs coordinated adoption.</li>
+  <li><strong>Incidents reveal systemic risk</strong>, or product direction invalidated old assumptions.</li>
+  <li><strong>Leaders must choose</strong> between mutually exclusive investments, or the future is too hazy to invest.</li>
+  <li><strong>Not every project</strong> &mdash; many need only a design doc, an ADR or a roadmap item.</li>
+</ul>
+
+<h2>Vision doc (1&ndash;2 pages)</h2>
+<ul class="checklist">
+  <li><strong>Users</strong> whose lives are better, and the <strong>business capabilities</strong> enabled.</li>
+  <li><strong>Engineering experience</strong> and <strong>technical shape</strong> of the future state.</li>
+  <li><strong>Non-goals</strong> &mdash; what is intentionally not part of it.</li>
+  <li><strong>Believable milestones</strong>; optimistic, not audacious.</li>
+  <li><strong>Concrete</strong> &mdash; &ldquo;launch a compliant payment method in one week without platform support&rdquo; beats a slogan like &ldquo;a great payments platform&rdquo;.</li>
+</ul>
+
+<h2>Enforcement toolkit</h2>
+<p>Make the strategy the path of least resistance: architecture review criteria, funding gates, paved roads and platform defaults,
+SLO policy, migration dashboards, RFC templates, dependency rules, executive sponsorship. Know when to <strong>persuade</strong>,
+when to <strong>set defaults</strong>, and when to <strong>escalate</strong>.</p>
+
+<h2>Reading someone else&rsquo;s strategy</h2>
+<ul class="checklist">
+  <li><strong>Diagnosis?</strong> What trade-off does the policy impose?</li>
+  <li><strong>Coherent actions?</strong> What is deprioritised?</li>
+  <li><strong>Enforcement?</strong> What evidence would prove it wrong?</li>
+</ul>
+
+<div class="callout warning"><span class="label">Traps</span><ul>
+  <li>Generic principles everyone agrees with and no one executes.</li>
+  <li>A roadmap labelled &ldquo;strategy&rdquo; with no diagnosis or trade-off.</li>
+  <li>Publishing without changing funding, review or escalation.</li>
+  <li>Skipping bottom-up evidence, then being surprised by resistance.</li>
+  <li>Treating exceptions as failure instead of calibration data.</li>
+</ul></div>
+
+<nav class="lesson-nav">
+  <span class="group"><b>From</b><a href="../lessons/0004-engineering-strategy-and-vision.html">&larr; Lesson 04 · Strategy &amp; vision</a></span>
+  <span class="group"><b>Course map</b><a href="../index.html">&uarr; All lessons</a></span>
+  <span class="group"><b>Canonical terms</b><a href="../GLOSSARY.md">GLOSSARY.md</a></span>
+  <span class="group"><b>Primary source</b><a href="https://staffeng.com/guides/engineering-strategy/" target="_blank" rel="noopener">Writing engineering strategy · StaffEng</a></span>
+</nav>
+
+</body>
+</html>

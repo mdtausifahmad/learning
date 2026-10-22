@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 05 · Technical Writing — Design Docs, RFCs &amp; ADRs</title>
+<link rel="stylesheet" href="../../assets/course/course.css">
+<link rel="stylesheet" href="../assets/theme.css">
+<script src="../../assets/course/links.js" defer></script>
+<script src="../../assets/course/quiz.js" defer></script>
+<script type="module" src="../../assets/course/mermaid.js"></script>
+</head>
+<body>
+
+<header class="lesson-header">
+  <p class="eyebrow">Technical Skills · Lesson 05 · A6</p>
+  <h1>Technical Writing — Design Docs, RFCs &amp; ADRs</h1>
+  <div class="meta">
+    <span>◷ ~16 min read</span>
+    <span class="dot">•</span>
+    <span>Core</span>
+    <span class="dot">•</span>
+    <span>Prereq: <a href="0004-engineering-strategy-and-vision.html">Lesson 04</a></span>
+  </div>
+</header>
+
+<p class="mission-tie">
+  Staff+ engineers do not scale by attending every meeting; <strong>they scale through durable writing</strong>. A good design doc makes disagreement cheap while change is still cheap, and an ADR tells a future team why. This lesson covers when to write a design doc, an RFC or an ADR, what goes in each, and the review culture that makes them work. The executive-writing craft behind it is in <a href="../../leadership-skills/lessons/0002-communication-and-executive-writing.html">Leadership Skills · Lesson 02</a>.
+</p>
+
+<div class="callout insight">
+  <span class="label">TL;DR</span>
+  <p>How do you scale your judgment across an org and across time — through durable writing?</p>
+<ul>
+<li>At Staff+, writing is not admin work; it is how your judgment scales beyond meetings, time zones, and your personal availability.</li>
+<li>A good design doc makes context, goals, non-goals, trade-offs, alternatives, and cross-cutting concerns explicit before implementation locks in expensive choices.</li>
+<li>RFCs and tech specs are the same family of artifact: lightweight, reviewable proposals that gather input widely while keeping single-writer clarity.</li>
+<li>ADRs capture one architecturally significant decision, its rationale, and consequences; they are timestamped and superseded, not rewritten.</li>
+<li>Strong writing craft starts with the answer, frames the tension, names the trade-offs, and makes disagreement cheap while change is still cheap.</li>
+</ul>
+</div>
+
+<p class="related">Back to the roadmap: <a href="../../02-skills-to-upgrade.md">Skills to upgrade</a>. Related deep dives: <a href="../../leadership-skills/lessons/0002-communication-and-executive-writing.html">communication and executive writing</a>, <a href="../../system-design/lessons/0006-networking-and-api-design.html">API design</a>, <a href="../../system-design/lessons/0003-databases-and-data-modeling.html">data modeling</a>, <a href="../../system-design/lessons/0005-asynchronism-and-messaging.html">asynchronism and messaging</a>, and sibling technical-skill lessons A2–A9.</p>
+
+<h2 id="1-writing-is-staff-leverage">1. Writing is Staff+ leverage</h2>
+<p>Staff+ engineers do not scale by personally attending every meeting or reviewing every pull request. They scale by creating durable artifacts that help many other engineers make better decisions without needing the author in the room.</p>
+<p>Writing creates leverage because it:</p>
+<ul>
+<li><strong>Enables asynchronous alignment</strong> across time zones and calendars.</li>
+<li><strong>Outlives the author</strong> so future teams can understand why a system is the way it is.</li>
+<li><strong>Transfers senior judgment</strong> by showing how constraints, alternatives, and risks were weighed.</li>
+<li><strong>Catches issues early</strong> when changing a diagram or paragraph is cheaper than rewriting production systems.</li>
+<li><strong>Creates a decision trail</strong> for audits, onboarding, incident review, and future migrations.</li>
+</ul>
+<figure><pre class="mermaid">
+flowchart LR
+    A["Senior judgment"] --&gt; B["Written artifact"]
+    B --&gt; C["Async review"]
+    B --&gt; D["Future onboarding"]
+    B --&gt; E["Implementation guidance"]
+    B --&gt; F["Decision history"]
+    C --&gt; G["Better decisions at scale"]
+    D --&gt; G
+    E --&gt; G
+    F --&gt; G
+</pre></figure>
+<p>The artifact is not the goal. The goal is shared understanding and better execution. A doc that no one reads, cannot be challenged, or fails to guide implementation has not done its job.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Mode</th>
+<th>Strength</th>
+<th>Failure mode</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Meeting-only decision</td>
+<td>Fast for small groups</td>
+<td>Excludes absent stakeholders and loses rationale</td>
+</tr>
+<tr>
+<td>Chat thread</td>
+<td>Low friction</td>
+<td>Hard to find, fragmented, weak long-term memory</td>
+</tr>
+<tr>
+<td>Pull request only</td>
+<td>Close to implementation</td>
+<td>Too late for architectural trade-offs</td>
+</tr>
+<tr>
+<td>Design doc, RFC, or ADR</td>
+<td>Durable and reviewable</td>
+<td>Can become ceremony if every small change needs one</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="2-design-docs-the-staff-working-document">2. Design docs: the Staff+ working document</h2>
+<p>A design doc is a structured proposal for a meaningful technical change. It is most useful when the change has real trade-offs, multiple plausible approaches, cross-team impact, or long-term operational consequences.</p>
+<p>Design docs are commonly 10–20 pages for substantial initiatives. Mini design docs of 1–3 pages are often enough for smaller changes. The point is not page count; the point is making the decision space visible.</p>
+<h3 id="anatomy-of-a-google-style-design-doc">Anatomy of a Google-style design doc</h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Section</th>
+<th>Purpose</th>
+<th>Staff+ question</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Context and scope</td>
+<td>Explain the current situation, problem, constraints, and affected systems</td>
+<td>What world are we operating in?</td>
+</tr>
+<tr>
+<td>Goals</td>
+<td>State what success requires</td>
+<td>What must be true when this ships?</td>
+</tr>
+<tr>
+<td>Non-goals</td>
+<td>Explicitly exclude tempting but out-of-scope work</td>
+<td>What are we intentionally not solving?</td>
+</tr>
+<tr>
+<td>Design</td>
+<td>Describe architecture, APIs, data, flows, failure modes, and trade-offs</td>
+<td>Why this shape and not another?</td>
+</tr>
+<tr>
+<td>Alternatives considered</td>
+<td>Present credible options and why they lost</td>
+<td>Did we fairly explore the decision space?</td>
+</tr>
+<tr>
+<td>Cross-cutting concerns</td>
+<td>Cover security, privacy, observability, reliability, migration, and cost</td>
+<td>What risks cut across the design?</td>
+</tr>
+<tr>
+<td>Rollout and operations</td>
+<td>Explain migration, launch, rollback, and ownership</td>
+<td>How does this survive production?</td>
+</tr>
+</tbody>
+</table></div>
+<figure><pre class="mermaid">
+flowchart TD
+    A["Context and scope"] --&gt; B["Goals and non-goals"]
+    B --&gt; C["Proposed design"]
+    C --&gt; D["Alternatives considered"]
+    C --&gt; E["Cross-cutting concerns"]
+    D --&gt; F["Recommendation"]
+    E --&gt; F
+    F --&gt; G["Review and implementation"]
+</pre></figure>
+<h3 id="design-section-expectations">Design section expectations</h3>
+<p>The design section should be concrete enough that reviewers can reason about behavior. Include:</p>
+<ul>
+<li>A <strong>system-context diagram</strong> showing major actors and dependencies.</li>
+<li>API contracts, event schemas, or interface boundaries when relevant.</li>
+<li>Data model and storage decisions, including ownership and retention.</li>
+<li>Failure modes, retries, idempotency, backpressure, and degradation.</li>
+<li>Observability: logs, metrics, traces, dashboards, alerts, and SLO impact.</li>
+<li>Trade-offs stated directly rather than hidden behind vague language.</li>
+</ul>
+<figure><pre class="mermaid">
+flowchart LR
+    User["Client or user"] --&gt; API["Public API"]
+    API --&gt; Service["Proposed service"]
+    Service --&gt; DB["Primary data store"]
+    Service --&gt; Queue["Async queue"]
+    Service --&gt; Metrics["Observability pipeline"]
+    Queue --&gt; Worker["Background worker"]
+    Worker --&gt; DB
+</pre></figure>
+<p>Good design docs are opinionated. They do not merely list facts; they recommend a path and explain why it is the best fit for the context.</p>
+<h2 id="3-design-doc-lifecycle">3. Design doc lifecycle</h2>
+<p>A design doc is a living artifact during execution, then a historical artifact after the decision has landed.</p>
+<figure><pre class="mermaid">
+flowchart LR
+    A["Create draft"] --&gt; B["Review with stakeholders"]
+    B --&gt; C["Revise and decide"]
+    C --&gt; D["Implement"]
+    D --&gt; E["Maintain during delivery"]
+    E --&gt; F["Archive as decision context"]
+    B --&gt; G["Open questions"]
+    G --&gt; B
+</pre></figure>
+<h3 id="create">Create</h3>
+<p>Start when you know enough to frame the problem but before implementation inertia dominates. Drafting too early produces fiction; drafting too late documents a decision already made.</p>
+<h3 id="review">Review</h3>
+<p>Invite people who can identify flaws:</p>
+<ul>
+<li>Owners of dependent systems.</li>
+<li>Security, privacy, platform, SRE, and data stakeholders.</li>
+<li>Teams who will operate, integrate with, or be paged for the design.</li>
+<li>Engineers likely to disagree constructively.</li>
+</ul>
+<h3 id="implement">Implement</h3>
+<p>Use the doc to guide milestones, pull requests, and rollout. If the design changes materially, update the design doc or add a follow-up decision record.</p>
+<h3 id="maintain">Maintain</h3>
+<p>During delivery, keep the doc honest. After completion, mark its status and link to implementation, runbooks, dashboards, and ADRs.</p>
+<h3 id="when-not-to-write-one">When not to write one</h3>
+<p>Do not write a design doc when there are no real trade-offs. If the change is local, reversible, well-understood, and cheaper to demonstrate in code than explain in prose, write the code.</p>
+<h2 id="4-rfcs-and-tech-specs">4. RFCs and tech specs</h2>
+<p>RFCs, tech specs, architecture proposals, and design docs are variations of the same practice: make an important technical proposal reviewable before committing to it.</p>
+<p>The best RFC templates are simple:</p>
+<ol>
+<li>Summary.</li>
+<li>Motivation.</li>
+<li>Goals and non-goals.</li>
+<li>Proposal.</li>
+<li>Alternatives.</li>
+<li>Risks and mitigations.</li>
+<li>Rollout plan.</li>
+<li>Open questions.</li>
+</ol>
+<figure><pre class="mermaid">
+flowchart TD
+    A["Author frames problem"] --&gt; B["Draft RFC"]
+    B --&gt; C["Wide input window"]
+    C --&gt; D["Author resolves feedback"]
+    D --&gt; E["Decision owner approves"]
+    E --&gt; F["Implementation plan"]
+    C --&gt; G["Disagreement recorded"]
+    G --&gt; D
+</pre></figure>
+<p>Gather input widely, but write alone. Committee-written docs often become ambiguous because they optimize for avoiding conflict. A single author should synthesize feedback, make the recommendation, and explicitly record unresolved disagreements.</p>
+<p>Prefer <strong>good over perfect</strong>. An RFC that helps the organization make a timely, reversible decision is more valuable than a beautiful document that arrives after the implementation is already entrenched.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Practice</th>
+<th>Why it helps</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Short review window</td>
+<td>Prevents indefinite debate</td>
+</tr>
+<tr>
+<td>Explicit decision owner</td>
+<td>Avoids consensus theater</td>
+</tr>
+<tr>
+<td>Open questions section</td>
+<td>Separates unknowns from blockers</td>
+</tr>
+<tr>
+<td>Decision log link</td>
+<td>Preserves outcome after review comments fade</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="5-adrs-architecture-decisions-that-survive-time">5. ADRs: architecture decisions that survive time</h2>
+<p>An Architecture Decision Record captures one architecturally significant decision. It is not a design doc. It is smaller, more focused, and optimized for future readers asking, &quot;Why did we choose this?&quot;</p>
+<p>An ADR normally includes:</p>
+<ul>
+<li><strong>Title</strong>: short and specific.</li>
+<li><strong>Status</strong>: proposed, accepted, deprecated, or superseded.</li>
+<li><strong>Context</strong>: forces, constraints, and problem.</li>
+<li><strong>Decision</strong>: the chosen path.</li>
+<li><strong>Consequences</strong>: benefits, costs, risks, and follow-up obligations.</li>
+</ul>
+<p>ADRs are rationale-driven, timestamped, and immutable. If the decision changes, create a new ADR that supersedes the old one. Do not silently edit history.</p>
+<figure><pre class="mermaid">
+flowchart LR
+    A["Decision needed"] --&gt; B["ADR drafted"]
+    B --&gt; C["Accepted"]
+    C --&gt; D["Architecture decision log"]
+    C --&gt; E["Future change"]
+    E --&gt; F["New ADR supersedes old ADR"]
+    F --&gt; D
+</pre></figure>
+<p>An Architecture Decision Log is the collection of ADRs. It becomes a map of the system's architectural history.</p>
+<p>Popular templates include Michael Nygard's original format and MADR. Use the lightest template your organization will consistently maintain.</p>
+<h3 id="example-adr">Example ADR</h3>
+<pre><code class="language-markdown"># ADR 004: Use managed PostgreSQL for customer configuration
+
+Date: 2026-07-17
+
+Status: Accepted
+
+## Context
+
+Customer configuration is relational, must be queried transactionally, and is owned by the account platform team. The team needs point-in-time recovery and predictable operational support.
+
+## Decision
+
+We will store customer configuration in the cloud provider's managed PostgreSQL service. The account platform team owns schema changes, backups, and access policies.
+
+## Consequences
+
+Managed PostgreSQL reduces operational burden and gives us backups, monitoring, and failover primitives. We accept vendor-specific operational tooling and will avoid provider-specific SQL features unless justified by a future ADR.
+</code></pre>
+<h2 id="6-writing-craft-for-technical-leaders">6. Writing craft for technical leaders</h2>
+<p>Strong technical writing is clear thinking made visible. Use the craft patterns from <a href="../../leadership-skills/lessons/0002-communication-and-executive-writing.html">communication and executive writing</a>, but apply them to engineering decisions.</p>
+<h3 id="use-scqa-to-open">Use SCQA to open</h3>
+<p>SCQA means Situation, Complication, Question, Answer.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Element</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Situation</td>
+<td>The payments platform currently emits settlement events from three services</td>
+</tr>
+<tr>
+<td>Complication</td>
+<td>Downstream consumers see inconsistent ordering and duplicate reconciliation work</td>
+</tr>
+<tr>
+<td>Question</td>
+<td>How should we create a single, reliable settlement event stream?</td>
+</tr>
+<tr>
+<td>Answer</td>
+<td>Create an owned settlement event service with idempotent publication and explicit schemas</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="lead-with-the-answer">Lead with the answer</h3>
+<p>Busy reviewers should understand your recommendation in the first page. Details then support the recommendation rather than forcing readers to infer it.</p>
+<h3 id="be-opinionated-and-honest">Be opinionated and honest</h3>
+<p>Do not pretend every option is equal. State the recommended path. Then survey alternatives honestly so disagreement focuses on facts and trade-offs rather than hidden assumptions.</p>
+<h3 id="make-risk-concrete">Make risk concrete</h3>
+<p>Replace &quot;may have scalability issues&quot; with &quot;at 2,000 writes per second, the single-writer partition becomes the bottleneck; mitigation is sharding by tenant after milestone two.&quot;</p>
+<h2 id="7-review-culture-and-decision-quality">7. Review culture and decision quality</h2>
+<p>Writing only works when review culture is healthy. Staff+ engineers should model disagreement that is rigorous and non-performative.</p>
+<p>Good review comments:</p>
+<ul>
+<li>Challenge assumptions with evidence.</li>
+<li>Separate must-fix issues from preferences.</li>
+<li>Identify missing stakeholders.</li>
+<li>Ask whether the design can fail safely.</li>
+<li>Connect feedback to goals, non-goals, and constraints.</li>
+</ul>
+<p>Bad review comments:</p>
+<ul>
+<li>Re-litigate scope already marked as a non-goal.</li>
+<li>Demand the reviewer's favorite technology without context.</li>
+<li>Block on style rather than decision quality.</li>
+<li>Hide disagreement in private side channels.</li>
+</ul>
+<h2 id="8-what-good-looks-like-at-staff">8. What &quot;good&quot; looks like at Staff+</h2>
+<ul>
+<li>You choose the right artifact: code, mini-doc, full design doc, RFC, or ADR.</li>
+<li>Your docs make trade-offs, alternatives, ownership, and risks explicit.</li>
+<li>Reviewers can disagree early without needing political escalation.</li>
+<li>Future engineers can reconstruct why important choices were made.</li>
+<li>You maintain decision artifacts during delivery and supersede them when reality changes.</li>
+<li>You teach others to write better docs by leaving clear examples and review comments.</li>
+</ul>
+<h2 id="9-common-pitfalls">9. Common pitfalls</h2>
+<ul>
+<li>Writing a long doc to avoid making a decision.</li>
+<li>Treating an RFC as a consensus vote instead of a recommendation plus accountable decision.</li>
+<li>Omitting non-goals, which invites infinite scope expansion.</li>
+<li>Hiding security, privacy, observability, migration, and operational concerns until late.</li>
+<li>Editing ADRs after the fact instead of creating superseding records.</li>
+<li>Using diagrams as decoration rather than as tools for reasoning.</li>
+<li>Confusing polished prose with clear thinking.</li>
+</ul>
+<h2 id="10-further-reading">10. Further reading</h2>
+<ul>
+<li>Design Docs at Google: <a href="https://www.industrialempathy.com/posts/design-docs-at-google/" target="_blank" rel="noopener">https://www.industrialempathy.com/posts/design-docs-at-google/</a></li>
+<li>ADR home and registry: <a href="https://adr.github.io/" target="_blank" rel="noopener">https://adr.github.io/</a></li>
+<li>ADR templates: <a href="https://github.com/joelparkerhenderson/architecture-decision-record" target="_blank" rel="noopener">https://github.com/joelparkerhenderson/architecture-decision-record</a></li>
+<li>Michael Nygard's original ADR post: <a href="https://www.cognitect.com/blog/2011/11/15/documenting-architecture-decisions" target="_blank" rel="noopener">https://www.cognitect.com/blog/2011/11/15/documenting-architecture-decisions</a></li>
+<li>RFCs at scale: <a href="https://blog.pragmaticengineer.com/scaling-engineering-teams-via-writing-things-down-rfcs/" target="_blank" rel="noopener">https://blog.pragmaticengineer.com/scaling-engineering-teams-via-writing-things-down-rfcs/</a></li>
+</ul>
+
+<div class="primary-source">
+  <span class="label">Read this next (primary source)</span>
+  <p>Malte Ubl &mdash; <a href="https://www.industrialempathy.com/posts/design-docs-at-google/" target="_blank" rel="noopener"><em>Design Docs at Google</em></a> for the anatomy (context, goals and non-goals, alternatives, cross-cutting concerns) and when not to write one. Michael Nygard &mdash; <a href="https://www.cognitect.com/blog/2011/11/15/documenting-architecture-decisions" target="_blank" rel="noopener"><em>Documenting Architecture Decisions</em></a>, the original ADR post: short, and still the best template.</p>
+</div>
+
+<h2 id="11-check-yourself">11. Check yourself</h2>
+<p>Retrieve before revealing.</p>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 1 of 3</p>
+  <p class="quiz-q">A team plans a 15-page design doc for renaming an internal function used in one service. The change is local, well understood and easy to revert. Your advice:</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="Even a mini doc is ceremony here; there is no decision space to record.">write a mini design doc so the decision is on record for later</button></li>
+    <li><button data-correct="true" data-feedback="Right — local, reversible and well understood: the code is cheaper than the prose.">skip the doc: there are no real trade-offs, so show it in a PR</button></li>
+    <li><button data-correct="false" data-feedback="ADRs are for architecturally significant decisions, not every rename.">write an ADR instead, since every change deserves a decision record</button></li>
+    <li><button data-correct="false" data-feedback="Nobody outside the service is affected, so a wide input window adds delay and nothing else.">open an RFC so other teams can weigh in before the change ships</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Write a design doc when there are real trade-offs. If a change is local, reversible and well understood, write the code."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 2 of 3</p>
+  <p class="quiz-q">Two years ago an accepted ADR chose managed PostgreSQL for customer configuration. The team is now moving that data to a document store. What should happen to the ADR?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="true" data-feedback="Right — the log stays a true history: the old reasoning and the new decision are both visible.">write a new ADR that supersedes it; mark the old one superseded</button></li>
+    <li><button data-correct="false" data-feedback="Editing history hides why the first choice made sense, which is exactly what future readers need.">edit the old ADR&rsquo;s decision section so the log reflects reality</button></li>
+    <li><button data-correct="false" data-feedback="Deleting it loses the decision trail. Superseded status already tells readers not to follow it.">delete the old ADR so that nobody follows any outdated guidance</button></li>
+    <li><button data-correct="false" data-feedback="ADRs are timestamped and immutable; a new date makes the history misleading.">add a comment to the old ADR and change its date to today</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="ADRs are timestamped and immutable. A change of mind is a new ADR that supersedes the old one."></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <p class="quiz-kicker">Retrieval practice · 3 of 3</p>
+  <p class="quiz-q">An RFC has had a six-week comment window, 140 comments and three co-authors rewriting sections to address every concern. There is still no decision. What is the fix?</p>
+  <ul class="quiz-options">
+    <li><button data-correct="false" data-feedback="Committee writing is part of the problem: it optimises for avoiding conflict, not for clarity.">add more co-authors so that every affected team is represented</button></li>
+    <li><button data-correct="false" data-feedback="Indefinite review is how decisions arrive after the implementation is already entrenched.">extend the review window until every single comment is resolved</button></li>
+    <li><button data-correct="false" data-feedback="An RFC is a recommendation plus an accountable decision, not a consensus vote.">hold a vote among commenters and adopt the majority position</button></li>
+    <li><button data-correct="true" data-feedback="Right — gather input widely, write alone, decide explicitly, and record the disagreement.">one author synthesises, a named owner decides, dissent is logged</button></li>
+  </ul>
+  <div class="quiz-explain" hidden data-base="Gather input widely, but write alone: a short review window, a single author, an explicit decision owner and recorded disagreement."></div>
+</div>
+
+<div class="callout tryit">
+  <span class="label">Try it in your own system</span>
+  <ul class="checklist">
+    <li>Pick a decision your team made in a meeting or chat last month. Write it up as an ADR: title, status, context, decision, consequences.</li>
+    <li>Open your last design doc. Does it have explicit non-goals, and an &ldquo;alternatives considered&rdquo; section a fair critic would accept?</li>
+    <li>Rewrite the opening of a doc you own with SCQA, so the recommendation is on the first page.</li>
+    <li>Find one vague risk (&ldquo;may not scale&rdquo;) in a doc and replace it with a number, the bottleneck and a mitigation.</li>
+    <li>Check your RFC process: is there a review window, a named decision owner, and a place where disagreement is recorded?</li>
+  </ul>
+</div>
+
+<div class="followup">
+  <strong>I&rsquo;m your teacher &mdash; ask me anything.</strong> Paste the outline of a design doc you are drafting and we&rsquo;ll stress-test its goals, non-goals and alternatives &mdash; or bring a decision from last week and we&rsquo;ll write its ADR together.
+</div>
+
+<nav class="lesson-nav">
+  <span class="group">
+    <b>Previous</b>
+    <a href="0004-engineering-strategy-and-vision.html">&larr; Lesson 04 · Strategy & vision</a>
+  </span>
+  <span class="group">
+    <b>Reference</b>
+    <a href="../reference/0005-technical-writing-docs-rfcs-adrs-cheatsheet.html">Design docs, RFCs & ADRs cheat sheet &rarr;</a>
+  </span>
+  <span class="group">
+    <b>Course map</b>
+    <a href="../index.html">&uarr; All lessons</a>
+  </span>
+  <span class="group">
+    <b>Up next</b>
+    <a href="0006-security-and-privacy.html">Lesson 06 · Security & privacy &rarr;</a>
+  </span>
+</nav>
+
+</body>
+</html>

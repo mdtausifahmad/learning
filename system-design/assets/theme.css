@@ -1,0 +1,16 @@
+/* ===========================================================================
+   System Design — course theme (loaded after /assets/course/course.css)
+   Distinct COBALT identity (blueprints, architecture diagrams).
+   =========================================================================== */
+
+:root {
+  --accent:        #1f4f8f;   /* deep cobalt — primary identity, used sparingly */
+  --link:          #1f4f8f;
+  --insight-bg:    #eaf0f8;
+  --insight-br:    #2f64a8;
+  --correct-ink:   #18355f;
+  --accent-hover:  #173c6d;
+  --accent-glow:   rgba(47, 100, 168, .55);
+  --accent-past:   rgba(47, 100, 168, .4);
+  --accent-shadow: rgba(31, 79, 143, .4);
+}
