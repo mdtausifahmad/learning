@@ -1,0 +1,273 @@
+{
+  "id": "16",
+  "slug": "greedy",
+  "title": "Greedy choices and exchange arguments",
+  "group": "Optimization",
+  "prerequisites": "Sorting, intervals (06), heaps (10)",
+  "estimatedMinutes": 120,
+  "motivation": "Commit to one local choice only after proving an optimal solution can be transformed to contain it.",
+  "recognition": [
+    "A decision permanently consumes a resource, and the remaining problem has the same structure. Look for an exchange argument, not a keyword.",
+    "Sorted thresholds, earliest finishes, and dominance can make one partial solution at least as good for every possible future.",
+    "If a locally attractive choice can harm future feasibility, a greedy rule needs repair or the problem needs DP."
+  ],
+  "mentalModel": "Start with an everyday decision: you have cookies of different sizes and children with minimum acceptable sizes. Giving a very large cookie to a child who would accept a small one feels wasteful. But \u201cfeels wasteful\u201d is not yet an algorithm. We need to show that the smaller adequate cookie can replace the larger one in an optimal assignment without reducing the number of satisfied children. That replacement is an **exchange**.\n\nA greedy algorithm makes a choice and does not revisit it. Backtracking explores alternatives; dynamic programming compares alternatives while sharing repeated subproblems. Greedy avoids those alternatives entirely, so its proof has to justify discarding them. Its speed comes from a structural theorem, not from confidence.\n\nTo discover a rule, write two plausible choices and invent the smallest input on which they differ. In interval selection, sorting by earliest start is plausible, but `[0,100], [1,2], [2,3]` makes it fail when touching endpoints are allowed: the first interval blocks two others. Sorting by earliest finish leaves at least as much room for the future. Replace the first interval of an optimal schedule with the earliest-finishing compatible interval. The remaining selected intervals still fit. Repeat the argument on the suffix.\n\nThere are two common proof shapes. In an exchange argument, transform some optimal solution to agree with your first choice, then solve the smaller instance. In a stays-ahead argument, compare prefixes: after each processed item, your summary dominates every competitor's summary. For reachability in an array, the largest reachable index is enough; paths reaching an earlier boundary cannot enable anything the farther-reaching prefix cannot.\n\nSometimes one scan cannot satisfy all local constraints. Candy assignment has a left-neighbor requirement and a right-neighbor requirement. A left-to-right pass computes the minimum needed for one direction. A right-to-left pass computes the other. Taking the larger requirement at every position satisfies both, and each requirement is a necessary lower bound. This is a greedy construction backed by a minimality proof.\n\nAlways separate the **ordering** from the **choice**. Sorting is preprocessing; it does not itself prove optimality. Write the objective, the exchange, and the feasibility conditions. If the objective changes from number of intervals to total interval value, earliest finish is no longer sufficient: `[0,2]` worth 100 beats `[0,1]` worth 1 plus `[1,2]` worth 1. The problem has become weighted scheduling and generally needs DP.",
+  "invariant": "After each irreversible decision, there exists an optimal solution whose decisions agree with the chosen prefix, or the maintained summary dominates every reachable competitor. State which form applies to the specific problem. Initialization has an empty prefix; maintenance follows from a feasibility-preserving exchange or a dominance comparison; termination converts the prefix theorem into global optimality.",
+  "wrongTurns": [
+    {
+      "temptation": "Choose the largest immediate reward without an exchange proof",
+      "counterexample": "Coin denominations [1,3,4], amount 6: taking 4 first produces 4+1+1 (3 coins), while 3+3 uses 2. Local denomination size does not dominate the future remainder.",
+      "repair": "Use amount-based DP for arbitrary denominations, or prove a special property of the denomination system."
+    },
+    {
+      "temptation": "Reuse an unweighted greedy rule after adding weights",
+      "counterexample": "Intervals [0,1] value 1, [1,2] value 1, [0,2] value 100: earliest finish maximizes count but selects total value 2 instead of 100.",
+      "repair": "Define the objective first. Weighted scheduling needs predecessor compatibility and a choose/skip DP; an unweighted exchange does not preserve value."
+    }
+  ],
+  "diagram": {
+    "caption": "A greedy proof exchanges a choice in an optimal solution, then recurses on the remaining instance.",
+    "nodes": [
+      "Optimal solution O",
+      "Swap first choice",
+      "Same-quality O\u2032",
+      "Smaller remaining task"
+    ],
+    "edges": [
+      [
+        0,
+        1,
+        "exchange"
+      ],
+      [
+        1,
+        2,
+        "feasible"
+      ],
+      [
+        2,
+        3,
+        "repeat"
+      ]
+    ]
+  },
+  "trace": [
+    {
+      "state": "greed=[1,2,3], cookies=[1,1,3]; next child i=0",
+      "explanation": "Sort both sequences. The smallest unsatisfied threshold is 1."
+    },
+    {
+      "state": "cookie 1 satisfies child 1; i=1, count=1",
+      "explanation": "Use the smallest adequate resource. Any solution using a larger one can exchange it."
+    },
+    {
+      "state": "next cookie 1 < threshold 2; skip cookie; i=1",
+      "explanation": "This cookie cannot satisfy this child or any later child, so discarding it is safe."
+    },
+    {
+      "state": "cookie 3 satisfies threshold 2; i=2, count=2; no cookies remain",
+      "explanation": "Two children are satisfied. Assigning 3 to threshold 3 instead cannot increase the count."
+    }
+  ],
+  "problems": [
+    {
+      "title": "Assign cookies",
+      "difficulty": "Easy",
+      "statement": "Given nonnegative minimum sizes greed and nonnegative cookie sizes, maximize the number of satisfied children. Each cookie can be assigned to at most one child. Empty arrays are valid. Inputs are not mutated.",
+      "example": "greed=[1,2,3], sizes=[1,1,3] \u2192 2. The two size-1 cookies cannot both help threshold 2.",
+      "baseline": "Try all assignments, exponentially many in the numbers of children and cookies; store a used-cookie set in O(m) space.",
+      "reasoning": [
+        "Sort copies of both arrays, so the next child has the smallest unmet threshold.",
+        "If a cookie is too small for that child, it is too small for every remaining child. Discard it.",
+        "Otherwise assign it. In an optimal assignment using a larger cookie for this child, exchange the two cookies; any other child previously using the smaller cookie can accept the larger one.",
+        "After all cookies or children are exhausted, the agreeing optimal assignment proves the count is maximal."
+      ],
+      "invariant": "There exists an optimal assignment agreeing with the matches made so far. Skipped undersized cookies cannot satisfy any remaining child.",
+      "java": "static int cookies(int[] greed, int[] sizes) {\n    int[] g=greed.clone(), s=sizes.clone();\n    Arrays.sort(g); Arrays.sort(s);\n    int i=0;\n    for(int size:s) if(i<g.length && size>=g[i]) i++;\n    return i;\n}",
+      "kotlin": "fun cookies(greed: IntArray, sizes: IntArray): Int {\n    val g=greed.sortedArray(); val s=sizes.sortedArray()\n    var i=0\n    for(size in s) if(i<g.size && size>=g[i]) i++\n    return i\n}",
+      "complexity": "For n children and m cookies: O(n log n + m log m) time, O(n+m) auxiliary space for copies plus sort workspace. Output is O(1).",
+      "edgeCases": [
+        "[], [1] \u2192 0",
+        "[2], [1] \u2192 0",
+        "[1,1], [1,1] \u2192 2"
+      ],
+      "twist": "If each child has a different reward, maximizing count and maximizing reward diverge. Re-derive the objective; the threshold exchange alone is insufficient.",
+      "source": "https://leetcode.com/problems/assign-cookies/",
+      "testJava": "if(cookies(new int[]{1,2,3},new int[]{1,1,3})!=2 || cookies(new int[]{},new int[]{1})!=0) throw new AssertionError();",
+      "testKotlin": "check(cookies(intArrayOf(1,2,3),intArrayOf(1,1,3))==2); check(cookies(intArrayOf(),intArrayOf(1))==0)"
+    },
+    {
+      "title": "Jump game: reachable frontier",
+      "difficulty": "Medium",
+      "statement": "A nonnegative array a gives the maximum forward jump length from each index. Decide whether the last index is reachable from index 0. Empty input returns false. Do not mutate the array.",
+      "example": "[2,3,1,1,4] \u2192 true; [3,2,1,0,4] \u2192 false.",
+      "baseline": "Enumerate every possible jump path: exponential worst-case time, O(n) recursive depth. A visited-state DP improves this to O(n\u00b2) time and O(n) space.",
+      "reasoning": [
+        "Reachable indices form a prefix: from any reachable index you can choose any smaller allowed forward step.",
+        "Store far, the largest reachable index using processed positions. Process i only when i\u2264far.",
+        "Update far with i+a[i], promoting before addition. If far covers the end, report true.",
+        "If i exceeds far, no processed reachable position can cross the gap, so no future position can help."
+      ],
+      "invariant": "Before processing i, all positions through far are reachable, and far is the maximum endpoint generated by processed reachable positions. The endpoint only grows.",
+      "java": "static boolean canJump(int[] a) {\n    if(a.length==0) return false;\n    long far=0;\n    for(int i=0;i<a.length;i++) {\n        if(i>far) return false;\n        far=Math.max(far,(long)i+a[i]);\n        if(far>=a.length-1) return true;\n    }\n    return false;\n}",
+      "kotlin": "fun canJump(a: IntArray): Boolean {\n    if(a.isEmpty()) return false\n    var far=0L\n    for(i in a.indices) {\n        if(i.toLong()>far) return false\n        far=maxOf(far,i.toLong()+a[i])\n        if(far>=a.lastIndex.toLong()) return true\n    }\n    return false\n}",
+      "complexity": "O(n) time, O(1) auxiliary and output space. far uses 64-bit arithmetic.",
+      "edgeCases": [
+        "[0] \u2192 true",
+        "[0,1] \u2192 false",
+        "[] \u2192 false"
+      ],
+      "twist": "To minimize jumps, count expansions of BFS-like reachable layers. Merely returning far loses how many jumps were needed; retain the current layer end and the next farthest end.",
+      "source": "https://leetcode.com/problems/jump-game/",
+      "testJava": "if(!canJump(new int[]{2,3,1,1,4}) || canJump(new int[]{3,2,1,0,4}) || canJump(new int[]{})) throw new AssertionError();",
+      "testKotlin": "check(canJump(intArrayOf(2,3,1,1,4))); check(!canJump(intArrayOf(3,2,1,0,4))); check(!canJump(intArrayOf()))"
+    },
+    {
+      "title": "Partition labels",
+      "difficulty": "Medium",
+      "statement": "Partition a lowercase-English-letter string into the maximum number of nonempty contiguous parts such that each letter appears in at most one part. Return part lengths. Empty input returns an empty list.",
+      "example": "ababcbacadefegdehijhklij \u2192 [9,7,8].",
+      "baseline": "Try every cut set (2^(n\u22121) for nonempty strings) and validate whether letters cross cuts. O(n\u00b72^n) time, O(n) working space.",
+      "reasoning": [
+        "Precompute the last occurrence of every letter. Any part containing position i must extend through last[s[i]].",
+        "Scan and extend end to the largest required last position seen in the current part.",
+        "When i=end, every letter in the current part has finished. Cutting is feasible.",
+        "No earlier cut was feasible, so cutting immediately leaves the maximum opportunity for later parts."
+      ],
+      "invariant": "end is the farthest last occurrence of all letters read in the current part. No valid cut exists inside that unfinished closure.",
+      "java": "static List<Integer> partitions(String s) {\n    int[] last=new int[26];\n    for(int i=0;i<s.length();i++) last[s.charAt(i)-'a']=i;\n    List<Integer> out=new ArrayList<>(); int start=0,end=0;\n    for(int i=0;i<s.length();i++) {\n        end=Math.max(end,last[s.charAt(i)-'a']);\n        if(i==end){out.add(i-start+1);start=i+1;}\n    }\n    return out;\n}",
+      "kotlin": "fun partitions(s: String): List<Int> {\n    val last=IntArray(26)\n    for(i in s.indices) last[s[i]-'a']=i\n    val out=mutableListOf<Int>(); var start=0; var end=0\n    for(i in s.indices) {\n        end=maxOf(end,last[s[i]-'a'])\n        if(i==end){out.add(i-start+1);start=i+1}\n    }\n    return out\n}",
+      "complexity": "O(n+26) time, O(26) auxiliary space, O(p) output for p parts. The fixed alphabet is an explicit contract.",
+      "edgeCases": [
+        "empty string \u2192 []",
+        "aaaa \u2192 [4]",
+        "abc \u2192 [1,1,1]"
+      ],
+      "twist": "For arbitrary Unicode code points, index by code points and store their last positions in a map; define whether returned lengths count code points or UTF-16 units.",
+      "source": "https://leetcode.com/problems/partition-labels/",
+      "testJava": "if(!partitions(\"ababcbacadefegdehijhklij\").equals(Arrays.asList(9,7,8)) || !partitions(\"\").isEmpty()) throw new AssertionError();",
+      "testKotlin": "check(partitions(\"ababcbacadefegdehijhklij\")==listOf(9,7,8)); check(partitions(\"\").isEmpty())"
+    },
+    {
+      "title": "Candy: two directional lower bounds",
+      "difficulty": "Hard",
+      "statement": "Give each child at least one candy. A child with a strictly higher rating than an immediate neighbor must receive more candies than that neighbor. Minimize the total. Ratings may be any Int; empty input returns 0. Input is not mutated.",
+      "example": "[1,0,2] \u2192 5 with [2,1,2]. [1,2,2] \u2192 4 with [1,2,1]. Equal ratings impose no ordering.",
+      "baseline": "Enumerate positive candy vectors and test constraints. With n children a solution never needs more than n per child, but n^n candidates are impractical; O(n) validation each.",
+      "reasoning": [
+        "A left-to-right increasing run forces candies 1,2,3,\u2026 . Compute these necessary left requirements.",
+        "Scan right to left with a scalar right requirement, incrementing when the current rating exceeds the next.",
+        "At each index take max(left[i],right). Both directional requirements are necessary; the maximum satisfies both.",
+        "Sum in long/Long. Each chosen amount equals the smallest value satisfying the two independent lower bounds, proving total minimality."
+      ],
+      "invariant": "left[i] is the minimum candy amount satisfying all constraints from the left. During the reverse scan right is the analogous minimum from the right. Their pointwise maximum is feasible and no feasible vector can be smaller at any index.",
+      "java": "static long candy(int[] rating) {\n    int n=rating.length; if(n==0) return 0L;\n    int[] left=new int[n]; Arrays.fill(left,1);\n    for(int i=1;i<n;i++) if(rating[i]>rating[i-1]) left[i]=left[i-1]+1;\n    int right=1; long total=left[n-1];\n    for(int i=n-2;i>=0;i--) {\n        right=rating[i]>rating[i+1]?right+1:1;\n        total+=Math.max(left[i],right);\n    }\n    return total;\n}",
+      "kotlin": "fun candy(rating: IntArray): Long {\n    val n=rating.size; if(n==0) return 0L\n    val left=IntArray(n){1}\n    for(i in 1 until n) if(rating[i]>rating[i-1]) left[i]=left[i-1]+1\n    var right=1; var total=left[n-1].toLong()\n    for(i in n-2 downTo 0) {\n        right=if(rating[i]>rating[i+1]) right+1 else 1\n        total+=maxOf(left[i],right).toLong()\n    }\n    return total\n}",
+      "complexity": "O(n) time, O(n) auxiliary space. The total can be \u0398(n\u00b2), so it uses 64 bits. Output is one number.",
+      "edgeCases": [
+        "[] \u2192 0",
+        "[7] \u2192 1",
+        "[1,2,2] \u2192 4",
+        "[3,2,1] \u2192 6"
+      ],
+      "twist": "A circular arrangement adds an edge from the last child to the first. The linear proof no longer covers every neighbor relation; start from a global minimum or use an ordering-based graph assignment.",
+      "source": "https://leetcode.com/problems/candy/",
+      "testJava": "if(candy(new int[]{1,0,2})!=5 || candy(new int[]{1,2,2})!=4 || candy(new int[]{})!=0) throw new AssertionError();",
+      "testKotlin": "check(candy(intArrayOf(1,0,2))==5L); check(candy(intArrayOf(1,2,2))==4L); check(candy(intArrayOf())==0L)"
+    }
+  ],
+  "practice": [
+    {
+      "title": "Non-overlapping intervals",
+      "difficulty": "Medium",
+      "url": "https://leetcode.com/problems/non-overlapping-intervals/",
+      "hint": "Which first selected interval leaves the most future room?",
+      "approach": "Sort by finish, keep an interval if start\u2265previous end, count deletions. Exchange the first interval of any optimal set with the earliest-finishing interval. O(n log n) time; O(n) space if copying input."
+    },
+    {
+      "title": "Jump game II",
+      "difficulty": "Medium",
+      "url": "https://leetcode.com/problems/jump-game-ii/",
+      "hint": "Turn reachable frontiers into layers.",
+      "approach": "Track current layer end and farthest next end. When reaching the layer end, commit one jump. Detect unreachable gaps if the contract allows them. O(n) time, O(1) auxiliary space."
+    },
+    {
+      "title": "Gas station",
+      "difficulty": "Medium",
+      "url": "https://leetcode.com/problems/gas-station/",
+      "hint": "What does a failed candidate tell you about every interior start?",
+      "approach": "Maintain net total and candidate tank. If tank falls below zero at i, no station since the current candidate can reach i+1; reset to i+1. Total\u22650 ensures the surviving candidate works. O(n) time and O(1) space with 64-bit sums."
+    },
+    {
+      "title": "Task scheduler",
+      "difficulty": "Medium",
+      "url": "https://leetcode.com/problems/task-scheduler/",
+      "hint": "The most frequent task creates forced gaps.",
+      "approach": "For unit tasks with a common cooldown k, the lower bound is max(N,(f\u22121)(k+1)+c), with c tasks attaining maximum frequency f. Argue construction or simulate with a heap/cooldown queue. O(N+alphabet) counting time; cooldown assumptions matter."
+    },
+    {
+      "title": "Merge triplets to form target triplet",
+      "difficulty": "Medium",
+      "url": "https://leetcode.com/problems/merge-triplets-to-form-target-triplet/",
+      "hint": "Can any coordinate exceeding the target ever be undone?",
+      "approach": "Discard triplets exceeding a target coordinate. For each coordinate mark whether an eligible triplet reaches the target there. Coordinatewise maxima combine independently. O(n) time and O(1) space."
+    },
+    {
+      "title": "Maximum performance of a team",
+      "difficulty": "Hard",
+      "url": "https://leetcode.com/problems/maximum-performance-of-a-team/",
+      "hint": "Freeze the bottleneck efficiency, then optimize speeds.",
+      "approach": "Sort engineers by descending efficiency; keep at most k largest speeds using a min-heap and a running sum. Evaluate sum\u00d7current efficiency. O(n log n+n log k) time, O(n+k) space including sorted records. Use 64-bit arithmetic and apply modulus only to the final maximum."
+    }
+  ],
+  "quiz": [
+    {
+      "question": "Why is earliest finish valid for unweighted interval count?",
+      "choices": [
+        "It always selects the shortest interval",
+        "An optimal first interval can be replaced without reducing future feasibility",
+        "Sorting automatically proves optimality"
+      ],
+      "answer": 1,
+      "explanation": "The exchange preserves count and leaves an endpoint no later, so every later selected interval remains feasible."
+    },
+    {
+      "question": "The jump array can contain negative maximum jumps. Can the same prefix proof be used?",
+      "choices": [
+        "Yes, unchanged",
+        "No; first define the new movement contract and reachability structure",
+        "Yes, if we sort it"
+      ],
+      "answer": 1,
+      "explanation": "The proof uses the ability to choose any forward distance from zero through a nonnegative maximum. Changing the movement model can destroy prefix reachability."
+    }
+  ],
+  "transfer": {
+    "prompt": "A camera battery can cover any interval of time up to its charge length. Given start/end times for shows on one camera, choose the largest number of complete nonoverlapping shows. Touching endpoints are allowed. Now each show has a different revenue: does the same method maximize revenue?",
+    "hints": [
+      "Ignore revenue first. Compare two possible first shows by their end times.",
+      "Try one long high-revenue show versus two short low-revenue shows."
+    ],
+    "solution": "For count, sort by ending time and greedily accept compatible shows: exchange any optimal first show with the earliest-finishing one. O(n log n) time. Revenue breaks the count-preserving exchange; sort by end, find each compatible predecessor by binary search and use dp[i]=max(dp[i\u22121],value[i]+dp[p(i)]), O(n log n) time and O(n) space."
+  },
+  "review": [
+    "Derive the cookie exchange without referring to the code.",
+    "Give a minimum-size counterexample to largest-coin-first.",
+    "Explain why max(left,right), rather than their sum, is the minimal candy assignment.",
+    "Distinguish a greedy choice from the data structure used to implement it."
+  ],
+  "sources": [
+    {
+      "label": "MIT 6.006 course materials",
+      "url": "https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-fall-2011/",
+      "note": "Reference link; not retrieved in this run. Primary algorithm-course reference for correctness and optimization; live retrieval status is documented separately.",
+      "status": "unverified"
+    },
+    {
+      "label": "Princeton Algorithms: minimum spanning trees",
+      "url": "https://algs4.cs.princeton.edu/43mst/",
+      "note": "Reference link; not retrieved in this run. Further study in greedy proofs and cut properties; not evidence of company question frequency.",
+      "status": "unverified"
+    }
+  ]
+}

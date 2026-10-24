@@ -1,0 +1,293 @@
+{
+  "id": "19",
+  "slug": "range-queries",
+  "title": "Range queries: precompute reusable pieces, then update only dependencies",
+  "group": "Advanced data structures",
+  "prerequisites": "Arrays, prefix sums, binary search, trees; Lessons 02,06,09",
+  "estimatedMinutes": 190,
+  "motivation": "A single interval query can scan its elements. Thousands of overlapping queries repeat the same additions or comparisons. Prefix arrays, Fenwick trees, and segment trees store reusable summaries; the right choice depends on whether values change and which operation the query combines.",
+  "recognition": [
+    "Many queries ask for an aggregate over contiguous intervals of the same array.",
+    "Static sums allow subtracting two prefixes, but point updates would invalidate many prefixes.",
+    "The aggregate is associative, such as sum, minimum, maximum, gcd, or matrix multiplication: fixed interval summaries may compose.",
+    "A value-order question such as counts smaller than a threshold can become a prefix query after coordinate compression."
+  ],
+  "mentalModel": "First fix the interval convention. This lesson uses half-open [left,right): include left, exclude right. Its length is right-left, the full array is [0,n), and an empty interval has left==right. Prefix P[k] aggregates the first k elements, so P[0] is the identity and a range sum is P[right]-P[left]. Writing the convention before the algorithm prevents a large class of off-by-one mistakes.\n\nA static prefix array works because addition has an inverse. The unwanted left prefix can be subtracted. Maximum has no such inverse: if prefix maxima are [5,5], those summaries cannot reveal whether the second value is 1 or 4. Associativity alone permits combining summaries, but subtraction requires more structure. This distinction explains why a prefix-max array cannot replace a segment tree.\n\nUpdates expose the weakness of complete prefixes. Changing a[0] affects every later prefix. A Fenwick tree stores selected blocks instead: at one-based index i, the stored interval ends at i and has length lowbit(i)=i & -i. For i=12, binary 1100, lowbit is 4, so the block covers one-based positions 9..12. A prefix query repeatedly subtracts lowbit to collect disjoint blocks; a point update repeatedly adds lowbit to visit every stored block containing that point. Each step changes a binary boundary, yielding O(log n) work. One-based indexing is essential: lowbit(0)=0 would never advance.\n\nA segment tree explicitly stores summaries of a hierarchy of intervals. A leaf describes one element; a parent combines two child summaries. Changing one leaf invalidates only its ancestors. A query selects disjoint stored intervals whose union is the requested range. This works for any associative combine operation with an identity; commutativity is unnecessary if left-to-right order is preserved. The maximum implementation below uses an iterative 2n layout and a nonempty query result initialized to Long.MIN_VALUE. Empty intervals return null because no maximum exists.\n\nCoordinate compression changes the axis. When only ordering matters, replace values by their ranks among distinct sorted values. Negative numbers and large gaps do not matter; equality must retain the same rank. Scanning an array from right to left then allows a frequency Fenwick tree to count how many already seen values have smaller ranks. This is not a spatial range query over original indices; it is a range query over value order.\n\nNumeric contracts matter for sums. Long is wider than Int but still finite. The sum examples require every aggregate and intermediate subtraction/update to fit signed Long; they do not silently promise arbitrary-precision arithmetic. Maximum and rank counts have different numeric risks and should be analyzed separately.",
+  "invariant": "Each stored summary corresponds to a precisely defined set of original elements. A query combines disjoint summaries covering exactly the requested interval, with neither gaps nor double counting. An update changes exactly the summaries whose sets contain the modified point. For compression, rank order and equality match original value order, so prefix frequency answers preserve the original comparison meaning.",
+  "wrongTurns": [
+    {
+      "temptation": "Compute a range maximum by subtracting two prefix maxima.",
+      "counterexample": "Arrays [5,1] and [5,4] both have prefix maxima [5,5]. Their range [1,2) maxima are 1 and 4, so no subtraction of those equal summaries can recover the answer.",
+      "repair": "Use a segment tree for mutable associative aggregates, or an appropriate sparse table for static idempotent queries."
+    },
+    {
+      "temptation": "Use index zero directly in a one-based Fenwick update loop.",
+      "counterexample": "With i=0, i & -i=0. The update i+=lowbit(i) stays at zero forever and the loop does not terminate.",
+      "repair": "Translate external index p to internal p+1; prefix queries receive a count of elements and stop at zero."
+    }
+  ],
+  "diagram": {
+    "caption": "Fenwick prefix(13) decomposes the first 13 elements into disjoint blocks.",
+    "nodes": [
+      "prefix end 13 (1101)",
+      "block 13..13, length 1",
+      "prefix end 12 (1100)",
+      "block 9..12, length 4",
+      "prefix end 8 (1000)",
+      "block 1..8, length 8",
+      "end 0"
+    ],
+    "edges": [
+      [
+        0,
+        1,
+        "take lowbit block"
+      ],
+      [
+        0,
+        2,
+        "subtract 1"
+      ],
+      [
+        2,
+        3,
+        "take lowbit block"
+      ],
+      [
+        2,
+        4,
+        "subtract 4"
+      ],
+      [
+        4,
+        5,
+        "take lowbit block"
+      ],
+      [
+        4,
+        6,
+        "subtract 8"
+      ]
+    ]
+  },
+  "trace": [
+    {
+      "state": "Values [3,-1,4,2]; one-based Fenwick blocks: bit[1]=3, bit[2]=2, bit[3]=4, bit[4]=8.",
+      "explanation": "Each bit entry sums its lowbit-sized block ending at that index."
+    },
+    {
+      "state": "Query [1,4): prefix(4)=bit[4]=8; prefix(1)=bit[1]=3; result=5.",
+      "explanation": "Subtract the first element to keep -1+4+2."
+    },
+    {
+      "state": "add external index 1 by +5: internal path 2\u21924; bit[2]=7, bit[4]=13.",
+      "explanation": "Only stored blocks containing original index 1 change; bit[1] and bit[3] stay fixed."
+    },
+    {
+      "state": "Values now [3,4,4,2]; query [1,4)=13-3=10; query [2,2)=0.",
+      "explanation": "The same decomposition remains valid after updating its exact dependencies."
+    }
+  ],
+  "problems": [
+    {
+      "title": "Static range sums with an empty prefix",
+      "difficulty": "Easy",
+      "statement": "Construct RangeSum from a non-null Long array, then answer sum(left,right) over half-open intervals with 0\u2264left\u2264right\u2264n. Invalid bounds throw. Empty intervals return 0, including [0,0) on empty input. Copy required summaries so later caller mutation has no effect. Assume all prefix sums and returned differences fit signed Long.",
+      "example": "[3,-1,4,2], sum(1,4)=5; sum(2,2)=0.",
+      "baseline": "Scan each requested range: O(length) per query, O(1) extra state; Q full-range queries cost O(Qn).",
+      "reasoning": [
+        "Define prefix[k] as the sum of the first k values. Start with prefix[0]=0, then compute prefix[i+1]=prefix[i]+a[i]. This also gives a valid representation for empty input.",
+        "The sum through right contains the unwanted first left values exactly once. Subtract prefix[left] to retain precisely [left,right). The half-open convention makes both endpoints direct prefix indices.",
+        "Check both ordering and bounds before indexing. A precomputed prefix snapshot means subsequent caller array mutation does not silently change the query object."
+      ],
+      "invariant": "prefix[k] equals the sum of a[0] through a[k-1] from construction time, so subtracting two nested prefixes leaves exactly the requested interval.",
+      "java": "static class RangeSum {\n private final long[] prefix;\n RangeSum(long[] values) {\n  prefix=new long[values.length+1];\n  for(int i=0;i<values.length;i++) prefix[i+1]=prefix[i]+values[i];\n }\n long sum(int left,int right) {\n  int n=prefix.length-1;\n  if(left<0||left>right||right>n) throw new IndexOutOfBoundsException();\n  return prefix[right]-prefix[left];\n }\n}",
+      "kotlin": "class RangeSum(values: LongArray) {\n private val prefix = LongArray(values.size + 1)\n init { for (i in values.indices) prefix[i + 1] = prefix[i] + values[i] }\n fun sum(left: Int, right: Int): Long {\n  require(left >= 0 && left <= right && right < prefix.size)\n  return prefix[right] - prefix[left]\n }\n}",
+      "complexity": "O(n) construction time and space; O(1) query. Long arithmetic is assumed to fit by contract; arbitrary precision would change arithmetic cost.",
+      "edgeCases": [
+        "[]; sum(0,0) \u21d2 0",
+        "[-5]; sum(0,1) \u21d2 -5",
+        "[3,-1,4,2]; sum(0,4) \u21d2 8"
+      ],
+      "twist": "For a 2D static grid, build a prefix table and use inclusion-exclusion of four corners. Explain the overlap sign rather than memorizing it; construction O(RC), query O(1).",
+      "source": "https://leetcode.com/problems/range-sum-query-immutable/",
+      "testJava": "long[] a={3,-1,4,2};RangeSum s=new RangeSum(a);a[0]=99;if(s.sum(1,4)!=5||s.sum(2,2)!=0||s.sum(0,4)!=8||new RangeSum(new long[0]).sum(0,0)!=0)throw new AssertionError();",
+      "testKotlin": "val a=longArrayOf(3,-1,4,2);val s=RangeSum(a);a[0]=99;check(s.sum(1,4)==5L && s.sum(2,2)==0L && s.sum(0,4)==8L);check(RangeSum(longArrayOf()).sum(0,0)==0L)"
+    },
+    {
+      "title": "Point additions and range sums with a Fenwick tree",
+      "difficulty": "Medium",
+      "statement": "Construct Fenwick from a non-null Long array. Support add(index,delta) and sum(left,right) over half-open intervals. Reject invalid indices or bounds; empty ranges sum to 0 and empty construction is allowed. The original array is not retained or mutated. Assume all values, stored block sums, query intermediates, and update arithmetic fit signed Long.",
+      "example": "[3,-1,4,2]; add(1,5) changes the represented array to [3,4,4,2]; sum(1,4)=10.",
+      "baseline": "Rebuild a prefix array after every update: O(n) update and O(1) query. Or store raw values: O(1) update and O(n) query.",
+      "reasoning": [
+        "Use one-based bit[i] to store the block of length lowbit(i) ending at i. A point update belongs to successive ancestor blocks at i+=lowbit(i), so it touches only logarithmically many summaries.",
+        "To sum the first end elements, take bit[end], then end-=lowbit(end), repeating until zero. Blocks are disjoint because each step removes the rightmost block of the unprocessed prefix.",
+        "Range sum remains prefix(right)-prefix(left). Validate external indices before translating index+1; this prevents zero-based loops and partial invalid updates."
+      ],
+      "invariant": "bit[i] is always the sum of the represented values in one-based interval [i-lowbit(i)+1,i]; an update changes every and only containing block.",
+      "java": "static class Fenwick {\n private final int n; private final long[] bit;\n Fenwick(long[] values) {\n  n=values.length; bit=new long[n+1];\n  for(int i=0;i<n;i++) add(i,values[i]);\n }\n void add(int index,long delta) {\n  if(index<0||index>=n) throw new IndexOutOfBoundsException();\n  for(long i=(long)index+1;i<=n;i+=i&-i) bit[(int)i]+=delta;\n }\n private long prefix(int end) {\n  long sum=0;\n  for(int i=end;i>0;i-=i&-i) sum+=bit[i];\n  return sum;\n }\n long sum(int left,int right) {\n  if(left<0||left>right||right>n) throw new IndexOutOfBoundsException();\n  return prefix(right)-prefix(left);\n }\n}",
+      "kotlin": "class Fenwick(values: LongArray) {\n private val n = values.size\n private val bit = LongArray(n + 1)\n init { for (i in values.indices) add(i, values[i]) }\n fun add(index: Int, delta: Long) {\n  require(index in 0 until n)\n  var i = index.toLong() + 1\n  while (i <= n.toLong()) { bit[i.toInt()] += delta; i += i and -i }\n }\n private fun prefix(end: Int): Long {\n  var i = end\n  var sum = 0L\n  while (i > 0) { sum += bit[i]; i -= i and -i }\n  return sum\n }\n fun sum(left: Int, right: Int): Long {\n  require(left >= 0 && left <= right && right <= n)\n  return prefix(right) - prefix(left)\n }\n}",
+      "complexity": "This simple construction is O(n log(n+1)); each update/query O(log(n+1)), space O(n). Empty queries are O(1). A linear Fenwick build is possible but not needed for the operation proof.",
+      "edgeCases": [
+        "empty; sum(0,0) \u21d2 0",
+        "[1]; add(0,-3); sum(0,1) \u21d2 -2",
+        "negative input values are valid"
+      ],
+      "twist": "For point assignment set(index,value), retain current values and compute delta=value-old under the same numeric contract. Range-add/range-sum needs two Fenwick trees or a lazy segment tree; one point-update tree is insufficient.",
+      "source": "https://leetcode.com/problems/range-sum-query-mutable/",
+      "testJava": "Fenwick f=new Fenwick(new long[]{3,-1,4,2});if(f.sum(1,4)!=5)throw new AssertionError();f.add(1,5);if(f.sum(1,4)!=10||f.sum(2,2)!=0||f.sum(0,4)!=13||new Fenwick(new long[0]).sum(0,0)!=0)throw new AssertionError();",
+      "testKotlin": "val f=Fenwick(longArrayOf(3,-1,4,2));check(f.sum(1,4)==5L);f.add(1,5);check(f.sum(1,4)==10L && f.sum(2,2)==0L && f.sum(0,4)==13L);check(Fenwick(longArrayOf()).sum(0,0)==0L)"
+    },
+    {
+      "title": "Mutable range maximum with an iterative segment tree",
+      "difficulty": "Medium to Hard",
+      "statement": "Construct SegmentMax from a non-null Long array. Support set(index,value) and maximum(left,right) over half-open intervals. Empty intervals return null; invalid indices/bounds throw. Empty construction is allowed. Input is not mutated or retained. The 2n storage size must fit Int indexing and allocation. Long extremes are supported.",
+      "example": "[-5,7,2,-1]; maximum(0,4)=7; set(1,-8); maximum(0,3)=2.",
+      "baseline": "Rescan each interval: O(n) worst-case query and O(1) assignment. A prefix maximum cannot remove an unwanted prefix.",
+      "reasoning": [
+        "Place original values at leaves tree[n+i], then build each parent as max of its two children. The iterative 2n layout works without rounding n to a power of two. In the compact 2n layout, an internal node can wrap around the original-index boundary when n is not a power of two; the iterative query still selects disjoint nodes covering exactly the desired leaves. A padded power-of-two layout makes every node a literal contiguous original-index interval.",
+        "For query leaf boundaries l=left+n and r=right+n, consume l when it is a right child, consume r-1 when r is an exclusive right boundary after a left child, then move both boundaries to their parents. The consumed nodes are disjoint.",
+        "For assignment change one leaf then recompute its ancestors. For a nonempty maximum initialize best to Long.MIN_VALUE; return null before the loop for an empty interval so a real Long.MIN_VALUE remains distinguishable from absence."
+      ],
+      "invariant": "Every internal node stores the maximum of its descendant leaves. During a query, already consumed nodes plus the still-uncovered boundary region partition the target interval.",
+      "java": "static class SegmentMax {\n private final int n; private final long[] tree;\n SegmentMax(long[] values) {\n  n=values.length; tree=new long[Math.multiplyExact(2,n)];\n  System.arraycopy(values,0,tree,n,n);\n  for(int i=n-1;i>0;i--) tree[i]=Math.max(tree[2*i],tree[2*i+1]);\n }\n void set(int index,long value) {\n  if(index<0||index>=n) throw new IndexOutOfBoundsException();\n  int p=index+n; tree[p]=value;\n  while(p>1) { p/=2; tree[p]=Math.max(tree[2*p],tree[2*p+1]); }\n }\n Long maximum(int left,int right) {\n  if(left<0||left>right||right>n) throw new IndexOutOfBoundsException();\n  if(left==right) return null;\n  int l=left+n,r=right+n; long best=Long.MIN_VALUE;\n  while(l<r) {\n   if((l&1)==1) best=Math.max(best,tree[l++]);\n   if((r&1)==1) best=Math.max(best,tree[--r]);\n   l/=2; r/=2;\n  }\n  return best;\n }\n}",
+      "kotlin": "class SegmentMax(values: LongArray) {\n private val n = values.size\n private val tree = LongArray(Math.multiplyExact(2, n))\n init {\n  values.copyInto(tree, n)\n  for (i in n - 1 downTo 1) tree[i] = maxOf(tree[2 * i], tree[2 * i + 1])\n }\n fun set(index: Int, value: Long) {\n  require(index in 0 until n)\n  var p = index + n\n  tree[p] = value\n  while (p > 1) { p /= 2; tree[p] = maxOf(tree[2 * p], tree[2 * p + 1]) }\n }\n fun maximum(left: Int, right: Int): Long? {\n  require(left >= 0 && left <= right && right <= n)\n  if (left == right) return null\n  var l = left + n\n  var r = right + n\n  var best = Long.MIN_VALUE\n  while (l < r) {\n   if ((l and 1) == 1) { best = maxOf(best, tree[l]); l++ }\n   if ((r and 1) == 1) { r--; best = maxOf(best, tree[r]) }\n   l /= 2; r /= 2\n  }\n  return best\n }\n}",
+      "complexity": "O(n) construction time and storage; O(log(n+1)) assignment/query, O(1) for an empty query. Iterative operations use O(1) auxiliary work space.",
+      "edgeCases": [
+        "empty; maximum(0,0) \u21d2 null",
+        "[Long.MIN_VALUE]; maximum(0,1) \u21d2 Long.MIN_VALUE",
+        "[-3,-2,-7]; maximum(0,3) \u21d2 -2"
+      ],
+      "twist": "For string concatenation or matrix multiplication, preserve order with separate left and right accumulators: append left selections and prepend right selections, then combine. A single commutative max accumulator hides this issue. Range updates need lazy propagation.",
+      "source": "https://leetcode.com/problems/range-sum-query-mutable/",
+      "testJava": "SegmentMax s=new SegmentMax(new long[]{-5,7,2,-1,3});if(!Objects.equals(s.maximum(0,5),7L))throw new AssertionError();s.set(1,-8);if(!Objects.equals(s.maximum(0,3),2L)||s.maximum(2,2)!=null||!Objects.equals(new SegmentMax(new long[]{Long.MIN_VALUE}).maximum(0,1),Long.MIN_VALUE)||new SegmentMax(new long[0]).maximum(0,0)!=null)throw new AssertionError();",
+      "testKotlin": "val s=SegmentMax(longArrayOf(-5,7,2,-1,3));check(s.maximum(0,5)==7L);s.set(1,-8);check(s.maximum(0,3)==2L && s.maximum(2,2)==null);check(SegmentMax(longArrayOf(Long.MIN_VALUE)).maximum(0,1)==Long.MIN_VALUE);check(SegmentMax(longArrayOf()).maximum(0,0)==null)"
+    },
+    {
+      "title": "Count strictly smaller values to the right",
+      "difficulty": "Hard",
+      "statement": "Given a non-null Int array, return an Int array answer where answer[i] counts indices j>i with a[j]<a[i]. Equal values do not count. Empty input returns empty. Input is unchanged.",
+      "example": "[5,2,6,1] returns [2,1,1,0]; [2,2] returns [0,0].",
+      "baseline": "Compare every pair i<j: O(n\u00b2) time, O(n) output space.",
+      "reasoning": [
+        "Process positions right to left. Previously processed values are exactly the suffix to the current position, so the query becomes a dynamic count of seen values below a threshold.",
+        "Sort a copy and retain distinct values to assign ranks. A frequency Fenwick tree indexed by rank stores how many seen values have each rank. Query the prefix of ranks strictly below the current rank before inserting the current occurrence.",
+        "Duplicates share a rank. Querying before insertion excludes the current index, and excluding the current rank excludes equal values. Each returned count is at most n-1 and fits Int."
+      ],
+      "invariant": "Before processing i the frequency tree contains exactly a[i+1..n); compression preserves strict ordering and equalities, so prefix(rank(a[i])) counts exactly qualifying suffix indices.",
+      "java": "static int[] countSmaller(int[] a) {\n int[] sorted=a.clone(); Arrays.sort(sorted); int unique=0;\n for(int value:sorted) if(unique==0||sorted[unique-1]!=value) sorted[unique++]=value;\n int[] bit=new int[unique+1], out=new int[a.length];\n for(int i=a.length-1;i>=0;i--) {\n  int rank=Arrays.binarySearch(sorted,0,unique,a[i]); int count=0;\n  for(int p=rank;p>0;p-=p&-p) count+=bit[p];\n  out[i]=count;\n  for(long p=(long)rank+1;p<=unique;p+=p&-p) bit[(int)p]++;\n }\n return out;\n}",
+      "kotlin": "fun countSmaller(a: IntArray): IntArray {\n val sorted = a.sortedArray()\n var unique = 0\n for (value in sorted) {\n  if (unique == 0 || sorted[unique - 1] != value) sorted[unique++] = value\n }\n val bit = IntArray(unique + 1)\n val out = IntArray(a.size)\n for (i in a.lastIndex downTo 0) {\n  val rank = Arrays.binarySearch(sorted, 0, unique, a[i])\n  var p = rank\n  var count = 0\n  while (p > 0) { count += bit[p]; p -= p and -p }\n  out[i] = count\n  var update = rank.toLong() + 1\n  while (update <= unique.toLong()) { bit[update.toInt()]++; update += update and -update }\n }\n return out\n}",
+      "complexity": "O(n log(n+1)) sorting/query/update time; O(n) compressed copy and output plus O(u) frequency tree for u distinct values. Counts fit Int because they count at most n-1 array positions.",
+      "edgeCases": [
+        "[] \u21d2 []",
+        "[2,2] \u21d2 [0,0]",
+        "[-1,-2,-3] \u21d2 [2,1,0]",
+        "[Int.MAX_VALUE,Int.MIN_VALUE] \u21d2 [1,0]"
+      ],
+      "twist": "For counts \u2264current, query through its rank instead of stopping before it. For inversion total sum the individual counts using Long; the total can reach n(n-1)/2.",
+      "source": "https://leetcode.com/problems/count-of-smaller-numbers-after-self/",
+      "testJava": "if(!Arrays.equals(countSmaller(new int[]{5,2,6,1}),new int[]{2,1,1,0})||!Arrays.equals(countSmaller(new int[]{2,2}),new int[]{0,0})||!Arrays.equals(countSmaller(new int[]{Integer.MAX_VALUE,Integer.MIN_VALUE}),new int[]{1,0})||countSmaller(new int[0]).length!=0)throw new AssertionError();",
+      "testKotlin": "check(countSmaller(intArrayOf(5,2,6,1)).contentEquals(intArrayOf(2,1,1,0)));check(countSmaller(intArrayOf(2,2)).contentEquals(intArrayOf(0,0)));check(countSmaller(intArrayOf(Int.MAX_VALUE,Int.MIN_VALUE)).contentEquals(intArrayOf(1,0)));check(countSmaller(intArrayOf()).isEmpty())"
+    }
+  ],
+  "practice": [
+    {
+      "title": "Range Sum Query 2D - Immutable",
+      "difficulty": "Medium",
+      "url": "https://leetcode.com/problems/range-sum-query-2d-immutable/",
+      "hint": "Four prefixes use inclusion-exclusion.",
+      "approach": "P[r][c] sums a rectangle from origin; query uses bottom-right minus top strip minus left strip plus their overlap. O(RC) build/O(1) query/O(RC) space; use Long."
+    },
+    {
+      "title": "NumArray Mutable Range Sum",
+      "difficulty": "Medium",
+      "url": "https://leetcode.com/problems/range-sum-query-mutable/",
+      "hint": "Assignment must become a delta or leaf replacement.",
+      "approach": "Fenwick plus retained values supports set through value-old, or segment tree replaces leaf and ancestors. O(log n) operations/O(n) space; clearly define interval endpoints."
+    },
+    {
+      "title": "Reverse Pairs",
+      "difficulty": "Hard",
+      "url": "https://leetcode.com/problems/reverse-pairs/",
+      "hint": "The threshold is twice a value, not merely its rank.",
+      "approach": "Scan and query counts satisfying a[i]>2*a[j] using compressed values and binary-search bounds, or use merge-sort counting. O(n log n)/O(n); multiply using Long."
+    },
+    {
+      "title": "Count of Range Sum",
+      "difficulty": "Hard",
+      "url": "https://leetcode.com/problems/count-of-range-sum/",
+      "hint": "Prefix sums transform a subarray range into a prior-prefix interval.",
+      "approach": "For current prefix p, count prior prefixes in [p-upper,p-lower] using compressed coordinates and a Fenwick tree, then insert p. O(n log n)/O(n); include initial zero prefix and use Long."
+    },
+    {
+      "title": "The Skyline Problem",
+      "difficulty": "Hard",
+      "url": "https://leetcode.com/problems/the-skyline-problem/",
+      "hint": "Event coordinates compress a huge horizontal domain.",
+      "approach": "Sort building edge events and maintain active height counts/max via an ordered multiset or heap. O(n log n)/O(n); process all events at the same x together. This is a useful contrast: not every compressed-coordinate task needs a Fenwick tree."
+    },
+    {
+      "title": "Falling Squares",
+      "difficulty": "Hard",
+      "url": "https://leetcode.com/problems/falling-squares/",
+      "hint": "Range maximum followed by range assignment needs more than point updates.",
+      "approach": "Compress square interval endpoints, query covered maximum, then assign that range to max+size using a lazy segment tree. O(n log n)/O(n); model geometric half-open spans so merely touching squares do not overlap."
+    }
+  ],
+  "quiz": [
+    {
+      "question": "Which property allows rangeSum(l,r)=prefix(r)-prefix(l)?",
+      "choices": [
+        "Addition has an inverse for the unwanted prefix.",
+        "All values are nonnegative.",
+        "All arrays have even length."
+      ],
+      "answer": 0,
+      "explanation": "Negative values are fine; the subtraction law follows from additive cancellation, which maximum does not have."
+    },
+    {
+      "question": "In count-smaller, why query prefix(rank) before inserting rank+1?",
+      "choices": [
+        "To exclude equal ranks and the current occurrence.",
+        "To reverse the input permanently.",
+        "To avoid sorting."
+      ],
+      "answer": 0,
+      "explanation": "Internal rank+1 represents the current value; prefix(rank) includes only strictly smaller coordinates, and insertion afterward limits state to j>i."
+    }
+  ],
+  "transfer": {
+    "prompt": "A live leaderboard assigns each known player a score. Support point score replacement and ask for the maximum score among player IDs in an interval. Later product asks for the number of players whose score is below a threshold. Explain whether the same index answers both efficiently.",
+    "hints": [
+      "The first query orders players by ID. The second orders them by score.",
+      "A segment maximum loses the distribution below its maximum."
+    ],
+    "solution": "A segment tree indexed by player ID supports replacement and interval maximum in O(log n), storing one maximum per node. It cannot answer score-threshold counts from those maxima alone because many distributions share the same maximum. For a global threshold count with known score coordinates, maintain a separate frequency Fenwick tree over compressed scores, decrementing the old rank and incrementing the new rank on replacement. If new scores arrive outside known coordinates, use an order-statistic balanced tree or rebuild compression; for both an ID interval and score threshold, a two-dimensional data structure is required."
+  },
+  "review": [
+    "Draw the one-based block represented by bit[12] and derive both update and query transitions.",
+    "Explain why associativity is enough for a segment tree but insufficient for subtracting prefixes.",
+    "Implement strict-smaller counts and then change the boundary for smaller-or-equal."
+  ],
+  "sources": [
+    {
+      "label": "LeetCode immutable range sums",
+      "url": "https://leetcode.com/problems/range-sum-query-immutable/",
+      "note": "Reference link; not retrieved in this run. Primary static range-sum contract; this lesson uses explicit half-open endpoints.",
+      "status": "unverified"
+    },
+    {
+      "label": "LeetCode mutable range sums",
+      "url": "https://leetcode.com/problems/range-sum-query-mutable/",
+      "note": "Reference link; not retrieved in this run. Primary point-update/range-query exercise, adapted to sum and maximum.",
+      "status": "unverified"
+    },
+    {
+      "label": "Count of Smaller Numbers After Self",
+      "url": "https://leetcode.com/problems/count-of-smaller-numbers-after-self/",
+      "note": "Reference link; not retrieved in this run. Primary strict-smaller suffix-count task.",
+      "status": "unverified"
+    }
+  ]
+}

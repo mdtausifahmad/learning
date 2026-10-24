@@ -1,0 +1,268 @@
+{
+  "id": "07",
+  "slug": "linked-lists",
+  "title": "Linked lists: preserve the path while changing links",
+  "group": "Structural patterns",
+  "prerequisites": "References, loops, arrays; Lesson 02 two pointers",
+  "estimatedMinutes": 150,
+  "motivation": "An array tells you where element i lives. A linked list gives you only an entry reference and one next reference at each node. The challenge is to rearrange connections without losing access to unfinished work. Dummy nodes, three-reference reversal, and unequal-speed pointers turn fragile special cases into repeatable reasoning.",
+  "recognition": [
+    "The input consists of node references and next links; changing connectivity can replace expensive copying.",
+    "An operation treats the first node differently: a dummy predecessor can make the first position ordinary.",
+    "A cycle or unknown midpoint asks about relative progress along one successor chain.",
+    "Sorted chains must be combined while preserving their internal order: compare their current heads."
+  ],
+  "mentalModel": "A node is an object, and a reference is a handle to that object. Two references can identify the same node even when many nodes have equal values. Drawing only the values hides this distinction: write A(5), B(5) when identity matters. The variable head is an entry handle; moving a local cursor does not move the actual nodes. Assigning node.next changes the graph and can disconnect an entire suffix.\n\nStart every pointer problem by drawing the edges you intend to replace. For reversal, current points into the unprocessed suffix and previous points into the already reversed prefix. Before redirecting current.next, save its old target. This temporary reference is the only remaining entry to the suffix after the edge changes. Then advance the two region boundaries. The operation is constant work per node because no node needs a random lookup.\n\nA dummy node is an artificial predecessor whose next initially points to the real head. Removing or inserting at the beginning then uses exactly the same rule as removing or inserting later. The returned answer is dummy.next; the artificial node is never part of the result. A tail reference is a different role: it identifies where the next output node should be attached. Do not mix the two roles just because both are references.\n\nFast and slow pointers measure relative distance. On an acyclic chain, a pointer advancing twice per iteration reaches the end when the other is around the midpoint. Inside a cycle of length c, their relative position advances by one modulo c, so they eventually meet. Identity comparison detects that meeting; equal payloads provide no evidence. For a cycle entry, resetting one cursor to head after a meeting and moving both one step uses the equation between distance to entry and distance traveled around the cycle.\n\nBuild harder transformations by identifying a bounded segment, proving that segment exists, transforming it, and reconnecting its two boundaries. Never start modifying a group before knowing whether an incomplete trailing group must remain intact.",
+  "invariant": "Maintain explicit reachability: every original node belongs to either the completed result or an unfinished region reachable through a saved reference. No node may silently disappear, and no unintended cycle may appear. For each operation, state which predecessor and successor remain fixed. Termination follows because the unfinished region shrinks or a cursor progresses toward an end; cycle algorithms instead use finite modular positions.",
+  "wrongTurns": [
+    {
+      "temptation": "Overwrite next and then advance through next.",
+      "counterexample": "On A\u2192B\u2192C, setting A.next=null before saving B makes A.next lead nowhere; B and C are lost to the algorithm.",
+      "repair": "Save next=A.next before every destructive redirect, then advance using the saved reference."
+    },
+    {
+      "temptation": "Detect a cycle by comparing node values.",
+      "counterexample": "A(7)\u2192B(7)\u2192null has repeated values but no cycle. Value equality would incorrectly return true.",
+      "repair": "Compare reference identity: Java slow==fast; Kotlin slow===fast."
+    }
+  ],
+  "diagram": {
+    "caption": "One reversal step preserves an entry to both regions before changing the edge.",
+    "nodes": [
+      "previous: 2\u21921\u2192null",
+      "current: 3",
+      "saved: 4\u21925\u2192null",
+      "after: 3\u21922\u21921\u2192null"
+    ],
+    "edges": [
+      [
+        1,
+        2,
+        "save old next"
+      ],
+      [
+        1,
+        0,
+        "redirect next"
+      ],
+      [
+        3,
+        2,
+        "advance current to saved"
+      ]
+    ]
+  },
+  "trace": [
+    {
+      "state": "previous=null; current=A\u2192B\u2192C",
+      "explanation": "The completed prefix is empty; the entire input is still reachable."
+    },
+    {
+      "state": "saved=B; A.next=null; previous=A; current=B",
+      "explanation": "Saving B before redirection preserves the suffix."
+    },
+    {
+      "state": "saved=C; B.next=A; previous=B\u2192A; current=C",
+      "explanation": "Exactly one node moves from unfinished suffix to reversed prefix."
+    },
+    {
+      "state": "previous=C\u2192B\u2192A; current=null",
+      "explanation": "The suffix is empty, so previous is the new head."
+    }
+  ],
+  "problems": [
+    {
+      "title": "Reverse a chain",
+      "difficulty": "Easy",
+      "statement": "Given a nullable head of a finite acyclic singly linked list, reverse the links in place and return the new head. Values are arbitrary Int values; node identity is preserved. Empty input returns null.",
+      "example": "1\u21922\u21923 returns 3\u21922\u21921, using the original three nodes.",
+      "baseline": "Copy values into an array and rebuild nodes: O(n) time and O(n) extra space; rebuilding violates identity preservation.",
+      "reasoning": [
+        "First isolate the repeated work: every original edge must point in the opposite direction, but traversal still needs the old edge. Keep previous and current as the two region heads.",
+        "Save current.next. Redirect current.next toward previous. Move previous to current and current to the saved suffix. This order matters because mutation destroys the old route.",
+        "When current becomes null all original nodes are in the reversed region. Return previous; returning the original head would return only the last node."
+      ],
+      "invariant": "Before each iteration previous is the reversed processed prefix, current is the untouched suffix, and the regions contain every node exactly once.",
+      "java": "static class Node { int val; Node next; Node(int v) { val=v; } }\nstatic Node reverse(Node head) {\n Node previous=null, current=head;\n while (current!=null) {\n  Node saved=current.next; current.next=previous;\n  previous=current; current=saved;\n }\n return previous;\n}",
+      "kotlin": "class Node(val value: Int, var next: Node? = null)\nfun reverse(head: Node?): Node? {\n var previous: Node? = null\n var current = head\n while (current != null) {\n  val saved = current.next\n  current.next = previous\n  previous = current\n  current = saved\n }\n return previous\n}",
+      "complexity": "O(n) time for n nodes; O(1) auxiliary space; no output allocation.",
+      "edgeCases": [
+        "null \u21d2 null",
+        "one node \u21d2 same node",
+        "1\u21921 \u21d2 reversed node identities despite equal values"
+      ],
+      "twist": "Reverse only positions left through right: locate a dummy predecessor, reverse exactly that segment, then reconnect both boundaries. Validate positional bounds before mutation.",
+      "source": "https://leetcode.com/problems/reverse-linked-list/",
+      "testJava": "Node a=new Node(1), b=new Node(2), c=new Node(3); a.next=b;b.next=c; Node r=reverse(a); if(r!=c||r.next!=b||b.next!=a||a.next!=null||reverse(null)!=null) throw new AssertionError();",
+      "testKotlin": "val a=Node(1); val b=Node(2); val c=Node(3); a.next=b;b.next=c; val r=reverse(a); check(r===c && r?.next===b && b.next===a && a.next==null); check(reverse(null)==null)"
+    },
+    {
+      "title": "Find the entry of a cycle",
+      "difficulty": "Medium",
+      "statement": "Given a nullable head whose next references form either a terminating chain or a chain entering a cycle, return the entry node of that cycle by identity; otherwise return null. Do not mutate links.",
+      "example": "A\u2192B\u2192C\u2192D\u2192B returns B. A\u2192B\u2192null returns null.",
+      "baseline": "Store every visited node identity in a hash set: O(n) time and O(n) space.",
+      "reasoning": [
+        "Move slow one edge and fast two edges while fast and fast.next exist. An end proves no cycle. In a cycle, the relative offset changes by one, guaranteeing a meeting.",
+        "Let a be the distance to entry and b the distance from entry to meeting. At meeting slow traveled a+b; fast traveled twice that, so a+b is a multiple of the cycle length, allowing extra completed laps.",
+        "Reset a cursor to head. Advance it and slow one edge together. After a moves, the first reaches the entry and the second advances from offset b to offset b+a\u22610. The first identity match is the entry."
+      ],
+      "invariant": "Before detection both pointers follow original edges. After a meeting, equally advancing the reset cursor and meeting cursor preserves the modular equation leading to the entry.",
+      "java": "static class Node { int val; Node next; Node(int v) { val=v; } }\nstatic Node cycleEntry(Node head) {\n Node slow=head, fast=head;\n while (fast!=null && fast.next!=null) {\n  slow=slow.next; fast=fast.next.next;\n  if (slow==fast) {\n   Node p=head;\n   while (p!=slow) { p=p.next; slow=slow.next; }\n   return p;\n  }\n }\n return null;\n}",
+      "kotlin": "class Node(val value: Int, var next: Node? = null)\nfun cycleEntry(head: Node?): Node? {\n var slow = head\n var fast = head\n while (fast != null && fast.next != null) {\n  slow = slow?.next\n  fast = fast.next?.next\n  if (slow === fast) {\n   var p = head\n   while (p !== slow) { p = p?.next; slow = slow?.next }\n   return p\n  }\n }\n return null\n}",
+      "complexity": "O(n) time and O(1) extra space, where n counts distinct reachable nodes. Detection and entry search each take at most a constant multiple of n steps.",
+      "edgeCases": [
+        "null \u21d2 null",
+        "single self-loop \u21d2 that node",
+        "two equal values without cycle \u21d2 null"
+      ],
+      "twist": "If asked for the midpoint of an acyclic list, reuse unequal speeds but define which middle is required for even length; initializing fast=head returns the second middle.",
+      "source": "https://leetcode.com/problems/linked-list-cycle-ii/",
+      "testJava": "Node a=new Node(1), b=new Node(1), c=new Node(3); a.next=b;b.next=c;c.next=b; if(cycleEntry(a)!=b) throw new AssertionError(); c.next=null; if(cycleEntry(a)!=null||cycleEntry(null)!=null) throw new AssertionError();",
+      "testKotlin": "val a=Node(1); val b=Node(1); val c=Node(3); a.next=b;b.next=c;c.next=b; check(cycleEntry(a)===b);c.next=null;check(cycleEntry(a)==null && cycleEntry(null)==null)"
+    },
+    {
+      "title": "Merge two sorted chains",
+      "difficulty": "Easy to Medium",
+      "statement": "Given two nullable, disjoint, acyclic lists sorted in nondecreasing order, splice their existing nodes into one sorted chain. Return its head. This mutates links; shared input nodes are outside the contract. Equal values from the first list should come first.",
+      "example": "1\u21923 and 1\u21922 produce 1(first)\u21921(second)\u21922\u21923.",
+      "baseline": "Collect nodes, sort by value, and relink: O((m+n) log(m+n)) time and O(m+n) space.",
+      "reasoning": [
+        "Sorted order means the smallest remaining value must be at one of the two current heads. Compare only those heads; no scan into their suffixes is necessary.",
+        "Use a dummy predecessor and a tail. Attach the smaller head, advance that input, then advance tail. Choosing the first input on equality preserves the requested stable tie order.",
+        "When one input ends, attach the other suffix as a whole. It is already sorted, and all its values are at least the last chosen value. Return dummy.next."
+      ],
+      "invariant": "The chain through tail is sorted and contains exactly the consumed nodes; each unconsumed input suffix is still sorted and reachable.",
+      "java": "static class Node { int val; Node next; Node(int v) { val=v; } }\nstatic Node merge(Node a, Node b) {\n Node dummy=new Node(0), tail=dummy;\n while (a!=null && b!=null) {\n  if (a.val<=b.val) { tail.next=a; a=a.next; }\n  else { tail.next=b; b=b.next; }\n  tail=tail.next;\n }\n tail.next=(a!=null?a:b);\n return dummy.next;\n}",
+      "kotlin": "class Node(val value: Int, var next: Node? = null)\nfun merge(first: Node?, second: Node?): Node? {\n val dummy = Node(0)\n var tail = dummy\n var a = first\n var b = second\n while (a != null && b != null) {\n  if (a.value <= b.value) { tail.next = a; a = a.next }\n  else { tail.next = b; b = b.next }\n  tail = tail.next!!\n }\n tail.next = a ?: b\n return dummy.next\n}",
+      "complexity": "O(m+n) time for input lengths m,n; O(1) auxiliary space including one dummy node. Output reuses input nodes.",
+      "edgeCases": [
+        "both null \u21d2 null",
+        "one null \u21d2 the other head",
+        "all equal \u21d2 first-list nodes before second-list nodes"
+      ],
+      "twist": "For k sorted lists, the choice has k candidates instead of two; use a min-heap of current heads for O(N log k) time or pairwise merge rounds.",
+      "source": "https://leetcode.com/problems/merge-two-sorted-lists/",
+      "testJava": "Node a=new Node(1),b=new Node(1),c=new Node(2);b.next=c;Node r=merge(a,b);if(r!=a||a.next!=b||b.next!=c||c.next!=null||merge(null,null)!=null) throw new AssertionError();",
+      "testKotlin": "val a=Node(1); val b=Node(1);val c=Node(2);b.next=c;val r=merge(a,b);check(r===a && a.next===b && b.next===c && c.next==null);check(merge(null,null)==null)"
+    },
+    {
+      "title": "Reverse complete groups of k",
+      "difficulty": "Hard",
+      "statement": "Given a finite acyclic list and k\u22651, reverse each complete consecutive group of k nodes in place. Leave the final group unchanged if it has fewer than k nodes. Return the resulting head. Throw for k<1.",
+      "example": "1\u21922\u21923\u21924\u21925 with k=2 returns 2\u21921\u21924\u21923\u21925.",
+      "baseline": "Store all node references, reorder groups, relink: O(n) time, O(n) auxiliary space.",
+      "reasoning": [
+        "Place a dummy before head and maintain before, the predecessor of the next group. Walk k edges from before to find the group end before changing anything. If that node is absent, preserve the suffix and finish.",
+        "Save after=end.next. Reverse the segment with previous initialized to after so that the original first node automatically reconnects to the untouched suffix. Stop when current reaches after by identity.",
+        "Connect before.next to the old end. The old first node is now the group tail, so make it the next before. Each completed step advances by k nodes, and no incomplete group is mutated."
+      ],
+      "invariant": "Everything before before is finalized. The suffix beginning at before.next retains its original internal order until a full group is confirmed; segment reversal preserves the after boundary.",
+      "java": "static class Node { int val; Node next; Node(int v) { val=v; } }\nstatic Node reverseGroups(Node head, int k) {\n if (k<1) throw new IllegalArgumentException(\"k must be positive\");\n Node dummy=new Node(0); dummy.next=head; Node before=dummy;\n while (true) {\n  Node end=before;\n  for (int i=0;i<k && end!=null;i++) end=end.next;\n  if (end==null) return dummy.next;\n  Node after=end.next, current=before.next, previous=after;\n  while (current!=after) {\n   Node saved=current.next; current.next=previous;\n   previous=current; current=saved;\n  }\n  Node oldFirst=before.next; before.next=end; before=oldFirst;\n }\n}",
+      "kotlin": "class Node(val value: Int, var next: Node? = null)\nfun reverseGroups(head: Node?, k: Int): Node? {\n require(k >= 1)\n val dummy = Node(0, head)\n var before = dummy\n while (true) {\n  var end: Node? = before\n  var count = 0\n  while (count < k && end != null) { end = end?.next; count++ }\n  val groupEnd = end ?: return dummy.next\n  val after = groupEnd.next\n  var current = before.next\n  var previous = after\n  while (current !== after) {\n   val node = current!!\n   val saved = node.next\n   node.next = previous\n   previous = node\n   current = saved\n  }\n  val oldFirst = before.next!!\n  before.next = groupEnd\n  before = oldFirst\n }\n}",
+      "complexity": "O(n) time for n nodes: each complete group is scanned then reversed, and the final probe stops at null. O(1) auxiliary space.",
+      "edgeCases": [
+        "null with k=1 \u21d2 null",
+        "1\u21922 with k=3 \u21d2 unchanged",
+        "k=1 \u21d2 unchanged identities"
+      ],
+      "twist": "Reverse alternating complete groups: keep an additional boolean phase; both phases must use the same completeness check and boundary advancement.",
+      "source": "https://leetcode.com/problems/reverse-nodes-in-k-group/",
+      "testJava": "Node a=new Node(1),b=new Node(2),c=new Node(3),d=new Node(4),e=new Node(5);a.next=b;b.next=c;c.next=d;d.next=e;Node r=reverseGroups(a,2);if(r!=b||b.next!=a||a.next!=d||d.next!=c||c.next!=e||e.next!=null||reverseGroups(null,3)!=null)throw new AssertionError();",
+      "testKotlin": "val a=Node(1);val b=Node(2);val c=Node(3);val d=Node(4);val e=Node(5);a.next=b;b.next=c;c.next=d;d.next=e;val r=reverseGroups(a,2);check(r===b && b.next===a && a.next===d && d.next===c && c.next===e && e.next==null);check(reverseGroups(null,3)==null)"
+    }
+  ],
+  "practice": [
+    {
+      "title": "Remove Nth Node From End",
+      "difficulty": "Medium",
+      "url": "https://leetcode.com/problems/remove-nth-node-from-end-of-list/",
+      "hint": "Keep a gap of n between two cursors starting around a dummy.",
+      "approach": "Advance fast n steps from head, then move fast and a dummy predecessor together; unlink predecessor.next. O(n) time/O(1) space; reject n outside 1..length."
+    },
+    {
+      "title": "Palindrome Linked List",
+      "difficulty": "Easy",
+      "url": "https://leetcode.com/problems/palindrome-linked-list/",
+      "hint": "Compare the first half with a reversed second half.",
+      "approach": "Find midpoint, reverse second half, compare, and restore links before returning. O(n) time/O(1) extra; odd middle is ignored."
+    },
+    {
+      "title": "Reorder List",
+      "difficulty": "Medium",
+      "url": "https://leetcode.com/problems/reorder-list/",
+      "hint": "Split, reverse, weave.",
+      "approach": "Find first-half tail, detach second half, reverse it, then alternate nodes while saving both next references. O(n) time/O(1) space; detachment avoids a cycle."
+    },
+    {
+      "title": "Intersection of Two Linked Lists",
+      "difficulty": "Easy",
+      "url": "https://leetcode.com/problems/intersection-of-two-linked-lists/",
+      "hint": "Equalize total distance without comparing values.",
+      "approach": "For acyclic lists, switch each cursor to the other head at null; both travel m+n edges before meeting or both reaching null. O(m+n)/O(1); cycles require a different contract."
+    },
+    {
+      "title": "Copy List with Random Pointer",
+      "difficulty": "Medium",
+      "url": "https://leetcode.com/problems/copy-list-with-random-pointer/",
+      "hint": "A node identity map separates allocation from wiring.",
+      "approach": "Allocate one clone per node, then assign next and random via the map; O(n) time/space. Interleaving clones can reduce auxiliary space but temporarily mutates the source."
+    },
+    {
+      "title": "Sort List",
+      "difficulty": "Medium",
+      "url": "https://leetcode.com/problems/sort-list/",
+      "hint": "Merge is the combining operation; midpoint supplies division.",
+      "approach": "Split with slow/fast, recursively sort each half, then merge. O(n log n) time/O(log n) stack; bottom-up merge sort yields O(1) auxiliary space."
+    }
+  ],
+  "quiz": [
+    {
+      "question": "Why initialize previous to after when reversing a bounded group?",
+      "choices": [
+        "It connects the new tail directly to the untouched suffix.",
+        "It sorts the group.",
+        "It avoids needing to find the group end."
+      ],
+      "answer": 0,
+      "explanation": "The original first node receives next=after during the first reversal step; completeness still must be checked."
+    },
+    {
+      "question": "Two cursors hold nodes with value 9. What proves they met?",
+      "choices": [
+        "Equal values",
+        "Reference identity",
+        "Equal distance traveled"
+      ],
+      "answer": 1,
+      "explanation": "Different nodes may carry the same value. The cycle proof requires occupying the same object."
+    }
+  ],
+  "transfer": {
+    "prompt": "A conveyor log is a chain of event objects. Reverse each consecutive block whose size is specified by the next entry in a size array; leave an incomplete final block untouched. Preserve every event identity. Derive an in-place algorithm.",
+    "hints": [
+      "A block size changes how far you probe, not the reversal primitive.",
+      "Keep a predecessor and validate the entire block before changing edges."
+    ],
+    "solution": "Use a dummy and a boundary predecessor. For each positive block size, probe that many nodes; if absent, stop. Save the successor, reverse until that successor, reconnect the predecessor, advance to the old first node. Across processed blocks, each node is scanned at most twice: O(n+s) time for n reachable nodes and s sizes examined, O(1) auxiliary space. Reject nonpositive sizes before mutating if all-or-nothing validation is required."
+  },
+  "review": [
+    "Draw reversal with named node identities and identify the reference that would be lost.",
+    "Prove the cycle-entry reset using distances a,b,c.",
+    "Implement group reversal without looking at code; state both boundaries first."
+  ],
+  "sources": [
+    {
+      "label": "LeetCode linked-list problem contracts",
+      "url": "https://leetcode.com/tag/linked-list/",
+      "note": "Reference link; not retrieved in this run. Practice taxonomy and public problem contracts; no company frequency inference.",
+      "status": "unverified"
+    },
+    {
+      "label": "Cycle entry problem",
+      "url": "https://leetcode.com/problems/linked-list-cycle-ii/",
+      "note": "Reference link; not retrieved in this run. Canonical identity-based cycle-entry task.",
+      "status": "unverified"
+    }
+  ]
+}

@@ -3,81 +3,196 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Principal Engineering — Senior → Staff → Principal</title>
-<meta name="description" content="A personal, evidence-based playbook and course library for growing from Senior to Staff and Principal engineer.">
+<title>Software Engineering Library — Learn, Practice, Grow</title>
+<meta name="description" content="A growing software engineering library across ten areas: technical foundations, architecture, delivery, security, communication, product, execution, leadership, learning and careers.">
 <link rel="stylesheet" href="assets/site.css">
+<script src="assets/course/links.js" defer></script>
+<link rel="stylesheet" href="assets/navigation.css">
 </head>
-<body>
+<body class="library" id="page-top">
+<!-- page-navigation:start -->
+<nav class="page-navigation" aria-label="Top page navigation"><div class="page-navigation-parents"><a href="index.html">Library home</a></div><div class="page-navigation-sections"><a href="index.html#topics">All learning areas</a><a href="#page-top">Back to top ↑</a></div></nav>
+<!-- page-navigation:end -->
 
-<header>
-  <p class="eyebrow">Principal-Engineering Track</p>
-  <h1>From Senior to Staff to Principal</h1>
-  <p class="lede">A personal, evidence-based playbook for the next stage of an engineering career, plus
-    interactive courses and deep dives for every skill it calls for.</p>
-  <p class="meta">7-part playbook · 6 courses · 75 interactive lessons · 6 full guides</p>
+<a class="skip-link" href="#main">Skip to content</a>
+<nav class="library-nav" aria-label="Main navigation">
+  <a href="index.html" aria-current="page">Software Engineering Library</a>
+  <a href="#topics">Browse topics</a>
+  <a href="#learning-paths">Choose a learning path</a>
+  <a href="career-path/index.html">Career development</a>
+</nav>
+<main id="main">
+<header class="library-header">
+  <h1>A home for learning software engineering.</h1>
+  <p class="lede">Build your foundations, explore how systems work, practice solving problems, and grow your impact. Start here whenever you want to learn something new.</p>
+  <p class="library-scope">A growing collection of courses, deep dives, exercises and learning paths. Follow a course from the beginning or return to a topic when you need it.</p>
 </header>
-
-<h2>Start here: the playbook</h2>
-<p>Read these in order the first time, then come back to them as reference. The
-  <a href="overview.html" data-md="README.md">overview</a> explains the one idea behind all of it:
-  Staff is a different job, not a better Senior.</p>
-<ol class="path"><li><a href="01-what-is-required.html" data-md="01-what-is-required.md">What Is Required From a Staff / Principal Engineer</a><br><span class="desc">What Staff/Principal actually is: archetypes, competency matrices, the exact gap.</span></li><li><a href="02-skills-to-upgrade.html" data-md="02-skills-to-upgrade.md">Skills to Upgrade</a><br><span class="desc">Every technical and leadership topic to level up, and what good looks like.</span></li><li><a href="03-career-progression-plan.html" data-md="03-career-progression-plan.md">Career Progression Plan (Step-by-Step)</a><br><span class="desc">The phased 12–18 month plan combining study, leadership and a promotion campaign.</span></li><li><a href="04-subjects-and-resources.html" data-md="04-subjects-and-resources.md">Subjects &amp; Resources — The Study Curriculum</a><br><span class="desc">The sequenced study curriculum: courses, books, lectures, time estimates.</span></li><li><a href="05-promotion-playbook.html" data-md="05-promotion-playbook.md">Promotion Playbook</a><br><span class="desc">Getting the title: promo packet, staff projects, the committee process.</span></li><li><a href="06-self-assessment-and-tracking.html" data-md="06-self-assessment-and-tracking.md">Self-Assessment &amp; Tracking</a><br><span class="desc">Self-scoring, the brag doc, milestones and the manager 1:1 script.</span></li><li><a href="07-real-world-stories.html" data-md="07-real-world-stories.md">Real-World Stories &amp; Lessons</a><br><span class="desc">Ten first-person stories of people who made the jump, and what they learned.</span></li></ol>
-
-<h2>Courses</h2>
-<p>Every course has the same shape: an <strong>index</strong> (the course map), one <strong>interactive lesson</strong> per
-  chapter with quizzes, diagrams and a cheat sheet, and one <strong>full guide</strong> in Markdown with
-  every chapter in a single file you can read top to bottom.</p>
-
-<h3 class="group">The skill map, taught</h3>
-<p class="desc">The three tracks behind <a href="02-skills-to-upgrade.html" data-md="02-skills-to-upgrade.md">Skills to Upgrade</a>, one lesson per skill.</p>
-<div class="courses">
-  <article class="course sd">
-    <h3><a href="system-design/index.html">System Design &amp; Architecture at Scale</a></h3>
-    <p>Skill A1: scalability axes, CAP and consistency, data modelling, caching, messaging, APIs, estimation and resilience.</p>
-    <p class="meta">8 lessons · 8 cheat sheets · <a href="system-design/GUIDE.html" data-md="system-design/GUIDE.md">full guide</a></p>
-  </article>
-  <article class="course ts">
-    <h3><a href="technical-skills/index.html">Technical Skills</a></h3>
-    <p>Skills A2–A9: distributed data, SRE, architecture, strategy and vision, design docs, security, cloud and T-shaped depth.</p>
-    <p class="meta">8 lessons · 8 cheat sheets · <a href="technical-skills/GUIDE.html" data-md="technical-skills/GUIDE.md">full guide</a></p>
-  </article>
-  <article class="course ls">
-    <h3><a href="leadership-skills/index.html">Leadership Skills</a></h3>
-    <p>Skills B1–B8: influence, executive writing, technical leadership, sponsorship, trust, glue work, decisions and priorities.</p>
-    <p class="meta">8 lessons · 8 cheat sheets · <a href="leadership-skills/GUIDE.html" data-md="leadership-skills/GUIDE.md">full guide</a></p>
-  </article>
-</div>
-
-<h3 class="group">Deep dives</h3>
-<p class="desc">Longer courses with step-through animations, live simulators and runnable Podman labs.</p>
-<div class="courses">
-  <article class="course async">
-    <h3><a href="async-messaging/index.html">Async Messaging</a></h3>
-    <p>Queues, Kafka internals, delivery guarantees, idempotency, outbox, sagas and CDC with Debezium.</p>
-    <p class="meta">19 lessons · 19 cheat sheets · <a href="async-messaging/capstone/capstone-brief.html">capstone</a> · <a href="async-messaging/GUIDE.html" data-md="async-messaging/GUIDE.md">full guide</a></p>
-  </article>
-  <article class="course es">
-    <h3><a href="event-sourcing/index.html">Event Sourcing</a></h3>
-    <p>Level zero to Staff: deciders, Postgres event stores, projections, the gap problem, schema evolution, GDPR, and when not to.</p>
-    <p class="meta">16 lessons · 12 references · lab · <a href="event-sourcing/GUIDE.html" data-md="event-sourcing/GUIDE.md">full guide</a></p>
-  </article>
-  <article class="course obs">
-    <h3><a href="Observability/index.html">Reliability &amp; Observability</a></h3>
-    <p>SLIs, SLOs and error budgets, golden signals, incidents, overload, safe change and NALSD.</p>
-    <p class="meta">16 lessons · 17 references · lab · <a href="Observability/GUIDE.html" data-md="Observability/GUIDE.md">full guide</a></p>
-  </article>
-</div>
-
-<footer>
-  Source on <a href="https://github.com/mdtausifahmad/principal-engineering">GitHub</a>.
-  The full guides and playbook render here with their Mermaid diagrams.
-</footer>
-
-<script>
-  // Opened straight from disk (no Jekyll build): point markdown links at the .md sources.
-  if (location.protocol === 'file:') {
-    document.querySelectorAll('a[data-md]').forEach(a => a.setAttribute('href', a.dataset.md));
-  }
-</script>
+<section id="learning-paths" aria-labelledby="starting-heading">
+  <h2 id="starting-heading">Choose a learning path</h2>
+  <p>Start with a goal, then follow the relevant material across the areas below. These are existing starting routes; more paths can be added over time.</p>
+  <ul class="starting-points">
+    <li><a href="coding-interview/foundations.html">Prepare for a coding interview</a><p>Learn to derive an algorithm, prove it works, and adapt it when the question changes.</p></li>
+    <li><a href="system-design/index.html">Design better systems</a><p>Start with requirements and trade-offs, then explore scale, data and failure.</p></li>
+    <li><a href="Observability/index.html">Understand production systems</a><p>Learn reliability, observability, incidents and safe change.</p></li>
+    <li><a href="career-path/index.html">Plan your career development</a><p>Explore the Senior → Staff → Principal path and the skills it calls for.</p></li>
+  </ul>
+</section>
+<!-- library-areas:start -->
+<section id="topics" aria-labelledby="topics-heading">
+<h2 id="topics-heading">Browse by area</h2>
+<p>These ten areas organize the library as it grows. Choose any area; numbering is for navigation, not study order. Topic lists describe each area’s scope; linked courses and lessons are the material available today.</p>
+<nav class="topic-nav" aria-label="Ten learning areas"><ol class="area-directory">
+<li><a href="#technical-foundations">Technical foundations and implementation</a></li>
+<li><a href="#software-design">Software design and architecture</a></li>
+<li><a href="#quality-delivery-operations">Quality, delivery, and operations</a></li>
+<li><a href="#security-privacy-responsibility">Security, privacy, and responsible engineering</a></li>
+<li><a href="#communication-collaboration">Communication and collaboration</a></li>
+<li><a href="#product-business-domain">Product, business, and domain knowledge</a></li>
+<li><a href="#planning-execution">Planning and execution</a></li>
+<li><a href="#leadership-strategy">Leadership and technical strategy</a></li>
+<li><a href="#learning-thinking-effectiveness">Learning, thinking, and personal effectiveness</a></li>
+<li><a href="#career-development">Career and professional development</a></li>
+</ol></nav>
+<section class="subject" id="technical-foundations" aria-labelledby="technical-foundations-heading">
+<span id="coding" class="area-alias" aria-hidden="true"></span>
+<span id="practice" class="area-alias" aria-hidden="true"></span>
+<h3 id="technical-foundations-heading">1. Technical foundations and implementation</h3>
+<p class="subject-intro">Understanding computers and building software effectively.</p>
+<details class="area-scope"><summary>Topics in this area, including future additions</summary><p>Data structures, Algorithms, Operating systems, Networking, Programming languages, Concurrency, Databases, Frontend, Backend, APIs, Developer tooling.</p></details>
+<article class="library-entry"><h4><a href="coding-interview/index.html">Coding Interviews: Patterns &amp; Problem Solving</a></h4><p>Build algorithmic thinking through baselines, correctness arguments, diagrams, counterexamples, and Java and Kotlin implementations.</p>
+<p class="meta">20 pattern lessons · 81 worked problems · 126 practice variations</p>
+<p class="entry-links"><a href="coding-interview/foundations.html">Foundations</a><a href="coding-interview/practice.html">Mixed practice</a><a href="coding-interview/GUIDE.html">Full guide</a></p>
+</article>
+<article class="library-entry"><h4><a href="technical-skills/index.html">Technical Skills</a></h4><p>A cross-area course spanning distributed data, architecture, security, cloud, writing and strategy. Its focused lessons are also linked under the relevant areas.</p>
+<p class="meta">8 lessons</p>
+<p class="entry-links"><a href="technical-skills/GUIDE.html" data-md="technical-skills/GUIDE.md">Full guide</a></p>
+</article>
+</section>
+<section class="subject" id="software-design" aria-labelledby="software-design-heading">
+<span id="systems" class="area-alias" aria-hidden="true"></span>
+<h3 id="software-design-heading">2. Software design and architecture</h3>
+<p class="subject-intro">Structuring systems and making technical trade-offs.</p>
+<details class="area-scope"><summary>Topics in this area, including future additions</summary><p>Design principles, Domain modeling, Architectural patterns, Distributed systems, Scalability, Consistency, Integration, System evolution.</p></details>
+<article class="library-entry"><h4><a href="system-design/index.html">System Design &amp; Architecture at Scale</a></h4><p>Scalability, consistency, data modeling, caching, messaging, APIs, estimation and resilience.</p>
+<p class="meta">8 lessons</p>
+<p class="entry-links"><a href="system-design/GUIDE.html" data-md="system-design/GUIDE.md">Full guide</a></p>
+</article>
+<article class="library-entry"><h4><a href="async-messaging/index.html">Async Messaging</a></h4><p>Queues, Kafka internals, delivery guarantees, idempotency, outbox, sagas and change data capture.</p>
+<p class="meta">19 lessons</p>
+<p class="entry-links"><a href="async-messaging/capstone/capstone-brief.html">Capstone</a><a href="async-messaging/GUIDE.html" data-md="async-messaging/GUIDE.md">Full guide</a></p>
+</article>
+<article class="library-entry"><h4><a href="event-sourcing/index.html">Event Sourcing</a></h4><p>Deciders, event stores, projections, schema evolution, privacy and the trade-offs of retaining event history.</p>
+<p class="meta">16 lessons</p>
+<p class="entry-links"><a href="event-sourcing/GUIDE.html" data-md="event-sourcing/GUIDE.md">Full guide</a></p>
+</article>
+<div class="related-learning"><h4>Related learning already available</h4><ul>
+<li><a href="technical-skills/lessons/0003-software-architecture.html">Software architecture</a> — Architectural evolution and design trade-offs.</li>
+</ul></div>
+</section>
+<section class="subject" id="quality-delivery-operations" aria-labelledby="quality-delivery-operations-heading">
+<span id="reliability" class="area-alias" aria-hidden="true"></span>
+<h3 id="quality-delivery-operations-heading">3. Quality, delivery, and operations</h3>
+<p class="subject-intro">Making software correct, maintainable, deployable, and reliable.</p>
+<details class="area-scope"><summary>Topics in this area, including future additions</summary><p>Testing, Code review, Debugging, Refactoring, Git, CI/CD, Cloud infrastructure, Observability, Performance, Incident response.</p></details>
+<article class="library-entry"><h4><a href="Observability/index.html">Reliability &amp; Observability</a></h4><p>SLIs, SLOs, error budgets, golden signals, incidents, overload, safe change and capacity planning.</p>
+<p class="meta">16 lessons</p>
+<p class="entry-links"><a href="Observability/GUIDE.html" data-md="Observability/GUIDE.md">Full guide</a></p>
+</article>
+<div class="related-learning"><h4>Related learning already available</h4><ul>
+<li><a href="technical-skills/lessons/0007-cloud-infrastructure.html">Cloud infrastructure</a> — Infrastructure, deployment strategies and operability.</li>
+<li><a href="event-sourcing/lessons/0014-testing-event-sourced-systems.html">Testing event-sourced systems</a> — Given–when–then, property and replay testing in a specific system model.</li>
+</ul></div>
+</section>
+<section class="subject" id="security-privacy-responsibility" aria-labelledby="security-privacy-responsibility-heading">
+<h3 id="security-privacy-responsibility-heading">4. Security, privacy, and responsible engineering</h3>
+<p class="subject-intro">Protecting users and systems, and understanding engineering responsibilities.</p>
+<details class="area-scope"><summary>Topics in this area, including future additions</summary><p>Authentication, Authorization, Threat modeling, Secure coding, Secrets, Data protection, Accessibility, Ethics, Responsible AI use.</p></details>
+<p class="coverage-note">No dedicated course yet. Start with the related lessons below.</p>
+<div class="related-learning"><h4>Related learning already available</h4><ul>
+<li><a href="technical-skills/lessons/0006-security-and-privacy.html">Security and privacy</a> — Security and privacy as engineering concerns.</li>
+<li><a href="event-sourcing/lessons/0013-gdpr-crypto-shredding-and-temporal-queries.html">Privacy in event histories</a> — Crypto-shredding and temporal queries in event-sourced systems.</li>
+</ul></div>
+</section>
+<section class="subject" id="communication-collaboration" aria-labelledby="communication-collaboration-heading">
+<h3 id="communication-collaboration-heading">5. Communication and collaboration</h3>
+<p class="subject-intro">Working effectively with other people.</p>
+<details class="area-scope"><summary>Topics in this area, including future additions</summary><p>Technical writing, Speaking, Listening, Asking questions, Feedback, Negotiation, Conflict resolution, Stakeholder communication.</p></details>
+<p class="coverage-note">No dedicated course yet. Start with the related lessons below.</p>
+<div class="related-learning"><h4>Related learning already available</h4><ul>
+<li><a href="technical-skills/lessons/0005-technical-writing-docs-rfcs-adrs.html">Technical writing: design docs, RFCs and ADRs</a></li>
+<li><a href="leadership-skills/lessons/0002-communication-and-executive-writing.html">Communication and executive writing</a></li>
+<li><a href="leadership-skills/lessons/0005-stakeholder-management-and-trust.html">Stakeholder management and trust</a></li>
+</ul></div>
+</section>
+<section class="subject" id="product-business-domain" aria-labelledby="product-business-domain-heading">
+<h3 id="product-business-domain-heading">6. Product, business, and domain knowledge</h3>
+<p class="subject-intro">Understanding which problems matter and why.</p>
+<details class="area-scope"><summary>Topics in this area, including future additions</summary><p>User needs, Requirements discovery, Product metrics, Experimentation, Business models, Costs, Domain workflows, Build-versus-buy decisions.</p></details>
+<p class="coverage-note">No dedicated course yet. Start with the related lessons below.</p>
+<div class="related-learning"><h4>Related learning already available</h4><ul>
+<li><a href="leadership-skills/lessons/0008-prioritization.html">Prioritization and impact</a> — Connect engineering work to business and customer outcomes.</li>
+<li><a href="technical-skills/lessons/0007-cloud-infrastructure.html">Cloud costs and pragmatic choices</a> — Consider cost, complexity and business needs in infrastructure choices.</li>
+</ul></div>
+</section>
+<section class="subject" id="planning-execution" aria-labelledby="planning-execution-heading">
+<h3 id="planning-execution-heading">7. Planning and execution</h3>
+<p class="subject-intro">Turning ambiguous goals into completed work.</p>
+<details class="area-scope"><summary>Topics in this area, including future additions</summary><p>Problem framing, Decomposition, Estimation, Prioritization, Dependency management, Risk management, Project planning, Incremental delivery.</p></details>
+<p class="coverage-note">No dedicated course yet. Start with the related lessons below.</p>
+<div class="related-learning"><h4>Related learning already available</h4><ul>
+<li><a href="leadership-skills/lessons/0003-technical-and-project-leadership.html">Technical and project leadership</a> — Scope ambiguity, coordinate delivery and manage project risks.</li>
+<li><a href="leadership-skills/lessons/0008-prioritization.html">Prioritization</a></li>
+<li><a href="system-design/lessons/0007-back-of-envelope-estimation.html">Back-of-the-envelope estimation</a> — Estimate system capacity and resource needs; this is technical estimation, not a full project-planning course.</li>
+</ul></div>
+</section>
+<section class="subject" id="leadership-strategy" aria-labelledby="leadership-strategy-heading">
+<span id="leadership" class="area-alias" aria-hidden="true"></span>
+<h3 id="leadership-strategy-heading">8. Leadership and technical strategy</h3>
+<p class="subject-intro">Helping teams and organizations make better decisions.</p>
+<details class="area-scope"><summary>Topics in this area, including future additions</summary><p>Mentoring, Coaching, Influencing without authority, Facilitating decisions, Technical vision, Cross-team alignment, Organizational change.</p></details>
+<article class="library-entry"><h4><a href="leadership-skills/index.html">Leadership Skills</a></h4><p>Influence, communication, technical leadership, sponsorship, trust, collaboration, decisions and prioritization. Focused lessons are also surfaced under communication and planning.</p>
+<p class="meta">8 lessons</p>
+<p class="entry-links"><a href="leadership-skills/GUIDE.html" data-md="leadership-skills/GUIDE.md">Full guide</a></p>
+</article>
+<div class="related-learning"><h4>Related learning already available</h4><ul>
+<li><a href="technical-skills/lessons/0004-engineering-strategy-and-vision.html">Engineering strategy and technical vision</a></li>
+</ul></div>
+</section>
+<section class="subject" id="learning-thinking-effectiveness" aria-labelledby="learning-thinking-effectiveness-heading">
+<h3 id="learning-thinking-effectiveness-heading">9. Learning, thinking, and personal effectiveness</h3>
+<p class="subject-intro">Improving how you learn, reason, and work.</p>
+<details class="area-scope"><summary>Topics in this area, including future additions</summary><p>Critical thinking, Research, Deliberate practice, Knowledge management, Focus, Time management, Reflection, Managing uncertainty.</p></details>
+<p class="coverage-note">No dedicated course yet. Start with the related lessons below.</p>
+<div class="related-learning"><h4>Related learning already available</h4><ul>
+<li><a href="coding-interview/foundations.html">Reasoning from first principles</a> — Algorithm-focused practice in modeling, invariants and boundary testing.</li>
+<li><a href="coding-interview/practice.html">Deliberate practice and reflection</a> — Retrieval, an error log, changed assumptions and review of your reasoning.</li>
+</ul></div>
+</section>
+<section class="subject" id="career-development" aria-labelledby="career-development-heading">
+<h3 id="career-development-heading">10. Career and professional development</h3>
+<p class="subject-intro">Intentionally developing your professional direction.</p>
+<details class="area-scope"><summary>Topics in this area, including future additions</summary><p>Career planning, Competency assessment, Portfolios, Interviews, Networking, Promotion evidence, Professional reputation, Choosing a specialization.</p></details>
+<article class="library-entry"><h4><a href="career-path/index.html">Career path: Senior → Staff → Principal</a></h4><p>A focused path covering expectations, skills, progression planning, promotion evidence and real-world stories.</p>
+<p class="meta">7-part career playbook</p>
+<p class="entry-links"><a href="career-path/GUIDE.html" data-md="career-path/GUIDE.md">Career guide</a></p>
+</article>
+<div class="related-learning"><h4>Related learning already available</h4><ul>
+<li><a href="coding-interview/index.html">Coding interview preparation</a> — Follow the algorithms course and mixed practice in area 1.</li>
+<li><a href="06-self-assessment-and-tracking.html" data-md="06-self-assessment-and-tracking.md">Competency assessment and tracking</a> — Career self-assessment and evidence of growth.</li>
+<li><a href="technical-skills/lessons/0008-tshaped-breadth-and-depth.html">T-shaped breadth and depth</a> — Choose and build depth while retaining broad technical judgment.</li>
+</ul></div>
+</section>
+</section>
+<!-- library-areas:end -->
+<section class="library-about" aria-labelledby="using-heading">
+  <h2 id="using-heading">Keep learning from here</h2>
+  <p>Use a course map for a guided sequence, open a full guide for a continuous read, or revisit a reference sheet while working on a problem. Practice and labs are included where the subject benefits from them.</p>
+  <p>The library will grow as new topics and learning paths are added. Its structure follows subjects, so you can learn for your current work, an interview, curiosity, or a career goal.</p>
+</section>
+</main>
+<footer><a href="overview.html" data-md="README.md">About the library and adding topics</a> · <a href="https://github.com/mdtausifahmad/principal-engineering">Source on GitHub</a></footer>
+<!-- page-navigation:start -->
+<nav class="page-navigation" aria-label="Bottom page navigation"><div class="page-navigation-parents"><a href="index.html">Library home</a></div><div class="page-navigation-sections"><a href="index.html#topics">All learning areas</a><a href="#page-top">Back to top ↑</a></div></nav>
+<!-- page-navigation:end -->
 </body>
 </html>

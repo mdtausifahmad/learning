@@ -1,0 +1,192 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="Learn coding interview reasoning from first principles, with Java and Kotlin solutions."><title>Sliding windows: expand, repair, and count · Coding interview</title><link rel="stylesheet" href="../assets/course.css"><script src="../assets/course.js" defer></script><link rel="stylesheet" href="../../assets/navigation.css">
+</head><body id="page-top">
+<!-- page-navigation:start -->
+<nav class="page-navigation" aria-label="Top page navigation"><div class="page-navigation-parents"><a href="../../index.html">Library home</a> <span aria-hidden="true">›</span> <a href="../../index.html#technical-foundations">Technical foundations and implementation</a> <span aria-hidden="true">›</span> <a href="../index.html">Coding Interviews: Patterns &amp; Problem Solving</a> <span aria-hidden="true">›</span> <a href="index.html">Lessons</a></div><div class="page-navigation-sections"><a href="index.html">Lessons</a><a href="../reference/index.html">Reference sheets</a><a href="../materials.html">Guides and resources</a><a href="#page-top">Back to top ↑</a></div><div class="page-navigation-pager"><a href="02-two-pointers.html" rel="prev">← Previous: Two pointers and safe elimination</a><a href="04-prefix-sums.html" rel="next">Next: Prefix sums, balance, and range counting →</a></div></nav>
+<!-- page-navigation:end -->
+<a class="skip" href="#main">Skip to content</a><nav class="top"><a href="../../index.html">Software Engineering Library</a><a href="../index.html">Coding interview</a><a href="../foundations.html">Start from zero</a><a href="../practice.html">Practice room</a><a href="../research.html">Sources</a></nav><div class="layout"><aside class="rail"><a href="../index.html">Course map</a><p>Learning sequence</p><ol><li><a  href="01-hashing.html">Hashing, complements, and canonical keys</a></li><li><a  href="02-two-pointers.html">Two pointers and safe elimination</a></li><li><a aria-current="page" href="03-sliding-window.html">Sliding windows: expand, repair, and count</a></li><li><a  href="04-prefix-sums.html">Prefix sums, balance, and range counting</a></li><li><a  href="05-binary-search.html">Binary search on positions, structure, and answers</a></li><li><a  href="06-sorting-intervals.html">Sorting, intervals, scheduling, and sweep lines</a></li><li><a  href="07-linked-lists.html">Linked lists: preserve the path while changing links</a></li><li><a  href="08-stacks-queues.html">Stacks, monotonic frontiers, and deques</a></li><li><a  href="09-trees.html">Trees: decide what crosses each parent-child boundary</a></li><li><a  href="10-heaps.html">Heaps: keep the next winner and forget full order</a></li><li><a  href="11-backtracking.html">Backtracking: enumerate choices with a reversible state</a></li><li><a  href="12-tries.html">Tries: share prefixes and prune impossible continuations</a></li><li><a  href="13-graph-traversal.html">Graphs: reachability and shortest unweighted paths</a></li><li><a  href="14-topology-union-find.html">Dependency order and dynamic connectivity</a></li><li><a  href="15-shortest-paths.html">Shortest paths: matching the frontier to edge costs</a></li><li><a  href="16-greedy.html">Greedy choices and exchange arguments</a></li><li><a  href="17-dp-linear.html">Linear dynamic programming: decisions, states, and dependencies</a></li><li><a  href="18-dp-grids-strings.html">Dynamic programming on grids and strings</a></li><li><a  href="19-range-queries.html">Range queries: precompute reusable pieces, then update only dependencies</a></li><li><a  href="20-bit-manipulation.html">Bit manipulation and state compression</a></li></ol></aside><main id="main" class="lesson"><header><p class="sequence">Pattern 03 / Linear data</p><h1>Sliding windows: expand, repair, and count</h1><p class="lede">A contiguous subarray or substring is described by two boundaries. Brute force chooses a left boundary, chooses a right boundary, then inspects everything between them. Even after incremental sums remove the innermost scan, there are quadratic many intervals. Sliding windows reduce the number of boundary choices only when neighboring intervals have a useful relationship. We maintain information for one current interval and change it when an endpoint enters or leaves.</p><p class="muted">Prerequisites: Lesson 00; arrays, loops, functions, and Big-O. Suggested study block: 150 minutes, excluding extra practice.</p><nav class="lesson-jumps"><a href="#model">Build the model</a><a href="#worked">Worked problems</a><a href="#practice">Practice ladder</a><a href="#transfer">Unseen transfer</a></nav></header><section id="model"><h2>Build the idea from zero</h2><p>A contiguous subarray or substring is described by two boundaries. Brute force chooses a left boundary, chooses a right boundary, then inspects everything between them. Even after incremental sums remove the innermost scan, there are quadratic many intervals. Sliding windows reduce the number of boundary choices only when neighboring intervals have a useful relationship. We maintain information for one current interval and change it when an endpoint enters or leaves.</p>
+<p>Begin with a fixed width. All candidate intervals have exactly k items. Moving one step removes the old left item and adds the new right item. A rolling sum is sufficient because addition can be undone by subtraction. A rolling maximum cannot generally be updated by simply subtracting an outgoing value: when the maximum leaves, the remaining maximum is unknown. That variant needs a monotonic deque. Ask what operation summarizes the interval and whether removing an item is supported.</p>
+<p>For a variable width, the critical extra structure is monotonic validity. In a substring with no repeated symbols, adding symbols can make a valid interval invalid, and removing from the left cannot introduce a duplicate. For each right endpoint, move left until the interval is valid again. The earliest valid left boundary produces the longest valid interval ending here. Each boundary moves forward at most n times, so a while loop inside a for loop can still be linear.</p>
+<p>At most K distinct symbols has the same direction. Once the interval is valid, every suffix ending at the same right endpoint is also valid. If its length is r-l+1, exactly that many intervals end here. This converts longest-window reasoning into counting. Exactly K can be computed as atMost(K)-atMost(K-1). Derive this set difference rather than treating it as a magic formula: an interval counted with at most K but not with at most K-1 contains exactly K distinct values.</p>
+<p>Minimum cover reverses the objective. Expand until the interval contains all required multiplicities; then shrink while it remains valid, recording candidates before each removal. Coverage is not equivalent to containing each distinct required character once. If the target is AABC, two As are necessary. Maintain how many required character occurrences are still missing, or how many character requirements are satisfied. Be explicit about which interpretation your counter uses.</p>
+<p>Negative numbers expose why the proof matters. For positive numbers, removing the left item cannot increase a sum, and expanding cannot decrease it. With negative numbers those statements fail, so a sum-threshold window can discard a boundary that later becomes useful. Symbol-count windows do not rely on numeric signs, so they remain valid. Recognize the structural reason for monotonicity rather than applying a template whenever a prompt says subarray.</p>
+<h3>When to consider it</h3><ul><li><p>Contiguous input plus repeated interval statistics suggests maintained window state.</p>
+</li><li><p>At-most constraints whose validity survives deleting an endpoint support shrinking until valid.</p>
+</li><li><p>Minimum coverage supports expanding until valid, then shrinking while valid.</p>
+</li></ul><div class="proof"><h3>The invariant</h3><p>State must exactly describe the current interval. Expand by adding one endpoint; shrink only when the property has a monotone repair direction. Count or optimize only after stating whether the interval is valid. Every pointer moves forward, so total boundary movement is linear.</p>
+</div><figure><div class="diagram-scroll"><svg viewBox="0 0 760 180" role="img" aria-label="Unique-symbol window: expand right, then jump left past an in-window duplicate."><defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#3a677e"/></marker></defs><path d="M175,72 Q195,72 215,72" stroke="#3a677e" fill="none" marker-end="url(#arrow)"/><text x="195" y="46" text-anchor="middle" font-size="12">expand: still unique</text><path d="M365,72 Q385,72 405,72" stroke="#3a677e" fill="none" marker-end="url(#arrow)"/><text x="385" y="46" text-anchor="middle" font-size="12">right reaches second b; set left=2</text><path d="M555,72 Q575,72 595,72" stroke="#3a677e" fill="none" marker-end="url(#arrow)"/><text x="575" y="46" text-anchor="middle" font-size="12">old a at 0 is outside; never move left backward</text><rect x="25" y="52" width="150" height="66" rx="8" fill="#e9f1f6" stroke="#52748b"/><foreignObject x="30" y="57" width="140" height="60"><div xmlns="http://www.w3.org/1999/xhtml" style="font:14px system-ui;text-align:center;line-height:1.3;padding:5px;color:#203447">a | b b a: window a</div></foreignObject><rect x="215" y="52" width="150" height="66" rx="8" fill="#e9f1f6" stroke="#52748b"/><foreignObject x="220" y="57" width="140" height="60"><div xmlns="http://www.w3.org/1999/xhtml" style="font:14px system-ui;text-align:center;line-height:1.3;padding:5px;color:#203447">a b | b a: window ab</div></foreignObject><rect x="405" y="52" width="150" height="66" rx="8" fill="#e9f1f6" stroke="#52748b"/><foreignObject x="410" y="57" width="140" height="60"><div xmlns="http://www.w3.org/1999/xhtml" style="font:14px system-ui;text-align:center;line-height:1.3;padding:5px;color:#203447">a b | b | a: duplicate b at 1 and 2</div></foreignObject><rect x="595" y="52" width="150" height="66" rx="8" fill="#e9f1f6" stroke="#52748b"/><foreignObject x="600" y="57" width="140" height="60"><div xmlns="http://www.w3.org/1999/xhtml" style="font:14px system-ui;text-align:center;line-height:1.3;padding:5px;color:#203447">a b | b a: left stays 2; window ba</div></foreignObject></svg></div><figcaption>Unique-symbol window: expand right, then jump left past an in-window duplicate.</figcaption></figure></section><section><h2>Follow a concrete execution</h2><div class="trace" data-trace><script type="application/json">[{"state":"Unique substring \"abba\": r=0, c=a, left=0, last={a:0}, best=1","explanation":"The singleton window is valid."},{"state":"r=1, c=b, left=0, last={a:0,b:1}, best=2","explanation":"No prior b; extend the longest valid interval."},{"state":"r=2, c=b, left=2, last={a:0,b:2}, best=2","explanation":"Drop everything through prior b at index 1."},{"state":"r=3, c=a, prior a=0, left remains 2, window=\"ba\"","explanation":"The old a lies outside the window; moving left backward would violate uniqueness."}]</script><p class="trace-count" aria-live="polite"></p><pre class="trace-state"></pre><p class="trace-explanation"></p><div class="trace-controls"><button type="button" data-step="-1">Previous state</button><button type="button" data-step="1">Next state</button><button type="button" data-reset>Reset</button></div></div></section><section><h2>Where the idea breaks</h2><details class="trap"><summary>Use a positive-sum shrinking rule with negative values.</summary><h4>Counterexample</h4><p>[1,-1,5], target sum at least 5: after reaching total 5, removing 1 gives 4 and stops, missing [5] of length 1.</p>
+<h4>Repair the reasoning</h4><p>For shortest threshold sums with negatives, use prefix sums and a monotonic deque; the sum-window proof no longer holds.</p>
+</details><details class="trap"><summary>Move left to lastSeen+1 without taking max.</summary><h4>Counterexample</h4><p>&quot;abba&quot;: after the second b left=2; seeing final a would move left back to 1 and accept &quot;bba&quot;.</p>
+<h4>Repair the reasoning</h4><p>Set left=max(left,lastSeen+1).</p>
+</details><details class="trap"><summary>Minimum cover tracks only distinct required symbols.</summary><h4>Counterexample</h4><p>s=&quot;ABC&quot;, t=&quot;AABC&quot; would appear covered although it lacks the second A.</p>
+<h4>Repair the reasoning</h4><p>Track multiplicity deficits or fully satisfied required frequencies.</p>
+</details></section><section id="worked"><h2>Worked problem ladder</h2><p>Read the contract, draw a small example, and write a baseline before revealing the derivation. Code snippets include helpers; downloadable Java files add a class and standard imports. Kotlin files add imports. Input contracts are part of the solution.</p><article class="problem" id="problem-1"><div class="problem-heading"><h3>1. Maximum Sum of a Fixed-Size Window</h3><span class="difficulty">Easy</span></div><p>Given a non-null int array and k with 1&lt;=k&lt;=n, return the maximum sum among all contiguous windows of length k as long. Throw IllegalArgumentException for invalid k. Input is unchanged.</p>
+<div class="example"><strong>Example</strong><p>[-5,-2,-8,-1], k=2 =&gt; -7 from [-5,-2].</p>
+</div><details><summary>First attempt: the baseline</summary><p>Recompute every length-k sum: O(nk) time/O(1) space.</p>
+</details><details class="solution"><summary>Reveal the derivation and solutions</summary><h4>Derive it step by step</h4><ol><li><p>Sum the first k items using long. Initialize best to this actual window, not zero.</p>
+</li><li><p>For each next item, add it and subtract the item k positions behind. The updated sum is exactly the next window.</p>
+</li><li><p>Record the maximum after each transition; all n-k+1 windows appear once.</p>
+</li></ol><div class="proof"><strong>Why it works</strong><p>After processing right index r&gt;=k-1, sum equals a[r-k+1..r] and best is the largest sum among all windows ending at or before r.</p>
+</div><div class="language-controls" role="group" aria-label="Solution language"><button type="button" data-lang="java">Java</button><button type="button" data-lang="kotlin">Kotlin</button><button type="button" data-lang="both">Both</button></div><div class="code" data-code="java"><h4>Java</h4><pre><code>static long maxWindowSum(int[] a,int k) {
+    if(k&lt;1 || k&gt;a.length) throw new IllegalArgumentException(&quot;invalid k&quot;);
+    long sum=0; for(int i=0;i&lt;k;i++) sum+=a[i];
+    long best=sum;
+    for(int r=k;r&lt;a.length;r++) {
+        sum+=(long)a[r]-a[r-k]; best=Math.max(best,sum);
+    }
+    return best;
+}</code></pre><a download href="../solutions/03-1.java">Download Java snippet</a></div><div class="code" data-code="kotlin"><h4>Kotlin</h4><pre><code>fun maxWindowSum(a: IntArray, k: Int): Long {
+    require(k &gt;= 1 &amp;&amp; k &lt;= a.size) { &quot;invalid k&quot; }
+    var sum = 0L
+    for (i in 0 until k) sum += a[i]
+    var best = sum
+    for (r in k until a.size) {
+        sum += a[r].toLong() - a[r - k]; best = maxOf(best, sum)
+    }
+    return best
+}</code></pre><a download href="../solutions/03-1.kt">Download Kotlin snippet</a></div><h4>Cost and boundaries</h4><p>O(n) time, O(1) auxiliary space. Negative values are supported; long protects the sum.</p>
+<ul><li><p>[7], k=1 =&gt; 7</p>
+</li><li><p>[-3,-2], k=1 =&gt; -2</p>
+</li><li><p>[], k=1 =&gt; exception</p>
+</li></ul><h4>Change one assumption</h4><p>For a fixed-window maximum value instead of sum, use a deque of indices with decreasing values; addition/subtraction cannot recover a departing maximum.</p>
+</details><p><a href="https://leetcode.com/problems/maximum-average-subarray-i/" target="_blank" rel="noopener">Original practice problem</a> <label class="solved"><input type="checkbox" data-progress="03-1"> Solved independently</label></p></article><article class="problem" id="problem-2"><div class="problem-heading"><h3>2. Longest Substring Without Repetition</h3><span class="difficulty">Medium</span></div><p>Given a non-null String, return the maximum length of a contiguous substring with distinct UTF-16 code units. Empty string returns 0. Input is unchanged.</p>
+<div class="example"><strong>Example</strong><p>&quot;abba&quot; =&gt; 2, from &quot;ab&quot; or &quot;ba&quot;.</p>
+</div><details><summary>First attempt: the baseline</summary><p>Enumerate substrings and test distinctness: O(n³) literally, or O(n²) with a fresh set for each start.</p>
+</details><details class="solution"><summary>Reveal the derivation and solutions</summary><h4>Derive it step by step</h4><ol><li><p>Store the most recent index of each code unit. At right r, its prior position p would conflict if p&gt;=left.</p>
+</li><li><p>Move left to max(left,p+1); never move left backward for a repeat outside the current interval.</p>
+</li><li><p>Update last occurrence, then maximize r-left+1. This directly jumps over the minimum invalid prefix.</p>
+</li></ol><div class="proof"><strong>Why it works</strong><p>The interval [left,r] has unique symbols and left is the smallest possible valid start for a substring ending at r.</p>
+</div><div class="language-controls" role="group" aria-label="Solution language"><button type="button" data-lang="java">Java</button><button type="button" data-lang="kotlin">Kotlin</button><button type="button" data-lang="both">Both</button></div><div class="code" data-code="java"><h4>Java</h4><pre><code>static int longestUnique(String s) {
+    Map&lt;Character,Integer&gt; last=new HashMap&lt;&gt;();
+    int left=0,best=0;
+    for(int r=0;r&lt;s.length();r++) {
+        char c=s.charAt(r); Integer p=last.put(c,r);
+        if(p!=null) left=Math.max(left,p+1);
+        best=Math.max(best,r-left+1);
+    }
+    return best;
+}</code></pre><a download href="../solutions/03-2.java">Download Java snippet</a></div><div class="code" data-code="kotlin"><h4>Kotlin</h4><pre><code>fun longestUnique(s: String): Int {
+    val last = HashMap&lt;Char, Int&gt;(); var left = 0; var best = 0
+    for (r in s.indices) {
+        val p = last.put(s[r], r)
+        if (p != null) left = maxOf(left, p + 1)
+        best = maxOf(best, r - left + 1)
+    }
+    return best
+}</code></pre><a download href="../solutions/03-2.kt">Download Kotlin snippet</a></div><h4>Cost and boundaries</h4><p>Expected O(n) time; O(min(n,65536)) map space for UTF-16 code units.</p>
+<ul><li><p>&quot;&quot; =&gt; 0</p>
+</li><li><p>&quot;aaaa&quot; =&gt; 1</p>
+</li><li><p>&quot;abba&quot; =&gt; 2</p>
+</li></ul><h4>Change one assumption</h4><p>For user-perceived characters, decide whether to tokenize code points or grapheme clusters first; code-unit lengths are not necessarily displayed-character lengths.</p>
+</details><p><a href="https://leetcode.com/problems/longest-substring-without-repeating-characters/" target="_blank" rel="noopener">Original practice problem</a> <label class="solved"><input type="checkbox" data-progress="03-2"> Solved independently</label></p></article><article class="problem" id="problem-3"><div class="problem-heading"><h3>3. Subarrays With Exactly K Distinct Values</h3><span class="difficulty">Hard</span></div><p>Given a non-null int array and k, return the number of nonempty contiguous subarrays containing exactly k distinct values as long. k&lt;=0 returns 0. Input is unchanged.</p>
+<div class="example"><strong>Example</strong><p>[1,2,1,2,3], k=2 =&gt; 7.</p>
+</div><details><summary>First attempt: the baseline</summary><p>Enumerate each start and grow a frequency map: expected O(n²) time/O(n) state.</p>
+</details><details class="solution"><summary>Reveal the derivation and solutions</summary><h4>Derive it step by step</h4><ol><li><p>First solve at most k distinct. Expand right, then remove from left until the frequency map has at most k keys.</p>
+</li><li><p>Every start between left and right gives a valid interval ending at right: add right-left+1.</p>
+</li><li><p>Subtract atMost(k-1) from atMost(k). Intervals with fewer distinct values cancel exactly once.</p>
+</li></ol><div class="proof"><strong>Why it works</strong><p>For each right endpoint, left is the earliest valid start for atMost(k), and precisely all starts in [left,right] are counted.</p>
+</div><div class="language-controls" role="group" aria-label="Solution language"><button type="button" data-lang="java">Java</button><button type="button" data-lang="kotlin">Kotlin</button><button type="button" data-lang="both">Both</button></div><div class="code" data-code="java"><h4>Java</h4><pre><code>static long exactlyK(int[] a,int k) {
+    return k&lt;=0 ? 0 : atMost(a,k)-atMost(a,k-1);
+}
+static long atMost(int[] a,int k) {
+    if(k&lt;0) return 0;
+    Map&lt;Integer,Integer&gt; freq=new HashMap&lt;&gt;(); int left=0; long total=0;
+    for(int r=0;r&lt;a.length;r++) {
+        freq.merge(a[r],1,Integer::sum);
+        while(freq.size()&gt;k) {
+            int x=a[left++], c=freq.get(x)-1;
+            if(c==0) freq.remove(x); else freq.put(x,c);
+        }
+        total+=r-left+1;
+    }
+    return total;
+}</code></pre><a download href="../solutions/03-3.java">Download Java snippet</a></div><div class="code" data-code="kotlin"><h4>Kotlin</h4><pre><code>fun exactlyK(a: IntArray, k: Int): Long {
+    fun atMost(limit: Int): Long {
+        if (limit &lt; 0) return 0L
+        val freq = HashMap&lt;Int, Int&gt;(); var left = 0; var total = 0L
+        for (r in a.indices) {
+            freq[a[r]] = (freq[a[r]] ?: 0) + 1
+            while (freq.size &gt; limit) {
+                val x = a[left++]; val c = freq.getValue(x) - 1
+                if (c == 0) freq.remove(x) else freq[x] = c
+            }
+            total += (r - left + 1).toLong()
+        }
+        return total
+    }
+    return if (k &lt;= 0) 0L else atMost(k) - atMost(k - 1)
+}</code></pre><a download href="../solutions/03-3.kt">Download Kotlin snippet</a></div><h4>Cost and boundaries</h4><p>Expected O(n) time from two linear scans; O(min(n,k+1)) auxiliary frequency state for positive k; scalar long output.</p>
+<ul><li><p>[] with k=2 =&gt; 0</p>
+</li><li><p>[1,1], k=1 =&gt; 3</p>
+</li><li><p>[1,2], k=0 =&gt; 0</p>
+</li></ul><h4>Change one assumption</h4><p>Exactly K odd values has the same at-most difference proof, with a scalar odd counter instead of a frequency map. The new state follows from the property being counted.</p>
+</details><p><a href="https://leetcode.com/problems/subarrays-with-k-different-integers/" target="_blank" rel="noopener">Original practice problem</a> <label class="solved"><input type="checkbox" data-progress="03-3"> Solved independently</label></p></article><article class="problem" id="problem-4"><div class="problem-heading"><h3>4. Minimum Window Covering a Multiset</h3><span class="difficulty">Hard</span></div><p>Given non-null strings s and t, return a shortest substring of s containing every UTF-16 code unit of t with its required multiplicity. Return &quot;&quot; when t is empty or no cover exists. On ties keep the earliest. Input is unchanged.</p>
+<div class="example"><strong>Example</strong><p>s=&quot;ADOBECODEBANC&quot;, t=&quot;ABC&quot; =&gt; &quot;BANC&quot;.</p>
+</div><details><summary>First attempt: the baseline</summary><p>Enumerate O(n²) substrings and count each: O(n³+m) literal time.</p>
+</details><details class="solution"><summary>Reveal the derivation and solutions</summary><h4>Derive it step by step</h4><ol><li><p>Store required counts and initialize missing=t.length. A count is allowed to become negative, representing surplus copies.</p>
+</li><li><p>When adding c, decrement its count; reduce missing only if the previous count was positive. Once missing is zero, the window covers t.</p>
+</li><li><p>Record the candidate, then remove left. Increment that character count; if it becomes positive, one required occurrence was lost and expansion must resume.</p>
+</li></ol><div class="proof"><strong>Why it works</strong><p>The map stores required minus current counts for relevant characters; missing counts unsatisfied required occurrences. While missing is zero every recorded interval covers t, and shrinking explores the shortest cover for that right endpoint.</p>
+</div><div class="language-controls" role="group" aria-label="Solution language"><button type="button" data-lang="java">Java</button><button type="button" data-lang="kotlin">Kotlin</button><button type="button" data-lang="both">Both</button></div><div class="code" data-code="java"><h4>Java</h4><pre><code>static String minWindow(String s,String t) {
+    if(t.isEmpty()) return &quot;&quot;;
+    Map&lt;Character,Integer&gt; need=new HashMap&lt;&gt;();
+    for(char c:t.toCharArray()) need.merge(c,1,Integer::sum);
+    int missing=t.length(),left=0,bestStart=0,bestLen=Integer.MAX_VALUE;
+    for(int r=0;r&lt;s.length();r++) {
+        char c=s.charAt(r);
+        if(need.containsKey(c)) {
+            int old=need.get(c); if(old&gt;0) missing--; need.put(c,old-1);
+        }
+        while(missing==0) {
+            if(r-left+1&lt;bestLen) { bestLen=r-left+1; bestStart=left; }
+            char gone=s.charAt(left++);
+            if(need.containsKey(gone)) {
+                int now=need.get(gone)+1; need.put(gone,now); if(now&gt;0) missing++;
+            }
+        }
+    }
+    return bestLen==Integer.MAX_VALUE ? &quot;&quot; : s.substring(bestStart,bestStart+bestLen);
+}</code></pre><a download href="../solutions/03-4.java">Download Java snippet</a></div><div class="code" data-code="kotlin"><h4>Kotlin</h4><pre><code>fun minWindow(s: String, t: String): String {
+    if (t.isEmpty()) return &quot;&quot;
+    val need = HashMap&lt;Char, Int&gt;()
+    for (c in t) need[c] = (need[c] ?: 0) + 1
+    var missing = t.length; var left = 0; var bestStart = 0; var bestLen = Int.MAX_VALUE
+    for (r in s.indices) {
+        val c = s[r]; val old = need[c]
+        if (old != null) { if (old &gt; 0) missing--; need[c] = old - 1 }
+        while (missing == 0) {
+            if (r - left + 1 &lt; bestLen) { bestLen = r - left + 1; bestStart = left }
+            val gone = s[left++]; val count = need[gone]
+            if (count != null) { val now = count + 1; need[gone] = now; if (now &gt; 0) missing++ }
+        }
+    }
+    return if (bestLen == Int.MAX_VALUE) &quot;&quot; else s.substring(bestStart, bestStart + bestLen)
+}</code></pre><a download href="../solutions/03-4.kt">Download Kotlin snippet</a></div><h4>Cost and boundaries</h4><p>Expected O(n+m) time for string lengths n,m; O(distinct symbols in t) auxiliary map space, plus O(best length) output copy.</p>
+<ul><li><p>s=&quot;&quot;,t=&quot;A&quot; =&gt; &quot;&quot;</p>
+</li><li><p>s=&quot;AA&quot;,t=&quot;AA&quot; =&gt; &quot;AA&quot;</p>
+</li><li><p>s=&quot;AB&quot;,t=&quot;AA&quot; =&gt; &quot;&quot;</p>
+</li><li><p>t=&quot;&quot; =&gt; &quot;&quot;</p>
+</li></ul><h4>Change one assumption</h4><p>If the required tokens are words rather than code units, tokenize and use token frequencies. Preserve original offsets if the result must be a substring of the original text.</p>
+</details><p><a href="https://leetcode.com/problems/minimum-window-substring/" target="_blank" rel="noopener">Original practice problem</a> <label class="solved"><input type="checkbox" data-progress="03-4"> Solved independently</label></p></article></section><section id="practice"><h2>Practice with gradually less help</h2><details class="practice-item"><summary>Minimum Size Subarray Sum <span class="muted">Medium</span></summary><a href="https://leetcode.com/problems/minimum-size-subarray-sum/" target="_blank" rel="noopener">Open problem</a><details><summary>A small hint</summary><p>Prove the shrink rule using strictly positive input.</p>
+</details><details><summary>Solution outline and cost</summary><p>Expand rolling sum, shrink while sum&gt;=target, recording lengths. O(n), O(1). With negatives use prefix/deque instead.</p>
+</details><label><input type="checkbox" data-progress="03-practice-0"> Solved independently</label></details><details class="practice-item"><summary>Permutation in String <span class="muted">Medium</span></summary><a href="https://leetcode.com/problems/permutation-in-string/" target="_blank" rel="noopener">Open problem</a><details><summary>A small hint</summary><p>Equal lengths turn multiset containment into equality.</p>
+</details><details><summary>Solution outline and cost</summary><p>Maintain fixed-window counts or deficits and compare matched categories. O(n+alphabet), O(alphabet); define symbol domain.</p>
+</details><label><input type="checkbox" data-progress="03-practice-1"> Solved independently</label></details><details class="practice-item"><summary>Longest Repeating Character Replacement <span class="muted">Medium</span></summary><a href="https://leetcode.com/problems/longest-repeating-character-replacement/" target="_blank" rel="noopener">Open problem</a><details><summary>A small hint</summary><p>A window needs length-maxFrequency replacements.</p>
+</details><details><summary>Solution outline and cost</summary><p>Maintain counts and a historical maximum frequency; shrink on length-maxFrequency&gt;k. O(n), O(alphabet). A stale maximum is safe for maximizing length but cannot certify the final window contents; an exact maximum is simpler to prove.</p>
+</details><label><input type="checkbox" data-progress="03-practice-2"> Solved independently</label></details><details class="practice-item"><summary>Max Consecutive Ones III <span class="muted">Medium</span></summary><a href="https://leetcode.com/problems/max-consecutive-ones-iii/" target="_blank" rel="noopener">Open problem</a><details><summary>A small hint</summary><p>Treat zero count as the resource budget.</p>
+</details><details><summary>Solution outline and cost</summary><p>Shrink when zeros exceed k, maximize valid length. O(n), O(1), requires binary values or an explicit definition of replaceable items.</p>
+</details><label><input type="checkbox" data-progress="03-practice-3"> Solved independently</label></details><details class="practice-item"><summary>Sliding Window Maximum <span class="muted">Hard</span></summary><a href="https://leetcode.com/problems/sliding-window-maximum/" target="_blank" rel="noopener">Open problem</a><details><summary>A small hint</summary><p>Remove dominated values while retaining their indices.</p>
+</details><details><summary>Solution outline and cost</summary><p>Maintain decreasing deque; expire out-of-window indices at the front and pop smaller/equal new-dominated values at the back. O(n), O(k), output O(n-k+1).</p>
+</details><label><input type="checkbox" data-progress="03-practice-4"> Solved independently</label></details><details class="practice-item"><summary>Shortest Subarray with Sum at Least K <span class="muted">Hard</span></summary><a href="https://leetcode.com/problems/shortest-subarray-with-sum-at-least-k/" target="_blank" rel="noopener">Open problem</a><details><summary>A small hint</summary><p>Negative values require a different monotone object.</p>
+</details><details><summary>Solution outline and cost</summary><p>Use prefix sums and an increasing deque of candidate prefix indices. Pop front while threshold is met and pop back dominated larger prefixes. O(n), O(n); long prefix sums.</p>
+</details><label><input type="checkbox" data-progress="03-practice-5"> Solved independently</label></details></section><section><h2>Check the reasoning</h2><fieldset class="quiz" data-answer="1"><legend>A minimum-cover target is AABC. Which state is sufficient?</legend><label><input type="radio" name="q0" value="0"> Membership of A,B,C</label><label><input type="radio" name="q0" value="1"> Per-character multiplicity deficits</label><label><input type="radio" name="q0" value="2"> Only current window length</label><button type="button" data-check>Check reasoning</button><p class="feedback" aria-live="polite" data-explanation="Coverage requires two As. Distinct membership loses exactly the information needed to verify the target multiset."></p></fieldset><fieldset class="quiz" data-answer="1"><legend>Why is a positive-sum threshold window unsafe with negative numbers?</legend><label><input type="radio" name="q1" value="0"> Hash maps cannot contain negatives</label><label><input type="radio" name="q1" value="1"> Removing the left value may increase the sum instead of decreasing it</label><label><input type="radio" name="q1" value="2"> The sum can never reach the threshold</label><button type="button" data-check>Check reasoning</button><p class="feedback" aria-live="polite" data-explanation="For [1,-1,5] and threshold 5, removing 1 temporarily breaks validity, but removing the following -1 restores it. A stop-on-first-invalid shrink misses [5]."></p></fieldset></section><section id="transfer"><h2>An unfamiliar version</h2><p>In a stream of device events, find the longest contiguous period involving at most three device IDs, where each ID may appear no more than twice.</p>
+<details><summary>Hint 1</summary><p>There are two independent reasons a window becomes invalid.</p>
+</details><details><summary>Hint 2</summary><p>Can removing the oldest event ever make either constraint worse?</p>
+</details><details><summary>Derivation</summary><p>Maintain per-ID frequencies, number of distinct IDs, and number of IDs with frequency above two. Add right; shrink left while distinct&gt;3 or overfull&gt;0. Both constraints improve or stay unchanged under deletion, so the earliest valid left yields the longest valid ending interval. Expected O(n) time and O(1) bounded active state, plus a transient extra ID.</p>
+</details></section><section><h2>Retrieve it without looking</h2><ul><li><p>After one day: derive the maintained state from the brute-force repeated work without looking at code.</p>
+</li><li><p>After three days: explain the counterexample to each wrong turn and repair it.</p>
+</li><li><p>After one week: solve the transfer problem, state the invariant aloud, and compare both JVM implementations.</p>
+</li></ul><p>Repeat after 1, 3, 7 and 21 days. A check mark records your self-report, not a mastery score. Explain the proof and solve a changed version before calling a pattern fluent.</p></section><section><h2>Sources and further study</h2><ul><li><a href="https://leetcode.com/problems/maximum-average-subarray-i/">Maximum Sum of a Fixed-Size Window</a>: Reference link; not retrieved in this run. Canonical problem statement and constraints; used to identify the technique and offer optional practice, not as evidence of company frequency.</li><li><a href="https://leetcode.com/problems/longest-substring-without-repeating-characters/">Longest Substring Without Repetition</a>: Reference link; not retrieved in this run. Canonical problem statement and constraints; used to identify the technique and offer optional practice, not as evidence of company frequency.</li><li><a href="https://leetcode.com/problems/subarrays-with-k-different-integers/">Subarrays With Exactly K Distinct Values</a>: Reference link; not retrieved in this run. Canonical problem statement and constraints; used to identify the technique and offer optional practice, not as evidence of company frequency.</li><li><a href="https://leetcode.com/problems/minimum-window-substring/">Minimum Window Covering a Multiset</a>: Reference link; not retrieved in this run. Canonical problem statement and constraints; used to identify the technique and offer optional practice, not as evidence of company frequency.</li></ul><p class="muted">These are reference links. See the research page for live-verification limits and the distinction between a canonical algorithm and a confirmed company question.</p></section><p class="next">Next: <a href="04-prefix-sums.html">Prefix sums, balance, and range counting</a></p></main></div><footer>Practice deriving the invariant. Explain why every discarded candidate is safe to discard. <a href="../research.html">Evidence and scope</a></footer><!-- page-navigation:start -->
+<nav class="page-navigation" aria-label="Bottom page navigation"><div class="page-navigation-parents"><a href="../../index.html">Library home</a> <span aria-hidden="true">›</span> <a href="../../index.html#technical-foundations">Technical foundations and implementation</a> <span aria-hidden="true">›</span> <a href="../index.html">Coding Interviews: Patterns &amp; Problem Solving</a> <span aria-hidden="true">›</span> <a href="index.html">Lessons</a></div><div class="page-navigation-sections"><a href="index.html">Lessons</a><a href="../reference/index.html">Reference sheets</a><a href="../materials.html">Guides and resources</a><a href="#page-top">Back to top ↑</a></div><div class="page-navigation-pager"><a href="02-two-pointers.html" rel="prev">← Previous: Two pointers and safe elimination</a><a href="04-prefix-sums.html" rel="next">Next: Prefix sums, balance, and range counting →</a></div></nav>
+<!-- page-navigation:end -->
+<script src="../../assets/course/links.js" defer></script>
+</body></html>

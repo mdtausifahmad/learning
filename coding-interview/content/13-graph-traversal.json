@@ -1,0 +1,294 @@
+{
+  "id": "13",
+  "slug": "graph-traversal",
+  "title": "Graphs: reachability and shortest unweighted paths",
+  "group": "Graphs",
+  "prerequisites": "Queues, stacks, arrays, hashing, tree traversal",
+  "estimatedMinutes": 180,
+  "motivation": "Treat cells, words, or objects as states joined by legal moves. Explore each state deliberately instead of repeating the same search from every starting point. These worked problems start at Medium because constructing graph state from grids and objects adds complexity; begin with the one-node examples before increasing size.",
+  "recognition": [
+    "An answer depends on what can be reached through local moves: define vertices and edges, even if the input never says graph.",
+    "You need the minimum number of equal-cost moves: FIFO breadth-first search explores distance layers.",
+    "Several sources spread simultaneously: initialize one BFS queue with all sources at distance zero.",
+    "Objects reference one another and can form cycles: store visited identity or an original-to-copy map before following outgoing references."
+  ],
+  "mentalModel": "A graph is a collection of states and connections. A state is called a vertex; a connection is called an edge. A road network is an obvious graph, but a grid is also a graph when a cell is a vertex and legal adjacent moves are edges. In a word puzzle, each allowed word can be a vertex and a one-letter transformation can be an edge. State modeling is the first decision: what facts must be known to determine the next legal moves? A position is sufficient for an ordinary maze; a position plus held keys may be necessary in a locked maze.\n\nStart from the most basic question: can I get from one vertex to another? Keep a frontier of discovered vertices whose outgoing edges are not fully explored. Remove one, examine its neighbors, and add previously undiscovered neighbors. Mark a state when adding it, not when removing it. This ensures that many parents cannot enqueue the same state repeatedly before its first processing. A visited set is a semantic commitment: all later histories arriving at the same state are redundant for the answer being computed. If time, keys, remaining budget, or visited obligations affect future moves, position alone is not a complete state and such a commitment can discard valid solutions.\n\nA stack gives depth-first search: continue down one branch, returning when it ends. A queue gives breadth-first search: finish the oldest discovered work first. Both discover reachable states. Only the FIFO queue gives the shortest number of edges in an unweighted graph without additional machinery. The reason is not that a queue somehow guesses the right route: every distance-d vertex is processed before any distance-(d+1) vertex. When a new neighbor is discovered from distance d, a shorter route would have had to come from an earlier layer and would already have discovered it.\n\nConnected components arise by restarting a reachability traversal at each still-unvisited vertex. Each restart identifies one entire component. On a land/water grid, scanning all land cells and traversing from each unseen one counts islands. Marking does not create an island; it records that the island has already been counted.\n\nMulti-source BFS places every initial source into the queue before expansion. This is equivalent, for distances, to connecting a virtual starting point to every source at the same cost. Each cell receives its distance from the nearest source, not the source encountered first in a separate sequential simulation. That distinction models simultaneous spreading correctly.\n\nWhen cloning a graph, visited state becomes an original-to-copy map. Allocate and record a copy before exploring neighbors so cycles can refer back to an already allocated object. Values are not identities: two vertices with the same label can still be different vertices.\n\nCount work on the modeled graph. With adjacency lists, each vertex is discovered once and each edge is inspected once per relevant endpoint, giving O(V+E). Grid degree is bounded, so traversal is linear in cells. If neighbor generation itself constructs many candidate words or copies strings, include that cost instead of writing O(V+E) without explaining what an edge costs.",
+  "invariant": "Every frontier state has already been marked discovered and is reachable from the starting set. Every processed state's legal neighbors have been discovered. At termination no reachable state can remain undiscovered: on a hypothetical path to one, the first undiscovered state would follow a processed reachable predecessor. For BFS, frontier distances are nondecreasing, and first discovery is a shortest distance because all shorter predecessor layers were processed earlier. This proof assumes equal edge costs. For cloning, the map additionally preserves one distinct copy per discovered original; recording before expansion handles cycles and self-loops.",
+  "wrongTurns": [
+    {
+      "temptation": "Use DFS and return the first path as the shortest path.",
+      "counterexample": "Edges S-A, A-B, B-T and S-T. DFS taking A first finds length 3 although direct S-T has length 1.",
+      "repair": "Use BFS for equal-cost edges; use weighted shortest-path methods when costs differ."
+    },
+    {
+      "temptation": "Mark visited only when a node is removed from the queue.",
+      "counterexample": "S connects to A and B; both connect to C. A and B can enqueue C before C is processed, repeating its work. A layered graph compounds the duplication.",
+      "repair": "Mark at enqueue time. The first BFS discovery already has a shortest distance."
+    },
+    {
+      "temptation": "Clone graph nodes by label instead of identity.",
+      "counterexample": "Two distinct adjacent objects both labeled 7 collapse into one self-loop if a map keyed only by label is used.",
+      "repair": "Map original object identity to its one copy."
+    }
+  ],
+  "diagram": {
+    "caption": "FIFO BFS processes one complete distance layer before the next.",
+    "nodes": [
+      "S distance 0",
+      "A distance 1",
+      "B distance 1",
+      "C distance 2",
+      "T distance 2"
+    ],
+    "edges": [
+      [
+        0,
+        1,
+        "discover"
+      ],
+      [
+        0,
+        2,
+        "discover"
+      ],
+      [
+        1,
+        3,
+        "discover once"
+      ],
+      [
+        2,
+        3,
+        "already seen"
+      ],
+      [
+        2,
+        4,
+        "first route is shortest"
+      ]
+    ]
+  },
+  "trace": [
+    {
+      "state": "Queue=[S]; distances={S:0}",
+      "explanation": "The source is marked immediately."
+    },
+    {
+      "state": "Pop S; queue=[A,B]; distances A=B=1",
+      "explanation": "Every one-edge neighbor is now discovered."
+    },
+    {
+      "state": "Pop A; queue=[B,C]; distance C=2",
+      "explanation": "Distance-1 B remains ahead of new distance-2 work."
+    },
+    {
+      "state": "Pop B; queue=[C,T]; C already seen, distance T=2",
+      "explanation": "A second route to C does not enqueue it again."
+    },
+    {
+      "state": "Pop C then T; queue=[]",
+      "explanation": "All reachable vertices are processed; each first distance is minimal."
+    }
+  ],
+  "problems": [
+    {
+      "title": "Count islands",
+      "difficulty": "Medium",
+      "statement": "Given a nonnull rectangular Int grid containing only 0 (water) and 1 (land), count components under four-direction adjacency. Empty grids or zero columns return 0. Do not mutate input. Rows are nonnull; rectangular shape and binary values are preconditions.",
+      "example": "[[1,1,0],[0,1,0],[1,0,1]] => 3. Diagonal contact does not connect land.",
+      "baseline": "For each land cell, independently rediscover its whole component and deduplicate component sets: O((R*C)\u00b2) time in the worst case and O(R*C) space.",
+      "reasoning": [
+        "Scan every cell. An already seen land cell belongs to an island counted earlier.",
+        "At each unseen land cell, increment the answer and BFS its entire component.",
+        "Mark neighbors at enqueue time so every land cell enters one traversal exactly once."
+      ],
+      "invariant": "After each scan position, every seen land cell belongs to an island already counted, and each counted island is fully marked. No unseen island is counted twice.",
+      "java": "static int numIslands(int[][] grid) {\n    Objects.requireNonNull(grid, \"grid\");\n    int rows = grid.length;\n    if (rows == 0) return 0;\n    int cols = grid[0].length, answer = 0;\n    boolean[][] seen = new boolean[rows][cols];\n    int[] dr = {-1, 1, 0, 0}, dc = {0, 0, -1, 1};\n    ArrayDeque<int[]> queue = new ArrayDeque<>();\n    for (int r = 0; r < rows; r++) for (int c = 0; c < cols; c++) {\n        if (grid[r][c] != 1 || seen[r][c]) continue;\n        answer++;\n        seen[r][c] = true;\n        queue.add(new int[]{r, c});\n        while (!queue.isEmpty()) {\n            int[] cell = queue.remove();\n            for (int d = 0; d < 4; d++) {\n                int nr = cell[0] + dr[d], nc = cell[1] + dc[d];\n                if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && grid[nr][nc] == 1 && !seen[nr][nc]) {\n                    seen[nr][nc] = true;\n                    queue.add(new int[]{nr, nc});\n                }\n            }\n        }\n    }\n    return answer;\n}",
+      "kotlin": "fun numIslands(grid: Array<IntArray>): Int {\n    val rows = grid.size\n    if (rows == 0) return 0\n    val cols = grid[0].size\n    val seen = Array(rows) { BooleanArray(cols) }\n    val dr = intArrayOf(-1, 1, 0, 0)\n    val dc = intArrayOf(0, 0, -1, 1)\n    val queue = ArrayDeque<Pair<Int, Int>>()\n    var answer = 0\n    for (r in 0 until rows) for (c in 0 until cols) {\n        if (grid[r][c] != 1 || seen[r][c]) continue\n        answer++\n        seen[r][c] = true\n        queue.add(r to c)\n        while (queue.isNotEmpty()) {\n            val (cr, cc) = queue.remove()\n            for (d in 0 until 4) {\n                val nr = cr + dr[d]\n                val nc = cc + dc[d]\n                if (nr in 0 until rows && nc in 0 until cols && grid[nr][nc] == 1 && !seen[nr][nc]) {\n                    seen[nr][nc] = true\n                    queue.add(nr to nc)\n                }\n            }\n        }\n    }\n    return answer\n}",
+      "complexity": "O(R*C) time and auxiliary space for R rows and C columns, plus O(1) output. Iterative BFS avoids recursion-depth failure. Java null throws; Kotlin uses nonnull input.",
+      "edgeCases": [
+        "[] => 0",
+        "[[0]] => 0",
+        "[[1]] => 1",
+        "[[1,0],[0,1]] => 2"
+      ],
+      "twist": "For eight-direction adjacency change the neighbor list; the component proof is unchanged. For a streaming sequence of land additions, maintain components with union-find instead of retraversing the grid.",
+      "source": "https://leetcode.com/problems/number-of-islands/",
+      "testJava": "if (numIslands(new int[][]{{1,0},{0,1}}) != 2 || numIslands(new int[0][]) != 0) throw new AssertionError();",
+      "testKotlin": "check(numIslands(arrayOf(intArrayOf(1,0), intArrayOf(0,1))) == 2); check(numIslands(emptyArray()) == 0)"
+    },
+    {
+      "title": "Clone a graph with cycles",
+      "difficulty": "Medium",
+      "statement": "Given a nullable root of a graph whose Node has an integer value and an ordered mutable list of nonnull neighbor references, return a deep copy of every reachable node. Preserve neighbor order, duplicate edges and self-loops. Distinct nodes may share values. Null returns null. Do not mutate originals.",
+      "example": "A(value=7) -> B(value=7), B -> A must produce distinct copies A' and B' joined cyclically, with no edge into the originals.",
+      "baseline": "Recursively copy each reference without remembering prior copies: does not terminate on a cycle and duplicates shared nodes even in a DAG.",
+      "reasoning": [
+        "Allocate a root copy and immediately map original root to it.",
+        "BFS originals. For each neighbor, allocate and enqueue a copy only if identity is absent from the map.",
+        "Append the mapped neighbor copy to the current copy in original neighbor order."
+      ],
+      "invariant": "The identity map contains exactly one new copy per discovered original. All edges of processed originals are copied to mapped objects, preserving order and multiplicity.",
+      "java": "static final class Node {\n    final int value;\n    final List<Node> neighbors = new ArrayList<>();\n    Node(int value) { this.value = value; }\n}\nstatic Node cloneGraph(Node root) {\n    if (root == null) return null;\n    IdentityHashMap<Node, Node> copies = new IdentityHashMap<>();\n    ArrayDeque<Node> queue = new ArrayDeque<>();\n    copies.put(root, new Node(root.value));\n    queue.add(root);\n    while (!queue.isEmpty()) {\n        Node current = queue.remove();\n        for (Node neighbor : current.neighbors) {\n            if (!copies.containsKey(neighbor)) {\n                copies.put(neighbor, new Node(neighbor.value));\n                queue.add(neighbor);\n            }\n            copies.get(current).neighbors.add(copies.get(neighbor));\n        }\n    }\n    return copies.get(root);\n}",
+      "kotlin": "class Node(val value: Int) {\n    val neighbors: MutableList<Node> = mutableListOf()\n}\nfun cloneGraph(root: Node?): Node? {\n    if (root == null) return null\n    val copies = IdentityHashMap<Node, Node>()\n    val queue = ArrayDeque<Node>()\n    copies[root] = Node(root.value)\n    queue.add(root)\n    while (queue.isNotEmpty()) {\n        val current = queue.remove()\n        for (neighbor in current.neighbors) {\n            if (!copies.containsKey(neighbor)) {\n                copies[neighbor] = Node(neighbor.value)\n                queue.add(neighbor)\n            }\n            copies.getValue(current).neighbors.add(copies.getValue(neighbor))\n        }\n    }\n    return copies[root]\n}",
+      "complexity": "Expected O(V+E) time for reachable vertices and neighbor-list entries, O(V) auxiliary map/queue space, and O(V+E) output space. Identity hashing assumptions apply.",
+      "edgeCases": [
+        "null => null",
+        "one node without neighbors => distinct isolated copy",
+        "self-loop => copied node points to itself"
+      ],
+      "twist": "If Node stores additional mutable payload objects, copying only graph structure is no longer a full payload deep copy. Define which nested objects must also be cloned, and memoize shared payload identity when necessary.",
+      "source": "https://leetcode.com/problems/clone-graph/",
+      "testJava": "Node a = new Node(7); Node b = new Node(7); a.neighbors.add(b); b.neighbors.add(a); Node c = cloneGraph(a); if(c == a || c.neighbors.get(0) == b || c.neighbors.get(0) == c || c.neighbors.get(0).neighbors.get(0) != c || cloneGraph(null) != null) throw new AssertionError();",
+      "testKotlin": "val a = Node(7); val b = Node(7); a.neighbors.add(b); b.neighbors.add(a); val c = cloneGraph(a)!!; check(c !== a && c.neighbors[0] !== b && c.neighbors[0] !== c && c.neighbors[0].neighbors[0] === c); check(cloneGraph(null) == null)"
+    },
+    {
+      "title": "Simultaneous rotting spread",
+      "difficulty": "Medium",
+      "statement": "Given a nonnull rectangular grid of 0 (empty), 1 (fresh), and 2 (rotten), each minute all rotten cells infect adjacent fresh cells in four directions. Return the fewest minutes until none remain fresh, or -1 if impossible. Empty/no-fresh grids return 0. Do not mutate input. Shape and values are preconditions.",
+      "example": "[[2,1,1],[1,1,0],[0,1,1]] => 4. Spread from every initial rotten cell begins at minute 0.",
+      "baseline": "Repeatedly scan all cells to find the next minute's fresh infections, applying changes simultaneously on a copy: O((R*C)\u00b2) worst-case time and O(R*C) space.",
+      "reasoning": [
+        "Enqueue all rotten sources with time 0; count fresh cells.",
+        "BFS unvisited fresh neighbors, assigning parent time + 1 and decrementing fresh exactly once.",
+        "Track the largest assigned time. If fresh remains after traversal, some cells are unreachable."
+      ],
+      "invariant": "A discovered fresh cell is assigned its shortest distance from any initial rotten source. Remaining fresh counts precisely the not-yet-discovered fresh cells.",
+      "java": "static int orangesRotting(int[][] grid) {\n    Objects.requireNonNull(grid, \"grid\");\n    int rows = grid.length;\n    if (rows == 0) return 0;\n    int cols = grid[0].length, fresh = 0, minutes = 0;\n    int[][] distance = new int[rows][cols];\n    ArrayDeque<int[]> queue = new ArrayDeque<>();\n    for (int r = 0; r < rows; r++) {\n        Arrays.fill(distance[r], -1);\n        for (int c = 0; c < cols; c++) {\n            if (grid[r][c] == 1) fresh++;\n            if (grid[r][c] == 2) { distance[r][c] = 0; queue.add(new int[]{r,c}); }\n        }\n    }\n    int[] dr = {-1,1,0,0}, dc = {0,0,-1,1};\n    while (!queue.isEmpty()) {\n        int[] cell = queue.remove();\n        for (int d = 0; d < 4; d++) {\n            int r = cell[0] + dr[d], c = cell[1] + dc[d];\n            if (r >= 0 && r < rows && c >= 0 && c < cols && grid[r][c] == 1 && distance[r][c] == -1) {\n                distance[r][c] = distance[cell[0]][cell[1]] + 1;\n                minutes = Math.max(minutes, distance[r][c]);\n                fresh--;\n                queue.add(new int[]{r,c});\n            }\n        }\n    }\n    return fresh == 0 ? minutes : -1;\n}",
+      "kotlin": "fun orangesRotting(grid: Array<IntArray>): Int {\n    val rows = grid.size\n    if (rows == 0) return 0\n    val cols = grid[0].size\n    val distance = Array(rows) { IntArray(cols) { -1 } }\n    val queue = ArrayDeque<Pair<Int, Int>>()\n    var fresh = 0\n    var minutes = 0\n    for (r in 0 until rows) for (c in 0 until cols) {\n        if (grid[r][c] == 1) fresh++\n        if (grid[r][c] == 2) { distance[r][c] = 0; queue.add(r to c) }\n    }\n    val dr = intArrayOf(-1,1,0,0)\n    val dc = intArrayOf(0,0,-1,1)\n    while (queue.isNotEmpty()) {\n        val (cr, cc) = queue.remove()\n        for (d in 0 until 4) {\n            val r = cr + dr[d]\n            val c = cc + dc[d]\n            if (r in 0 until rows && c in 0 until cols && grid[r][c] == 1 && distance[r][c] == -1) {\n                distance[r][c] = distance[cr][cc] + 1\n                minutes = maxOf(minutes, distance[r][c])\n                fresh--\n                queue.add(r to c)\n            }\n        }\n    }\n    return if (fresh == 0) minutes else -1\n}",
+      "complexity": "O(R*C) time and auxiliary space, O(1) output. Time labels assume a feasible in-memory grid whose number of cells fits Int.",
+      "edgeCases": [
+        "[] => 0",
+        "[[1]] => -1",
+        "[[2]] => 0",
+        "[[2,1,1,2]] => 1"
+      ],
+      "twist": "If infection times differ by edge, FIFO layers no longer model time. Use a priority queue and Dijkstra relaxation from all sources when all transmission costs are nonnegative.",
+      "source": "https://leetcode.com/problems/rotting-oranges/",
+      "testJava": "if(orangesRotting(new int[][]{{2,1,1},{1,1,0},{0,1,1}}) != 4 || orangesRotting(new int[][]{{1}}) != -1 || orangesRotting(new int[0][]) != 0) throw new AssertionError();",
+      "testKotlin": "check(orangesRotting(arrayOf(intArrayOf(2,1,1),intArrayOf(1,1,0),intArrayOf(0,1,1))) == 4); check(orangesRotting(arrayOf(intArrayOf(1))) == -1); check(orangesRotting(emptyArray()) == 0)"
+    },
+    {
+      "title": "Shortest word transformation",
+      "difficulty": "Hard",
+      "statement": "Given nonempty same-length begin and end strings, and a nonnull list of same-length words, all containing only lowercase English a-z, return the number of words in a shortest transformation chain. Each step changes exactly one letter; every word after begin must be in the list. Return 0 if no chain exists. begin=end returns 1 even if absent from the list. Do not mutate the caller's list. Alphabet and equal lengths are explicit preconditions.",
+      "example": "hit -> cog using [hot,dot,dog,lot,log,cog] => 5: hit,hot,dot,dog,cog.",
+      "baseline": "Build adjacency by comparing every pair of dictionary words (O(N\u00b2L)), then BFS; graph storage can be O(N\u00b2).",
+      "reasoning": [
+        "Treat words as vertices. A one-letter substitution is an equal-cost edge.",
+        "Generate neighbors on demand by replacing each position with each of 26 letters. Only dictionary members are valid next states.",
+        "Remove a word from a copied remaining set when enqueuing it so it is visited once.",
+        "Process queue layers and count words, starting at 1 for begin. Return upon discovering end."
+      ],
+      "invariant": "Every queued word is reachable with its layer's number of words, and no shorter chain can be discovered later. Remaining contains exactly dictionary words not yet discovered.",
+      "java": "static int ladderLength(String begin, String end, List<String> words) {\n    Objects.requireNonNull(begin, \"begin\"); Objects.requireNonNull(end, \"end\");\n    Objects.requireNonNull(words, \"words\");\n    if (begin.equals(end)) return 1;\n    Set<String> remaining = new HashSet<>(words);\n    if (!remaining.contains(end)) return 0;\n    remaining.remove(begin);\n    ArrayDeque<String> queue = new ArrayDeque<>(); queue.add(begin);\n    int length = 1;\n    while (!queue.isEmpty()) {\n        int layer = queue.size();\n        for (int k = 0; k < layer; k++) {\n            char[] chars = queue.remove().toCharArray();\n            for (int i = 0; i < chars.length; i++) {\n                char saved = chars[i];\n                for (char ch = 'a'; ch <= 'z'; ch++) {\n                    if (ch == saved) continue;\n                    chars[i] = ch;\n                    String next = new String(chars);\n                    if (remaining.remove(next)) {\n                        if (next.equals(end)) return length + 1;\n                        queue.add(next);\n                    }\n                }\n                chars[i] = saved;\n            }\n        }\n        length++;\n    }\n    return 0;\n}",
+      "kotlin": "fun ladderLength(begin: String, end: String, words: List<String>): Int {\n    if (begin == end) return 1\n    val remaining = words.toHashSet()\n    if (end !in remaining) return 0\n    remaining.remove(begin)\n    val queue = ArrayDeque<String>()\n    queue.add(begin)\n    var length = 1\n    while (queue.isNotEmpty()) {\n        val layer = queue.size\n        repeat(layer) {\n            val chars = queue.remove().toCharArray()\n            for (i in chars.indices) {\n                val saved = chars[i]\n                for (ch in 'a'..'z') {\n                    if (ch == saved) continue\n                    chars[i] = ch\n                    val next = String(chars)\n                    if (remaining.remove(next)) {\n                        if (next == end) return length + 1\n                        queue.add(next)\n                    }\n                }\n                chars[i] = saved\n            }\n        }\n        length++\n    }\n    return 0\n}",
+      "complexity": "For N dictionary words of length L, expected O(N*26*L\u00b2 + N*L) time including O(L) String creation/hash per candidate, and O(N*L) auxiliary storage including queued generated strings. Extra transient characters per word use O(L) space. Hash membership is expected-time.",
+      "edgeCases": [
+        "begin=a, end=a, words=[] => 1",
+        "begin=a, end=c, words=[c] => 2",
+        "hit,cog,[hot,dot,dog] => 0"
+      ],
+      "twist": "For large search frontiers use bidirectional BFS: maintain two complete frontier layers and expand the smaller, detecting an edge into the opposite frontier. Track each side's distances carefully so the sum counts edges, then add 1 for words. Worst-case bounds need not improve, though practical exploration often shrinks. To return all shortest chains, retain all predecessor edges that respect shortest-distance layers and enumerate afterward.",
+      "source": "https://leetcode.com/problems/word-ladder/",
+      "testJava": "if(ladderLength(\"hit\",\"cog\",Arrays.asList(\"hot\",\"dot\",\"dog\",\"lot\",\"log\",\"cog\")) != 5 || ladderLength(\"a\",\"a\",Collections.emptyList()) != 1 || ladderLength(\"a\",\"b\",Collections.emptyList()) != 0) throw new AssertionError();",
+      "testKotlin": "check(ladderLength(\"hit\",\"cog\",listOf(\"hot\",\"dot\",\"dog\",\"lot\",\"log\",\"cog\")) == 5); check(ladderLength(\"a\",\"a\",emptyList()) == 1); check(ladderLength(\"a\",\"b\",emptyList()) == 0)"
+    }
+  ],
+  "practice": [
+    {
+      "title": "Find if Path Exists in Graph",
+      "difficulty": "Easy",
+      "url": "https://leetcode.com/problems/find-if-path-exists-in-graph/",
+      "hint": "Start with ordinary reachability and a complete vertex state.",
+      "approach": "Build undirected adjacency lists; BFS/DFS from source, marking at discovery. O(V+E) time/space. source=destination is reachable without any edge."
+    },
+    {
+      "title": "Flood Fill",
+      "difficulty": "Easy",
+      "url": "https://leetcode.com/problems/flood-fill/",
+      "hint": "A component is constrained by its original color.",
+      "approach": "Traverse neighbors matching the original color and recolor. O(R*C) worst case. If new color equals old color, return immediately or use visited to avoid rediscovering cells."
+    },
+    {
+      "title": "Max Area of Island",
+      "difficulty": "Medium",
+      "url": "https://leetcode.com/problems/max-area-of-island/",
+      "hint": "Count nodes in each discovered component.",
+      "approach": "Run one traversal per unseen land cell, accumulate each component area and take the maximum. O(R*C) time/space; do not combine disconnected islands."
+    },
+    {
+      "title": "01 Matrix",
+      "difficulty": "Medium",
+      "url": "https://leetcode.com/problems/01-matrix/",
+      "hint": "Distances are to the nearest zero; reverse the sources.",
+      "approach": "Initialize every zero at distance 0 and multi-source BFS over all cells. O(R*C) time/space. Define behavior for no-zero inputs explicitly if expanding the original contract."
+    },
+    {
+      "title": "Pacific Atlantic Water Flow",
+      "difficulty": "Medium",
+      "url": "https://leetcode.com/problems/pacific-atlantic-water-flow/",
+      "hint": "Reverse directed reachability from the destination borders.",
+      "approach": "From each ocean border, traverse to equal or higher neighbors, then intersect the visited sets. O(R*C) time/space; reversing the inequality is essential."
+    },
+    {
+      "title": "Open the Lock",
+      "difficulty": "Medium",
+      "url": "https://leetcode.com/problems/open-the-lock/",
+      "hint": "A lock combination is a vertex with eight neighbors.",
+      "approach": "BFS from 0000 excluding dead states; generate one-wheel \u00b11 moves with wraparound. O(S*D) transitions for S reachable states and D digits, plus state-string costs. Reject a dead starting state."
+    },
+    {
+      "title": "Shortest Path in a Grid with Obstacles Elimination",
+      "difficulty": "Hard",
+      "url": "https://leetcode.com/problems/shortest-path-in-a-grid-with-obstacles-elimination/",
+      "hint": "Position plus remaining eliminations determines future moves.",
+      "approach": "BFS (r,c,kRemaining), marking full states; O(R*C*K) time/space. A stronger remaining-budget state at equal or smaller distance can dominate a weaker one, but position alone cannot."
+    }
+  ],
+  "quiz": [
+    {
+      "question": "A move costs either 1 or 7. Does ordinary FIFO BFS minimize total cost?",
+      "choices": [
+        "Yes, because every node is marked once.",
+        "No; its proof minimizes edges, so use an algorithm supporting weights.",
+        "Yes, if you sort adjacency lists."
+      ],
+      "answer": 1,
+      "explanation": "Fewest edges and smallest weight can differ. Dijkstra handles nonnegative weights."
+    },
+    {
+      "question": "Two paths reach the same cell, but one holds a key. Can visited use only the cell?",
+      "choices": [
+        "Always.",
+        "Only if keys cannot affect any future legal move or objective.",
+        "Never, even in an ordinary open grid."
+      ],
+      "answer": 1,
+      "explanation": "Equivalent states must have equivalent future options. With doors, include the key set in the state."
+    }
+  ],
+  "transfer": {
+    "prompt": "Several charging stations are placed in an unweighted warehouse grid with blocked cells. For every open cell, return the minimum walking steps to any station, or -1 if unreachable.",
+    "hints": [
+      "Running one independent search per cell repeats almost all work.",
+      "Reverse the perspective: start every station at distance zero."
+    ],
+    "solution": "Initialize all station cells as discovered with distance 0 in one queue. BFS through legal open neighbors and assign distance parent+1 on first discovery. Queue layering proves minimum distance from the whole starting set. O(R*C) time and space; absent stations leave all distances -1."
+  },
+  "review": [
+    "Model a word transformation graph without drawing every possible edge.",
+    "Explain why marking on enqueue prevents duplicate frontier work.",
+    "Derive the simultaneous-spread algorithm from nearest-source distance.",
+    "Show a cyclic two-node graph and the moment each clone enters the map.",
+    "Give a maze where position alone is insufficient state."
+  ],
+  "sources": [
+    {
+      "label": "Princeton graph algorithms",
+      "url": "https://algs4.cs.princeton.edu/40graphs/",
+      "note": "Primary algorithm reference link; external content not retrieved during this pass. Practice links identify problems, not company frequency.",
+      "status": "unverified"
+    }
+  ]
+}

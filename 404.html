@@ -7,7 +7,7 @@ layout: null
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Not found · Principal Engineering</title>
+<title>Not found · Software Engineering Library</title>
 <link rel="stylesheet" href="{{ '/assets/site.css' | relative_url }}">
 <script>
   // Course pages link to markdown sources (GLOSSARY.md, lab/README.md …). Pages publishes
@@ -20,10 +20,19 @@ layout: null
     }
   })();
 </script>
+<link rel="stylesheet" href="assets/navigation.css">
 </head>
-<body>
+<body id="page-top">
+<!-- page-navigation:start -->
+<nav class="page-navigation" aria-label="Top page navigation"><div class="page-navigation-parents"><a href="index.html">Library home</a></div><div class="page-navigation-sections"><a href="index.html#topics">All learning areas</a><a href="#page-top">Back to top ↑</a></div></nav>
+<!-- page-navigation:end -->
+
   <p class="eyebrow">404</p>
   <h1>Page not found</h1>
-  <p>That page doesn’t exist. Head back to the <a href="{{ '/' | relative_url }}">course map</a>.</p>
+  <p>That page doesn’t exist. Head back to the <a href="{{ '/' | relative_url }}">learning library</a>.</p>
+<!-- page-navigation:start -->
+<nav class="page-navigation" aria-label="Bottom page navigation"><div class="page-navigation-parents"><a href="index.html">Library home</a></div><div class="page-navigation-sections"><a href="index.html#topics">All learning areas</a><a href="#page-top">Back to top ↑</a></div></nav>
+<!-- page-navigation:end -->
+<script src="assets/course/links.js" defer></script>
 </body>
 </html>

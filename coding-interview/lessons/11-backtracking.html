@@ -1,0 +1,214 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="Learn coding interview reasoning from first principles, with Java and Kotlin solutions."><title>Backtracking: enumerate choices with a reversible state · Coding interview</title><link rel="stylesheet" href="../assets/course.css"><script src="../assets/course.js" defer></script><link rel="stylesheet" href="../../assets/navigation.css">
+</head><body id="page-top">
+<!-- page-navigation:start -->
+<nav class="page-navigation" aria-label="Top page navigation"><div class="page-navigation-parents"><a href="../../index.html">Library home</a> <span aria-hidden="true">›</span> <a href="../../index.html#technical-foundations">Technical foundations and implementation</a> <span aria-hidden="true">›</span> <a href="../index.html">Coding Interviews: Patterns &amp; Problem Solving</a> <span aria-hidden="true">›</span> <a href="index.html">Lessons</a></div><div class="page-navigation-sections"><a href="index.html">Lessons</a><a href="../reference/index.html">Reference sheets</a><a href="../materials.html">Guides and resources</a><a href="#page-top">Back to top ↑</a></div><div class="page-navigation-pager"><a href="10-heaps.html" rel="prev">← Previous: Heaps: keep the next winner and forget full order</a><a href="12-tries.html" rel="next">Next: Tries: share prefixes and prune impossible continuations →</a></div></nav>
+<!-- page-navigation:end -->
+<a class="skip" href="#main">Skip to content</a><nav class="top"><a href="../../index.html">Software Engineering Library</a><a href="../index.html">Coding interview</a><a href="../foundations.html">Start from zero</a><a href="../practice.html">Practice room</a><a href="../research.html">Sources</a></nav><div class="layout"><aside class="rail"><a href="../index.html">Course map</a><p>Learning sequence</p><ol><li><a  href="01-hashing.html">Hashing, complements, and canonical keys</a></li><li><a  href="02-two-pointers.html">Two pointers and safe elimination</a></li><li><a  href="03-sliding-window.html">Sliding windows: expand, repair, and count</a></li><li><a  href="04-prefix-sums.html">Prefix sums, balance, and range counting</a></li><li><a  href="05-binary-search.html">Binary search on positions, structure, and answers</a></li><li><a  href="06-sorting-intervals.html">Sorting, intervals, scheduling, and sweep lines</a></li><li><a  href="07-linked-lists.html">Linked lists: preserve the path while changing links</a></li><li><a  href="08-stacks-queues.html">Stacks, monotonic frontiers, and deques</a></li><li><a  href="09-trees.html">Trees: decide what crosses each parent-child boundary</a></li><li><a  href="10-heaps.html">Heaps: keep the next winner and forget full order</a></li><li><a aria-current="page" href="11-backtracking.html">Backtracking: enumerate choices with a reversible state</a></li><li><a  href="12-tries.html">Tries: share prefixes and prune impossible continuations</a></li><li><a  href="13-graph-traversal.html">Graphs: reachability and shortest unweighted paths</a></li><li><a  href="14-topology-union-find.html">Dependency order and dynamic connectivity</a></li><li><a  href="15-shortest-paths.html">Shortest paths: matching the frontier to edge costs</a></li><li><a  href="16-greedy.html">Greedy choices and exchange arguments</a></li><li><a  href="17-dp-linear.html">Linear dynamic programming: decisions, states, and dependencies</a></li><li><a  href="18-dp-grids-strings.html">Dynamic programming on grids and strings</a></li><li><a  href="19-range-queries.html">Range queries: precompute reusable pieces, then update only dependencies</a></li><li><a  href="20-bit-manipulation.html">Bit manipulation and state compression</a></li></ol></aside><main id="main" class="lesson"><header><p class="sequence">Pattern 11 / Search and optimization</p><h1>Backtracking: enumerate choices with a reversible state</h1><p class="lede">Some problems ask for many valid objects rather than one numeric answer. Their solution space is a tree of partial choices. Backtracking explores that tree while maintaining one reusable partial object, undoing each choice before trying a sibling.</p><p class="muted">Prerequisites: Recursion, arrays, hashing; Lesson 09 tree traversal. Suggested study block: 190 minutes, excluding extra practice.</p><nav class="lesson-jumps"><a href="#model">Build the model</a><a href="#worked">Worked problems</a><a href="#practice">Practice ladder</a><a href="#transfer">Unseen transfer</a></nav></header><section id="model"><h2>Build the idea from zero</h2><p>Begin with a decision tree, not with a recursive function. A partial solution is a node in that tree. An edge chooses one next decision. A leaf is either a complete valid answer or a failed branch. Recursion is just a depth-first walk of this tree. Name the state that makes future choices well-defined: a starting index for combinations, a used-position array for permutations, occupied columns and diagonals for queens. Without that state, a loop can revisit choices or omit valid ones.</p>
+<p>The central rhythm is choose, explore, unchoose. Append a value to a path, recurse, then remove exactly that appended value. If a boolean says an item is used, set it before recursion and reset it afterward. The undo step restores the parent state, so the next sibling starts from the same history. When recording an answer, copy the path. Storing the same mutable list repeatedly makes all output entries refer to one changing object.</p>
+<p>Subsets and permutations differ in what order means. A subset is identified by membership, so choosing indices in increasing order gives one representation for each subset. A permutation assigns a value to each output position, so any unused index may be next. Combination sum allows a value to repeat, so recursive start may remain at the selected index; changing it to i+1 would impose single use. Derive that transition from the contract rather than memorizing it.</p>
+<p>Pruning removes a whole subtree only when no extension can be valid. With sorted strictly positive candidates, a candidate larger than remaining sum proves every later candidate is also impossible. This argument fails with negative values: a later negative could repair an overshoot. Constraint pruning in queens is stronger: two placed queens already attacking cannot be fixed by adding more queens, so reject immediately.</p>
+<p>Duplicate suppression is a symmetry rule. In sorted unique-permutation generation, when equal occurrences are both unused, choose the earlier occurrence first. Equal occurrences become interchangeable labels; choosing a canonical label order produces every distinct value arrangement once. It is not the same as removing duplicates from the input, because multiplicity is part of the answer.</p>
+<p>Exponential output is not automatically a poor algorithm. If all 2^n subsets must be emitted, the output itself is exponential. State runtime in terms of search nodes, pruning assumptions, and the cost of copying each complete answer. Never promise polynomial time merely because the recursion looks short.</p>
+<h3>When to consider it</h3><ul><li><p>The output contains all subsets, arrangements, placements, or routes satisfying constraints.</p>
+</li><li><p>A partial decision can be checked before the remaining decisions are known, allowing early rejection.</p>
+</li><li><p>The same partial buffer can be reused if each recursive change is undone on return.</p>
+</li><li><p>Duplicates in input create duplicate decision paths unless a canonical representative rule is imposed.</p>
+</li></ul><div class="proof"><h3>The invariant</h3><p>At entry to a recursive call, path describes exactly the decisions made along its root-to-call route, and all auxiliary markers agree with those decisions. Every child choice is legal under that state. On return the state is restored exactly to its entry value. Completeness follows by showing each valid answer has one permitted sequence of choices; uniqueness follows from canonical ordering or duplicate rules.</p>
+</div><figure><div class="diagram-scroll"><svg viewBox="0 0 950 180" role="img" aria-label="Increasing start indices enumerate subsets without rearranging the same membership."><defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#3a677e"/></marker></defs><path d="M175,72 Q195,72 215,72" stroke="#3a677e" fill="none" marker-end="url(#arrow)"/><text x="195" y="46" text-anchor="middle" font-size="12">choose index 0</text><path d="M175,72 Q290,72 405,72" stroke="#3a677e" fill="none" marker-end="url(#arrow)"/><text x="290" y="46" text-anchor="middle" font-size="12">choose index 1</text><path d="M365,72 Q480,72 595,72" stroke="#3a677e" fill="none" marker-end="url(#arrow)"/><text x="480" y="46" text-anchor="middle" font-size="12">choose index 1</text><path d="M745,72 Q765,72 785,72" stroke="#3a677e" fill="none" marker-end="url(#arrow)"/><text x="765" y="46" text-anchor="middle" font-size="12">emit; then undo</text><rect x="25" y="52" width="150" height="66" rx="8" fill="#e9f1f6" stroke="#52748b"/><foreignObject x="30" y="57" width="140" height="60"><div xmlns="http://www.w3.org/1999/xhtml" style="font:14px system-ui;text-align:center;line-height:1.3;padding:5px;color:#203447">[] start=0</div></foreignObject><rect x="215" y="52" width="150" height="66" rx="8" fill="#e9f1f6" stroke="#52748b"/><foreignObject x="220" y="57" width="140" height="60"><div xmlns="http://www.w3.org/1999/xhtml" style="font:14px system-ui;text-align:center;line-height:1.3;padding:5px;color:#203447">[1] start=1</div></foreignObject><rect x="405" y="52" width="150" height="66" rx="8" fill="#e9f1f6" stroke="#52748b"/><foreignObject x="410" y="57" width="140" height="60"><div xmlns="http://www.w3.org/1999/xhtml" style="font:14px system-ui;text-align:center;line-height:1.3;padding:5px;color:#203447">[2] start=2</div></foreignObject><rect x="595" y="52" width="150" height="66" rx="8" fill="#e9f1f6" stroke="#52748b"/><foreignObject x="600" y="57" width="140" height="60"><div xmlns="http://www.w3.org/1999/xhtml" style="font:14px system-ui;text-align:center;line-height:1.3;padding:5px;color:#203447">[1,2] start=2</div></foreignObject><rect x="785" y="52" width="150" height="66" rx="8" fill="#e9f1f6" stroke="#52748b"/><foreignObject x="790" y="57" width="140" height="60"><div xmlns="http://www.w3.org/1999/xhtml" style="font:14px system-ui;text-align:center;line-height:1.3;padding:5px;color:#203447">record a copy at every node</div></foreignObject></svg></div><figcaption>Increasing start indices enumerate subsets without rearranging the same membership.</figcaption></figure></section><section><h2>Follow a concrete execution</h2><div class="trace" data-trace><script type="application/json">[{"state":"Input [1,2]; path=[]; start=0; output=[[]]","explanation":"The empty subset is valid; record a copy before choosing."},{"state":"Choose 1: path=[1]; start=1; output=[[],[1]]","explanation":"Only later indices may follow, preventing reordered duplicates."},{"state":"Choose 2: path=[1,2]; start=2; output=[[],[1],[1,2]]","explanation":"No candidates remain; return and remove 2, then remove 1."},{"state":"Choose 2 from root: path=[2]; start=2; output=[[],[1],[1,2],[2]]","explanation":"Restored parent state allows a separate branch without retaining 1."}]</script><p class="trace-count" aria-live="polite"></p><pre class="trace-state"></pre><p class="trace-explanation"></p><div class="trace-controls"><button type="button" data-step="-1">Previous state</button><button type="button" data-step="1">Next state</button><button type="button" data-reset>Reset</button></div></div></section><section><h2>Where the idea breaks</h2><details class="trap"><summary>Add the mutable path directly to output.</summary><h4>Counterexample</h4><p>For subsets of [1], storing the same path reference first empty, then [1], and finally removing 1 leaves both output references pointing to the same empty list.</p>
+<h4>Repair the reasoning</h4><p>Copy the current path when recording an answer; continue reusing only the working buffer.</p>
+</details><details class="trap"><summary>Prune whenever the running sum exceeds target for arbitrary integers.</summary><h4>Counterexample</h4><p>Candidates [5,-2], target 3: after choosing 5, sum exceeds 3, but adding -2 creates the valid solution [5,-2].</p>
+<h4>Repair the reasoning</h4><p>Use overshoot pruning only under a strictly positive candidate contract; otherwise redesign state, bounds, and termination.</p>
+</details></section><section id="worked"><h2>Worked problem ladder</h2><p>Read the contract, draw a small example, and write a baseline before revealing the derivation. Code snippets include helpers; downloadable Java files add a class and standard imports. Kotlin files add imports. Input contracts are part of the solution.</p><article class="problem" id="problem-1"><div class="problem-heading"><h3>1. All subsets through increasing indices</h3><span class="difficulty">Easy to Medium</span></div><p>Given non-null Int array of distinct values, return every subset as a list of values in input order. Return each subset once; overall output order is unspecified. Empty input returns a list containing the empty list. Input is unchanged. Distinct values are a precondition.</p>
+<div class="example"><strong>Example</strong><p>[1,2] returns [], [1], [1,2], [2].</p>
+</div><details><summary>First attempt: the baseline</summary><p>Enumerate all bit masks and inspect every bit: O(n2^n) time including output, O(n) working space plus output; this is also a good alternative.</p>
+</details><details class="solution"><summary>Reveal the derivation and solutions</summary><h4>Derive it step by step</h4><ol><li><p>At every state the current path is already a valid subset, so record it immediately rather than waiting for a full-length leaf.</p>
+</li><li><p>Choose any index i from start onward and recurse with i+1. Increasing indices ensure each membership set has one ordering and prevent selecting the same index twice.</p>
+</li><li><p>After returning remove the last value. The next iteration chooses a different extension from the same parent subset. For empty input, the initial recorded path supplies the required empty subset.</p>
+</li></ol><div class="proof"><strong>Why it works</strong><p>Path contains values at strictly increasing input indices less than start; all extensions use only indices at least start.</p>
+</div><div class="language-controls" role="group" aria-label="Solution language"><button type="button" data-lang="java">Java</button><button type="button" data-lang="kotlin">Kotlin</button><button type="button" data-lang="both">Both</button></div><div class="code" data-code="java"><h4>Java</h4><pre><code>static List&lt;List&lt;Integer&gt;&gt; subsets(int[] a) {
+ List&lt;List&lt;Integer&gt;&gt; out=new ArrayList&lt;&gt;();
+ subsetDfs(a,0,new ArrayList&lt;&gt;(),out); return out;
+}
+static void subsetDfs(int[] a,int start,List&lt;Integer&gt; path,List&lt;List&lt;Integer&gt;&gt; out) {
+ out.add(new ArrayList&lt;&gt;(path));
+ for(int i=start;i&lt;a.length;i++) {
+  path.add(a[i]); subsetDfs(a,i+1,path,out); path.remove(path.size()-1);
+ }
+}</code></pre><a download href="../solutions/11-1.java">Download Java snippet</a></div><div class="code" data-code="kotlin"><h4>Kotlin</h4><pre><code>fun subsets(a: IntArray): List&lt;List&lt;Int&gt;&gt; {
+ val out = mutableListOf&lt;List&lt;Int&gt;&gt;()
+ val path = mutableListOf&lt;Int&gt;()
+ fun dfs(start: Int) {
+  out.add(path.toList())
+  for (i in start until a.size) {
+   path.add(a[i]); dfs(i + 1); path.removeAt(path.lastIndex)
+  }
+ }
+ dfs(0)
+ return out
+}</code></pre><a download href="../solutions/11-1.kt">Download Kotlin snippet</a></div><h4>Cost and boundaries</h4><p>O(n2^n) time including copying; O(n) auxiliary path/stack and O(n2^n) output elements for n input values.</p>
+<ul><li><p>[] ⇒ [[]]</p>
+</li><li><p>[7] ⇒ [[],[7]]</p>
+</li></ul><h4>Change one assumption</h4><p>If input has duplicates, sort a copy and skip equal values only when i&gt;start and a[i]==a[i-1]; equal occurrences may still be used at deeper levels.</p>
+</details><p><a href="https://leetcode.com/problems/subsets/" target="_blank" rel="noopener">Original practice problem</a> <label class="solved"><input type="checkbox" data-progress="11-1"> Solved independently</label></p></article><article class="problem" id="problem-2"><div class="problem-heading"><h3>2. Unbounded combination sum with positive candidates</h3><span class="difficulty">Medium</span></div><p>Given non-null Int candidates, all strictly positive, and target≥0, return every distinct nondecreasing value combination summing to target. Values may be reused any number of times. Duplicate candidate entries do not duplicate output. Reject nonpositive candidates or negative target. Input is unchanged.</p>
+<div class="example"><strong>Example</strong><p>[2,3,6,7], target=7 returns [2,2,3] and [7]. Target 0 returns [[]].</p>
+</div><details><summary>First attempt: the baseline</summary><p>Generate arbitrary sequences up to target/minCandidate, then deduplicate permutations: exponentially many redundant orders and large deduplication storage.</p>
+</details><details class="solution"><summary>Reveal the derivation and solutions</summary><h4>Derive it step by step</h4><ol><li><p>Sort a copy to make order canonical and enable an overshoot bound. State is start index, remaining target, and current path. Skip equal candidate values at the same recursion depth.</p>
+</li><li><p>Choose a[i] only if it does not exceed remaining. Recurse with i, allowing reuse of this value while forbidding smaller prior values. Remaining strictly decreases because candidates are positive, guaranteeing termination.</p>
+</li><li><p>When remaining is zero record a copy and return. If a candidate exceeds remaining, break because all later values are at least as large. This rejects an entire impossible suffix of choices.</p>
+</li></ol><div class="proof"><strong>Why it works</strong><p>Path is nondecreasing, remaining equals target minus its sum, and future choices use indices at least start, so every value multiset has one canonical route.</p>
+</div><div class="language-controls" role="group" aria-label="Solution language"><button type="button" data-lang="java">Java</button><button type="button" data-lang="kotlin">Kotlin</button><button type="button" data-lang="both">Both</button></div><div class="code" data-code="java"><h4>Java</h4><pre><code>static List&lt;List&lt;Integer&gt;&gt; combinationSum(int[] candidates,int target) {
+ if(target&lt;0) throw new IllegalArgumentException(&quot;negative target&quot;);
+ for(int v:candidates) if(v&lt;=0) throw new IllegalArgumentException(&quot;nonpositive candidate&quot;);
+ int[] a=candidates.clone(); Arrays.sort(a);
+ List&lt;List&lt;Integer&gt;&gt; out=new ArrayList&lt;&gt;();
+ combinationDfs(a,0,target,new ArrayList&lt;&gt;(),out); return out;
+}
+static void combinationDfs(int[] a,int start,int remaining,List&lt;Integer&gt; path,List&lt;List&lt;Integer&gt;&gt; out) {
+ if(remaining==0) { out.add(new ArrayList&lt;&gt;(path)); return; }
+ for(int i=start;i&lt;a.length;i++) {
+  if(i&gt;start &amp;&amp; a[i]==a[i-1]) continue;
+  if(a[i]&gt;remaining) break;
+  path.add(a[i]); combinationDfs(a,i,remaining-a[i],path,out);
+  path.remove(path.size()-1);
+ }
+}</code></pre><a download href="../solutions/11-2.java">Download Java snippet</a></div><div class="code" data-code="kotlin"><h4>Kotlin</h4><pre><code>fun combinationSum(candidates: IntArray, target: Int): List&lt;List&lt;Int&gt;&gt; {
+ require(target &gt;= 0 &amp;&amp; candidates.all { it &gt; 0 })
+ val a = candidates.sortedArray()
+ val out = mutableListOf&lt;List&lt;Int&gt;&gt;()
+ val path = mutableListOf&lt;Int&gt;()
+ fun dfs(start: Int, remaining: Int) {
+  if (remaining == 0) { out.add(path.toList()); return }
+  for (i in start until a.size) {
+   if (i &gt; start &amp;&amp; a[i] == a[i - 1]) continue
+   if (a[i] &gt; remaining) break
+   path.add(a[i]); dfs(i, remaining - a[i]); path.removeAt(path.lastIndex)
+  }
+ }
+ dfs(0, target)
+ return out
+}</code></pre><a download href="../solutions/11-2.kt">Download Kotlin snippet</a></div><h4>Cost and boundaries</h4><p>Let m be candidate count, d=target/minPositive for nonempty input, S solutions, and V visited states. O(m log m+mV+Sd) conservative time, O(m+d) auxiliary space plus O(Sd) output. V can grow exponentially; huge targets may exceed JVM recursion depth. Empty candidates take O(1) search.</p>
+<ul><li><p>[],target=0 ⇒ [[]]</p>
+</li><li><p>[2,2],target=4 ⇒ [[2,2]]</p>
+</li><li><p>[2],target=3 ⇒ []</p>
+</li><li><p>[0],target=1 ⇒ rejected</p>
+</li></ul><h4>Change one assumption</h4><p>For single-use combination sum recurse with i+1, retaining same-depth duplicate skipping. For counting only, dynamic programming avoids materializing every solution.</p>
+</details><p><a href="https://leetcode.com/problems/combination-sum/" target="_blank" rel="noopener">Original practice problem</a> <label class="solved"><input type="checkbox" data-progress="11-2"> Solved independently</label></p></article><article class="problem" id="problem-3"><div class="problem-heading"><h3>3. Distinct permutations of a multiset</h3><span class="difficulty">Medium</span></div><p>Given a non-null Int array that may contain duplicates, return every distinct full-length value permutation. Output order is unspecified; input is unchanged. Empty input returns [[]].</p>
+<div class="example"><strong>Example</strong><p>[1,1,2] returns [1,1,2], [1,2,1], [2,1,1].</p>
+</div><details><summary>First attempt: the baseline</summary><p>Generate n! index permutations then hash complete value lists: O(n n!) time plus duplicate output/deduplication storage.</p>
+</details><details class="solution"><summary>Reveal the derivation and solutions</summary><h4>Derive it step by step</h4><ol><li><p>Sort a copy so equal occurrences are adjacent. Keep used[i] to distinguish whether an occurrence is already in the current path; multiplicity must remain available.</p>
+</li><li><p>Skip a used index. Also skip equal a[i] when its previous equal occurrence is unused: both could fill this position, and choosing the earlier occurrence first is the canonical representative. If the previous equal occurrence is already used, choosing this one is necessary and legal.</p>
+</li><li><p>At path length n copy the permutation. Undo both path append and used flag after every child. Canonical occurrence order removes symmetry without removing valid multiplicities.</p>
+</li></ol><div class="proof"><strong>Why it works</strong><p>Path uses each selected index once; among equal values, selected occurrences appear in increasing original sorted-index order. Every distinct value permutation has exactly one compatible occurrence assignment.</p>
+</div><div class="language-controls" role="group" aria-label="Solution language"><button type="button" data-lang="java">Java</button><button type="button" data-lang="kotlin">Kotlin</button><button type="button" data-lang="both">Both</button></div><div class="code" data-code="java"><h4>Java</h4><pre><code>static List&lt;List&lt;Integer&gt;&gt; uniquePermutations(int[] input) {
+ int[] a=input.clone(); Arrays.sort(a);
+ List&lt;List&lt;Integer&gt;&gt; out=new ArrayList&lt;&gt;();
+ permutationDfs(a,new boolean[a.length],new ArrayList&lt;&gt;(),out); return out;
+}
+static void permutationDfs(int[] a,boolean[] used,List&lt;Integer&gt; path,List&lt;List&lt;Integer&gt;&gt; out) {
+ if(path.size()==a.length) { out.add(new ArrayList&lt;&gt;(path)); return; }
+ for(int i=0;i&lt;a.length;i++) {
+  if(used[i] || (i&gt;0 &amp;&amp; a[i]==a[i-1] &amp;&amp; !used[i-1])) continue;
+  used[i]=true; path.add(a[i]); permutationDfs(a,used,path,out);
+  path.remove(path.size()-1); used[i]=false;
+ }
+}</code></pre><a download href="../solutions/11-3.java">Download Java snippet</a></div><div class="code" data-code="kotlin"><h4>Kotlin</h4><pre><code>fun uniquePermutations(input: IntArray): List&lt;List&lt;Int&gt;&gt; {
+ val a = input.sortedArray()
+ val used = BooleanArray(a.size)
+ val path = mutableListOf&lt;Int&gt;()
+ val out = mutableListOf&lt;List&lt;Int&gt;&gt;()
+ fun dfs() {
+  if (path.size == a.size) { out.add(path.toList()); return }
+  for (i in a.indices) {
+   if (used[i] || (i &gt; 0 &amp;&amp; a[i] == a[i - 1] &amp;&amp; !used[i - 1])) continue
+   used[i] = true; path.add(a[i]); dfs()
+   path.removeAt(path.lastIndex); used[i] = false
+  }
+ }
+ dfs()
+ return out
+}</code></pre><a download href="../solutions/11-3.kt">Download Kotlin snippet</a></div><h4>Cost and boundaries</h4><p>O(n n!) worst-case time including scanning choices and copying output; fewer branches when values repeat. O(n) auxiliary state/stack plus O(Sn) output for S distinct permutations.</p>
+<ul><li><p>[] ⇒ [[]]</p>
+</li><li><p>[2,2] ⇒ [[2,2]]</p>
+</li><li><p>[1,2] ⇒ two permutations</p>
+</li></ul><h4>Change one assumption</h4><p>If only the next lexicographic permutation is requested, do not enumerate: find a decreasing suffix, swap its pivot with the next larger suffix value, and reverse the suffix in O(n) time.</p>
+</details><p><a href="https://leetcode.com/problems/permutations-ii/" target="_blank" rel="noopener">Original practice problem</a> <label class="solved"><input type="checkbox" data-progress="11-3"> Solved independently</label></p></article><article class="problem" id="problem-4"><div class="problem-heading"><h3>4. Place nonattacking queens</h3><span class="difficulty">Hard</span></div><p>For 0≤n≤12, return all n×n boards containing exactly n queens, one in each row, with no shared column or diagonal. Each board is a list of strings using Q and .. n=0 returns one empty board. Reject n outside the stated range.</p>
+<div class="example"><strong>Example</strong><p>n=4 has two boards, including [.Q..,...Q,Q...,..Q.]. n=2 has no boards.</p>
+</div><details><summary>First attempt: the baseline</summary><p>Try all n choices per row, then inspect completed boards: O(n^n n²) time with most candidates invalid.</p>
+</details><details class="solution"><summary>Reveal the derivation and solutions</summary><h4>Derive it step by step</h4><ol><li><p>Choose one queen per row, so row conflicts are impossible by construction. A future placement is legal iff its column and both diagonal identifiers are unoccupied.</p>
+</li><li><p>At (row,col), row-col+n and row+col name the diagonals. Mark all three constraints, store the chosen column, and recurse to the next row. Any conflict can be pruned immediately because later queens cannot undo an attack between existing queens.</p>
+</li><li><p>At row n, create strings from the chosen-column array. Undo all occupancy markers after returning. Building strings only at a solution keeps partial search state compact.</p>
+</li></ol><div class="proof"><strong>Why it works</strong><p>Rows below the current row each have exactly one queen, no placed pair attacks, and occupancy arrays exactly describe those queens. Every valid board determines one row-by-row sequence.</p>
+</div><div class="language-controls" role="group" aria-label="Solution language"><button type="button" data-lang="java">Java</button><button type="button" data-lang="kotlin">Kotlin</button><button type="button" data-lang="both">Both</button></div><div class="code" data-code="java"><h4>Java</h4><pre><code>static List&lt;List&lt;String&gt;&gt; queens(int n) {
+ if(n&lt;0||n&gt;12) throw new IllegalArgumentException(&quot;n outside 0..12&quot;);
+ List&lt;List&lt;String&gt;&gt; out=new ArrayList&lt;&gt;();
+ queenDfs(0,n,new int[n],new boolean[n],new boolean[2*n+1],new boolean[2*n+1],out);
+ return out;
+}
+static void queenDfs(int row,int n,int[] chosen,boolean[] columns,boolean[] down,boolean[] up,List&lt;List&lt;String&gt;&gt; out) {
+ if(row==n) {
+  List&lt;String&gt; board=new ArrayList&lt;&gt;();
+  for(int r=0;r&lt;n;r++) { char[] line=new char[n]; Arrays.fill(line,&#39;.&#39;); line[chosen[r]]=&#39;Q&#39;; board.add(new String(line)); }
+  out.add(board); return;
+ }
+ for(int c=0;c&lt;n;c++) {
+  int d=row-c+n,u=row+c;
+  if(columns[c]||down[d]||up[u]) continue;
+  columns[c]=down[d]=up[u]=true; chosen[row]=c;
+  queenDfs(row+1,n,chosen,columns,down,up,out);
+  columns[c]=down[d]=up[u]=false;
+ }
+}</code></pre><a download href="../solutions/11-4.java">Download Java snippet</a></div><div class="code" data-code="kotlin"><h4>Kotlin</h4><pre><code>fun queens(n: Int): List&lt;List&lt;String&gt;&gt; {
+ require(n in 0..12)
+ val chosen = IntArray(n)
+ val columns = BooleanArray(n)
+ val down = BooleanArray(2 * n + 1)
+ val up = BooleanArray(2 * n + 1)
+ val out = mutableListOf&lt;List&lt;String&gt;&gt;()
+ fun dfs(row: Int) {
+  if (row == n) {
+   out.add((0 until n).map { r -&gt;
+    val line = CharArray(n) { &#39;.&#39; }; line[chosen[r]] = &#39;Q&#39;; String(line)
+   })
+   return
+  }
+  for (c in 0 until n) {
+   val d = row - c + n
+   val u = row + c
+   if (columns[c] || down[d] || up[u]) continue
+   columns[c] = true; down[d] = true; up[u] = true; chosen[row] = c
+   dfs(row + 1)
+   columns[c] = false; down[d] = false; up[u] = false
+  }
+ }
+ dfs(0)
+ return out
+}</code></pre><a download href="../solutions/11-4.kt">Download Kotlin snippet</a></div><h4>Cost and boundaries</h4><p>O(n·n! + S n²) conservative time after column pruning, for S output boards; diagonals prune further. O(n) auxiliary arrays/stack, O(Sn²) output characters. n=0 is constant.</p>
+<ul><li><p>n=0 ⇒ [[]]</p>
+</li><li><p>n=1 ⇒ [[Q]]</p>
+</li><li><p>n=2 or n=3 ⇒ []</p>
+</li><li><p>n=4 ⇒ exactly two valid boards</p>
+</li></ul><h4>Change one assumption</h4><p>To count only, increment a counter at each complete placement rather than building strings. Bit masks compress occupancy and speed candidate enumeration, but do not change the combinatorial search requirement.</p>
+</details><p><a href="https://leetcode.com/problems/n-queens/" target="_blank" rel="noopener">Original practice problem</a> <label class="solved"><input type="checkbox" data-progress="11-4"> Solved independently</label></p></article></section><section id="practice"><h2>Practice with gradually less help</h2><details class="practice-item"><summary>Combinations <span class="muted">Medium</span></summary><a href="https://leetcode.com/problems/combinations/" target="_blank" rel="noopener">Open problem</a><details><summary>A small hint</summary><p>Increasing indices encode an unordered selection.</p>
+</details><details><summary>Solution outline and cost</summary><p>Choose next value above the last, stop at size k; prune when remaining candidates cannot fill missing positions. O(k·C(n,k)) output-sensitive time with optimized bounds/O(k) auxiliary space.</p>
+</details><label><input type="checkbox" data-progress="11-practice-0"> Solved independently</label></details><details class="practice-item"><summary>Subsets II <span class="muted">Medium</span></summary><a href="https://leetcode.com/problems/subsets-ii/" target="_blank" rel="noopener">Open problem</a><details><summary>A small hint</summary><p>Skip equal choices at the same depth only.</p>
+</details><details><summary>Solution outline and cost</summary><p>Sort a copy and continue when i&gt;start and a[i]==a[i-1]. Recurse with i+1. O(n2^n) worst-case/O(n) auxiliary plus output; deeper equal choices preserve multiplicity.</p>
+</details><label><input type="checkbox" data-progress="11-practice-1"> Solved independently</label></details><details class="practice-item"><summary>Palindrome Partitioning <span class="muted">Medium</span></summary><a href="https://leetcode.com/problems/palindrome-partitioning/" target="_blank" rel="noopener">Open problem</a><details><summary>A small hint</summary><p>Each choice is a palindromic prefix of the remaining suffix.</p>
+</details><details><summary>Solution outline and cost</summary><p>Precompute palindrome intervals in O(n²), then DFS end positions with valid intervals. O(n²+n2^n) worst-case including output, O(n²) table plus path/stack.</p>
+</details><label><input type="checkbox" data-progress="11-practice-2"> Solved independently</label></details><details class="practice-item"><summary>Word Search <span class="muted">Medium</span></summary><a href="https://leetcode.com/problems/word-search/" target="_blank" rel="noopener">Open problem</a><details><summary>A small hint</summary><p>The state is cell, next character index, and cells used on this path.</p>
+</details><details><summary>Solution outline and cost</summary><p>DFS matching four neighbors; mark before descent and restore on return. O(RC·3^L) standard upper bound after initial choices for word length L, O(L) stack plus visited state; no cell reuse.</p>
+</details><label><input type="checkbox" data-progress="11-practice-3"> Solved independently</label></details><details class="practice-item"><summary>Restore IP Addresses <span class="muted">Medium</span></summary><a href="https://leetcode.com/problems/restore-ip-addresses/" target="_blank" rel="noopener">Open problem</a><details><summary>A small hint</summary><p>A choice consumes one to three digits and one segment slot.</p>
+</details><details><summary>Solution outline and cost</summary><p>Prune remaining length against remaining slots, reject leading-zero multi-digit segments and values&gt;255. At most 3^4 branches times short parsing; output uses constant-length addresses.</p>
+</details><label><input type="checkbox" data-progress="11-practice-4"> Solved independently</label></details><details class="practice-item"><summary>Sudoku Solver <span class="muted">Hard</span></summary><a href="https://leetcode.com/problems/sudoku-solver/" target="_blank" rel="noopener">Open problem</a><details><summary>A small hint</summary><p>Track legal candidates by row, column, and box.</p>
+</details><details><summary>Solution outline and cost</summary><p>Pick an empty cell with fewest candidates, try legal digits, mark/recurse/undo. Exponential worst case in empty cells; bit masks make checks constant. Define invalid or unsatisfiable input behavior.</p>
+</details><label><input type="checkbox" data-progress="11-practice-5"> Solved independently</label></details></section><section><h2>Check the reasoning</h2><fieldset class="quiz" data-answer="0"><legend>For combinations allowing repeated use of chosen a[i], what is the recursive start?</legend><label><input type="radio" name="q0" value="0"> i</label><label><input type="radio" name="q0" value="1"> i+1</label><label><input type="radio" name="q0" value="2"> Always zero</label><button type="button" data-check>Check reasoning</button><p class="feedback" aria-live="polite" data-explanation="Keeping i allows this value again while preventing smaller values from creating reordered copies."></p></fieldset><fieldset class="quiz" data-answer="1"><legend>When can equal a[i] be skipped in unique permutations?</legend><label><input type="radio" name="q1" value="0"> Always</label><label><input type="radio" name="q1" value="1"> When a[i-1] is equal and unused at this step</label><label><input type="radio" name="q1" value="2"> When a[i-1] is equal and used</label><button type="button" data-check>Check reasoning</button><p class="feedback" aria-live="polite" data-explanation="An unused earlier equal occurrence can represent the same choice. If it is already used, the later equal occurrence supplies needed multiplicity."></p></fieldset></section><section id="transfer"><h2>An unfamiliar version</h2><p>Generate all meal plans of exactly d days using dishes with positive costs. Total cost must equal budget, no two adjacent days may use the same dish, and order across days matters. Derive the search state and safe pruning.</p>
+<details><summary>Hint 1</summary><p>Day order matters, so increasing dish indices would discard valid plans.</p>
+</details><details><summary>Hint 2</summary><p>Track remaining budget and the previous dish identity.</p>
+</details><details><summary>Derivation</summary><p>State is day,remainingBudget,previousDish,path. Try every dish except previous; subtract its positive cost, recurse, and undo. At day d accept only zero remainder. Prune if remainder is below remainingDays×minimumCost or above remainingDays×maximumCost; these relaxed bounds are safe even though adjacency may make them unattainable. O(m^d·d) worst-case including output for m dishes, O(d) auxiliary state. Use Long for cost bounds and budget; additional memoization helps counting or feasibility, but enumeration still needs distinct paths.</p>
+</details></section><section><h2>Retrieve it without looking</h2><ul><li><p>Draw the decision tree before writing a helper signature.</p>
+</li><li><p>Explain which choice rule gives uniqueness and which condition gives pruning.</p>
+</li><li><p>Give a counterexample to overshoot pruning when negative values are allowed.</p>
+</li></ul><p>Repeat after 1, 3, 7 and 21 days. A check mark records your self-report, not a mastery score. Explain the proof and solve a changed version before calling a pattern fluent.</p></section><section><h2>Sources and further study</h2><ul><li><a href="https://leetcode.com/tag/backtracking/">LeetCode backtracking catalogue</a>: Reference link; not retrieved in this run. Primary task statements and additional practice links.</li><li><a href="https://leetcode.com/problems/n-queens/">N-Queens</a>: Reference link; not retrieved in this run. Canonical nonattacking-placement enumeration task; this lesson specifies n=0 explicitly.</li></ul><p class="muted">These are reference links. See the research page for live-verification limits and the distinction between a canonical algorithm and a confirmed company question.</p></section><p class="next">Next: <a href="12-tries.html">Tries: share prefixes and prune impossible continuations</a></p></main></div><footer>Practice deriving the invariant. Explain why every discarded candidate is safe to discard. <a href="../research.html">Evidence and scope</a></footer><!-- page-navigation:start -->
+<nav class="page-navigation" aria-label="Bottom page navigation"><div class="page-navigation-parents"><a href="../../index.html">Library home</a> <span aria-hidden="true">›</span> <a href="../../index.html#technical-foundations">Technical foundations and implementation</a> <span aria-hidden="true">›</span> <a href="../index.html">Coding Interviews: Patterns &amp; Problem Solving</a> <span aria-hidden="true">›</span> <a href="index.html">Lessons</a></div><div class="page-navigation-sections"><a href="index.html">Lessons</a><a href="../reference/index.html">Reference sheets</a><a href="../materials.html">Guides and resources</a><a href="#page-top">Back to top ↑</a></div><div class="page-navigation-pager"><a href="10-heaps.html" rel="prev">← Previous: Heaps: keep the next winner and forget full order</a><a href="12-tries.html" rel="next">Next: Tries: share prefixes and prune impossible continuations →</a></div></nav>
+<!-- page-navigation:end -->
+<script src="../../assets/course/links.js" defer></script>
+</body></html>

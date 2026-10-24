@@ -1,0 +1,310 @@
+{
+  "id": "17",
+  "slug": "dp-linear",
+  "title": "Linear dynamic programming: decisions, states, and dependencies",
+  "group": "Dynamic programming",
+  "prerequisites": "Lesson 00; recursion fundamentals; Lesson 05 binary search; Lesson 06 intervals",
+  "estimatedMinutes": 150,
+  "motivation": "Dynamic programming begins with a decision tree, not a table. Imagine solving a problem by asking what the final or next decision could be, recursively solving what remains, and combining the results. For climbing stairs, the final step was either one step or two steps; for robbery, a house is either taken or skipped. These choices generate many recursive calls, and different paths often ask the exact same remaining question. Recomputing that question is the waste that DP removes.",
+  "mentalModel": "Dynamic programming begins with a decision tree, not a table. Imagine solving a problem by asking what the final or next decision could be, recursively solving what remains, and combining the results. For climbing stairs, the final step was either one step or two steps; for robbery, a house is either taken or skipped. These choices generate many recursive calls, and different paths often ask the exact same remaining question. Recomputing that question is the waste that DP removes.\n\nA state is a complete description of a subproblem. It must preserve everything the future needs and forget everything else. If the future depends only on how many stairs remain, the index is sufficient. If a stock trade depends on whether you hold a share, an index alone is insufficient. Two histories may share a state only if every possible future continuation has the same legal choices and consequences from both histories. This is the central design test; a clever recurrence cannot repair a state that merges unlike futures.\n\nMemoization stores the answer when a recursive state is first solved. The recursion still expresses the decision tree, but every distinct state is computed once. Count states and work per state to derive complexity; do not assume every memoized recursion is linear. Bottom-up DP evaluates the same dependency graph in an order where every needed predecessor is already known. Stairs depend on two smaller indices, so left-to-right evaluation works. Coin change for unlimited positive coins depends on smaller amounts, so increasing amount works. A recurrence that points forward instead may need reverse iteration or a different state definition.\n\nBase values are semantic answers to the smallest subproblems. There is one way to climb zero stairs: take no steps. There are zero coins needed to make amount zero. There is zero available reward before the first job. An impossible positive amount is different from a legitimate zero-cost solution and needs an explicit sentinel. Never add one to an infinite sentinel without checking reachability: it can overflow into a value that incorrectly looks excellent.\n\nMemory reduction is a later proof step. If a state depends only on the last two values, the rest of the table can be discarded after use. If the output includes a reconstruction, those discarded choices may be needed again, so keep parents or recompute them. In one-dimensional knapsack, loop direction controls whether the current item can be reused: ascending amounts allow unlimited reuse, descending amounts prevent it. The code's loop order is part of the mathematical model.\n\nThe hard scheduling example combines DP with sorting and binary search. Sorting jobs by finish time exposes a prefix of compatible earlier jobs. Taking a job contributes its reward plus the optimum on that compatible prefix; skipping it leaves the previous optimum. This is why earliest-finish greedy, although correct for maximum count, fails for weighted rewards. Learn to identify the precise decision and sufficient predecessor state, then let the recurrence select the implementation.",
+  "invariant": "Each state answers a precise subproblem, and every transition partitions its feasible solutions into exhaustive choices. Base values describe empty or impossible subproblems accurately. Bottom-up order guarantees dependencies are solved before use; memory compression preserves every dependency until its final consumer.",
+  "recognition": [
+    "A recursive take/skip or last-choice search repeats the same remaining subproblem.",
+    "An optimum for a prefix can be expressed using a few smaller-prefix optima.",
+    "The legal next choices depend on a compact state rather than the entire history."
+  ],
+  "wrongTurns": [
+    {
+      "temptation": "Always take the currently largest house.",
+      "counterexample": "[2,3,2]: taking 3 gives 3, but taking both 2s gives 4.",
+      "repair": "Compare take and skip for every prefix rather than committing to a local reward."
+    },
+    {
+      "temptation": "Use largest-coin-first greedy for minimum coin count.",
+      "counterexample": "coins=[1,3,4],amount=6: greedy uses 4+1+1 (3 coins), while 3+3 uses 2.",
+      "repair": "Evaluate every possible final coin using solved predecessor amounts."
+    },
+    {
+      "temptation": "Use earliest-finish scheduling for weighted reward.",
+      "counterexample": "Jobs [1,2,5],[2,3,5],[1,3,20]: earliest finish earns 10, but the longer job earns 20.",
+      "repair": "Use compatible-prefix take/skip DP; the unweighted exchange proof does not preserve reward."
+    },
+    {
+      "temptation": "Use an ascending one-dimensional 0/1 subset loop.",
+      "counterexample": "One item of value 3 and target 6: ascending updates dp[3] then dp[6], reusing the same item twice.",
+      "repair": "For one-use items iterate amounts downward so dp[x-item] still describes the previous item layer."
+    }
+  ],
+  "diagram": {
+    "caption": "The take/skip recurrence collapses an exponential decision tree into a prefix dependency graph.",
+    "nodes": [
+      "best(i): optimum for first i houses",
+      "Skip final house: best(i\u22121)",
+      "Take final house: reward[i\u22121] + best(i\u22122)",
+      "best(i) = max(skip, take)"
+    ],
+    "edges": [
+      [
+        0,
+        1,
+        "case: final house absent"
+      ],
+      [
+        0,
+        2,
+        "case: final house present"
+      ],
+      [
+        1,
+        3,
+        "exhaustive disjoint cases"
+      ],
+      [
+        2,
+        3,
+        "two predecessor answers suffice"
+      ]
+    ]
+  },
+  "trace": [
+    {
+      "state": "House rewards [2,7,9,3,1]; initially two=0,one=0",
+      "explanation": "The empty prefix has reward zero; no selection is mandatory."
+    },
+    {
+      "state": "After 2: current=max(0,0+2)=2; two=0,one=2",
+      "explanation": "Taking the first house beats skipping it."
+    },
+    {
+      "state": "After 7: current=max(2,0+7)=7; two=2,one=7",
+      "explanation": "Taking 7 excludes adjacent 2."
+    },
+    {
+      "state": "After 9: current=max(7,2+9)=11; two=7,one=11",
+      "explanation": "Taking 9 combines with the best prefix ending before its neighbor."
+    },
+    {
+      "state": "After 3 then 1: best values 11 then 12",
+      "explanation": "Skip 3; then combine 1 with the earlier optimum 11 to choose indices 0,2,4."
+    }
+  ],
+  "problems": [
+    {
+      "title": "Climbing Stairs: From Decision Tree to Two Values",
+      "difficulty": "Easy",
+      "statement": "For an integer n in 0..91, return as long the number of distinct sequences of one-step and two-step moves that climb exactly n stairs. n=0 has one empty sequence. Throw outside this range because larger answers can overflow long.",
+      "example": "n=4 => 5: 1111,112,121,211,22.",
+      "baseline": "Recursively try a final step of size one or two without caching: exponential time and O(n) recursion depth.",
+      "reasoning": [
+        "Partition all valid sequences by their last move. Removing a final one leaves a sequence for n-1; removing a final two leaves one for n-2. The groups are disjoint and exhaustive.",
+        "Set ways(0)=1 and ways(1)=1. Memoization would compute n+1 states once; bottom-up evaluates ways(i)=ways(i-1)+ways(i-2).",
+        "Only the previous two states are needed, so update two long values. The n<=91 contract keeps every stored sum representable."
+      ],
+      "invariant": "Before computing step i, previous=ways(i-2) and current=ways(i-1). Their sum is ways(i) by the disjoint final-step partition.",
+      "java": "static long climbStairs(int n) {\n    if(n<0 || n>91) throw new IllegalArgumentException(\"n must be in 0..91\");\n    if(n<=1) return 1;\n    long previous=1,current=1;\n    for(int i=2;i<=n;i++) {\n        long next=previous+current; previous=current; current=next;\n    }\n    return current;\n}",
+      "kotlin": "fun climbStairs(n: Int): Long {\n    require(n in 0..91) { \"n must be in 0..91\" }\n    if (n <= 1) return 1L\n    var previous = 1L; var current = 1L\n    for (i in 2..n) {\n        val next = previous + current; previous = current; current = next\n    }\n    return current\n}",
+      "complexity": "O(n) time, O(1) auxiliary space, no recursion. BigInteger permits larger exact answers but changes arithmetic cost.",
+      "edgeCases": [
+        "n=0 => 1",
+        "n=1 => 1",
+        "n=4 => 5",
+        "n=91 => 7540113804746346429",
+        "n=92 => exception"
+      ],
+      "twist": "If step sizes are {1,3,5}, ways(i) sums ways(i-s) for legal s and ways(0)=1. If individual stairs are blocked, set their ways to zero; two-state compression may no longer be enough.",
+      "source": "https://leetcode.com/problems/climbing-stairs/",
+      "testJava": "if (!(climbStairs(4)==5 && climbStairs(0)==1 && climbStairs(91)==7540113804746346429L)) throw new AssertionError(\"Climbing Stairs: From Decision Tree to Two Values\");",
+      "testKotlin": "check(climbStairs(4) == 5L && climbStairs(0) == 1L && climbStairs(91) == 7540113804746346429L) { \"Climbing Stairs: From Decision Tree to Two Values\" }"
+    },
+    {
+      "title": "House Robber: Take or Skip a Prefix Endpoint",
+      "difficulty": "Medium",
+      "statement": "Given a non-null int array of house rewards, choose any subset with no adjacent indices and return the largest total reward as long. Choosing none is allowed, so empty or entirely negative input returns 0. Input is unchanged.",
+      "example": "[2,7,9,3,1] => 12 by choosing indices 0,2,4.",
+      "baseline": "Enumerate take/skip subsets recursively, disallowing adjacent takes: exponential time/O(n) recursion depth.",
+      "reasoning": [
+        "Let best(i) mean the greatest reward from the first i houses. If the final house is skipped, the answer is best(i-1).",
+        "If the final house is taken, its neighbor is excluded, leaving reward[i-1]+best(i-2). Take the maximum of these two exhaustive choices.",
+        "Use base best(0)=0 and a virtual best(-1)=0. Maintain the previous two prefix optima; negative rewards are naturally skipped."
+      ],
+      "invariant": "Before each reward x, one is the optimum of all processed houses and two is the optimum before their last house. The recurrence considers every feasible solution according to whether x is selected.",
+      "java": "static long rob(int[] rewards) {\n    long two=0,one=0;\n    for(int x:rewards) {\n        long current=Math.max(one,two+x); two=one; one=current;\n    }\n    return one;\n}",
+      "kotlin": "fun rob(rewards: IntArray): Long {\n    var two = 0L; var one = 0L\n    for (x in rewards) {\n        val current = maxOf(one, two + x); two = one; one = current\n    }\n    return one\n}",
+      "complexity": "O(n) time, O(1) auxiliary space. Total reward is long; no recursion or mutation.",
+      "edgeCases": [
+        "[] => 0",
+        "[-3,-1] => 0",
+        "[5,1,5] => 10",
+        "[2147483647,0,2147483647] => 4294967294"
+      ],
+      "twist": "For houses on a circle, first and last are adjacent. For n>=2 take the max of solving [0,n-2] and [1,n-1]; handle n=1 separately. To return chosen indices, keep a DP table and reconstruct take/skip decisions.",
+      "source": "https://leetcode.com/problems/house-robber/",
+      "testJava": "if (!(rob(new int[]{2,7,9,3,1})==12 && rob(new int[]{})==0 && rob(new int[]{-3,-1})==0 && rob(new int[]{Integer.MAX_VALUE,0,Integer.MAX_VALUE})==4294967294L)) throw new AssertionError(\"House Robber: Take or Skip a Prefix Endpoint\");",
+      "testKotlin": "check(rob(intArrayOf(2,7,9,3,1)) == 12L && rob(intArrayOf()) == 0L && rob(intArrayOf(-3,-1)) == 0L && rob(intArrayOf(Int.MAX_VALUE,0,Int.MAX_VALUE)) == 4294967294L) { \"House Robber: Take or Skip a Prefix Endpoint\" }"
+    },
+    {
+      "title": "Coin Change: Minimum Cost With Impossible States",
+      "difficulty": "Medium",
+      "statement": "Given a non-null int array of strictly positive coin denominations and amount in 0..1,000,000, return the minimum number of coins making exactly amount using unlimited copies, or -1 if impossible. Empty coins make only amount zero. Throw for invalid amount or nonpositive coin. Input is unchanged.",
+      "example": "coins=[1,2,5], amount=11 => 3 via 5+5+1; coins=[2],amount=3 => -1.",
+      "baseline": "Try all possible next coins recursively until the remainder is zero or negative: exponential branching; positive coins guarantee finite depth.",
+      "reasoning": [
+        "Let dp[x] be the minimum coins for exact amount x. For a last coin c<=x, the preceding amount is x-c, so consider dp[x-c]+1 only when that amount is reachable.",
+        "Set dp[0]=0; initialize all positive amounts to amount+1, which exceeds any valid minimum because every coin is at least one.",
+        "Iterate x upward so all dependencies x-c are ready. Unlimited reuse is intended: a denomination can appear in many consecutive predecessor steps. Return -1 if the final sentinel remains."
+      ],
+      "invariant": "When computing dp[x], every smaller amount is already optimal. Every exact representation ends with some coin, and removing it gives one of the predecessor states examined.",
+      "java": "static int coinChange(int[] coins,int amount) {\n    if(amount<0 || amount>1_000_000) throw new IllegalArgumentException(\"amount\");\n    for(int c:coins) if(c<=0) throw new IllegalArgumentException(\"positive coins required\");\n    int unreachable=amount+1;\n    int[] dp=new int[amount+1]; Arrays.fill(dp,unreachable); dp[0]=0;\n    for(int x=1;x<=amount;x++) {\n        for(int c:coins) if(c<=x && dp[x-c]!=unreachable)\n            dp[x]=Math.min(dp[x],dp[x-c]+1);\n    }\n    return dp[amount]==unreachable ? -1 : dp[amount];\n}",
+      "kotlin": "fun coinChange(coins: IntArray, amount: Int): Int {\n    require(amount in 0..1_000_000) { \"amount\" }\n    for (c in coins) require(c > 0) { \"positive coins required\" }\n    val unreachable = amount + 1\n    val dp = IntArray(amount + 1) { unreachable }; dp[0] = 0\n    for (x in 1..amount) {\n        for (c in coins) if (c <= x && dp[x - c] != unreachable)\n            dp[x] = minOf(dp[x], dp[x - c] + 1)\n    }\n    return if (dp[amount] == unreachable) -1 else dp[amount]\n}",
+      "complexity": "O(Ac) time for amount A and c coin entries, O(A) auxiliary space. This is pseudo-polynomial in the numeric amount, not polynomial in the bit length of A.",
+      "edgeCases": [
+        "coins=[],amount=0 => 0",
+        "coins=[],amount=3 => -1",
+        "coins=[2],amount=3 => -1",
+        "coins=[1,3,4],amount=6 => 2"
+      ],
+      "twist": "To count unordered combinations, use coins as the outer loop and amounts ascending; to count ordered sequences, amounts outermost counts different orders separately. For one-use coins, amounts must descend when compressing the item dimension.",
+      "source": "https://leetcode.com/problems/coin-change/",
+      "testJava": "if (!(coinChange(new int[]{1,2,5},11)==3 && coinChange(new int[]{2},3)==-1 && coinChange(new int[]{},0)==0 && coinChange(new int[]{1,3,4},6)==2)) throw new AssertionError(\"Coin Change: Minimum Cost With Impossible States\");",
+      "testKotlin": "check(coinChange(intArrayOf(1,2,5),11) == 3 && coinChange(intArrayOf(2),3) == -1 && coinChange(intArrayOf(),0) == 0 && coinChange(intArrayOf(1,3,4),6) == 2) { \"Coin Change: Minimum Cost With Impossible States\" }"
+    },
+    {
+      "title": "Weighted Job Scheduling: Compatible Prefix DP",
+      "difficulty": "Hard",
+      "statement": "Given a non-null array of jobs [start,end,reward] with start<end and int rewards, return the maximum long reward from mutually nonoverlapping half-open jobs. Touching jobs are compatible. Negative rewards are allowed and may be skipped; empty input returns 0. Do not mutate input; invalid endpoints throw.",
+      "example": "[[1,3,50],[2,4,10],[3,5,40],[3,6,70]] => 120 by choosing [1,3,50] and [3,6,70].",
+      "baseline": "Enumerate job subsets and test compatibility: exponential time, with O(n) recursion state.",
+      "reasoning": [
+        "Sort copied job references by end. Define dp[i] as the optimum using the first i jobs in this order.",
+        "For job i, binary-search among earlier jobs for the count p whose ends are <=start[i]. Taking job i allows exactly that compatible prefix, giving reward[i]+dp[p]; skipping gives dp[i].",
+        "Store dp[i+1]=max(skip,take). Every optimum either contains the current job or not. Sorting ensures that all jobs in a feasible earlier prefix finish before it starts."
+      ],
+      "invariant": "Before processing job i, dp[0..i] holds exact prefix optima. The binary search returns the full earlier compatible prefix, so taking this job combines independent feasible choices and skipping preserves the prior optimum.",
+      "java": "static long maxJobReward(int[][] jobs) {\n    int[][] a=jobs.clone();\n    for(int[] j:a) if(j[0]>=j[1]) throw new IllegalArgumentException(\"nonempty job required\");\n    Arrays.sort(a,Comparator.comparingInt((int[] j)->j[1]).thenComparingInt(j->j[0]));\n    long[] dp=new long[a.length+1];\n    for(int i=0;i<a.length;i++) {\n        int lo=0,hi=i;\n        while(lo<hi) {\n            int mid=lo+(hi-lo)/2;\n            if(a[mid][1]<=a[i][0]) lo=mid+1; else hi=mid;\n        }\n        dp[i+1]=Math.max(dp[i],(long)a[i][2]+dp[lo]);\n    }\n    return dp[a.length];\n}",
+      "kotlin": "fun maxJobReward(jobs: Array<IntArray>): Long {\n    for (j in jobs) require(j[0] < j[1]) { \"nonempty job required\" }\n    val a = jobs.sortedWith(compareBy<IntArray> { it[1] }.thenBy { it[0] })\n    val dp = LongArray(a.size + 1)\n    for (i in a.indices) {\n        var lo = 0; var hi = i\n        while (lo < hi) {\n            val mid = lo + (hi - lo) / 2\n            if (a[mid][1] <= a[i][0]) lo = mid + 1 else hi = mid\n        }\n        dp[i + 1] = maxOf(dp[i], a[i][2].toLong() + dp[lo])\n    }\n    return dp[a.size]\n}",
+      "complexity": "O(n log n) time for sorting and n predecessor searches; O(n) copied references, sorting storage, and DP table. No recursion; output is scalar.",
+      "edgeCases": [
+        "[] => 0",
+        "[[1,2,-5]] => 0",
+        "[[1,2,5],[2,3,6]] => 11",
+        "[[1,3,20],[1,2,5],[2,3,5]] => 20"
+      ],
+      "twist": "If at most k jobs may be selected, add a selected-count dimension: dp[i][k]=max(dp[i-1][k],reward+dp[p][k-1]). Precompute predecessors once; O(nk+n log n) time and O(nk) space, reducible by count layers.",
+      "source": "https://leetcode.com/problems/maximum-profit-in-job-scheduling/",
+      "testJava": "if (!(maxJobReward(new int[][]{{1,3,50},{2,4,10},{3,5,40},{3,6,70}})==120 && maxJobReward(new int[][]{})==0 && maxJobReward(new int[][]{{1,2,5},{2,3,6}})==11 && maxJobReward(new int[][]{{1,2,-5}})==0)) throw new AssertionError(\"Weighted Job Scheduling: Compatible Prefix DP\");",
+      "testKotlin": "check(maxJobReward(arrayOf(intArrayOf(1,3,50),intArrayOf(2,4,10),intArrayOf(3,5,40),intArrayOf(3,6,70))) == 120L && maxJobReward(emptyArray()) == 0L && maxJobReward(arrayOf(intArrayOf(1,2,5),intArrayOf(2,3,6))) == 11L && maxJobReward(arrayOf(intArrayOf(1,2,-5))) == 0L) { \"Weighted Job Scheduling: Compatible Prefix DP\" }"
+    }
+  ],
+  "practice": [
+    {
+      "title": "Min Cost Climbing Stairs",
+      "difficulty": "Easy",
+      "url": "https://leetcode.com/problems/min-cost-climbing-stairs/",
+      "hint": "The state is minimum cost to reach a boundary, not necessarily to stand on a stair.",
+      "approach": "Let dp[i] be cost to reach step i; transition from i-1 and i-2 by paying the departure step. O(n), O(1) after compression; define the two starting positions."
+    },
+    {
+      "title": "Decode Ways",
+      "difficulty": "Medium",
+      "url": "https://leetcode.com/problems/decode-ways/",
+      "hint": "Partition decodings by whether the final code uses one or two digits.",
+      "approach": "A nonzero final digit contributes dp[i-1]; a valid 10..26 pair contributes dp[i-2]. O(n), O(1). Leading zero produces no standalone decoding; use a bounded answer contract or BigInteger."
+    },
+    {
+      "title": "Longest Increasing Subsequence",
+      "difficulty": "Medium",
+      "url": "https://leetcode.com/problems/longest-increasing-subsequence/",
+      "hint": "The next choice depends on the last chosen value, not just how many were chosen.",
+      "approach": "Foundation DP: dp[i]=1+max(dp[j]) for j<i with a[j]<a[i], O(n\u00b2)/O(n). Advanced tails array stores minimum possible tail per length, using lower bound for O(n log n); tails are not necessarily the actual subsequence."
+    },
+    {
+      "title": "Partition Equal Subset Sum",
+      "difficulty": "Medium",
+      "url": "https://leetcode.com/problems/partition-equal-subset-sum/",
+      "hint": "A partition exists exactly when a subset reaches half the total.",
+      "approach": "For nonnegative values and even total, run boolean 0/1 knapsack to total/2 with descending sums. O(nT), O(T), pseudo-polynomial; ascending sums incorrectly reuse one-use items."
+    },
+    {
+      "title": "Coin Change II",
+      "difficulty": "Medium",
+      "url": "https://leetcode.com/problems/coin-change-ii/",
+      "hint": "Unordered combinations and ordered sequences need different loop nesting.",
+      "approach": "Initialize ways[0]=1. For each denomination, update amounts ascending; each combination is counted when its largest processed denomination becomes available. O(cA), O(A); duplicate denominations must be deduplicated and counts need an overflow contract."
+    },
+    {
+      "title": "Best Time to Buy and Sell Stock with Cooldown",
+      "difficulty": "Medium",
+      "url": "https://leetcode.com/problems/best-time-to-buy-and-sell-stock-with-cooldown/",
+      "hint": "Index alone is not a sufficient state: holding and cooldown change legal actions.",
+      "approach": "Track holding, sold-today, and resting states, updating from previous-day values only. O(n), O(1); impossible holding states use safe negative infinity or nullable reachability."
+    },
+    {
+      "title": "Edit Distance",
+      "difficulty": "Medium",
+      "url": "https://leetcode.com/problems/edit-distance/",
+      "hint": "A pair of consumed-prefix lengths identifies the remaining comparison.",
+      "approach": "DP over two indices with insert/delete/replace transitions; O(mn) time and O(mn) space, reducible to O(min(m,n)) when only distance is needed. Detailed in the grid/string DP lesson."
+    }
+  ],
+  "quiz": [
+    {
+      "question": "Why does an ascending sum loop fail for one-use subset sum?",
+      "choices": [
+        "It ignores item values",
+        "It may reuse the current item through a newly updated smaller sum",
+        "It is slower than descending iteration"
+      ],
+      "answer": 1,
+      "explanation": "For a single item 3, ascending updates reach sum 3 and then sum 6 in the same item pass. Descending iteration keeps predecessors in the previous-item layer."
+    },
+    {
+      "question": "For weighted interval scheduling, what is the take transition after sorting by end?",
+      "choices": [
+        "reward[i] + best[latest compatible prefix]",
+        "reward[i] + best[i\u22121] always",
+        "Always select the earliest-finishing job"
+      ],
+      "answer": 0,
+      "explanation": "The whole previous prefix may contain conflicting jobs. The compatible-prefix boundary, found by binary search, identifies exactly which solved optimum can safely precede this job."
+    }
+  ],
+  "transfer": {
+    "prompt": "A row of machines offers integer rewards. If you activate machine i, the next two machines must remain inactive. Find the maximum reward, allowing no activation.",
+    "hints": [
+      "Define the answer for the first i machines.",
+      "How far back is the last prefix that can coexist with taking the current machine?"
+    ],
+    "solution": "Let dp[i] be the optimum for the first i machines, with dp[0]=0 and out-of-range negative prefixes treated as zero. For current machine i-1, skip gives dp[i-1], take gives reward[i-1]+dp[max(0,i-3)]. Thus dp[i]=max of these choices. O(n) time and O(n) table, compressible to three prior states in O(1) space; keep the table for reconstruction."
+  },
+  "review": [
+    "After one day: derive the maintained state from the brute-force repeated work without looking at code.",
+    "After three days: explain the counterexample to each wrong turn and repair it.",
+    "After one week: solve the transfer problem, state the invariant aloud, and compare both JVM implementations."
+  ],
+  "sources": [
+    {
+      "label": "Climbing Stairs: From Decision Tree to Two Values",
+      "url": "https://leetcode.com/problems/climbing-stairs/",
+      "note": "Reference link; not retrieved in this run. Canonical problem statement and constraints; used to identify the technique and offer optional practice, not as evidence of company frequency.",
+      "status": "unverified"
+    },
+    {
+      "label": "House Robber: Take or Skip a Prefix Endpoint",
+      "url": "https://leetcode.com/problems/house-robber/",
+      "note": "Reference link; not retrieved in this run. Canonical problem statement and constraints; used to identify the technique and offer optional practice, not as evidence of company frequency.",
+      "status": "unverified"
+    },
+    {
+      "label": "Coin Change: Minimum Cost With Impossible States",
+      "url": "https://leetcode.com/problems/coin-change/",
+      "note": "Reference link; not retrieved in this run. Canonical problem statement and constraints; used to identify the technique and offer optional practice, not as evidence of company frequency.",
+      "status": "unverified"
+    },
+    {
+      "label": "Weighted Job Scheduling: Compatible Prefix DP",
+      "url": "https://leetcode.com/problems/maximum-profit-in-job-scheduling/",
+      "note": "Reference link; not retrieved in this run. Canonical problem statement and constraints; used to identify the technique and offer optional practice, not as evidence of company frequency.",
+      "status": "unverified"
+    }
+  ]
+}

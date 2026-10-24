@@ -1,0 +1,32 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="Learn coding interview reasoning from first principles, with Java and Kotlin solutions."><title>Linear dynamic programming: decisions, states, and dependencies: retrieval sheet · Coding interview</title><link rel="stylesheet" href="../assets/course.css"><script src="../assets/course.js" defer></script><link rel="stylesheet" href="../../assets/navigation.css">
+</head><body id="page-top">
+<!-- page-navigation:start -->
+<nav class="page-navigation" aria-label="Top page navigation"><div class="page-navigation-parents"><a href="../../index.html">Library home</a> <span aria-hidden="true">›</span> <a href="../../index.html#technical-foundations">Technical foundations and implementation</a> <span aria-hidden="true">›</span> <a href="../index.html">Coding Interviews: Patterns &amp; Problem Solving</a> <span aria-hidden="true">›</span> <a href="index.html">Reference sheets</a></div><div class="page-navigation-sections"><a href="../lessons/index.html">Lessons</a><a href="index.html">Reference sheets</a><a href="../materials.html">Guides and resources</a><a href="#page-top">Back to top ↑</a></div><div class="page-navigation-pager"><a href="16-greedy.html" rel="prev">← Previous: Greedy choices and exchange arguments: retrieval sheet</a><a href="18-dp-grids-strings.html" rel="next">Next: Dynamic programming on grids and strings: retrieval sheet →</a></div></nav>
+<!-- page-navigation:end -->
+<a class="skip" href="#main">Skip to content</a><nav class="top"><a href="../../index.html">Software Engineering Library</a><a href="../index.html">Coding interview</a><a href="../foundations.html">Start from zero</a><a href="../practice.html">Practice room</a><a href="../research.html">Sources</a></nav><main id="main" class="document"><h1>Linear dynamic programming: decisions, states, and dependencies: retrieval sheet</h1>
+<h2>Recognition</h2>
+<ul>
+<li>A recursive take/skip or last-choice search repeats the same remaining subproblem.</li>
+<li>An optimum for a prefix can be expressed using a few smaller-prefix optima.</li>
+<li>The legal next choices depend on a compact state rather than the entire history.</li>
+</ul>
+<h2>Invariant</h2>
+<p>Each state answers a precise subproblem, and every transition partitions its feasible solutions into exhaustive choices. Base values describe empty or impossible subproblems accurately. Bottom-up order guarantees dependencies are solved before use; memory compression preserves every dependency until its final consumer.</p>
+<h2>Failure boundaries</h2>
+<ul>
+<li>Always take the currently largest house.: [2,3,2]: taking 3 gives 3, but taking both 2s gives 4. Repair: Compare take and skip for every prefix rather than committing to a local reward.</li>
+<li>Use largest-coin-first greedy for minimum coin count.: coins=[1,3,4],amount=6: greedy uses 4+1+1 (3 coins), while 3+3 uses 2. Repair: Evaluate every possible final coin using solved predecessor amounts.</li>
+<li>Use earliest-finish scheduling for weighted reward.: Jobs [1,2,5],[2,3,5],[1,3,20]: earliest finish earns 10, but the longer job earns 20. Repair: Use compatible-prefix take/skip DP; the unweighted exchange proof does not preserve reward.</li>
+<li>Use an ascending one-dimensional 0/1 subset loop.: One item of value 3 and target 6: ascending updates dp[3] then dp[6], reusing the same item twice. Repair: For one-use items iterate amounts downward so dp[x-item] still describes the previous item layer.</li>
+</ul>
+<h2>Recall</h2>
+<ul>
+<li>After one day: derive the maintained state from the brute-force repeated work without looking at code.</li>
+<li>After three days: explain the counterexample to each wrong turn and repair it.</li>
+<li>After one week: solve the transfer problem, state the invariant aloud, and compare both JVM implementations.</li>
+</ul>
+<a href="../lessons/17-dp-linear.html">Return to lesson</a></main><footer>Practice deriving the invariant. Explain why every discarded candidate is safe to discard. <a href="../research.html">Evidence and scope</a></footer><!-- page-navigation:start -->
+<nav class="page-navigation" aria-label="Bottom page navigation"><div class="page-navigation-parents"><a href="../../index.html">Library home</a> <span aria-hidden="true">›</span> <a href="../../index.html#technical-foundations">Technical foundations and implementation</a> <span aria-hidden="true">›</span> <a href="../index.html">Coding Interviews: Patterns &amp; Problem Solving</a> <span aria-hidden="true">›</span> <a href="index.html">Reference sheets</a></div><div class="page-navigation-sections"><a href="../lessons/index.html">Lessons</a><a href="index.html">Reference sheets</a><a href="../materials.html">Guides and resources</a><a href="#page-top">Back to top ↑</a></div><div class="page-navigation-pager"><a href="16-greedy.html" rel="prev">← Previous: Greedy choices and exchange arguments: retrieval sheet</a><a href="18-dp-grids-strings.html" rel="next">Next: Dynamic programming on grids and strings: retrieval sheet →</a></div></nav>
+<!-- page-navigation:end -->
+<script src="../../assets/course/links.js" defer></script>
+</body></html>

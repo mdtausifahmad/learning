@@ -1,0 +1,12 @@
+/* Shared, static navigation for standalone lessons and Jekyll documents. */
+.page-navigation { box-sizing: border-box; max-width: 1200px; margin: 1rem auto; padding: 1rem clamp(.8rem, 3vw, 1.5rem); border: 1px solid #c7d4dc; border-radius: .5rem; background: #f4f7f9; color: #243746; font: 0.9rem/1.6 system-ui, sans-serif; clear: both; }
+.page-navigation a { color: #174f75; text-decoration: underline; text-underline-offset: .18em; overflow-wrap: anywhere; }
+.page-navigation a:focus-visible { outline: 3px solid #bc5b16; outline-offset: 4px; border-radius: 2px; }
+.page-navigation-parents { display: flex; flex-wrap: wrap; align-items: baseline; gap: .25rem .6rem; }
+.page-navigation-sections { display: flex; flex-wrap: wrap; gap: .4rem 1.2rem; margin-top: .6rem; }
+.page-navigation-pager { display: flex; justify-content: space-between; gap: 1rem; border-top: 1px solid #c7d4dc; margin-top: .8rem; padding-top: .8rem; }
+.page-navigation-pager > * { flex: 1; min-width: 0; }
+.page-navigation-pager > :last-child { text-align: right; }
+.section-index { max-width: 960px; margin: 2rem auto; padding: 0 1rem; }
+.section-index li { margin-block: .65rem; }
+@media (max-width: 600px) { .page-navigation { margin: .5rem; } .page-navigation-pager { flex-direction: column; gap: .6rem; } .page-navigation-pager > :last-child { text-align: left; } }

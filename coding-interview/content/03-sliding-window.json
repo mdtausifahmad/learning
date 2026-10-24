@@ -1,0 +1,285 @@
+{
+  "id": "03",
+  "slug": "sliding-window",
+  "title": "Sliding windows: expand, repair, and count",
+  "group": "Linear data",
+  "prerequisites": "Lesson 00; arrays, loops, functions, and Big-O",
+  "estimatedMinutes": 150,
+  "motivation": "A contiguous subarray or substring is described by two boundaries. Brute force chooses a left boundary, chooses a right boundary, then inspects everything between them. Even after incremental sums remove the innermost scan, there are quadratic many intervals. Sliding windows reduce the number of boundary choices only when neighboring intervals have a useful relationship. We maintain information for one current interval and change it when an endpoint enters or leaves.",
+  "mentalModel": "A contiguous subarray or substring is described by two boundaries. Brute force chooses a left boundary, chooses a right boundary, then inspects everything between them. Even after incremental sums remove the innermost scan, there are quadratic many intervals. Sliding windows reduce the number of boundary choices only when neighboring intervals have a useful relationship. We maintain information for one current interval and change it when an endpoint enters or leaves.\n\nBegin with a fixed width. All candidate intervals have exactly k items. Moving one step removes the old left item and adds the new right item. A rolling sum is sufficient because addition can be undone by subtraction. A rolling maximum cannot generally be updated by simply subtracting an outgoing value: when the maximum leaves, the remaining maximum is unknown. That variant needs a monotonic deque. Ask what operation summarizes the interval and whether removing an item is supported.\n\nFor a variable width, the critical extra structure is monotonic validity. In a substring with no repeated symbols, adding symbols can make a valid interval invalid, and removing from the left cannot introduce a duplicate. For each right endpoint, move left until the interval is valid again. The earliest valid left boundary produces the longest valid interval ending here. Each boundary moves forward at most n times, so a while loop inside a for loop can still be linear.\n\nAt most K distinct symbols has the same direction. Once the interval is valid, every suffix ending at the same right endpoint is also valid. If its length is r-l+1, exactly that many intervals end here. This converts longest-window reasoning into counting. Exactly K can be computed as atMost(K)-atMost(K-1). Derive this set difference rather than treating it as a magic formula: an interval counted with at most K but not with at most K-1 contains exactly K distinct values.\n\nMinimum cover reverses the objective. Expand until the interval contains all required multiplicities; then shrink while it remains valid, recording candidates before each removal. Coverage is not equivalent to containing each distinct required character once. If the target is AABC, two As are necessary. Maintain how many required character occurrences are still missing, or how many character requirements are satisfied. Be explicit about which interpretation your counter uses.\n\nNegative numbers expose why the proof matters. For positive numbers, removing the left item cannot increase a sum, and expanding cannot decrease it. With negative numbers those statements fail, so a sum-threshold window can discard a boundary that later becomes useful. Symbol-count windows do not rely on numeric signs, so they remain valid. Recognize the structural reason for monotonicity rather than applying a template whenever a prompt says subarray.",
+  "invariant": "State must exactly describe the current interval. Expand by adding one endpoint; shrink only when the property has a monotone repair direction. Count or optimize only after stating whether the interval is valid. Every pointer moves forward, so total boundary movement is linear.",
+  "recognition": [
+    "Contiguous input plus repeated interval statistics suggests maintained window state.",
+    "At-most constraints whose validity survives deleting an endpoint support shrinking until valid.",
+    "Minimum coverage supports expanding until valid, then shrinking while valid."
+  ],
+  "wrongTurns": [
+    {
+      "temptation": "Use a positive-sum shrinking rule with negative values.",
+      "counterexample": "[1,-1,5], target sum at least 5: after reaching total 5, removing 1 gives 4 and stops, missing [5] of length 1.",
+      "repair": "For shortest threshold sums with negatives, use prefix sums and a monotonic deque; the sum-window proof no longer holds."
+    },
+    {
+      "temptation": "Move left to lastSeen+1 without taking max.",
+      "counterexample": "\"abba\": after the second b left=2; seeing final a would move left back to 1 and accept \"bba\".",
+      "repair": "Set left=max(left,lastSeen+1)."
+    },
+    {
+      "temptation": "Minimum cover tracks only distinct required symbols.",
+      "counterexample": "s=\"ABC\", t=\"AABC\" would appear covered although it lacks the second A.",
+      "repair": "Track multiplicity deficits or fully satisfied required frequencies."
+    }
+  ],
+  "diagram": {
+    "caption": "Unique-symbol window: expand right, then jump left past an in-window duplicate.",
+    "nodes": [
+      "a | b b a: window a",
+      "a b | b a: window ab",
+      "a b | b | a: duplicate b at 1 and 2",
+      "a b | b a: left stays 2; window ba"
+    ],
+    "edges": [
+      [
+        0,
+        1,
+        "expand: still unique"
+      ],
+      [
+        1,
+        2,
+        "right reaches second b; set left=2"
+      ],
+      [
+        2,
+        3,
+        "old a at 0 is outside; never move left backward"
+      ]
+    ]
+  },
+  "trace": [
+    {
+      "state": "Unique substring \"abba\": r=0, c=a, left=0, last={a:0}, best=1",
+      "explanation": "The singleton window is valid."
+    },
+    {
+      "state": "r=1, c=b, left=0, last={a:0,b:1}, best=2",
+      "explanation": "No prior b; extend the longest valid interval."
+    },
+    {
+      "state": "r=2, c=b, left=2, last={a:0,b:2}, best=2",
+      "explanation": "Drop everything through prior b at index 1."
+    },
+    {
+      "state": "r=3, c=a, prior a=0, left remains 2, window=\"ba\"",
+      "explanation": "The old a lies outside the window; moving left backward would violate uniqueness."
+    }
+  ],
+  "problems": [
+    {
+      "title": "Maximum Sum of a Fixed-Size Window",
+      "difficulty": "Easy",
+      "statement": "Given a non-null int array and k with 1<=k<=n, return the maximum sum among all contiguous windows of length k as long. Throw IllegalArgumentException for invalid k. Input is unchanged.",
+      "example": "[-5,-2,-8,-1], k=2 => -7 from [-5,-2].",
+      "baseline": "Recompute every length-k sum: O(nk) time/O(1) space.",
+      "reasoning": [
+        "Sum the first k items using long. Initialize best to this actual window, not zero.",
+        "For each next item, add it and subtract the item k positions behind. The updated sum is exactly the next window.",
+        "Record the maximum after each transition; all n-k+1 windows appear once."
+      ],
+      "invariant": "After processing right index r>=k-1, sum equals a[r-k+1..r] and best is the largest sum among all windows ending at or before r.",
+      "java": "static long maxWindowSum(int[] a,int k) {\n    if(k<1 || k>a.length) throw new IllegalArgumentException(\"invalid k\");\n    long sum=0; for(int i=0;i<k;i++) sum+=a[i];\n    long best=sum;\n    for(int r=k;r<a.length;r++) {\n        sum+=(long)a[r]-a[r-k]; best=Math.max(best,sum);\n    }\n    return best;\n}",
+      "kotlin": "fun maxWindowSum(a: IntArray, k: Int): Long {\n    require(k >= 1 && k <= a.size) { \"invalid k\" }\n    var sum = 0L\n    for (i in 0 until k) sum += a[i]\n    var best = sum\n    for (r in k until a.size) {\n        sum += a[r].toLong() - a[r - k]; best = maxOf(best, sum)\n    }\n    return best\n}",
+      "complexity": "O(n) time, O(1) auxiliary space. Negative values are supported; long protects the sum.",
+      "edgeCases": [
+        "[7], k=1 => 7",
+        "[-3,-2], k=1 => -2",
+        "[], k=1 => exception"
+      ],
+      "twist": "For a fixed-window maximum value instead of sum, use a deque of indices with decreasing values; addition/subtraction cannot recover a departing maximum.",
+      "source": "https://leetcode.com/problems/maximum-average-subarray-i/",
+      "testJava": "if (!(maxWindowSum(new int[]{-5,-2,-8,-1},2)==-7 && maxWindowSum(new int[]{Integer.MAX_VALUE,Integer.MAX_VALUE},2)==4294967294L)) throw new AssertionError(\"Maximum Sum of a Fixed-Size Window\");",
+      "testKotlin": "check(maxWindowSum(intArrayOf(-5,-2,-8,-1),2) == -7L && maxWindowSum(intArrayOf(Int.MAX_VALUE,Int.MAX_VALUE),2) == 4294967294L) { \"Maximum Sum of a Fixed-Size Window\" }"
+    },
+    {
+      "title": "Longest Substring Without Repetition",
+      "difficulty": "Medium",
+      "statement": "Given a non-null String, return the maximum length of a contiguous substring with distinct UTF-16 code units. Empty string returns 0. Input is unchanged.",
+      "example": "\"abba\" => 2, from \"ab\" or \"ba\".",
+      "baseline": "Enumerate substrings and test distinctness: O(n\u00b3) literally, or O(n\u00b2) with a fresh set for each start.",
+      "reasoning": [
+        "Store the most recent index of each code unit. At right r, its prior position p would conflict if p>=left.",
+        "Move left to max(left,p+1); never move left backward for a repeat outside the current interval.",
+        "Update last occurrence, then maximize r-left+1. This directly jumps over the minimum invalid prefix."
+      ],
+      "invariant": "The interval [left,r] has unique symbols and left is the smallest possible valid start for a substring ending at r.",
+      "java": "static int longestUnique(String s) {\n    Map<Character,Integer> last=new HashMap<>();\n    int left=0,best=0;\n    for(int r=0;r<s.length();r++) {\n        char c=s.charAt(r); Integer p=last.put(c,r);\n        if(p!=null) left=Math.max(left,p+1);\n        best=Math.max(best,r-left+1);\n    }\n    return best;\n}",
+      "kotlin": "fun longestUnique(s: String): Int {\n    val last = HashMap<Char, Int>(); var left = 0; var best = 0\n    for (r in s.indices) {\n        val p = last.put(s[r], r)\n        if (p != null) left = maxOf(left, p + 1)\n        best = maxOf(best, r - left + 1)\n    }\n    return best\n}",
+      "complexity": "Expected O(n) time; O(min(n,65536)) map space for UTF-16 code units.",
+      "edgeCases": [
+        "\"\" => 0",
+        "\"aaaa\" => 1",
+        "\"abba\" => 2"
+      ],
+      "twist": "For user-perceived characters, decide whether to tokenize code points or grapheme clusters first; code-unit lengths are not necessarily displayed-character lengths.",
+      "source": "https://leetcode.com/problems/longest-substring-without-repeating-characters/",
+      "testJava": "if (!(longestUnique(\"abba\")==2 && longestUnique(\"\")==0 && longestUnique(\"aaaa\")==1)) throw new AssertionError(\"Longest Substring Without Repetition\");",
+      "testKotlin": "check(longestUnique(\"abba\") == 2 && longestUnique(\"\") == 0 && longestUnique(\"aaaa\") == 1) { \"Longest Substring Without Repetition\" }"
+    },
+    {
+      "title": "Subarrays With Exactly K Distinct Values",
+      "difficulty": "Hard",
+      "statement": "Given a non-null int array and k, return the number of nonempty contiguous subarrays containing exactly k distinct values as long. k<=0 returns 0. Input is unchanged.",
+      "example": "[1,2,1,2,3], k=2 => 7.",
+      "baseline": "Enumerate each start and grow a frequency map: expected O(n\u00b2) time/O(n) state.",
+      "reasoning": [
+        "First solve at most k distinct. Expand right, then remove from left until the frequency map has at most k keys.",
+        "Every start between left and right gives a valid interval ending at right: add right-left+1.",
+        "Subtract atMost(k-1) from atMost(k). Intervals with fewer distinct values cancel exactly once."
+      ],
+      "invariant": "For each right endpoint, left is the earliest valid start for atMost(k), and precisely all starts in [left,right] are counted.",
+      "java": "static long exactlyK(int[] a,int k) {\n    return k<=0 ? 0 : atMost(a,k)-atMost(a,k-1);\n}\nstatic long atMost(int[] a,int k) {\n    if(k<0) return 0;\n    Map<Integer,Integer> freq=new HashMap<>(); int left=0; long total=0;\n    for(int r=0;r<a.length;r++) {\n        freq.merge(a[r],1,Integer::sum);\n        while(freq.size()>k) {\n            int x=a[left++], c=freq.get(x)-1;\n            if(c==0) freq.remove(x); else freq.put(x,c);\n        }\n        total+=r-left+1;\n    }\n    return total;\n}",
+      "kotlin": "fun exactlyK(a: IntArray, k: Int): Long {\n    fun atMost(limit: Int): Long {\n        if (limit < 0) return 0L\n        val freq = HashMap<Int, Int>(); var left = 0; var total = 0L\n        for (r in a.indices) {\n            freq[a[r]] = (freq[a[r]] ?: 0) + 1\n            while (freq.size > limit) {\n                val x = a[left++]; val c = freq.getValue(x) - 1\n                if (c == 0) freq.remove(x) else freq[x] = c\n            }\n            total += (r - left + 1).toLong()\n        }\n        return total\n    }\n    return if (k <= 0) 0L else atMost(k) - atMost(k - 1)\n}",
+      "complexity": "Expected O(n) time from two linear scans; O(min(n,k+1)) auxiliary frequency state for positive k; scalar long output.",
+      "edgeCases": [
+        "[] with k=2 => 0",
+        "[1,1], k=1 => 3",
+        "[1,2], k=0 => 0"
+      ],
+      "twist": "Exactly K odd values has the same at-most difference proof, with a scalar odd counter instead of a frequency map. The new state follows from the property being counted.",
+      "source": "https://leetcode.com/problems/subarrays-with-k-different-integers/",
+      "testJava": "if (!(exactlyK(new int[]{1,2,1,2,3},2)==7 && exactlyK(new int[]{1,1},1)==3 && exactlyK(new int[]{},2)==0 && exactlyK(new int[]{1,2},0)==0)) throw new AssertionError(\"Subarrays With Exactly K Distinct Values\");",
+      "testKotlin": "check(exactlyK(intArrayOf(1,2,1,2,3),2) == 7L && exactlyK(intArrayOf(1,1),1) == 3L && exactlyK(intArrayOf(),2) == 0L && exactlyK(intArrayOf(1,2),0) == 0L) { \"Subarrays With Exactly K Distinct Values\" }"
+    },
+    {
+      "title": "Minimum Window Covering a Multiset",
+      "difficulty": "Hard",
+      "statement": "Given non-null strings s and t, return a shortest substring of s containing every UTF-16 code unit of t with its required multiplicity. Return \"\" when t is empty or no cover exists. On ties keep the earliest. Input is unchanged.",
+      "example": "s=\"ADOBECODEBANC\", t=\"ABC\" => \"BANC\".",
+      "baseline": "Enumerate O(n\u00b2) substrings and count each: O(n\u00b3+m) literal time.",
+      "reasoning": [
+        "Store required counts and initialize missing=t.length. A count is allowed to become negative, representing surplus copies.",
+        "When adding c, decrement its count; reduce missing only if the previous count was positive. Once missing is zero, the window covers t.",
+        "Record the candidate, then remove left. Increment that character count; if it becomes positive, one required occurrence was lost and expansion must resume."
+      ],
+      "invariant": "The map stores required minus current counts for relevant characters; missing counts unsatisfied required occurrences. While missing is zero every recorded interval covers t, and shrinking explores the shortest cover for that right endpoint.",
+      "java": "static String minWindow(String s,String t) {\n    if(t.isEmpty()) return \"\";\n    Map<Character,Integer> need=new HashMap<>();\n    for(char c:t.toCharArray()) need.merge(c,1,Integer::sum);\n    int missing=t.length(),left=0,bestStart=0,bestLen=Integer.MAX_VALUE;\n    for(int r=0;r<s.length();r++) {\n        char c=s.charAt(r);\n        if(need.containsKey(c)) {\n            int old=need.get(c); if(old>0) missing--; need.put(c,old-1);\n        }\n        while(missing==0) {\n            if(r-left+1<bestLen) { bestLen=r-left+1; bestStart=left; }\n            char gone=s.charAt(left++);\n            if(need.containsKey(gone)) {\n                int now=need.get(gone)+1; need.put(gone,now); if(now>0) missing++;\n            }\n        }\n    }\n    return bestLen==Integer.MAX_VALUE ? \"\" : s.substring(bestStart,bestStart+bestLen);\n}",
+      "kotlin": "fun minWindow(s: String, t: String): String {\n    if (t.isEmpty()) return \"\"\n    val need = HashMap<Char, Int>()\n    for (c in t) need[c] = (need[c] ?: 0) + 1\n    var missing = t.length; var left = 0; var bestStart = 0; var bestLen = Int.MAX_VALUE\n    for (r in s.indices) {\n        val c = s[r]; val old = need[c]\n        if (old != null) { if (old > 0) missing--; need[c] = old - 1 }\n        while (missing == 0) {\n            if (r - left + 1 < bestLen) { bestLen = r - left + 1; bestStart = left }\n            val gone = s[left++]; val count = need[gone]\n            if (count != null) { val now = count + 1; need[gone] = now; if (now > 0) missing++ }\n        }\n    }\n    return if (bestLen == Int.MAX_VALUE) \"\" else s.substring(bestStart, bestStart + bestLen)\n}",
+      "complexity": "Expected O(n+m) time for string lengths n,m; O(distinct symbols in t) auxiliary map space, plus O(best length) output copy.",
+      "edgeCases": [
+        "s=\"\",t=\"A\" => \"\"",
+        "s=\"AA\",t=\"AA\" => \"AA\"",
+        "s=\"AB\",t=\"AA\" => \"\"",
+        "t=\"\" => \"\""
+      ],
+      "twist": "If the required tokens are words rather than code units, tokenize and use token frequencies. Preserve original offsets if the result must be a substring of the original text.",
+      "source": "https://leetcode.com/problems/minimum-window-substring/",
+      "testJava": "if (!(minWindow(\"ADOBECODEBANC\",\"ABC\").equals(\"BANC\") && minWindow(\"AB\",\"AA\").equals(\"\") && minWindow(\"AA\",\"AA\").equals(\"AA\") && minWindow(\"A\",\"\").equals(\"\"))) throw new AssertionError(\"Minimum Window Covering a Multiset\");",
+      "testKotlin": "check(minWindow(\"ADOBECODEBANC\",\"ABC\") == \"BANC\" && minWindow(\"AB\",\"AA\") == \"\" && minWindow(\"AA\",\"AA\") == \"AA\" && minWindow(\"A\",\"\") == \"\") { \"Minimum Window Covering a Multiset\" }"
+    }
+  ],
+  "practice": [
+    {
+      "title": "Minimum Size Subarray Sum",
+      "difficulty": "Medium",
+      "url": "https://leetcode.com/problems/minimum-size-subarray-sum/",
+      "hint": "Prove the shrink rule using strictly positive input.",
+      "approach": "Expand rolling sum, shrink while sum>=target, recording lengths. O(n), O(1). With negatives use prefix/deque instead."
+    },
+    {
+      "title": "Permutation in String",
+      "difficulty": "Medium",
+      "url": "https://leetcode.com/problems/permutation-in-string/",
+      "hint": "Equal lengths turn multiset containment into equality.",
+      "approach": "Maintain fixed-window counts or deficits and compare matched categories. O(n+alphabet), O(alphabet); define symbol domain."
+    },
+    {
+      "title": "Longest Repeating Character Replacement",
+      "difficulty": "Medium",
+      "url": "https://leetcode.com/problems/longest-repeating-character-replacement/",
+      "hint": "A window needs length-maxFrequency replacements.",
+      "approach": "Maintain counts and a historical maximum frequency; shrink on length-maxFrequency>k. O(n), O(alphabet). A stale maximum is safe for maximizing length but cannot certify the final window contents; an exact maximum is simpler to prove."
+    },
+    {
+      "title": "Max Consecutive Ones III",
+      "difficulty": "Medium",
+      "url": "https://leetcode.com/problems/max-consecutive-ones-iii/",
+      "hint": "Treat zero count as the resource budget.",
+      "approach": "Shrink when zeros exceed k, maximize valid length. O(n), O(1), requires binary values or an explicit definition of replaceable items."
+    },
+    {
+      "title": "Sliding Window Maximum",
+      "difficulty": "Hard",
+      "url": "https://leetcode.com/problems/sliding-window-maximum/",
+      "hint": "Remove dominated values while retaining their indices.",
+      "approach": "Maintain decreasing deque; expire out-of-window indices at the front and pop smaller/equal new-dominated values at the back. O(n), O(k), output O(n-k+1)."
+    },
+    {
+      "title": "Shortest Subarray with Sum at Least K",
+      "difficulty": "Hard",
+      "url": "https://leetcode.com/problems/shortest-subarray-with-sum-at-least-k/",
+      "hint": "Negative values require a different monotone object.",
+      "approach": "Use prefix sums and an increasing deque of candidate prefix indices. Pop front while threshold is met and pop back dominated larger prefixes. O(n), O(n); long prefix sums."
+    }
+  ],
+  "quiz": [
+    {
+      "question": "A minimum-cover target is AABC. Which state is sufficient?",
+      "choices": [
+        "Membership of A,B,C",
+        "Per-character multiplicity deficits",
+        "Only current window length"
+      ],
+      "answer": 1,
+      "explanation": "Coverage requires two As. Distinct membership loses exactly the information needed to verify the target multiset."
+    },
+    {
+      "question": "Why is a positive-sum threshold window unsafe with negative numbers?",
+      "choices": [
+        "Hash maps cannot contain negatives",
+        "Removing the left value may increase the sum instead of decreasing it",
+        "The sum can never reach the threshold"
+      ],
+      "answer": 1,
+      "explanation": "For [1,-1,5] and threshold 5, removing 1 temporarily breaks validity, but removing the following -1 restores it. A stop-on-first-invalid shrink misses [5]."
+    }
+  ],
+  "transfer": {
+    "prompt": "In a stream of device events, find the longest contiguous period involving at most three device IDs, where each ID may appear no more than twice.",
+    "hints": [
+      "There are two independent reasons a window becomes invalid.",
+      "Can removing the oldest event ever make either constraint worse?"
+    ],
+    "solution": "Maintain per-ID frequencies, number of distinct IDs, and number of IDs with frequency above two. Add right; shrink left while distinct>3 or overfull>0. Both constraints improve or stay unchanged under deletion, so the earliest valid left yields the longest valid ending interval. Expected O(n) time and O(1) bounded active state, plus a transient extra ID."
+  },
+  "review": [
+    "After one day: derive the maintained state from the brute-force repeated work without looking at code.",
+    "After three days: explain the counterexample to each wrong turn and repair it.",
+    "After one week: solve the transfer problem, state the invariant aloud, and compare both JVM implementations."
+  ],
+  "sources": [
+    {
+      "label": "Maximum Sum of a Fixed-Size Window",
+      "url": "https://leetcode.com/problems/maximum-average-subarray-i/",
+      "note": "Reference link; not retrieved in this run. Canonical problem statement and constraints; used to identify the technique and offer optional practice, not as evidence of company frequency.",
+      "status": "unverified"
+    },
+    {
+      "label": "Longest Substring Without Repetition",
+      "url": "https://leetcode.com/problems/longest-substring-without-repeating-characters/",
+      "note": "Reference link; not retrieved in this run. Canonical problem statement and constraints; used to identify the technique and offer optional practice, not as evidence of company frequency.",
+      "status": "unverified"
+    },
+    {
+      "label": "Subarrays With Exactly K Distinct Values",
+      "url": "https://leetcode.com/problems/subarrays-with-k-different-integers/",
+      "note": "Reference link; not retrieved in this run. Canonical problem statement and constraints; used to identify the technique and offer optional practice, not as evidence of company frequency.",
+      "status": "unverified"
+    },
+    {
+      "label": "Minimum Window Covering a Multiset",
+      "url": "https://leetcode.com/problems/minimum-window-substring/",
+      "note": "Reference link; not retrieved in this run. Canonical problem statement and constraints; used to identify the technique and offer optional practice, not as evidence of company frequency.",
+      "status": "unverified"
+    }
+  ]
+}

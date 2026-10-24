@@ -1,0 +1,281 @@
+{
+  "id": "12",
+  "slug": "tries",
+  "title": "Tries: share prefixes and prune impossible continuations",
+  "group": "Structural patterns",
+  "prerequisites": "Hashing, trees, backtracking; Lessons 01,09,11",
+  "estimatedMinutes": 170,
+  "motivation": "When many words share a beginning, checking each word independently repeats the same character comparisons. A trie stores a path for each distinct prefix so one traversal answers exact-word, prefix, wildcard, or multiword board-search questions.",
+  "recognition": [
+    "Queries repeatedly ask whether a string is a word or a prefix of any stored word.",
+    "A dictionary is searched one character at a time, with early rejection when no prefix remains.",
+    "Several target words are explored together in another search space, such as board paths.",
+    "A wildcard represents several next-character alternatives, so search may branch at a prefix node."
+  ],
+  "mentalModel": "A trie is a rooted tree whose edges are labeled with symbols. The root represents the empty prefix. Following c, a, t from the root reaches the prefix cat. Nodes represent prefixes, not automatically complete words. If both car and cart are stored, the node for car needs an end-of-word marker even though it has children. Without that marker, searching ca might incorrectly succeed as a whole word just because a path exists. Conversely, a word can be a prefix of another word, so insertion must never stop merely because an earlier terminal marker is encountered.\n\nStart with a simple dictionary interface: insert, exact search, and prefix search. Insertion creates missing child nodes while scanning the word, then marks its final node terminal. Exact search requires both an existing path and a terminal marker; prefix search requires only an existing path. Empty strings force a useful design decision: this lesson permits an empty word in the basic and wildcard dictionaries, represented by the root terminal marker, while replacement roots and board-search targets must be nonempty.\n\nThe symbol model is part of the contract. The code below deliberately uses lowercase Latin a through z so child lookup is an array index and has constant cost. It validates that restriction rather than silently treating all strings as ASCII. For arbitrary Unicode, choose whether symbols are UTF-16 code units, Unicode code points, or normalized grapheme clusters, then use maps or another suitable branching structure. A 26-way array is inappropriate without a bounded alphabet contract.\n\nWildcard search changes one deterministic edge into a set of possible edges. A dot can follow any existing child, but consumes exactly one character. The recursion state must include the current trie node and pattern position; a terminal marker is checked only when the entire pattern is consumed. A wildcard may multiply work, so it is wrong to claim every query is always linear in its pattern length.\n\nBoard search combines two trees of possibilities. Board adjacency proposes a next cell; the trie says whether the resulting letters remain a prefix of any desired word. A missing trie edge rejects every dictionary word sharing that failed route at once. Keep a visited marker only for the current board path, restore it on return, and clear a found terminal word when output should be unique. Prefix pruning reduces real work but does not eliminate exponential worst cases on repetitive boards.",
+  "invariant": "At a trie node reached after consuming k symbols, the path from root spells exactly those k symbols. A terminal marker means that exact prefix is an inserted word. In product searches, the board path, trie path, and consumed character count describe the same prefix, while visited cells match only that active route. Missing edges prove no stored extension exists.",
+  "wrongTurns": [
+    {
+      "temptation": "Treat every existing prefix path as a complete stored word.",
+      "counterexample": "After inserting apple, the path app exists, but exact search(app) must be false. Prefix search(app) is true.",
+      "repair": "Store an independent terminal marker and distinguish exact search from prefix search."
+    },
+    {
+      "temptation": "Keep board cells visited after returning from one search branch.",
+      "counterexample": "Board [a,b] with dictionary [ab,ba]: a first search can visit both cells; permanently marking them prevents the second starting position from finding ba.",
+      "repair": "Mark only on the active recursion route and unmark before returning; global terminal clearing is a separate deduplication decision."
+    }
+  ],
+  "diagram": {
+    "caption": "A shared prefix can represent a word and still have longer descendants.",
+    "nodes": [
+      "root: empty prefix",
+      "c",
+      "ca",
+      "car: terminal",
+      "cart: terminal",
+      "cat: terminal"
+    ],
+    "edges": [
+      [
+        0,
+        1,
+        "c"
+      ],
+      [
+        1,
+        2,
+        "a"
+      ],
+      [
+        2,
+        3,
+        "r"
+      ],
+      [
+        3,
+        4,
+        "t"
+      ],
+      [
+        2,
+        5,
+        "t"
+      ]
+    ]
+  },
+  "trace": [
+    {
+      "state": "Insert car: root\u2192c\u2192a\u2192r; mark r terminal.",
+      "explanation": "Each edge extends the represented prefix by one symbol."
+    },
+    {
+      "state": "Insert cart: reuse c,a,r; append t; keep r terminal.",
+      "explanation": "A terminal node can still be a proper prefix of another word."
+    },
+    {
+      "state": "search(ca): path exists, terminal=false \u21d2 false.",
+      "explanation": "Exact membership needs more than reachability."
+    },
+    {
+      "state": "startsWith(ca) \u21d2 true; search(cart) \u21d2 true.",
+      "explanation": "Prefix and exact-word queries have different stopping conditions."
+    }
+  ],
+  "problems": [
+    {
+      "title": "Build an exact and prefix dictionary",
+      "difficulty": "Easy to Medium",
+      "statement": "Implement insert(word), search(word), and startsWith(prefix) for non-null lowercase a-z strings. Reject other symbols. Empty words are allowed, repeated insertion is idempotent, and startsWith(\"\") is always true. This foundational exercise establishes the trie contract.",
+      "example": "Insert apple: search(apple)=true, search(app)=false, startsWith(app)=true. Then insert app: search(app)=true.",
+      "baseline": "Store full words in a hash set: expected O(L) exact lookup but a prefix query scans all words, O(S) total characters in the worst case.",
+      "reasoning": [
+        "Represent each possible next letter with one child reference. The root stands for zero characters, so no special first-letter branch is needed.",
+        "Insertion follows or creates edges then marks terminal. Search and startsWith share a path-following helper; only search also requires the final terminal flag.",
+        "Validate an entire argument before mutating the structure. Otherwise inserting an invalid word such as ab! could partially add prefixes before throwing, violating clean operation behavior."
+      ],
+      "invariant": "Every inserted word has a terminal endpoint, and every created path is a prefix of some successfully inserted word. Repeated insertion changes no structure once the path exists.",
+      "java": "static class Trie {\n private static class TNode { TNode[] next=new TNode[26]; boolean terminal; }\n private final TNode root=new TNode();\n private void validate(String s) {\n  Objects.requireNonNull(s);\n  for(int i=0;i<s.length();i++) if(s.charAt(i)<'a'||s.charAt(i)>'z') throw new IllegalArgumentException(\"lowercase a-z only\");\n }\n void insert(String word) {\n  validate(word); TNode n=root;\n  for(int i=0;i<word.length();i++) {\n   int c=word.charAt(i)-'a';\n   if(n.next[c]==null) n.next[c]=new TNode();\n   n=n.next[c];\n  }\n  n.terminal=true;\n }\n private TNode follow(String s) {\n  validate(s); TNode n=root;\n  for(int i=0;i<s.length();i++) { n=n.next[s.charAt(i)-'a']; if(n==null) return null; }\n  return n;\n }\n boolean search(String word) { TNode n=follow(word); return n!=null&&n.terminal; }\n boolean startsWith(String prefix) { return follow(prefix)!=null; }\n}",
+      "kotlin": "class Trie {\n private class TNode { val next = arrayOfNulls<TNode>(26); var terminal = false }\n private val root = TNode()\n private fun validate(s: String) { require(s.all { it in 'a'..'z' }) }\n fun insert(word: String) {\n  validate(word)\n  var n = root\n  for (c in word) {\n   val index = c - 'a'\n   if (n.next[index] == null) n.next[index] = TNode()\n   n = n.next[index]!!\n  }\n  n.terminal = true\n }\n private fun follow(s: String): TNode? {\n  validate(s)\n  var n = root\n  for (c in s) n = n.next[c - 'a'] ?: return null\n  return n\n }\n fun search(word: String): Boolean = follow(word)?.terminal == true\n fun startsWith(prefix: String): Boolean = follow(prefix) != null\n}",
+      "complexity": "O(L) time per operation for L argument characters including validation. O(S) trie nodes for S total inserted characters; 26 references per node is a fixed alphabet factor.",
+      "edgeCases": [
+        "new trie startsWith(\"\") \u21d2 true; search(\"\") \u21d2 false",
+        "insert(\"\"); search(\"\") \u21d2 true",
+        "insert apple twice \u21d2 unchanged membership",
+        "insert A \u21d2 rejected"
+      ],
+      "twist": "For deletion, clear terminal only after confirming the word exists, then optionally prune childless nonterminal ancestors. Shared prefix nodes cannot be deleted while other words depend on them.",
+      "source": "https://leetcode.com/problems/implement-trie-prefix-tree/",
+      "testJava": "Trie t=new Trie();t.insert(\"apple\");if(!t.search(\"apple\")||t.search(\"app\")||!t.startsWith(\"app\")||!t.startsWith(\"\")||t.search(\"\"))throw new AssertionError();t.insert(\"app\");t.insert(\"\");if(!t.search(\"app\")||!t.search(\"\"))throw new AssertionError();",
+      "testKotlin": "val t=Trie();t.insert(\"apple\");check(t.search(\"apple\") && !t.search(\"app\") && t.startsWith(\"app\") && t.startsWith(\"\") && !t.search(\"\"));t.insert(\"app\");t.insert(\"\");check(t.search(\"app\") && t.search(\"\"))"
+    },
+    {
+      "title": "Replace words by their shortest dictionary root",
+      "difficulty": "Medium",
+      "statement": "Given a non-null list of nonempty lowercase a-z roots and a sentence of lowercase a-z words separated by exactly one space, replace each word with its shortest dictionary root prefix if one exists. Empty sentence is allowed. Reject malformed roots or sentence. Input is unchanged.",
+      "example": "roots=[cat,bat,rat], sentence=\"the cattle was rattled\" returns \"the cat was rat\".",
+      "baseline": "For each word try each root with a prefix comparison: O(W\u00b7D\u00b7L) worst case for W words, D roots and max compared length L.",
+      "reasoning": [
+        "Insert all roots into a trie. Multiple roots may share a prefix, so one word traversal tests them simultaneously. Validate all arguments before constructing the answer.",
+        "Walk each word from root. Stop at the first terminal node and return the consumed prefix: the first terminal is the shortest available root, even if longer roots also match.",
+        "If a child edge is absent, no root can match the remaining word; preserve the original word. Join replacements with the same single-space format."
+      ],
+      "invariant": "Before consuming each word character, the trie node matches exactly the already consumed prefix, and no shorter matching root has been skipped.",
+      "java": "static class RootNode { RootNode[] next=new RootNode[26]; boolean terminal; }\nstatic String replaceRoots(List<String> roots,String sentence) {\n Objects.requireNonNull(sentence);\n if(!sentence.isEmpty() && !sentence.matches(\"[a-z]+( [a-z]+)*\")) throw new IllegalArgumentException(\"invalid sentence\");\n RootNode root=new RootNode();\n for(String word:roots) {\n  if(word==null||!word.matches(\"[a-z]+\")) throw new IllegalArgumentException(\"invalid root\");\n  RootNode n=root;\n  for(char c:word.toCharArray()) { int i=c-'a'; if(n.next[i]==null)n.next[i]=new RootNode(); n=n.next[i]; }\n  n.terminal=true;\n }\n if(sentence.isEmpty()) return \"\";\n String[] words=sentence.split(\" \");\n for(int w=0;w<words.length;w++) {\n  RootNode n=root;\n  for(int i=0;i<words[w].length();i++) {\n   n=n.next[words[w].charAt(i)-'a']; if(n==null) break;\n   if(n.terminal) { words[w]=words[w].substring(0,i+1); break; }\n  }\n }\n return String.join(\" \",words);\n}",
+      "kotlin": "class RootNode { val next = arrayOfNulls<RootNode>(26); var terminal = false }\nfun replaceRoots(roots: List<String>, sentence: String): String {\n require(sentence.isEmpty() || sentence.matches(Regex(\"[a-z]+( [a-z]+)*\")))\n val root = RootNode()\n for (word in roots) {\n  require(word.matches(Regex(\"[a-z]+\")))\n  var n = root\n  for (c in word) {\n   val i = c - 'a'\n   if (n.next[i] == null) n.next[i] = RootNode()\n   n = n.next[i]!!\n  }\n  n.terminal = true\n }\n if (sentence.isEmpty()) return \"\"\n return sentence.split(\" \").joinToString(\" \") { word ->\n  var n = root\n  var replacement = word\n  for (i in word.indices) {\n   n = n.next[word[i] - 'a'] ?: break\n   if (n.terminal) { replacement = word.substring(0, i + 1); break }\n  }\n  replacement\n }\n}",
+      "complexity": "O(S+T) time for S total root characters and T sentence characters, including validation and output assembly. O(S+T) trie/token/output space. The fixed regular expressions validate simple character structure.",
+      "edgeCases": [
+        "roots=[], sentence=\"hello\" \u21d2 \"hello\"",
+        "roots=[a,ab], sentence=\"abc\" \u21d2 \"a\"",
+        "empty sentence \u21d2 empty string"
+      ],
+      "twist": "If the longest root is required, continue past terminal nodes while recording the latest terminal position. Stopping at the first terminal would then be incorrect.",
+      "source": "https://leetcode.com/problems/replace-words/",
+      "testJava": "if(!replaceRoots(List.of(\"cat\",\"bat\",\"rat\"),\"the cattle was rattled\").equals(\"the cat was rat\")||!replaceRoots(List.of(\"a\",\"ab\"),\"abc\").equals(\"a\")||!replaceRoots(List.of(),\"\").isEmpty())throw new AssertionError();",
+      "testKotlin": "check(replaceRoots(listOf(\"cat\",\"bat\",\"rat\"),\"the cattle was rattled\")==\"the cat was rat\");check(replaceRoots(listOf(\"a\",\"ab\"),\"abc\")==\"a\");check(replaceRoots(emptyList(),\"\")==\"\")"
+    },
+    {
+      "title": "Dictionary lookup with single-character wildcards",
+      "difficulty": "Medium",
+      "statement": "Implement addWord for lowercase a-z strings (empty allowed) and search for lowercase a-z plus dot, where dot matches exactly one arbitrary letter. Reject all other symbols. Search returns whether any inserted whole word matches; duplicate additions are harmless.",
+      "example": "Insert bad,dad,mad: search(.ad)=true, search(b..)=true, search(..)=false.",
+      "baseline": "Store all words and scan each equal-length candidate against the pattern: O(DL) per query for D words and pattern length L.",
+      "reasoning": [
+        "Literal pattern characters follow one edge. A dot branches across existing children, which share the same consumed pattern length plus one. The helper state is node and index.",
+        "When index equals pattern length, return terminal. Reaching a prefix node alone is insufficient, and a dot cannot consume zero or multiple characters.",
+        "For a dot, stop as soon as any child succeeds; otherwise return false after trying all children. Validate the full query before searching so invalid later characters are rejected even if an early missing edge would otherwise return false."
+      ],
+      "invariant": "A helper call searches exactly the suffix pattern[index..] among word suffixes rooted at the current prefix node.",
+      "java": "static class WordDictionary {\n private static class TNode { TNode[] next=new TNode[26]; boolean terminal; }\n private final TNode root=new TNode();\n void addWord(String word) {\n  Objects.requireNonNull(word);\n  for(char c:word.toCharArray()) if(c<'a'||c>'z') throw new IllegalArgumentException(\"invalid word\");\n  TNode n=root;\n  for(char c:word.toCharArray()) { int i=c-'a'; if(n.next[i]==null)n.next[i]=new TNode(); n=n.next[i]; }\n  n.terminal=true;\n }\n boolean search(String pattern) {\n  Objects.requireNonNull(pattern);\n  for(char c:pattern.toCharArray()) if(c!='.'&&(c<'a'||c>'z')) throw new IllegalArgumentException(\"invalid pattern\");\n  return match(root,pattern,0);\n }\n private boolean match(TNode n,String p,int index) {\n  if(index==p.length()) return n.terminal;\n  char c=p.charAt(index);\n  if(c!='.') { TNode child=n.next[c-'a']; return child!=null&&match(child,p,index+1); }\n  for(TNode child:n.next) if(child!=null&&match(child,p,index+1)) return true;\n  return false;\n }\n}",
+      "kotlin": "class WordDictionary {\n private class TNode { val next = arrayOfNulls<TNode>(26); var terminal = false }\n private val root = TNode()\n fun addWord(word: String) {\n  require(word.all { it in 'a'..'z' })\n  var n = root\n  for (c in word) {\n   val i = c - 'a'\n   if (n.next[i] == null) n.next[i] = TNode()\n   n = n.next[i]!!\n  }\n  n.terminal = true\n }\n fun search(pattern: String): Boolean {\n  require(pattern.all { it == '.' || it in 'a'..'z' })\n  fun match(n: TNode, index: Int): Boolean {\n   if (index == pattern.length) return n.terminal\n   val c = pattern[index]\n   if (c != '.') return n.next[c - 'a']?.let { match(it, index + 1) } ?: false\n   for (child in n.next) if (child != null && match(child, index + 1)) return true\n   return false\n  }\n  return match(root, 0)\n }\n}",
+      "complexity": "Insertion O(L). Literal-only search O(L). Wildcard search visits V compatible trie nodes with O(26V+L) work, bounded by trie size times the fixed alphabet factor and by the exponential pattern branching. O(L) recursive stack. Storage O(S) nodes for total inserted length S.",
+      "edgeCases": [
+        "empty dictionary search(.) \u21d2 false",
+        "addWord(\"\"); search(\"\") \u21d2 true",
+        "addWord(ab); search(a.) \u21d2 true; search(a) \u21d2 false"
+      ],
+      "twist": "A star that matches zero or more characters changes the transition: either advance pattern without consuming or consume a trie edge without advancing the star. Memoize (node,index) to avoid repeated subproblems.",
+      "source": "https://leetcode.com/problems/design-add-and-search-words-data-structure/",
+      "testJava": "WordDictionary d=new WordDictionary();d.addWord(\"bad\");d.addWord(\"dad\");if(!d.search(\".ad\")||!d.search(\"b..\")||d.search(\"..\")||d.search(\"\"))throw new AssertionError();d.addWord(\"\");if(!d.search(\"\"))throw new AssertionError();",
+      "testKotlin": "val d=WordDictionary();d.addWord(\"bad\");d.addWord(\"dad\");check(d.search(\".ad\") && d.search(\"b..\") && !d.search(\"..\") && !d.search(\"\"));d.addWord(\"\");check(d.search(\"\"))"
+    },
+    {
+      "title": "Find many dictionary words on a board",
+      "difficulty": "Hard",
+      "statement": "Given a rectangular non-null board of lowercase a-z characters and non-null nonempty lowercase a-z dictionary words, return each dictionary word found by horizontal/vertical adjacent cells at most once. A cell cannot be reused within one word. Duplicate words are deduplicated. Empty board or zero columns returns empty. Reject malformed words/board; leave board unchanged.",
+      "example": "board=[[o,a],[e,t]], words=[oat,oa,eat,oat] returns {oa,oat}; eat cannot follow adjacent e\u2192a.",
+      "baseline": "Run independent DFS for each word: O(D\u00b7RC\u00b73^L) worst-case time, repeating shared prefixes for D words.",
+      "reasoning": [
+        "Build one trie and store each full word at its terminal node. Start DFS from every cell, following a board letter only if the trie has that child. This combines prefix work across the dictionary.",
+        "After matching a cell, mark it on the active path. If the node has a terminal word, emit it and clear that field so other board routes do not duplicate the output. Continue searching because the same node may prefix a longer word.",
+        "Explore four unvisited neighbors and unmark the cell before return. Clearing terminal words is global answer deduplication; visited markers are local path constraints. They must not be confused."
+      ],
+      "invariant": "The active board route spells exactly the current trie prefix, contains no repeated cell, and every emitted word is removed only from the output eligibility marker, preserving longer descendants.",
+      "java": "static class BoardNode { BoardNode[] next=new BoardNode[26]; String word; }\nstatic List<String> boardWords(char[][] board,String[] words) {\n BoardNode root=new BoardNode();\n for(String word:words) {\n  if(word==null||!word.matches(\"[a-z]+\")) throw new IllegalArgumentException(\"invalid word\");\n  BoardNode n=root;\n  for(char c:word.toCharArray()) { int i=c-'a'; if(n.next[i]==null)n.next[i]=new BoardNode(); n=n.next[i]; }\n  n.word=word;\n }\n int rows=board.length, cols=rows==0?0:board[0].length;\n for(char[] row:board) {\n  if(row.length!=cols) throw new IllegalArgumentException(\"ragged board\");\n  for(char c:row) if(c<'a'||c>'z') throw new IllegalArgumentException(\"invalid board\");\n }\n List<String> out=new ArrayList<>(); boolean[][] used=new boolean[rows][cols];\n for(int r=0;r<rows;r++) for(int c=0;c<cols;c++) boardDfs(board,r,c,root,used,out);\n return out;\n}\nstatic void boardDfs(char[][] b,int r,int c,BoardNode parent,boolean[][] used,List<String> out) {\n if(r<0||r>=b.length||c<0||c>=b[0].length||used[r][c]) return;\n BoardNode n=parent.next[b[r][c]-'a']; if(n==null) return;\n if(n.word!=null) { out.add(n.word); n.word=null; }\n used[r][c]=true;\n boardDfs(b,r-1,c,n,used,out); boardDfs(b,r+1,c,n,used,out);\n boardDfs(b,r,c-1,n,used,out); boardDfs(b,r,c+1,n,used,out);\n used[r][c]=false;\n}",
+      "kotlin": "class BoardNode { val next = arrayOfNulls<BoardNode>(26); var word: String? = null }\nfun boardWords(board: Array<CharArray>, words: Array<String>): List<String> {\n val root = BoardNode()\n for (word in words) {\n  require(word.isNotEmpty() && word.all { it in 'a'..'z' })\n  var n = root\n  for (c in word) {\n   val i = c - 'a'\n   if (n.next[i] == null) n.next[i] = BoardNode()\n   n = n.next[i]!!\n  }\n  n.word = word\n }\n val rows = board.size\n val cols = if (rows == 0) 0 else board[0].size\n require(board.all { row -> row.size == cols && row.all { it in 'a'..'z' } })\n val used = Array(rows) { BooleanArray(cols) }\n val out = mutableListOf<String>()\n fun dfs(r: Int, c: Int, parent: BoardNode) {\n  if (r !in 0 until rows || c !in 0 until cols || used[r][c]) return\n  val n = parent.next[board[r][c] - 'a'] ?: return\n  n.word?.let { out.add(it); n.word = null }\n  used[r][c] = true\n  dfs(r - 1, c, n); dfs(r + 1, c, n); dfs(r, c - 1, n); dfs(r, c + 1, n)\n  used[r][c] = false\n }\n for (r in 0 until rows) for (c in 0 until cols) dfs(r, c, root)\n return out\n}",
+      "complexity": "Build O(S) for S dictionary characters; search O(RC\u00b74\u00b73^(min(L,RC)-1)) conventional worst-case upper bound for nonempty board and max word length L, with substantial prefix pruning in practice. Add O(RC+S) validation. O(S+RC+min(L,RC)) auxiliary trie/visited/stack, excluding output references. Empty dictionary yields O(RC) search.",
+      "edgeCases": [
+        "empty board \u21d2 []",
+        "board=[[a]], words=[a,a,aa] \u21d2 [a]",
+        "board=[[a,b]], words=[aba] \u21d2 [] because reuse is forbidden"
+      ],
+      "twist": "If words may use diagonal neighbors, change branching to eight directions and update the worst-case bound accordingly. If counting routes instead of unique words, terminal clearing is invalid and counts may need Long or modular arithmetic.",
+      "source": "https://leetcode.com/problems/word-search-ii/",
+      "testJava": "char[][] b={{'o','a'},{'e','t'}};List<String> r=boardWords(b,new String[]{\"oat\",\"oa\",\"eat\",\"oat\"});if(r.size()!=2||!new HashSet<>(r).equals(Set.of(\"oa\",\"oat\"))||b[0][0]!='o'||!boardWords(new char[0][],new String[]{\"a\"}).isEmpty()||!boardWords(new char[][]{{'a','b'}},new String[]{\"aba\"}).isEmpty())throw new AssertionError();",
+      "testKotlin": "val b=arrayOf(charArrayOf('o','a'),charArrayOf('e','t'));val r=boardWords(b,arrayOf(\"oat\",\"oa\",\"eat\",\"oat\"));check(r.size==2 && r.toSet()==setOf(\"oa\",\"oat\"));check(b[0][0]=='o');check(boardWords(emptyArray(),arrayOf(\"a\")).isEmpty());check(boardWords(arrayOf(charArrayOf('a','b')),arrayOf(\"aba\")).isEmpty())"
+    }
+  ],
+  "practice": [
+    {
+      "title": "Longest Word in Dictionary",
+      "difficulty": "Medium",
+      "url": "https://leetcode.com/problems/longest-word-in-dictionary/",
+      "hint": "Only descend through terminal prefixes.",
+      "approach": "Insert all words, then DFS children whose nodes are terminal; update longest and lexicographic tie. O(S) trie work/O(S) storage; define alphabetical order."
+    },
+    {
+      "title": "Search Suggestions System",
+      "difficulty": "Medium",
+      "url": "https://leetcode.com/problems/search-suggestions-system/",
+      "hint": "Each prefix needs its first three lexicographic completions.",
+      "approach": "Sort products then store up to three suggestions at each traversed prefix, or DFS ordered children at query time. O(S+sorting) preprocessing with fixed top-3 storage per node; output O(prefixLength)."
+    },
+    {
+      "title": "Map Sum Pairs",
+      "difficulty": "Medium",
+      "url": "https://leetcode.com/problems/map-sum-pairs/",
+      "hint": "Prefix aggregation needs a delta on replacement.",
+      "approach": "Store prior exact key values; insertion applies new-old delta to each prefix aggregate. O(L) insert/query, O(S) trie+key map; use Long for aggregate sums."
+    },
+    {
+      "title": "Maximum XOR of Two Numbers in an Array",
+      "difficulty": "Medium",
+      "url": "https://leetcode.com/problems/maximum-xor-of-two-numbers-in-an-array/",
+      "hint": "A trie can index bits rather than letters.",
+      "approach": "For nonnegative Int values use bits 30..0; greedily choose opposite bit when available to maximize the highest undecided XOR bit. O(31n) time/O(31n) nodes; signed values require an explicit objective."
+    },
+    {
+      "title": "Concatenated Words",
+      "difficulty": "Hard",
+      "url": "https://leetcode.com/problems/concatenated-words/",
+      "hint": "Trie transitions find candidate pieces; DP records reachable cut positions.",
+      "approach": "For each word test segmentation into at least two shorter dictionary words, excluding whole-word self-use. O(sum L\u00b2) typical character-traversal bound/O(S) trie plus per-word DP; avoid exponential raw recursion."
+    },
+    {
+      "title": "Palindrome Pairs",
+      "difficulty": "Hard",
+      "url": "https://leetcode.com/problems/palindrome-pairs/",
+      "hint": "Reversed trie lookup can combine suffix matches with palindrome leftovers.",
+      "approach": "Insert reversed words, record palindromic remaining prefixes, then scan forward query words with terminal/palindrome checks. O(sum L\u00b2+output) with direct palindrome tests; duplicate/empty word indices require careful handling."
+    }
+  ],
+  "quiz": [
+    {
+      "question": "After inserting car and cart, what must be true at the car node?",
+      "choices": [
+        "It is terminal and may have a child.",
+        "It cannot be terminal because it has a child.",
+        "Its child must be removed."
+      ],
+      "answer": 0,
+      "explanation": "Whole-word membership and ability to continue are independent properties."
+    },
+    {
+      "question": "Why does a wildcard query not always take O(L) time?",
+      "choices": [
+        "It must sort words first.",
+        "A dot can branch into many compatible prefixes.",
+        "Tries cannot store empty words."
+      ],
+      "answer": 1,
+      "explanation": "Literal lookup has one path; wildcards can explore a branching subtree, bounded by stored compatible nodes."
+    }
+  ],
+  "transfer": {
+    "prompt": "A router receives URL paths split into segments. Rules contain literal segments or a wildcard matching exactly one segment. Return whether any complete rule matches a request path; a rule ending early must not match longer paths. Design the index and search.",
+    "hints": [
+      "Treat whole segments as symbols rather than individual characters.",
+      "A terminal marker still distinguishes a complete rule from a prefix."
+    ],
+    "solution": "Build a trie with a map of literal segment children and a separate wildcard child. Query state is node and request-segment index; try the matching literal and wildcard edge, and accept only at the final index on a terminal node. O(V) visited compatible nodes and O(depth) stack, potentially branching per segment. Normalize/parse URLs before indexing under an explicit policy; prefix sharing and terminal logic are unchanged by the new alphabet."
+  },
+  "review": [
+    "Explain terminal versus prefix using app and apple.",
+    "Derive wildcard state and its actual visited-node runtime.",
+    "Explain why found-word clearing is global but board visited flags are path-local."
+  ],
+  "sources": [
+    {
+      "label": "LeetCode trie catalogue",
+      "url": "https://leetcode.com/tag/trie/",
+      "note": "Reference link; not retrieved in this run. Primary public problem contracts and practice taxonomy.",
+      "status": "unverified"
+    },
+    {
+      "label": "Word Search II",
+      "url": "https://leetcode.com/problems/word-search-ii/",
+      "note": "Reference link; not retrieved in this run. Canonical multiword board search; lowercase symbol and uniqueness contracts are made explicit here.",
+      "status": "unverified"
+    }
+  ]
+}

@@ -1,0 +1,200 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="Learn coding interview reasoning from first principles, with Java and Kotlin solutions."><title>Binary search on positions, structure, and answers · Coding interview</title><link rel="stylesheet" href="../assets/course.css"><script src="../assets/course.js" defer></script><link rel="stylesheet" href="../../assets/navigation.css">
+</head><body id="page-top">
+<!-- page-navigation:start -->
+<nav class="page-navigation" aria-label="Top page navigation"><div class="page-navigation-parents"><a href="../../index.html">Library home</a> <span aria-hidden="true">›</span> <a href="../../index.html#technical-foundations">Technical foundations and implementation</a> <span aria-hidden="true">›</span> <a href="../index.html">Coding Interviews: Patterns &amp; Problem Solving</a> <span aria-hidden="true">›</span> <a href="index.html">Lessons</a></div><div class="page-navigation-sections"><a href="index.html">Lessons</a><a href="../reference/index.html">Reference sheets</a><a href="../materials.html">Guides and resources</a><a href="#page-top">Back to top ↑</a></div><div class="page-navigation-pager"><a href="04-prefix-sums.html" rel="prev">← Previous: Prefix sums, balance, and range counting</a><a href="06-sorting-intervals.html" rel="next">Next: Sorting, intervals, scheduling, and sweep lines →</a></div></nav>
+<!-- page-navigation:end -->
+<a class="skip" href="#main">Skip to content</a><nav class="top"><a href="../../index.html">Software Engineering Library</a><a href="../index.html">Coding interview</a><a href="../foundations.html">Start from zero</a><a href="../practice.html">Practice room</a><a href="../research.html">Sources</a></nav><div class="layout"><aside class="rail"><a href="../index.html">Course map</a><p>Learning sequence</p><ol><li><a  href="01-hashing.html">Hashing, complements, and canonical keys</a></li><li><a  href="02-two-pointers.html">Two pointers and safe elimination</a></li><li><a  href="03-sliding-window.html">Sliding windows: expand, repair, and count</a></li><li><a  href="04-prefix-sums.html">Prefix sums, balance, and range counting</a></li><li><a aria-current="page" href="05-binary-search.html">Binary search on positions, structure, and answers</a></li><li><a  href="06-sorting-intervals.html">Sorting, intervals, scheduling, and sweep lines</a></li><li><a  href="07-linked-lists.html">Linked lists: preserve the path while changing links</a></li><li><a  href="08-stacks-queues.html">Stacks, monotonic frontiers, and deques</a></li><li><a  href="09-trees.html">Trees: decide what crosses each parent-child boundary</a></li><li><a  href="10-heaps.html">Heaps: keep the next winner and forget full order</a></li><li><a  href="11-backtracking.html">Backtracking: enumerate choices with a reversible state</a></li><li><a  href="12-tries.html">Tries: share prefixes and prune impossible continuations</a></li><li><a  href="13-graph-traversal.html">Graphs: reachability and shortest unweighted paths</a></li><li><a  href="14-topology-union-find.html">Dependency order and dynamic connectivity</a></li><li><a  href="15-shortest-paths.html">Shortest paths: matching the frontier to edge costs</a></li><li><a  href="16-greedy.html">Greedy choices and exchange arguments</a></li><li><a  href="17-dp-linear.html">Linear dynamic programming: decisions, states, and dependencies</a></li><li><a  href="18-dp-grids-strings.html">Dynamic programming on grids and strings</a></li><li><a  href="19-range-queries.html">Range queries: precompute reusable pieces, then update only dependencies</a></li><li><a  href="20-bit-manipulation.html">Bit manipulation and state compression</a></li></ol></aside><main id="main" class="lesson"><header><p class="sequence">Pattern 05 / Linear data</p><h1>Binary search on positions, structure, and answers</h1><p class="lede">Binary search is an argument about a boundary in an ordered set of possibilities. It is broader than finding a value in a sorted array. Start by imagining a yes/no predicate over candidate positions: false, false, false, true, true. The task is to locate the first true position. Each test discards half the remaining candidates because monotonicity proves that every position on one side has the same answer. Without that proof, halving is only a guess.</p><p class="muted">Prerequisites: Lesson 00; arrays, loops, functions, and Big-O. Suggested study block: 150 minutes, excluding extra practice.</p><nav class="lesson-jumps"><a href="#model">Build the model</a><a href="#worked">Worked problems</a><a href="#practice">Practice ladder</a><a href="#transfer">Unseen transfer</a></nav></header><section id="model"><h2>Build the idea from zero</h2><p>Binary search is an argument about a boundary in an ordered set of possibilities. It is broader than finding a value in a sorted array. Start by imagining a yes/no predicate over candidate positions: false, false, false, true, true. The task is to locate the first true position. Each test discards half the remaining candidates because monotonicity proves that every position on one side has the same answer. Without that proof, halving is only a guess.</p>
+<p>A lower-bound search uses the half-open interval [lo,hi). We seek the first index whose value is at least target. Initially lo=0 and hi=n; n is the legitimate answer when every value is smaller. At midpoint, a value below target proves every position through mid is too small, so lo=mid+1. Otherwise mid may be the first valid position, so keep it by setting hi=mid. The interval shrinks on every iteration and termination lo==hi identifies the boundary. Duplicates need no special case because the predicate still has a single false-to-true transition.</p>
+<p>Rotated arrays show that global sortedness is not always necessary, but local structure must replace it. With distinct values, at least one half around the midpoint is sorted. Determine which half, check whether the target lies in that half&#39;s value interval, and retain the appropriate side. Duplicates can make the sorted-half inference ambiguous; then the worst case may require linear shrinking. State the distinctness assumption rather than quietly inheriting it from a remembered solution.</p>
+<p>Searching an answer space requires two separate algorithms: a feasibility checker and the boundary search around it. For shipping packages in order, a capacity is feasible if a greedy scan uses at most D days. Larger capacity cannot make a feasible schedule fail, giving monotonicity. The minimum possible capacity is the heaviest package, and the sum of all weights is always sufficient for at least one day. Greedy is correct because filling each day as far as possible leaves no more remaining work than any other schedule with the same number of days. Binary search then finds the first feasible capacity.</p>
+<p>Median partition is advanced because the search variable is a cut, not a returned value. Choose how many elements to take from the first sorted array; the required left-half size determines the cut in the other. A partition is correct when both left boundary values are no greater than the opposite right boundary. If the first left boundary is too large, reduce that cut; if the other left boundary is too large, increase it. Sentinels model empty sides. Search the shorter array so every complementary cut is in range.</p>
+<p>For unfamiliar twists, first write the candidate domain, monotone predicate, endpoint meaning, and progress measure. Then test empty input, all-false, all-true, duplicates, and a two-candidate interval by hand. Overflow-safe midpoint calculation prevents an implementation failure, but it does not repair a false monotonicity assumption.</p>
+<h3>When to consider it</h3><ul><li><p>A sorted predicate with one false-to-true boundary suggests lower bound.</p>
+</li><li><p>A requested minimum feasible or maximum feasible numeric answer suggests searching the answer domain.</p>
+</li><li><p>Two sorted arrays may permit searching a partition rather than merging elements.</p>
+</li></ul><div class="proof"><h3>The invariant</h3><p>Define what each endpoint means and show that the answer remains between them after every update. The comparison must prove an entire discarded region cannot contain the answer, and the candidate interval must strictly shrink. Feasibility search additionally requires a correct checker and a monotone predicate.</p>
+</div><figure><div class="diagram-scroll"><svg viewBox="0 0 760 180" role="img" aria-label="Lower bound locates a boundary in a false-to-true predicate."><defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#3a677e"/></marker></defs><path d="M175,72 Q195,72 215,72" stroke="#3a677e" fill="none" marker-end="url(#arrow)"/><text x="195" y="46" text-anchor="middle" font-size="12">ask value ≥ target</text><path d="M365,72 Q385,72 405,72" stroke="#3a677e" fill="none" marker-end="url(#arrow)"/><text x="385" y="46" text-anchor="middle" font-size="12">true midpoint remains a candidate</text><path d="M555,72 Q575,72 595,72" stroke="#3a677e" fill="none" marker-end="url(#arrow)"/><text x="575" y="46" text-anchor="middle" font-size="12">false midpoint is discarded</text><rect x="25" y="52" width="150" height="66" rx="8" fill="#e9f1f6" stroke="#52748b"/><foreignObject x="30" y="57" width="140" height="60"><div xmlns="http://www.w3.org/1999/xhtml" style="font:14px system-ui;text-align:center;line-height:1.3;padding:5px;color:#203447">Values [1, 2, 2, 5]; target 2</div></foreignObject><rect x="215" y="52" width="150" height="66" rx="8" fill="#e9f1f6" stroke="#52748b"/><foreignObject x="220" y="57" width="140" height="60"><div xmlns="http://www.w3.org/1999/xhtml" style="font:14px system-ui;text-align:center;line-height:1.3;padding:5px;color:#203447">Predicate [false, true, true, true]</div></foreignObject><rect x="405" y="52" width="150" height="66" rx="8" fill="#e9f1f6" stroke="#52748b"/><foreignObject x="410" y="57" width="140" height="60"><div xmlns="http://www.w3.org/1999/xhtml" style="font:14px system-ui;text-align:center;line-height:1.3;padding:5px;color:#203447">[lo,hi) = [0,4) → [0,2) → [0,1)</div></foreignObject><rect x="595" y="52" width="150" height="66" rx="8" fill="#e9f1f6" stroke="#52748b"/><foreignObject x="600" y="57" width="140" height="60"><div xmlns="http://www.w3.org/1999/xhtml" style="font:14px system-ui;text-align:center;line-height:1.3;padding:5px;color:#203447">a[0] fails → lo=1=hi; first true is 1</div></foreignObject></svg></div><figcaption>Lower bound locates a boundary in a false-to-true predicate.</figcaption></figure></section><section><h2>Follow a concrete execution</h2><div class="trace" data-trace><script type="application/json">[{"state":"Lower bound a=[1,2,2,5], target=2; lo=0,hi=4,mid=2","explanation":"a[2]>=2, so position 2 may be first; set hi=2."},{"state":"lo=0,hi=2,mid=1","explanation":"a[1]>=2; retain it by setting hi=1."},{"state":"lo=0,hi=1,mid=0","explanation":"a[0]\u003c2; discard through index 0 by lo=1."},{"state":"lo=hi=1; return 1","explanation":"Every earlier value is too small and this position meets the predicate."}]</script><p class="trace-count" aria-live="polite"></p><pre class="trace-state"></pre><p class="trace-explanation"></p><div class="trace-controls"><button type="button" data-step="-1">Previous state</button><button type="button" data-step="1">Next state</button><button type="button" data-reset>Reset</button></div></div></section><section><h2>Where the idea breaks</h2><details class="trap"><summary>Set lo=mid in a first-true search with floor midpoint.</summary><h4>Counterexample</h4><p>lo=0,hi=1 gives mid=0; if false, lo stays 0 forever.</p>
+<h4>Repair the reasoning</h4><p>For a half-open first-true search, false means lo=mid+1.</p>
+</details><details class="trap"><summary>Binary-search any numeric objective without proving feasibility monotone.</summary><h4>Counterexample</h4><p>Predicate &quot;exactly two divisors&quot; is true at 2, false at 4, true at 5; discarding a half based on one test loses solutions.</p>
+<h4>Repair the reasoning</h4><p>State the false/true ordering of the predicate or choose another algorithm.</p>
+</details><details class="trap"><summary>Average two int median values before widening.</summary><h4>Counterexample</h4><p>[2147483647] and [2147483647] overflow int addition and produce a negative median.</p>
+<h4>Repair the reasoning</h4><p>Widen both boundary values before summing.</p>
+</details></section><section id="worked"><h2>Worked problem ladder</h2><p>Read the contract, draw a small example, and write a baseline before revealing the derivation. Code snippets include helpers; downloadable Java files add a class and standard imports. Kotlin files add imports. Input contracts are part of the solution.</p><article class="problem" id="problem-1"><div class="problem-heading"><h3>1. Lower Bound: First Position At Least Target</h3><span class="difficulty">Easy</span></div><p>Given a non-null ascending int array, return the first index with value &gt;=target, or n when no such value exists. Empty input returns 0. Input is unchanged.</p>
+<div class="example"><strong>Example</strong><p>[1,2,2,5], target 2 =&gt; 1; target 6 =&gt; 4.</p>
+</div><details><summary>First attempt: the baseline</summary><p>Scan left-to-right until a value meets the threshold: O(n) time/O(1) space.</p>
+</details><details class="solution"><summary>Reveal the derivation and solutions</summary><h4>Derive it step by step</h4><ol><li><p>Define the monotone predicate a[i]&gt;=target. Search candidate boundary positions from 0 through n.</p>
+</li><li><p>Use [lo,hi) with hi=n. If a[mid]&lt;target discard through mid; otherwise retain mid as a possible first valid index.</p>
+</li><li><p>At termination all indices before lo fail and every existing index at or after lo meets the threshold.</p>
+</li></ol><div class="proof"><strong>Why it works</strong><p>All indices below lo are too small, and all indices at or above hi are large enough. The first valid boundary remains in [lo,hi].</p>
+</div><div class="language-controls" role="group" aria-label="Solution language"><button type="button" data-lang="java">Java</button><button type="button" data-lang="kotlin">Kotlin</button><button type="button" data-lang="both">Both</button></div><div class="code" data-code="java"><h4>Java</h4><pre><code>static int lowerBound(int[] a,int target) {
+    int lo=0,hi=a.length;
+    while(lo&lt;hi) {
+        int mid=lo+(hi-lo)/2;
+        if(a[mid]&lt;target) lo=mid+1; else hi=mid;
+    }
+    return lo;
+}</code></pre><a download href="../solutions/05-1.java">Download Java snippet</a></div><div class="code" data-code="kotlin"><h4>Kotlin</h4><pre><code>fun lowerBound(a: IntArray, target: Int): Int {
+    var lo = 0; var hi = a.size
+    while (lo &lt; hi) {
+        val mid = lo + (hi - lo) / 2
+        if (a[mid] &lt; target) lo = mid + 1 else hi = mid
+    }
+    return lo
+}</code></pre><a download href="../solutions/05-1.kt">Download Kotlin snippet</a></div><h4>Cost and boundaries</h4><p>O(log(n+1)) time, O(1) auxiliary space.</p>
+<ul><li><p>[] =&gt; 0</p>
+</li><li><p>[2,2],target=2 =&gt; 0</p>
+</li><li><p>[2,2],target=3 =&gt; 2</p>
+</li></ul><h4>Change one assumption</h4><p>Upper bound changes the predicate to a[i]&gt;target. The difference upperBound(target)-lowerBound(target) counts duplicates without scanning them.</p>
+</details><p><a href="https://leetcode.com/problems/search-insert-position/" target="_blank" rel="noopener">Original practice problem</a> <label class="solved"><input type="checkbox" data-progress="05-1"> Solved independently</label></p></article><article class="problem" id="problem-2"><div class="problem-heading"><h3>2. Search a Rotated Sorted Array</h3><span class="difficulty">Medium</span></div><p>Given a non-null array obtained by rotating a strictly increasing int array, return the target index or -1. Values are distinct; empty input returns -1. Input is unchanged.</p>
+<div class="example"><strong>Example</strong><p>[4,5,6,7,0,1,2], target 0 =&gt; 4.</p>
+</div><details><summary>First attempt: the baseline</summary><p>Scan all values: O(n) time/O(1) space.</p>
+</details><details class="solution"><summary>Reveal the derivation and solutions</summary><h4>Derive it step by step</h4><ol><li><p>Compare midpoint to the target first. If equal, return.</p>
+</li><li><p>If a[lo]&lt;=a[mid], the left half is sorted. Keep it only when a[lo]&lt;=target&lt;a[mid]; otherwise keep the right half.</p>
+</li><li><p>Otherwise the right half is sorted; retain it precisely when a[mid]&lt;target&lt;=a[hi]. Each update removes the midpoint and one impossible half.</p>
+</li></ol><div class="proof"><strong>Why it works</strong><p>If the target exists, it remains in the inclusive candidate interval [lo,hi]. Distinctness makes the sorted-half classification decisive.</p>
+</div><div class="language-controls" role="group" aria-label="Solution language"><button type="button" data-lang="java">Java</button><button type="button" data-lang="kotlin">Kotlin</button><button type="button" data-lang="both">Both</button></div><div class="code" data-code="java"><h4>Java</h4><pre><code>static int searchRotated(int[] a,int target) {
+    int lo=0,hi=a.length-1;
+    while(lo&lt;=hi) {
+        int mid=lo+(hi-lo)/2;
+        if(a[mid]==target) return mid;
+        if(a[lo]&lt;=a[mid]) {
+            if(a[lo]&lt;=target &amp;&amp; target&lt;a[mid]) hi=mid-1; else lo=mid+1;
+        } else {
+            if(a[mid]&lt;target &amp;&amp; target&lt;=a[hi]) lo=mid+1; else hi=mid-1;
+        }
+    }
+    return -1;
+}</code></pre><a download href="../solutions/05-2.java">Download Java snippet</a></div><div class="code" data-code="kotlin"><h4>Kotlin</h4><pre><code>fun searchRotated(a: IntArray, target: Int): Int {
+    var lo = 0; var hi = a.lastIndex
+    while (lo &lt;= hi) {
+        val mid = lo + (hi - lo) / 2
+        if (a[mid] == target) return mid
+        if (a[lo] &lt;= a[mid]) {
+            if (a[lo] &lt;= target &amp;&amp; target &lt; a[mid]) hi = mid - 1 else lo = mid + 1
+        } else {
+            if (a[mid] &lt; target &amp;&amp; target &lt;= a[hi]) lo = mid + 1 else hi = mid - 1
+        }
+    }
+    return -1
+}</code></pre><a download href="../solutions/05-2.kt">Download Kotlin snippet</a></div><h4>Cost and boundaries</h4><p>O(log(n+1)) time and O(1) auxiliary space for distinct values.</p>
+<ul><li><p>[] =&gt; -1</p>
+</li><li><p>[1],target=1 =&gt; 0</p>
+</li><li><p>[3,1],target=1 =&gt; 1</p>
+</li></ul><h4>Change one assumption</h4><p>Allow duplicates: if a[lo]==a[mid]==a[hi], shrink both ends after checking midpoint. Ambiguity can force O(n) time, for example all equal values with one hidden exceptional value.</p>
+</details><p><a href="https://leetcode.com/problems/search-in-rotated-sorted-array/" target="_blank" rel="noopener">Original practice problem</a> <label class="solved"><input type="checkbox" data-progress="05-2"> Solved independently</label></p></article><article class="problem" id="problem-3"><div class="problem-heading"><h3>3. Minimum Shipping Capacity Within D Days</h3><span class="difficulty">Medium</span></div><p>Given a non-null array of nonnegative int package weights, preserve their order and ship a contiguous batch each day. Return the minimum long capacity that ships everything in at most positive int days. Empty input returns 0. Invalid days or negative weights throw. Input is unchanged.</p>
+<div class="example"><strong>Example</strong><p>[1,2,3,1,1], days=4 =&gt; 3, using [1,2],[3],[1],[1].</p>
+</div><details><summary>First attempt: the baseline</summary><p>Try every integer capacity from maximum weight through total weight and simulate: O(nS), where S is the numeric search range.</p>
+</details><details class="solution"><summary>Reveal the derivation and solutions</summary><h4>Derive it step by step</h4><ol><li><p>Capacity must be at least the heaviest package and at most the total weight. Sum in long.</p>
+</li><li><p>For a candidate capacity, greedily put each next package on the current day if it fits; otherwise start a new day. This minimizes days because no schedule can place a longer prefix on that same day.</p>
+</li><li><p>Feasibility changes from false to true as capacity grows. Keep mid on feasible, discard through mid on infeasible, and return the first feasible value.</p>
+</li></ol><div class="proof"><strong>Why it works</strong><p>The minimum feasible capacity lies in [lo,hi]; hi is feasible. The checker counts the fewest days possible at its capacity.</p>
+</div><div class="language-controls" role="group" aria-label="Solution language"><button type="button" data-lang="java">Java</button><button type="button" data-lang="kotlin">Kotlin</button><button type="button" data-lang="both">Both</button></div><div class="code" data-code="java"><h4>Java</h4><pre><code>static long shipWithinDays(int[] weights,int days) {
+    if(days&lt;=0) throw new IllegalArgumentException(&quot;days&quot;);
+    long lo=0,hi=0;
+    for(int w:weights) {
+        if(w&lt;0) throw new IllegalArgumentException(&quot;negative weight&quot;);
+        lo=Math.max(lo,w); hi+=w;
+    }
+    while(lo&lt;hi) {
+        long mid=lo+(hi-lo)/2,load=0; int used=1;
+        for(int w:weights) {
+            if(load+w&gt;mid) { used++; load=0; }
+            load+=w;
+        }
+        if(used&lt;=days) hi=mid; else lo=mid+1;
+    }
+    return lo;
+}</code></pre><a download href="../solutions/05-3.java">Download Java snippet</a></div><div class="code" data-code="kotlin"><h4>Kotlin</h4><pre><code>fun shipWithinDays(weights: IntArray, days: Int): Long {
+    require(days &gt; 0) { &quot;days&quot; }
+    var lo = 0L; var hi = 0L
+    for (w in weights) { require(w &gt;= 0); lo = maxOf(lo, w.toLong()); hi += w }
+    while (lo &lt; hi) {
+        val mid = lo + (hi - lo) / 2; var load = 0L; var used = 1
+        for (w in weights) {
+            if (load + w &gt; mid) { used++; load = 0L }
+            load += w
+        }
+        if (used &lt;= days) hi = mid else lo = mid + 1
+    }
+    return lo
+}</code></pre><a download href="../solutions/05-3.kt">Download Kotlin snippet</a></div><h4>Cost and boundaries</h4><p>O(n log(S+1)) time for S=sum(weights)-max(weights); O(1) auxiliary space. Input validation is O(n) even when all weights are zero.</p>
+<ul><li><p>[] with days=1 =&gt; 0</p>
+</li><li><p>[0,0],days=3 =&gt; 0</p>
+</li><li><p>[10,20],days=1 =&gt; 30</p>
+</li><li><p>[10,20],days=5 =&gt; 20</p>
+</li></ul><h4>Change one assumption</h4><p>If reordering packages is allowed, the greedy contiguous-batch checker no longer models the problem. Monotonicity of capacity may remain, but the feasibility subproblem can become bin packing.</p>
+</details><p><a href="https://leetcode.com/problems/capacity-to-ship-packages-within-d-days/" target="_blank" rel="noopener">Original practice problem</a> <label class="solved"><input type="checkbox" data-progress="05-3"> Solved independently</label></p></article><article class="problem" id="problem-4"><div class="problem-heading"><h3>4. Median of Two Sorted Arrays by Partition</h3><span class="difficulty">Hard</span></div><p>Given two non-null ascending int arrays with at least one total element, return their combined median as double without merging. Empty+empty throws. Input is unchanged.</p>
+<div class="example"><strong>Example</strong><p>[1,3] and [2] =&gt; 2.0; [1,2] and [3,4] =&gt; 2.5.</p>
+</div><details><summary>First attempt: the baseline</summary><p>Merge the arrays: O(m+n) time, O(m+n) extra space; a partial merge can reduce auxiliary space to O(1).</p>
+</details><details class="solution"><summary>Reveal the derivation and solutions</summary><h4>Derive it step by step</h4><ol><li><p>Search a cut i in the shorter array. The other cut j satisfies i+j=(m+n+1)/2, making the left side have the extra item when total length is odd.</p>
+</li><li><p>Use long sentinels at missing boundary elements. A valid cut satisfies leftA&lt;=rightB and leftB&lt;=rightA, so all left-half values are at most all right-half values.</p>
+</li><li><p>If leftA&gt;rightB, reduce i. Otherwise if leftB&gt;rightA, increase i. At a valid cut, odd median is max(lefts), even median averages max(lefts) and min(rights).</p>
+</li></ol><div class="proof"><strong>Why it works</strong><p>The desired partition remains among the candidate cuts. Increasing the first cut increases leftA and decreases the second cut, giving the directional correction when either cross-order constraint fails.</p>
+</div><div class="language-controls" role="group" aria-label="Solution language"><button type="button" data-lang="java">Java</button><button type="button" data-lang="kotlin">Kotlin</button><button type="button" data-lang="both">Both</button></div><div class="code" data-code="java"><h4>Java</h4><pre><code>static double medianSorted(int[] first,int[] second) {
+    int[] a=first,b=second;
+    if(a.length&gt;b.length) { a=second; b=first; }
+    int m=a.length,n=b.length;
+    if(m==0 &amp;&amp; n==0) throw new IllegalArgumentException(&quot;empty&quot;);
+    int half=(int)(((long)m+n+1)/2),lo=0,hi=m;
+    while(lo&lt;=hi) {
+        int i=lo+(hi-lo)/2,j=half-i;
+        long al=i==0?Long.MIN_VALUE:a[i-1], ar=i==m?Long.MAX_VALUE:a[i];
+        long bl=j==0?Long.MIN_VALUE:b[j-1], br=j==n?Long.MAX_VALUE:b[j];
+        if(al&lt;=br &amp;&amp; bl&lt;=ar) {
+            long left=Math.max(al,bl);
+            if(((long)m+n)%2==1) return (double)left;
+            return (left+Math.min(ar,br))/2.0;
+        }
+        if(al&gt;br) hi=i-1; else lo=i+1;
+    }
+    throw new IllegalArgumentException(&quot;arrays must be sorted&quot;);
+}</code></pre><a download href="../solutions/05-4.java">Download Java snippet</a></div><div class="code" data-code="kotlin"><h4>Kotlin</h4><pre><code>fun medianSorted(first: IntArray, second: IntArray): Double {
+    val a = if (first.size &lt;= second.size) first else second
+    val b = if (first.size &lt;= second.size) second else first
+    val m = a.size; val n = b.size
+    require(m != 0 || n != 0) { &quot;empty&quot; }
+    val half = ((m.toLong() + n + 1) / 2).toInt()
+    var lo = 0; var hi = m
+    while (lo &lt;= hi) {
+        val i = lo + (hi - lo) / 2; val j = half - i
+        val al = if (i == 0) Long.MIN_VALUE else a[i - 1].toLong()
+        val ar = if (i == m) Long.MAX_VALUE else a[i].toLong()
+        val bl = if (j == 0) Long.MIN_VALUE else b[j - 1].toLong()
+        val br = if (j == n) Long.MAX_VALUE else b[j].toLong()
+        if (al &lt;= br &amp;&amp; bl &lt;= ar) {
+            val left = maxOf(al, bl)
+            return if ((m.toLong() + n) % 2 == 1L) left.toDouble()
+                else (left + minOf(ar, br)) / 2.0
+        }
+        if (al &gt; br) hi = i - 1 else lo = i + 1
+    }
+    throw IllegalArgumentException(&quot;arrays must be sorted&quot;)
+}</code></pre><a download href="../solutions/05-4.kt">Download Kotlin snippet</a></div><h4>Cost and boundaries</h4><p>O(log(min(m,n)+1)) time and O(1) auxiliary space. Real boundary values are int, so their sum fits long; sortedness is a precondition, not exhaustively validated.</p>
+<ul><li><p>[] and [1] =&gt; 1.0</p>
+</li><li><p>[1,1] and [1] =&gt; 1.0</p>
+</li><li><p>[2147483647] and [2147483647] =&gt; 2147483647.0</p>
+</li></ul><h4>Change one assumption</h4><p>To find the kth smallest, use left size k and restrict i to max(0,k-n)..min(k,m). The valid partition returns max(left boundaries), with 1&lt;=k&lt;=m+n.</p>
+</details><p><a href="https://leetcode.com/problems/median-of-two-sorted-arrays/" target="_blank" rel="noopener">Original practice problem</a> <label class="solved"><input type="checkbox" data-progress="05-4"> Solved independently</label></p></article></section><section id="practice"><h2>Practice with gradually less help</h2><details class="practice-item"><summary>Find First and Last Position of Element in Sorted Array <span class="muted">Medium</span></summary><a href="https://leetcode.com/problems/find-first-and-last-position-of-element-in-sorted-array/" target="_blank" rel="noopener">Open problem</a><details><summary>A small hint</summary><p>Search two boundaries rather than one arbitrary occurrence.</p>
+</details><details><summary>Solution outline and cost</summary><p>Find first &gt;=target and first &gt;target. If the first does not equal target, return absent; otherwise last=upper-1. O(log n), O(1), no target+1 overflow.</p>
+</details><label><input type="checkbox" data-progress="05-practice-0"> Solved independently</label></details><details class="practice-item"><summary>Find Minimum in Rotated Sorted Array <span class="muted">Medium</span></summary><a href="https://leetcode.com/problems/find-minimum-in-rotated-sorted-array/" target="_blank" rel="noopener">Open problem</a><details><summary>A small hint</summary><p>Compare the midpoint to the rightmost value.</p>
+</details><details><summary>Solution outline and cost</summary><p>If mid&gt;right, minimum is strictly right of mid; otherwise retain mid and left half. O(log n), O(1) for distinct values. Duplicates require ambiguity shrinking.</p>
+</details><label><input type="checkbox" data-progress="05-practice-1"> Solved independently</label></details><details class="practice-item"><summary>Koko Eating Bananas <span class="muted">Medium</span></summary><a href="https://leetcode.com/problems/koko-eating-bananas/" target="_blank" rel="noopener">Open problem</a><details><summary>A small hint</summary><p>Can a fixed speed finish within h hours?</p>
+</details><details><summary>Solution outline and cost</summary><p>Count hours as Σ ceil(pile/speed) with long. Search 1..maxPile when h&gt;=number of positive piles. O(n log maxPile), O(1). State impossible-input policy.</p>
+</details><label><input type="checkbox" data-progress="05-practice-2"> Solved independently</label></details><details class="practice-item"><summary>Find Peak Element <span class="muted">Medium</span></summary><a href="https://leetcode.com/problems/find-peak-element/" target="_blank" rel="noopener">Open problem</a><details><summary>A small hint</summary><p>A slope points toward at least one peak.</p>
+</details><details><summary>Solution outline and cost</summary><p>Compare a[mid] to a[mid+1]; rise means a peak exists rightward, fall means one exists at or left of mid. O(log n), O(1), assumes adjacent elements differ and virtual boundaries are -infinity.</p>
+</details><label><input type="checkbox" data-progress="05-practice-3"> Solved independently</label></details><details class="practice-item"><summary>Split Array Largest Sum <span class="muted">Hard</span></summary><a href="https://leetcode.com/problems/split-array-largest-sum/" target="_blank" rel="noopener">Open problem</a><details><summary>A small hint</summary><p>For nonnegative values, the minimum number of blocks for a limit is greedy.</p>
+</details><details><summary>Solution outline and cost</summary><p>Search maximum block-sum limit with a contiguous greedy checker. O(n log total), O(1). Exact k nonempty blocks follows by splitting blocks when k&lt;=n; negative values invalidate this checker.</p>
+</details><label><input type="checkbox" data-progress="05-practice-4"> Solved independently</label></details><details class="practice-item"><summary>Kth Smallest Element in a Sorted Matrix <span class="muted">Medium</span></summary><a href="https://leetcode.com/problems/kth-smallest-element-in-a-sorted-matrix/" target="_blank" rel="noopener">Open problem</a><details><summary>A small hint</summary><p>Search a value and count entries &lt;=it.</p>
+</details><details><summary>Solution outline and cost</summary><p>Staircase count in a row/column sorted matrix takes O(rows+cols); binary search the value range. O((rows+cols)log range), O(1), with long midpoint arithmetic.</p>
+</details><label><input type="checkbox" data-progress="05-practice-5"> Solved independently</label></details></section><section><h2>Check the reasoning</h2><fieldset class="quiz" data-answer="2"><legend>In half-open lower bound, a[mid] is below target. What is the safe update?</legend><label><input type="radio" name="q0" value="0"> lo=mid</label><label><input type="radio" name="q0" value="1"> hi=mid−1</label><label><input type="radio" name="q0" value="2"> lo=mid+1</label><button type="button" data-check>Check reasoning</button><p class="feedback" aria-live="polite" data-explanation="All indices through mid are too small, so all must be discarded. lo=mid can fail to make progress on a two-boundary interval."></p></fieldset><fieldset class="quiz" data-answer="1"><legend>What makes shipping capacity suitable for answer-space binary search?</legend><label><input type="radio" name="q1" value="0"> The average package weight</label><label><input type="radio" name="q1" value="1"> Feasibility is monotone and a greedy scan checks it correctly</label><label><input type="radio" name="q1" value="2"> Package weights are distinct</label><button type="button" data-check>Check reasoning</button><p class="feedback" aria-live="polite" data-explanation="If capacity C works, every larger capacity works. The checker separately needs the proof that maximal-prefix daily packing minimizes days."></p></fieldset></section><section id="transfer"><h2>An unfamiliar version</h2><p>Jobs arrive in fixed order. A worker processes one contiguous batch per day. Each nonempty day also consumes a fixed setup cost c from its capacity. Find the smallest daily capacity needed to finish within D days.</p>
+<details><summary>Hint 1</summary><p>Can the setup cost be separated from the variable workload limit?</p>
+</details><details><summary>Hint 2</summary><p>What happens to feasibility when capacity grows?</p>
+</details><details><summary>Derivation</summary><p>For nonnegative job workloads and c&gt;=0, any nonempty day at capacity C can process at most C-c workload. Greedily pack in order using this effective capacity; search from maxJob+c to sumJobs+c. Larger C cannot increase needed days, so first-feasible binary search works in O(n log(sumJobs+1)) time and O(1) auxiliary space. Empty input requires no setup and returns zero; use overflow-aware long bounds.</p>
+</details></section><section><h2>Retrieve it without looking</h2><ul><li><p>After one day: derive the maintained state from the brute-force repeated work without looking at code.</p>
+</li><li><p>After three days: explain the counterexample to each wrong turn and repair it.</p>
+</li><li><p>After one week: solve the transfer problem, state the invariant aloud, and compare both JVM implementations.</p>
+</li></ul><p>Repeat after 1, 3, 7 and 21 days. A check mark records your self-report, not a mastery score. Explain the proof and solve a changed version before calling a pattern fluent.</p></section><section><h2>Sources and further study</h2><ul><li><a href="https://leetcode.com/problems/search-insert-position/">Lower Bound: First Position At Least Target</a>: Reference link; not retrieved in this run. Canonical problem statement and constraints; used to identify the technique and offer optional practice, not as evidence of company frequency.</li><li><a href="https://leetcode.com/problems/search-in-rotated-sorted-array/">Search a Rotated Sorted Array</a>: Reference link; not retrieved in this run. Canonical problem statement and constraints; used to identify the technique and offer optional practice, not as evidence of company frequency.</li><li><a href="https://leetcode.com/problems/capacity-to-ship-packages-within-d-days/">Minimum Shipping Capacity Within D Days</a>: Reference link; not retrieved in this run. Canonical problem statement and constraints; used to identify the technique and offer optional practice, not as evidence of company frequency.</li><li><a href="https://leetcode.com/problems/median-of-two-sorted-arrays/">Median of Two Sorted Arrays by Partition</a>: Reference link; not retrieved in this run. Canonical problem statement and constraints; used to identify the technique and offer optional practice, not as evidence of company frequency.</li></ul><p class="muted">These are reference links. See the research page for live-verification limits and the distinction between a canonical algorithm and a confirmed company question.</p></section><p class="next">Next: <a href="06-sorting-intervals.html">Sorting, intervals, scheduling, and sweep lines</a></p></main></div><footer>Practice deriving the invariant. Explain why every discarded candidate is safe to discard. <a href="../research.html">Evidence and scope</a></footer><!-- page-navigation:start -->
+<nav class="page-navigation" aria-label="Bottom page navigation"><div class="page-navigation-parents"><a href="../../index.html">Library home</a> <span aria-hidden="true">›</span> <a href="../../index.html#technical-foundations">Technical foundations and implementation</a> <span aria-hidden="true">›</span> <a href="../index.html">Coding Interviews: Patterns &amp; Problem Solving</a> <span aria-hidden="true">›</span> <a href="index.html">Lessons</a></div><div class="page-navigation-sections"><a href="index.html">Lessons</a><a href="../reference/index.html">Reference sheets</a><a href="../materials.html">Guides and resources</a><a href="#page-top">Back to top ↑</a></div><div class="page-navigation-pager"><a href="04-prefix-sums.html" rel="prev">← Previous: Prefix sums, balance, and range counting</a><a href="06-sorting-intervals.html" rel="next">Next: Sorting, intervals, scheduling, and sweep lines →</a></div></nav>
+<!-- page-navigation:end -->
+<script src="../../assets/course/links.js" defer></script>
+</body></html>

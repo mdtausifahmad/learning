@@ -1,0 +1,317 @@
+{
+  "id": "04",
+  "slug": "prefix-sums",
+  "title": "Prefix sums, balance, and range counting",
+  "group": "Linear data",
+  "prerequisites": "Lesson 00; arrays, loops, functions, and Big-O",
+  "estimatedMinutes": 150,
+  "motivation": "A prefix is everything before a boundary. Define P[0]=0 and P[i+1]=P[i]+a[i]. P[i] is the sum of exactly the first i elements, so the half-open range [l,r) has sum P[r]-P[l]. The empty prefix is a real state, not a special trick: it allows ranges beginning at zero to obey the same formula as every other range. Drawing boundaries between elements often prevents the off-by-one mistakes that arise when prefixes are described vaguely as sums up to an index.",
+  "mentalModel": "A prefix is everything before a boundary. Define P[0]=0 and P[i+1]=P[i]+a[i]. P[i] is the sum of exactly the first i elements, so the half-open range [l,r) has sum P[r]-P[l]. The empty prefix is a real state, not a special trick: it allows ranges beginning at zero to obey the same formula as every other range. Drawing boundaries between elements often prevents the off-by-one mistakes that arise when prefixes are described vaguely as sums up to an index.\n\nBegin with repeated static range queries. Computing every query by a loop repeats addition over overlapping ranges. One linear preprocessing pass stores cumulative sums, then each query needs two lookups and one subtraction. This works because addition has an inverse. Minimum does not: knowing the minimum of a large prefix and a smaller prefix does not reveal the minimum of their difference. For mutable input, changing one element invalidates many ordinary prefixes; Fenwick trees or segment trees provide a different update/query tradeoff.\n\nNow turn the representation around. Instead of asking for the sum of a known range, ask which earlier boundary creates a desired range ending here. The equation P[r]-P[l]=k becomes P[l]=P[r]-k. A hash map can count earlier prefixes with exactly that value. Query before inserting P[r], because l must be strictly earlier for a nonempty range. Insert the empty prefix with count one so a range beginning at zero is counted naturally. Unlike a positive-sum sliding window, this equation remains correct when values are negative.\n\nThe value stored per prefix depends on the objective. A count answers how many ranges. The earliest index gives the longest range. The latest index gives the shortest nonempty range, with careful query-before-update order. The map key may change too: divisibility of a range sum by k means the two prefixes have the same remainder modulo k. Normalize negative remainders so mathematically equal residue classes share a key on the JVM.\n\nAn equilibrium index is a local application of the same decomposition. Let left be the sum strictly before the index, total the whole-array sum, and x the current value. The right sum is total-left-x. Check equality before adding x to left. The difference between before and through is the entire source of many bugs.\n\nThe advanced range-sum-count problem asks for a whole interval of eligible prefix values rather than one equality. Hashing is no longer sufficient. Divide-and-conquer sorts prefix values in each half while preserving the distinction between earlier left-half boundaries and later right-half boundaries. Two moving bounds count right values whose difference lies in [lower,upper], then a merge prepares the next level. This connects prefix representation to ordered counting: derive the equation first, then choose the data structure that answers it.",
+  "invariant": "A prefix is tied to a boundary, not vaguely to an element. Store P[0]=0; after consuming i values, P[i] is their exact sum. For counting, only earlier eligible boundaries belong in the query state. Translate the range condition algebraically before choosing equality hashing or ordered counting.",
+  "recognition": [
+    "Many static range-sum queries suggest one cumulative preprocessing pass.",
+    "A subarray sum constraint can be rewritten as a relation between two prefixes.",
+    "Divisibility means equality of normalized residues, even with negative values."
+  ],
+  "wrongTurns": [
+    {
+      "temptation": "Forget the empty prefix.",
+      "counterexample": "[3], k=3: there is no previously stored prefix 0, so the only valid range is missed.",
+      "repair": "Seed frequency[0]=1 or prefix index 0 before scanning."
+    },
+    {
+      "temptation": "Insert the current prefix before counting matches.",
+      "counterexample": "[5],k=0: the current prefix matches itself, incorrectly counting an empty subarray.",
+      "repair": "Query first, then insert."
+    },
+    {
+      "temptation": "Compare raw JVM negative remainders.",
+      "counterexample": "[-1,2], k=2 has prefixes with raw residues -1 and 1; their difference is divisible by 2, but raw equality misses [2].",
+      "repair": "Normalize remainders into 0..k-1 using floorMod."
+    }
+  ],
+  "diagram": {
+    "caption": "A range is the difference between two cumulative boundary sums.",
+    "nodes": [
+      "Array [2, \u22121, 4, 3]",
+      "Boundary prefixes [0, 2, 1, 5, 8]",
+      "Query indices [1,3] = boundaries [1,4)",
+      "P[4] \u2212 P[1] = 8 \u2212 2 = 6"
+    ],
+    "edges": [
+      [
+        0,
+        1,
+        "one cumulative pass"
+      ],
+      [
+        1,
+        2,
+        "inclusive end becomes boundary r+1"
+      ],
+      [
+        2,
+        3,
+        "cancel the shared prefix"
+      ]
+    ]
+  },
+  "trace": [
+    {
+      "state": "a=[1,-1,0],k=0; prefix=0; freq={0:1}; answer=0",
+      "explanation": "The empty boundary is eligible before any element."
+    },
+    {
+      "state": "After 1: prefix=1; query freq[1]=0; freq={0:1,1:1}",
+      "explanation": "No zero-sum range ends at the first item."
+    },
+    {
+      "state": "After -1: prefix=0; add freq[0]=1; freq={0:2,1:1}; answer=1",
+      "explanation": "The first two values sum to zero."
+    },
+    {
+      "state": "After 0: prefix=0; add freq[0]=2; answer=3",
+      "explanation": "Two earlier zero prefixes produce [0] and [1,-1,0]."
+    }
+  ],
+  "problems": [
+    {
+      "title": "Immutable Range Sum Queries",
+      "difficulty": "Easy",
+      "statement": "Given a non-null int array and non-null queries [l,r] with 0<=l<=r<n, return a long sum for each inclusive range. Invalid query bounds throw IllegalArgumentException. Empty arrays may have zero queries. Input is unchanged.",
+      "example": "a=[2,-1,4,3], queries=[[0,2],[1,3]] => [5,6].",
+      "baseline": "Sum each range independently: O(qn) worst-case time and O(q) output.",
+      "reasoning": [
+        "Build a long prefix array of length n+1 with prefix[0]=0.",
+        "Translate inclusive [l,r] into boundaries l and r+1. Subtract prefix[l] from prefix[r+1].",
+        "Validate bounds before indexing. Each output is exact because the common first l terms cancel."
+      ],
+      "invariant": "prefix[i] equals the sum of a[0..i), so subtraction removes exactly the elements outside a queried interval.",
+      "java": "static long[] rangeSums(int[] a,int[][] queries) {\n    long[] prefix=new long[a.length+1];\n    for(int i=0;i<a.length;i++) prefix[i+1]=prefix[i]+a[i];\n    long[] ans=new long[queries.length];\n    for(int i=0;i<queries.length;i++) {\n        int l=queries[i][0],r=queries[i][1];\n        if(l<0 || l>r || r>=a.length) throw new IllegalArgumentException(\"bounds\");\n        ans[i]=prefix[r+1]-prefix[l];\n    }\n    return ans;\n}",
+      "kotlin": "fun rangeSums(a: IntArray, queries: Array<IntArray>): LongArray {\n    val prefix = LongArray(a.size + 1)\n    for (i in a.indices) prefix[i + 1] = prefix[i] + a[i]\n    return LongArray(queries.size) { i ->\n        val l = queries[i][0]; val r = queries[i][1]\n        require(l >= 0 && l <= r && r < a.size) { \"bounds\" }\n        prefix[r + 1] - prefix[l]\n    }\n}",
+      "complexity": "O(n+q) time, O(n) auxiliary prefix space, plus O(q) output; query rows must contain exactly two entries.",
+      "edgeCases": [
+        "a=[],queries=[] => []",
+        "a=[5],queries=[[0,0]] => [5]",
+        "[2147483647,2147483647],query=[0,1] => 4294967294"
+      ],
+      "twist": "With point updates between queries, ordinary prefixes become expensive to maintain. A Fenwick tree supports updates and range sums in O(log n), with O(n) storage.",
+      "source": "https://leetcode.com/problems/range-sum-query-immutable/",
+      "testJava": "if (!(Arrays.equals(rangeSums(new int[]{2,-1,4,3},new int[][]{{0,2},{1,3}}),new long[]{5,6}) && rangeSums(new int[]{},new int[][]{}).length==0 && rangeSums(new int[]{Integer.MAX_VALUE,Integer.MAX_VALUE},new int[][]{{0,1}})[0]==4294967294L)) throw new AssertionError(\"Immutable Range Sum Queries\");",
+      "testKotlin": "check(rangeSums(intArrayOf(2,-1,4,3),arrayOf(intArrayOf(0,2),intArrayOf(1,3))).contentEquals(longArrayOf(5,6)) && rangeSums(intArrayOf(),emptyArray()).isEmpty() && rangeSums(intArrayOf(Int.MAX_VALUE,Int.MAX_VALUE),arrayOf(intArrayOf(0,1)))[0] == 4294967294L) { \"Immutable Range Sum Queries\" }"
+    },
+    {
+      "title": "Find the Leftmost Equilibrium Index",
+      "difficulty": "Easy",
+      "statement": "Given a non-null int array, return the smallest index whose elements strictly to the left and right have equal sums, or -1. Empty sides have sum 0. Input is unchanged.",
+      "example": "[1,7,3,6,5,6] => 3 because both side sums are 11.",
+      "baseline": "For each index sum both sides: O(n\u00b2) time/O(1) space.",
+      "reasoning": [
+        "Compute total once in long. Keep left=0 before examining index 0.",
+        "At i, derive right=total-left-a[i]. Compare left and right before adding the current element.",
+        "Return the first match; otherwise advance left by a[i]."
+      ],
+      "invariant": "Before index i, left is exactly the sum of indices below i; total-left-a[i] is exactly the sum of indices above i.",
+      "java": "static int pivotIndex(int[] a) {\n    long total=0,left=0; for(int x:a) total+=x;\n    for(int i=0;i<a.length;i++) {\n        if(left==total-left-a[i]) return i;\n        left+=a[i];\n    }\n    return -1;\n}",
+      "kotlin": "fun pivotIndex(a: IntArray): Int {\n    var total = 0L; for (x in a) total += x\n    var left = 0L\n    for (i in a.indices) {\n        if (left == total - left - a[i]) return i\n        left += a[i]\n    }\n    return -1\n}",
+      "complexity": "O(n) time, O(1) auxiliary space. Long sums support arbitrary int values.",
+      "edgeCases": [
+        "[] => -1",
+        "[9] => 0",
+        "[0,0] => 0",
+        "[1,2,3] => -1"
+      ],
+      "twist": "For all equilibrium indices, collect every match instead of returning early. For an online mutable array, updates require a different representation; this two-pass scan assumes static data.",
+      "source": "https://leetcode.com/problems/find-pivot-index/",
+      "testJava": "if (!(pivotIndex(new int[]{1,7,3,6,5,6})==3 && pivotIndex(new int[]{})==-1 && pivotIndex(new int[]{9})==0)) throw new AssertionError(\"Find the Leftmost Equilibrium Index\");",
+      "testKotlin": "check(pivotIndex(intArrayOf(1,7,3,6,5,6)) == 3 && pivotIndex(intArrayOf()) == -1 && pivotIndex(intArrayOf(9)) == 0) { \"Find the Leftmost Equilibrium Index\" }"
+    },
+    {
+      "title": "Count Subarrays With a Given Sum",
+      "difficulty": "Medium",
+      "statement": "Given a non-null int array and a long k, return the count of nonempty contiguous subarrays whose sum equals k. Negative values and zero are allowed. Input is unchanged.",
+      "example": "[1,-1,0], k=0 => 3: [1,-1], [0], and [1,-1,0].",
+      "baseline": "Grow every start with a running sum: O(n\u00b2) time/O(1) auxiliary space.",
+      "reasoning": [
+        "Write P[r]-P[l]=k, then rearrange to earlierPrefix=P[r]-k.",
+        "Initialize frequency[0]=1 for the empty prefix. For each new prefix, add its required earlier frequency before inserting the new prefix.",
+        "Store frequencies and answer in long because repeated zero prefixes create quadratically many subarrays."
+      ],
+      "invariant": "Before querying prefix P[r], the map counts exactly P[0] through P[r-1]; each hit corresponds one-to-one to a nonempty range ending at r-1.",
+      "java": "static long countSum(int[] a,long k) {\n    Map<Long,Long> freq=new HashMap<>(); freq.put(0L,1L);\n    long prefix=0,answer=0;\n    for(int x:a) {\n        prefix+=x;\n        // Prefix sums fit long for any JVM int array. Guard subtraction overflow.\n        if(!((k>0 && prefix<Long.MIN_VALUE+k) || (k<0 && prefix>Long.MAX_VALUE+k)))\n            answer+=freq.getOrDefault(prefix-k,0L);\n        freq.merge(prefix,1L,Long::sum);\n    }\n    return answer;\n}",
+      "kotlin": "fun countSum(a: IntArray, k: Long): Long {\n    val freq = HashMap<Long, Long>(); freq[0L] = 1L\n    var prefix = 0L; var answer = 0L\n    for (x in a) {\n        prefix += x\n        val overflow = (k > 0 && prefix < Long.MIN_VALUE + k) ||\n            (k < 0 && prefix > Long.MAX_VALUE + k)\n        if (!overflow) answer += freq[prefix - k] ?: 0L\n        freq[prefix] = (freq[prefix] ?: 0L) + 1L\n    }\n    return answer\n}",
+      "complexity": "Expected O(n) time, O(n) auxiliary map space; long answer can hold at most n(n+1)/2 for a JVM int array.",
+      "edgeCases": [
+        "[] => 0",
+        "[0,0],k=0 => 3",
+        "[1],k=1 => 1",
+        "[1],k=Long.MIN_VALUE => 0"
+      ],
+      "twist": "For the longest matching range, store the earliest index for each prefix rather than its count. Preserve the first occurrence; later overwrites lose longer candidates.",
+      "source": "https://leetcode.com/problems/subarray-sum-equals-k/",
+      "testJava": "if (!(countSum(new int[]{1,-1,0},0)==3 && countSum(new int[]{0,0},0)==3 && countSum(new int[]{1},Long.MIN_VALUE)==0)) throw new AssertionError(\"Count Subarrays With a Given Sum\");",
+      "testKotlin": "check(countSum(intArrayOf(1,-1,0),0L) == 3L && countSum(intArrayOf(0,0),0L) == 3L && countSum(intArrayOf(1),Long.MIN_VALUE) == 0L) { \"Count Subarrays With a Given Sum\" }"
+    },
+    {
+      "title": "Count Subarrays Divisible by K",
+      "difficulty": "Medium",
+      "statement": "Given a non-null int array and positive int k, return the count of nonempty contiguous subarrays with sum divisible by k as long. Throw for k<=0. Negative values are permitted; input is unchanged.",
+      "example": "[4,5,0,-2,-3,1], k=5 => 7.",
+      "baseline": "Enumerate O(n\u00b2) running subarray sums and test each modulus.",
+      "reasoning": [
+        "A range sum is divisible by k exactly when its endpoint prefixes have equal residues modulo k.",
+        "Maintain the current normalized residue, using long for residue+x. The JVM remainder may be negative, so normalize with floorMod.",
+        "Add the number of earlier occurrences of this residue, then increment its frequency. Seed residue zero once for the empty prefix."
+      ],
+      "invariant": "Residue frequencies count exactly earlier prefix boundaries; each equal-residue pair defines one nonempty divisible range.",
+      "java": "static long countDivisible(int[] a,int k) {\n    if(k<=0) throw new IllegalArgumentException(\"k must be positive\");\n    Map<Integer,Long> freq=new HashMap<>(); freq.put(0,1L);\n    int residue=0; long answer=0;\n    for(int x:a) {\n        residue=(int)Math.floorMod((long)residue+x,(long)k);\n        answer+=freq.getOrDefault(residue,0L);\n        freq.merge(residue,1L,Long::sum);\n    }\n    return answer;\n}",
+      "kotlin": "fun countDivisible(a: IntArray, k: Int): Long {\n    require(k > 0) { \"k must be positive\" }\n    val freq = HashMap<Int, Long>(); freq[0] = 1L\n    var residue = 0; var answer = 0L\n    for (x in a) {\n        residue = Math.floorMod(residue.toLong() + x, k.toLong()).toInt()\n        answer += freq[residue] ?: 0L\n        freq[residue] = (freq[residue] ?: 0L) + 1L\n    }\n    return answer\n}",
+      "complexity": "Expected O(n) time, O(min(n,k)) auxiliary map space. A frequency array uses O(k) space when k is suitably small.",
+      "edgeCases": [
+        "[] with k=3 => 0",
+        "[-1,2,9],k=2 => 2",
+        "[0,0],k=1 => 3"
+      ],
+      "twist": "For subarrays with remainder q, query normalized(currentResidue-q) rather than equal residues. For a length-at-least-two requirement, retain earliest indices or delay frequency eligibility.",
+      "source": "https://leetcode.com/problems/subarray-sums-divisible-by-k/",
+      "testJava": "if (!(countDivisible(new int[]{4,5,0,-2,-3,1},5)==7 && countDivisible(new int[]{-1,2,9},2)==2 && countDivisible(new int[]{0,0},1)==3)) throw new AssertionError(\"Count Subarrays Divisible by K\");",
+      "testKotlin": "check(countDivisible(intArrayOf(4,5,0,-2,-3,1),5) == 7L && countDivisible(intArrayOf(-1,2,9),2) == 2L && countDivisible(intArrayOf(0,0),1) == 3L) { \"Count Subarrays Divisible by K\" }"
+    },
+    {
+      "title": "Count Range Sums in a Numeric Band",
+      "difficulty": "Hard",
+      "statement": "Given a non-null int array and long lower<=upper with both bounds between -10^18 and 10^18, count nonempty contiguous ranges whose sums lie in [lower,upper]. Input is unchanged. Invalid bounds throw.",
+      "example": "[-2,5,-1], lower=-2, upper=2 => 3: [-2], [-1], [-2,5,-1].",
+      "baseline": "Enumerate all O(n\u00b2) running sums and count those in the band.",
+      "reasoning": [
+        "Form long prefix sums. A valid earlier/later pair satisfies lower<=P[r]-P[l]<=upper.",
+        "Divide prefix indices into halves. Recursively count pairs wholly inside either half, then sort each half by prefix value. For each left prefix, maintain two advancing right-half boundaries delimiting differences in the band.",
+        "Count high-low cross pairs and merge the halves. Every pair belongs uniquely to a recursive side or the cross step at its first split."
+      ],
+      "invariant": "Recursive calls return sorted prefix values and exact pair counts for their original index halves. During a cross step every left-half prefix occurred earlier than every right-half prefix in the original array.",
+      "java": "static long countRangeSum(int[] a,long lower,long upper) {\n    if(lower>upper || lower< -1_000_000_000_000_000_000L || upper>1_000_000_000_000_000_000L)\n        throw new IllegalArgumentException(\"bounds\");\n    long[] p=new long[a.length+1],tmp=new long[p.length];\n    for(int i=0;i<a.length;i++) p[i+1]=p[i]+a[i];\n    return countMerge(p,tmp,0,p.length,lower,upper);\n}\nstatic long countMerge(long[] p,long[] tmp,int lo,int hi,long lower,long upper) {\n    if(hi-lo<=1) return 0;\n    int mid=lo+(hi-lo)/2;\n    long ans=countMerge(p,tmp,lo,mid,lower,upper)+countMerge(p,tmp,mid,hi,lower,upper);\n    int first=mid,after=mid;\n    for(int i=lo;i<mid;i++) {\n        while(first<hi && p[first]-p[i]<lower) first++;\n        while(after<hi && p[after]-p[i]<=upper) after++;\n        ans+=after-first;\n    }\n    int i=lo,j=mid,w=lo;\n    while(i<mid || j<hi) tmp[w++]=(j==hi || (i<mid && p[i]<=p[j])) ? p[i++] : p[j++];\n    System.arraycopy(tmp,lo,p,lo,hi-lo);\n    return ans;\n}",
+      "kotlin": "fun countRangeSum(a: IntArray, lower: Long, upper: Long): Long {\n    require(lower <= upper && lower >= -1_000_000_000_000_000_000L && upper <= 1_000_000_000_000_000_000L)\n    val p = LongArray(a.size + 1); val tmp = LongArray(p.size)\n    for (i in a.indices) p[i + 1] = p[i] + a[i]\n    fun solve(lo: Int, hi: Int): Long {\n        if (hi - lo <= 1) return 0L\n        val mid = lo + (hi - lo) / 2\n        var ans = solve(lo, mid) + solve(mid, hi)\n        var first = mid; var after = mid\n        for (i in lo until mid) {\n            while (first < hi && p[first] - p[i] < lower) first++\n            while (after < hi && p[after] - p[i] <= upper) after++\n            ans += (after - first).toLong()\n        }\n        var i = lo; var j = mid; var w = lo\n        while (i < mid || j < hi) {\n            if (j == hi || (i < mid && p[i] <= p[j])) tmp[w++] = p[i++] else tmp[w++] = p[j++]\n        }\n        for (k in lo until hi) p[k] = tmp[k]\n        return ans\n    }\n    return solve(0, p.size)\n}",
+      "complexity": "O(n log n) time, O(n) prefix/merge buffers and O(log n) recursion stack. JVM int-array length bounds keep actual prefix differences within long.",
+      "edgeCases": [
+        "[] => 0",
+        "[0,0],lower=upper=0 => 3",
+        "[1],lower=2,upper=3 => 0"
+      ],
+      "twist": "If sums are queried online, coordinate compression plus a Fenwick tree can count earlier prefixes in [current-upper,current-lower]. The offline merge works because future prefix values are known.",
+      "source": "https://leetcode.com/problems/count-of-range-sum/",
+      "testJava": "if (!(countRangeSum(new int[]{-2,5,-1},-2,2)==3 && countRangeSum(new int[]{0,0},0,0)==3 && countRangeSum(new int[]{},-1,1)==0)) throw new AssertionError(\"Count Range Sums in a Numeric Band\");",
+      "testKotlin": "check(countRangeSum(intArrayOf(-2,5,-1),-2L,2L) == 3L && countRangeSum(intArrayOf(0,0),0L,0L) == 3L && countRangeSum(intArrayOf(),-1L,1L) == 0L) { \"Count Range Sums in a Numeric Band\" }"
+    }
+  ],
+  "practice": [
+    {
+      "title": "Product of Array Except Self",
+      "difficulty": "Medium",
+      "url": "https://leetcode.com/problems/product-of-array-except-self/",
+      "hint": "Separate the product strictly before and strictly after each position.",
+      "approach": "Write prefix products to output, then multiply by a rolling suffix product. O(n), O(1) extra excluding output. Avoid division to support zeros; specify bounded products or use big integers."
+    },
+    {
+      "title": "Contiguous Array",
+      "difficulty": "Medium",
+      "url": "https://leetcode.com/problems/contiguous-array/",
+      "hint": "Equal zero/one counts become zero sum after mapping 0 to -1.",
+      "approach": "Store the first index of each balance, initialized balance 0 at index -1. Maximize currentIndex-earliestIndex. O(n), O(n); input must be binary."
+    },
+    {
+      "title": "Continuous Subarray Sum",
+      "difficulty": "Medium",
+      "url": "https://leetcode.com/problems/continuous-subarray-sum/",
+      "hint": "Same residue plus a distance constraint.",
+      "approach": "Store earliest prefix index per residue and require distance>=2. O(n), O(min(n,k)) for positive k. If allowing k=0, seek equal exact prefixes instead."
+    },
+    {
+      "title": "Make Sum Divisible by P",
+      "difficulty": "Medium",
+      "url": "https://leetcode.com/problems/make-sum-divisible-by-p/",
+      "hint": "Remove a range whose residue equals the total residue.",
+      "approach": "For each current residue, query current-total mod p, keeping latest indices for shortest removal. O(n), O(min(n,p)). Reject removing the entire array."
+    },
+    {
+      "title": "Range Sum Query 2D - Immutable",
+      "difficulty": "Medium",
+      "url": "https://leetcode.com/problems/range-sum-query-2d-immutable/",
+      "hint": "Draw the overlap of two excluded rectangles.",
+      "approach": "2D prefix sums answer rectangles by inclusion-exclusion: bottom-right minus top strip minus left strip plus their overlap. O(rows\u00d7cols) build, O(1) query."
+    },
+    {
+      "title": "Corporate Flight Bookings",
+      "difficulty": "Medium",
+      "url": "https://leetcode.com/problems/corporate-flight-bookings/",
+      "hint": "A range increment changes only two boundaries in a difference representation.",
+      "approach": "Add seats at start and subtract after end, then prefix the difference array. O(n+q), O(n), long if aggregate seats may exceed int."
+    }
+  ],
+  "quiz": [
+    {
+      "question": "Why initialize earlierPrefixCount[0] to one?",
+      "choices": [
+        "To count an empty output range",
+        "To represent the boundary before index zero",
+        "To avoid sorting"
+      ],
+      "answer": 1,
+      "explanation": "A nonempty range starting at element zero needs the earlier empty prefix boundary. Query-before-insert still excludes empty subarrays."
+    },
+    {
+      "question": "For the longest range with sum K, what belongs behind each prefix key?",
+      "choices": [
+        "Its latest index",
+        "Its earliest index",
+        "Its frequency only"
+      ],
+      "answer": 1,
+      "explanation": "For a fixed right boundary, the earliest matching left boundary maximizes distance. Overwriting it with a later occurrence loses candidates."
+    }
+  ],
+  "transfer": {
+    "prompt": "Given daily integer profit, return the longest nonempty period whose total profit is divisible by a positive integer m. Loss days are allowed.",
+    "hints": [
+      "What relation must the two boundary prefixes satisfy?",
+      "For the longest period, which occurrence of each residue should survive?"
+    ],
+    "solution": "Normalize cumulative residues modulo m. Seed residue 0 at boundary index 0. At each boundary r, if its residue first appeared at l, r-l is a divisible period; retain only the earliest l and maximize the distance. Expected O(n) time and O(min(n,m)) space. Unlike counting, frequencies are unnecessary."
+  },
+  "review": [
+    "After one day: derive the maintained state from the brute-force repeated work without looking at code.",
+    "After three days: explain the counterexample to each wrong turn and repair it.",
+    "After one week: solve the transfer problem, state the invariant aloud, and compare both JVM implementations."
+  ],
+  "sources": [
+    {
+      "label": "Immutable Range Sum Queries",
+      "url": "https://leetcode.com/problems/range-sum-query-immutable/",
+      "note": "Reference link; not retrieved in this run. Canonical problem statement and constraints; used to identify the technique and offer optional practice, not as evidence of company frequency.",
+      "status": "unverified"
+    },
+    {
+      "label": "Find the Leftmost Equilibrium Index",
+      "url": "https://leetcode.com/problems/find-pivot-index/",
+      "note": "Reference link; not retrieved in this run. Canonical problem statement and constraints; used to identify the technique and offer optional practice, not as evidence of company frequency.",
+      "status": "unverified"
+    },
+    {
+      "label": "Count Subarrays With a Given Sum",
+      "url": "https://leetcode.com/problems/subarray-sum-equals-k/",
+      "note": "Reference link; not retrieved in this run. Canonical problem statement and constraints; used to identify the technique and offer optional practice, not as evidence of company frequency.",
+      "status": "unverified"
+    },
+    {
+      "label": "Count Subarrays Divisible by K",
+      "url": "https://leetcode.com/problems/subarray-sums-divisible-by-k/",
+      "note": "Reference link; not retrieved in this run. Canonical problem statement and constraints; used to identify the technique and offer optional practice, not as evidence of company frequency.",
+      "status": "unverified"
+    },
+    {
+      "label": "Count Range Sums in a Numeric Band",
+      "url": "https://leetcode.com/problems/count-of-range-sum/",
+      "note": "Reference link; not retrieved in this run. Canonical problem statement and constraints; used to identify the technique and offer optional practice, not as evidence of company frequency.",
+      "status": "unverified"
+    }
+  ]
+}

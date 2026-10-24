@@ -1,0 +1,304 @@
+{
+  "id": "15",
+  "slug": "shortest-paths",
+  "title": "Shortest paths: matching the frontier to edge costs",
+  "group": "Graphs",
+  "prerequisites": "BFS, graph modeling, queues, priority queues, dynamic programming basics",
+  "estimatedMinutes": 180,
+  "motivation": "Minimizing the number of moves and minimizing total cost agree only when every move has equal cost. Derive the right frontier discipline from the weight assumptions, and expand the state when a limited resource affects future options.",
+  "recognition": [
+    "Equal-cost moves: BFS orders states by distance in edges.",
+    "Nonnegative varying costs: always expand the smallest tentative total distance with Dijkstra.",
+    "Edge costs are exactly zero or one: a deque maintains the necessary order more cheaply than a heap.",
+    "The route has a maximum number of edges or stops: carry the resource dimension or update from a frozen previous layer.",
+    "Negative edges: Dijkstra's settlement proof fails; consider Bellman-Ford and explicitly address reachable negative cycles."
+  ],
+  "mentalModel": "A shortest-path problem asks for the cheapest legal route between states. First define its cost. If every move costs one, route cost equals number of edges, and BFS layers already sort that cost. If one move costs 100 while another costs 1, a route with more edges may be cheaper. The data structure is not the starting point: the ordering property required by the proof is.\n\nBegin with distances. dist[v] is the smallest cost of any route to v discovered so far. Initialize the source to zero and every other vertex to infinity, a sentinel meaning no route discovered. For an edge u->v of weight w, a route to u can be extended to v, so compare dist[u]+w with dist[v]. Replacing a larger tentative value with this smaller candidate is called relaxation. A tentative value is an upper bound on the true optimum because it corresponds to an actual discovered route, not an optimistic guess.\n\nFor nonnegative weights, Dijkstra repeatedly takes the currently smallest tentative distance from a min-priority queue. Why can this vertex be settled? Consider a hypothetical cheaper route to it. On that route, the first not-yet-settled vertex has a settled predecessor whose outgoing edge was already relaxed. Its tentative distance would be no greater than the cost of that prefix, and nonnegative remaining edges cannot reduce that prefix to less than the vertex just selected. The supposed cheaper route contradicts the minimum selection. Negative edges destroy the last step of this argument.\n\nA practical heap can contain several entries for one vertex because a new improvement is pushed without deleting the old entry. Store both vertex and candidate distance. When popping, discard entries whose saved distance differs from the current dist[vertex]. Such entries are stale, not new work. Marking a vertex visited when first enqueued is wrong for weighted graphs: the first discovered route need not be cheapest. Settlement happens when its minimum current distance is removed from the correctly ordered frontier.\n\nWhen weights are only zero or one, relaxation from distance d produces only d or d+1. A deque can preserve order: put a zero-edge improvement at the front, and a one-edge improvement at the back. The deque replaces the general min-heap because the range of possible next distances has special structure. Continue using relaxation and stale-entry checks; an ordinary \u201cvisited on enqueue\u201d BFS proof does not transfer to zero-cost edges.\n\nConstraints can change the state even when edge weights stay nonnegative. In a flight network, a cheap arrival using all allowed flights may be useless while a more expensive arrival with one flight used can still reach the destination. The airport alone is not enough state. One approach is (airport, flightsUsed). A simpler bounded Bellman-Ford recurrence lets layer e contain the minimum costs using at most e edges. To build the next layer, read exclusively from the previous layer and write into a copy. Reading updated values from the same pass can silently chain several flights and violate the budget.\n\nA stop is an intermediate airport. At most K stops allows at most K+1 edges, while direct source-to-destination uses one edge and zero stops. Clarify this off-by-one rule with examples before coding. Finally, no finite minimum exists when a reachable negative-cost cycle can be repeated on a route to the target without a limiting resource. Report the condition under the problem's contract instead of returning an arbitrary finite distance.",
+  "invariant": "All finite tentative distances correspond to actual legal paths. BFS first discovery is final only under equal edge costs. Dijkstra settles a vertex only when its smallest nonstale heap entry is removed, relying on nonnegative edges. Zero-one BFS maintains a deque in nondecreasing current candidate cost by putting zero-cost extensions before cost-one extensions. In bounded Bellman-Ford, after e passes the array contains exact optima among paths of at most e edges, because the next pass extends only previous-layer paths. These are separate correctness arguments; a universal visited rule cannot replace them.",
+  "wrongTurns": [
+    {
+      "temptation": "Use ordinary BFS to minimize weighted cost.",
+      "counterexample": "Edges S->T cost 10, S->A cost 1, A->T cost 1. BFS discovers the direct one-edge route first, but the cheapest route costs 2.",
+      "repair": "For nonnegative varying weights, use a min-heap of total distances."
+    },
+    {
+      "temptation": "Mark a weighted vertex permanently visited when first pushed.",
+      "counterexample": "S->A cost 8, S->B cost 1, B->A cost 1. First discovery sets A=8, but the optimum is 2.",
+      "repair": "Allow improvements; settle only when removing the smallest nonstale candidate."
+    },
+    {
+      "temptation": "Update the same distance array in one constrained-flight pass.",
+      "counterexample": "Edges 0->1 cost 1 and 1->2 cost 1, K=0 stops. An in-place pass can set dist[1]=1 then dist[2]=2, illegally using two flights where only one is allowed.",
+      "repair": "Read the frozen previous layer and write into a copied next layer."
+    },
+    {
+      "temptation": "Apply Dijkstra when a reachable negative edge exists.",
+      "counterexample": "S->A cost 1, S->B cost 2, B->A cost -5. Settling A at 1 before exploring B misses the better cost -3 under the settlement proof.",
+      "repair": "Use an algorithm whose proof allows negative edges; address negative cycles and any edge budget."
+    }
+  ],
+  "diagram": {
+    "caption": "A min-heap corrects an early expensive discovery; FIFO edge count would choose the direct route.",
+    "nodes": [
+      "S distance 0",
+      "A tentative 8, later 2",
+      "B distance 1",
+      "heap after S: [(1,B),(8,A)]",
+      "after B: [(2,A),(8,A)]"
+    ],
+    "edges": [
+      [
+        0,
+        1,
+        "cost 8"
+      ],
+      [
+        0,
+        2,
+        "cost 1"
+      ],
+      [
+        2,
+        1,
+        "cost 1"
+      ],
+      [
+        0,
+        3,
+        "relax outgoing edges"
+      ],
+      [
+        3,
+        4,
+        "pop B; improve A; later skip stale 8"
+      ]
+    ]
+  },
+  "trace": [
+    {
+      "state": "dist[S]=0, dist[A]=\u221e, dist[B]=\u221e; heap=[(0,S)]",
+      "explanation": "Only the empty source route is known."
+    },
+    {
+      "state": "Pop S; dist[A]=8, dist[B]=1; heap=[(1,B),(8,A)]",
+      "explanation": "Both entries are real paths; neither first push settles A."
+    },
+    {
+      "state": "Pop B at 1; candidate A=1+1=2; heap=[(2,A),(8,A)]",
+      "explanation": "Relaxation replaces an expensive tentative route."
+    },
+    {
+      "state": "Pop A at 2; settle A",
+      "explanation": "Nonnegative edges and minimum extraction certify its optimum."
+    },
+    {
+      "state": "Pop A at 8; discard because 8 != dist[A]",
+      "explanation": "The old entry is stale and must not expand edges again."
+    },
+    {
+      "state": "Flight budget 1 edge: previous=[0,\u221e,\u221e], next after edges 0->1,1->2 is [0,1,\u221e]",
+      "explanation": "Frozen reads prevent illegally chaining two edges in one pass."
+    }
+  ],
+  "problems": [
+    {
+      "title": "Minimum edges in an unweighted network",
+      "difficulty": "Easy",
+      "statement": "Given n >= 1 vertices labeled 0..n-1, a nonnull array of valid undirected edge pairs, and valid source/target labels, return the minimum number of edges on a source-to-target path, or -1 when unreachable. This is an original distance variation of ordinary reachability. Self-loops and repeated edges are allowed. Inputs are not mutated.",
+      "example": "n=4, edges=[[0,1],[1,2],[0,2]], source=0,target=2 => 1. target=3 => -1.",
+      "baseline": "Enumerate all simple paths and keep the shortest: exponential time in the worst case, O(n) active path storage. A reachable walk with a cycle can always be shortened by deleting that cycle.",
+      "reasoning": [
+        "Build undirected adjacency lists.",
+        "Initialize distances to -1 and enqueue source at 0.",
+        "Assign each unseen neighbor distance current+1 on enqueue. FIFO ordering means first discovery is the minimum edge count."
+      ],
+      "invariant": "Queue distances are nondecreasing. Any hypothetical shorter route to a newly discovered vertex would have had a predecessor processed earlier, contradicting that it was unseen.",
+      "java": "static int shortestEdges(int n, int[][] edges, int source, int target) {\n    if (n < 1) throw new IllegalArgumentException(\"positive n required\");\n    Objects.requireNonNull(edges, \"edges\");\n    List<List<Integer>> out = new ArrayList<>();\n    for (int i = 0; i < n; i++) out.add(new ArrayList<>());\n    for (int[] edge : edges) { out.get(edge[0]).add(edge[1]); out.get(edge[1]).add(edge[0]); }\n    int[] distance = new int[n]; Arrays.fill(distance, -1); distance[source] = 0;\n    ArrayDeque<Integer> queue = new ArrayDeque<>(); queue.add(source);\n    while (!queue.isEmpty()) {\n        int current = queue.remove();\n        if (current == target) return distance[current];\n        for (int next : out.get(current)) if (distance[next] == -1) {\n            distance[next] = distance[current] + 1; queue.add(next);\n        }\n    }\n    return -1;\n}",
+      "kotlin": "fun shortestEdges(n: Int, edges: Array<IntArray>, source: Int, target: Int): Int {\n    require(n >= 1)\n    val out = Array(n) { mutableListOf<Int>() }\n    for (edge in edges) { out[edge[0]].add(edge[1]); out[edge[1]].add(edge[0]) }\n    val distance = IntArray(n) { -1 }\n    distance[source] = 0\n    val queue = ArrayDeque<Int>()\n    queue.add(source)\n    while (queue.isNotEmpty()) {\n        val current = queue.remove()\n        if (current == target) return distance[current]\n        for (next in out[current]) if (distance[next] == -1) {\n            distance[next] = distance[current] + 1\n            queue.add(next)\n        }\n    }\n    return -1\n}",
+      "complexity": "O(n+m) time and auxiliary space for n vertices and m edge entries; O(1) output. Distances fit Int because a shortest simple path has at most n-1 edges.",
+      "edgeCases": [
+        "n=1,edges=[],source=target=0 => 0",
+        "n=2,edges=[],source=0,target=1 => -1",
+        "n=2,edges=[[0,0],[0,1]],source=0,target=1 => 1"
+      ],
+      "twist": "For directed edges, add only the forward adjacency. To reconstruct one shortest path, record parent[next]=current at discovery and reverse the parent chain after reaching target.",
+      "source": "https://leetcode.com/problems/find-if-path-exists-in-graph/",
+      "testJava": "if(shortestEdges(3,new int[][]{{0,1},{1,2},{0,2}},0,2) != 1 || shortestEdges(2,new int[0][],0,1) != -1 || shortestEdges(1,new int[0][],0,0) != 0) throw new AssertionError();",
+      "testKotlin": "check(shortestEdges(3,arrayOf(intArrayOf(0,1),intArrayOf(1,2),intArrayOf(0,2)),0,2) == 1); check(shortestEdges(2,emptyArray(),0,1) == -1); check(shortestEdges(1,emptyArray(),0,0) == 0)"
+    },
+    {
+      "title": "Network delay with nonnegative weights",
+      "difficulty": "Medium",
+      "statement": "There are n nodes labeled 1..n, 1 <= n <= 100_000, and a nonnull list of directed [u,v,weight] edges with weight in [0,1_000_000_000] and at most 200_000 entries. Starting at valid source k, return the minimum time by which all nodes receive a signal, or -1 if any are unreachable. Return Long; no input mutation. Labels, weight range, and entry shape are preconditions.",
+      "example": "n=3, k=1, edges=[[1,2,8],[1,3,1],[3,2,1]] => 2. Node 2 is reached via node 3.",
+      "baseline": "Repeated full-edge Bellman-Ford relaxation for n-1 rounds: O(n*m) time, O(n) distance space.",
+      "reasoning": [
+        "Build directed adjacency lists and start dist[k]=0.",
+        "Use a min-priority queue of (candidateDistance,node). Discard stale candidates.",
+        "Relax every outgoing edge of the smallest current candidate. Nonnegative weights certify its settled distance.",
+        "If any distance remains infinite, return -1; otherwise the slowest node determines the total delay."
+      ],
+      "invariant": "Each settled nonstale minimum has its true shortest distance. Every finite tentative distance is the cost of an actual source path.",
+      "java": "static long networkDelayTime(int[][] times, int n, int k) {\n    Objects.requireNonNull(times, \"times\");\n    if (n < 1 || n > 100_000) throw new IllegalArgumentException(\"n out of range\");\n    List<List<int[]>> out = new ArrayList<>();\n    for (int i = 0; i <= n; i++) out.add(new ArrayList<>());\n    for (int[] edge : times) out.get(edge[0]).add(new int[]{edge[1], edge[2]});\n    long[] dist = new long[n + 1]; Arrays.fill(dist, Long.MAX_VALUE); dist[k] = 0;\n    PriorityQueue<long[]> heap = new PriorityQueue<>((a,b) -> Long.compare(a[0],b[0]));\n    heap.add(new long[]{0,k});\n    while (!heap.isEmpty()) {\n        long[] entry = heap.remove(); long cost = entry[0]; int current = (int)entry[1];\n        if (cost != dist[current]) continue;\n        for (int[] edge : out.get(current)) {\n            long nextCost = cost + edge[1];\n            if (nextCost < dist[edge[0]]) { dist[edge[0]] = nextCost; heap.add(new long[]{nextCost, edge[0]}); }\n        }\n    }\n    long answer = 0;\n    for (int i = 1; i <= n; i++) { if (dist[i] == Long.MAX_VALUE) return -1; answer = Math.max(answer, dist[i]); }\n    return answer;\n}",
+      "kotlin": "fun networkDelayTime(times: Array<IntArray>, n: Int, k: Int): Long {\n    require(n in 1..100_000)\n    val out = Array(n + 1) { mutableListOf<IntArray>() }\n    for (edge in times) out[edge[0]].add(intArrayOf(edge[1], edge[2]))\n    val dist = LongArray(n + 1) { Long.MAX_VALUE }\n    dist[k] = 0L\n    val heap = PriorityQueue<LongArray> { a, b -> a[0].compareTo(b[0]) }\n    heap.add(longArrayOf(0L, k.toLong()))\n    while (heap.isNotEmpty()) {\n        val entry = heap.remove()\n        val cost = entry[0]\n        val current = entry[1].toInt()\n        if (cost != dist[current]) continue\n        for (edge in out[current]) {\n            val nextCost = cost + edge[1].toLong()\n            if (nextCost < dist[edge[0]]) { dist[edge[0]] = nextCost; heap.add(longArrayOf(nextCost, edge[0].toLong())) }\n        }\n    }\n    var answer = 0L\n    for (i in 1..n) { if (dist[i] == Long.MAX_VALUE) return -1L; answer = maxOf(answer, dist[i]) }\n    return answer\n}",
+      "complexity": "O(n + m log(m+1)) time and O(n+m) auxiliary space for n nodes and m edges, including stale heap entries. With arbitrary parallel edges, log(m+1) is more precise than assuming a heap of at most n entries. O(1) output. Long arithmetic is safe under stated bounds.",
+      "edgeCases": [
+        "n=1,k=1,times=[] => 0",
+        "n=2,k=1,times=[] => -1",
+        "n=2,k=1,times=[[1,2,0]] => 0"
+      ],
+      "twist": "To find a route rather than all-node delay, retain predecessor pointers on successful relaxations. If only one target matters, return when its nonstale entry is popped, never when it is first inserted.",
+      "source": "https://leetcode.com/problems/network-delay-time/",
+      "testJava": "if(networkDelayTime(new int[][]{{1,2,8},{1,3,1},{3,2,1}},3,1) != 2L || networkDelayTime(new int[0][],2,1) != -1L || networkDelayTime(new int[][]{{1,2,0}},2,1) != 0L) throw new AssertionError();",
+      "testKotlin": "check(networkDelayTime(arrayOf(intArrayOf(1,2,8),intArrayOf(1,3,1),intArrayOf(3,2,1)),3,1) == 2L); check(networkDelayTime(emptyArray(),2,1) == -1L); check(networkDelayTime(arrayOf(intArrayOf(1,2,0)),2,1) == 0L)"
+    },
+    {
+      "title": "Cheapest flight with a stop budget",
+      "difficulty": "Medium",
+      "statement": "Given 1 <= n <= 1000 airports labeled 0..n-1, a nonnull list of directed [from,to,price] flights with prices in [0,1_000_000_000], valid src/dst, and K in [0,1000], return the minimum Long fare using at most K intermediate stops (K+1 flights), or -1 if impossible. src=dst permits the empty zero-cost route. No input mutation. Valid labels and flight shape are preconditions.",
+      "example": "n=3, flights=[[0,1,1],[1,2,1],[0,2,8]], src=0,dst=2: K=0 => 8, K=1 => 2.",
+      "baseline": "Enumerate all flight sequences up to K+1 edges: exponential in the budget and branching factor; O(K) recursion storage apart from the graph.",
+      "reasoning": [
+        "Let prev[v] be the minimum fare using at most e edges. Initially only src is reachable with e=0.",
+        "Copy prev to next, retaining paths that use fewer edges.",
+        "For every flight u->v, relax next[v] from prev[u]+price, reading only the previous array.",
+        "After K+1 passes, return the dst entry unless infinite."
+      ],
+      "invariant": "After pass e, distances are exact minima among paths with at most e edges. Every legal nonempty path in the next layer is a previous-layer path plus one final edge.",
+      "java": "static long cheapestFlight(int n, int[][] flights, int src, int dst, int stops) {\n    Objects.requireNonNull(flights, \"flights\");\n    if (n < 1 || n > 1000 || stops < 0 || stops > 1000) throw new IllegalArgumentException(\"bounds violated\");\n    long[] previous = new long[n]; Arrays.fill(previous, Long.MAX_VALUE); previous[src] = 0;\n    for (int used = 1; used <= stops + 1; used++) {\n        long[] next = previous.clone();\n        for (int[] flight : flights) {\n            if (previous[flight[0]] == Long.MAX_VALUE) continue;\n            next[flight[1]] = Math.min(next[flight[1]], previous[flight[0]] + flight[2]);\n        }\n        previous = next;\n    }\n    return previous[dst] == Long.MAX_VALUE ? -1 : previous[dst];\n}",
+      "kotlin": "fun cheapestFlight(n: Int, flights: Array<IntArray>, src: Int, dst: Int, stops: Int): Long {\n    require(n in 1..1000 && stops in 0..1000)\n    var previous = LongArray(n) { Long.MAX_VALUE }\n    previous[src] = 0L\n    for (used in 1..stops + 1) {\n        val next = previous.copyOf()\n        for (flight in flights) {\n            if (previous[flight[0]] == Long.MAX_VALUE) continue\n            next[flight[1]] = minOf(next[flight[1]], previous[flight[0]] + flight[2].toLong())\n        }\n        previous = next\n    }\n    return if (previous[dst] == Long.MAX_VALUE) -1L else previous[dst]\n}",
+      "complexity": "O((K+1)*(n+m)) time because every pass copies n distances and scans m flights; O(n) working space, excluding input, and O(1) output. Bound K <= 1000 and prices <= 1e9 keep totals safely within Long.",
+      "edgeCases": [
+        "src=dst, flights=[] => 0",
+        "n=2,src=0,dst=1,flights=[] => -1",
+        "two-edge-only route with K=0 => -1"
+      ],
+      "twist": "If the requirement is exactly K stops, do not carry previous distances into the next layer: initialize next to infinity each pass, and take exactly K+1 transitions. If reconstructing routes, retain layer-specific predecessors, because one parent per airport loses the budget dimension.",
+      "source": "https://leetcode.com/problems/cheapest-flights-within-k-stops/",
+      "testJava": "int[][] f={{0,1,1},{1,2,1},{0,2,8}}; if(cheapestFlight(3,f,0,2,0) != 8L || cheapestFlight(3,f,0,2,1) != 2L || cheapestFlight(3,new int[][]{{0,1,1},{1,2,1}},0,2,0) != -1L || cheapestFlight(1,new int[0][],0,0,0) != 0L) throw new AssertionError();",
+      "testKotlin": "val f=arrayOf(intArrayOf(0,1,1),intArrayOf(1,2,1),intArrayOf(0,2,8)); check(cheapestFlight(3,f,0,2,0) == 8L); check(cheapestFlight(3,f,0,2,1) == 2L); check(cheapestFlight(3,arrayOf(intArrayOf(0,1,1),intArrayOf(1,2,1)),0,2,0) == -1L); check(cheapestFlight(1,emptyArray(),0,0,0) == 0L)"
+    },
+    {
+      "title": "Minimum obstacles to remove",
+      "difficulty": "Hard",
+      "statement": "Given a nonnull rectangular binary grid with R,C >= 1 and R*C <= 1_000_000, move four directions from top-left to bottom-right. Entering a 1 cell removes that obstacle and costs 1; entering 0 costs 0. Endpoints are 0. Return the minimum obstacles removed, not minimum moves. No input mutation. Shape, size, values, and endpoint conditions are preconditions.",
+      "example": "[[0,1,1],[1,1,0],[1,1,0]] => 2. A longer route can still be preferable if it crosses fewer obstacles.",
+      "baseline": "Use ordinary Dijkstra on this grid: O(R*C log(R*C)) time and O(R*C) space. It is correct but ignores the special 0/1 edge weights.",
+      "reasoning": [
+        "View the destination cell value as the directed edge entry cost.",
+        "Maintain best obstacle counts. A zero-cost improvement has the same distance as the current state and goes to the deque front.",
+        "A one-cost improvement goes to the back, after the same-distance work.",
+        "Pop in nondecreasing candidate distance, discard stale entries, and return when the destination is popped nonstale."
+      ],
+      "invariant": "Deque candidates remain ordered by cost. Relaxation creates only cost d or d+1 from a current minimum d; front/back placement preserves the ordering needed for settlement.",
+      "java": "static int minimumObstacles(int[][] grid) {\n    Objects.requireNonNull(grid, \"grid\");\n    int rows = grid.length, cols = grid[0].length;\n    int[][] dist = new int[rows][cols];\n    for (int[] row : dist) Arrays.fill(row, Integer.MAX_VALUE);\n    dist[0][0] = 0;\n    ArrayDeque<int[]> deque = new ArrayDeque<>(); deque.addFirst(new int[]{0,0,0});\n    int[] dr = {-1,1,0,0}, dc = {0,0,-1,1};\n    while (!deque.isEmpty()) {\n        int[] entry = deque.removeFirst(); int r = entry[0], c = entry[1], cost = entry[2];\n        if (cost != dist[r][c]) continue;\n        if (r == rows - 1 && c == cols - 1) return cost;\n        for (int d = 0; d < 4; d++) {\n            int nr = r + dr[d], nc = c + dc[d];\n            if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) continue;\n            int nextCost = cost + grid[nr][nc];\n            if (nextCost < dist[nr][nc]) {\n                dist[nr][nc] = nextCost;\n                int[] next = {nr,nc,nextCost};\n                if (grid[nr][nc] == 0) deque.addFirst(next); else deque.addLast(next);\n            }\n        }\n    }\n    return -1;\n}",
+      "kotlin": "fun minimumObstacles(grid: Array<IntArray>): Int {\n    val rows = grid.size\n    val cols = grid[0].size\n    val dist = Array(rows) { IntArray(cols) { Int.MAX_VALUE } }\n    dist[0][0] = 0\n    val deque = ArrayDeque<IntArray>()\n    deque.addFirst(intArrayOf(0,0,0))\n    val dr = intArrayOf(-1,1,0,0)\n    val dc = intArrayOf(0,0,-1,1)\n    while (deque.isNotEmpty()) {\n        val entry = deque.removeFirst()\n        val r = entry[0]\n        val c = entry[1]\n        val cost = entry[2]\n        if (cost != dist[r][c]) continue\n        if (r == rows - 1 && c == cols - 1) return cost\n        for (d in 0 until 4) {\n            val nr = r + dr[d]\n            val nc = c + dc[d]\n            if (nr !in 0 until rows || nc !in 0 until cols) continue\n            val nextCost = cost + grid[nr][nc]\n            if (nextCost < dist[nr][nc]) {\n                dist[nr][nc] = nextCost\n                val next = intArrayOf(nr,nc,nextCost)\n                if (grid[nr][nc] == 0) deque.addFirst(next) else deque.addLast(next)\n            }\n        }\n    }\n    return -1\n}",
+      "complexity": "O(R*C) time and auxiliary space because the implicit grid graph has O(R*C) vertices and edges and zero-one BFS performs linear relaxation work; O(1) output. A shortest simple route crosses at most R*C cells, so cost fits Int under the contract.",
+      "edgeCases": [
+        "[[0]] => 0",
+        "[[0,0,0]] => 0",
+        "[[0,1,0]] => 1"
+      ],
+      "twist": "If values can be 0, 1, or 2, front/back placement no longer preserves the required order; use a min-heap Dijkstra implementation, or a carefully derived bounded-integer bucket algorithm. If you minimize moves subject to an obstacle-removal budget instead, BFS over (r,c,budgetRemaining).",
+      "source": "https://leetcode.com/problems/minimum-obstacle-removal-to-reach-corner/",
+      "testJava": "if(minimumObstacles(new int[][]{{0,1,1},{1,1,0},{1,1,0}}) != 2 || minimumObstacles(new int[][]{{0}}) != 0 || minimumObstacles(new int[][]{{0,1,0}}) != 1) throw new AssertionError();",
+      "testKotlin": "check(minimumObstacles(arrayOf(intArrayOf(0,1,1),intArrayOf(1,1,0),intArrayOf(1,1,0))) == 2); check(minimumObstacles(arrayOf(intArrayOf(0))) == 0); check(minimumObstacles(arrayOf(intArrayOf(0,1,0))) == 1)"
+    }
+  ],
+  "practice": [
+    {
+      "title": "Shortest Path in Binary Matrix",
+      "difficulty": "Medium",
+      "url": "https://leetcode.com/problems/shortest-path-in-binary-matrix/",
+      "hint": "All allowed eight-direction moves have equal cost.",
+      "approach": "BFS through zero cells, marking on enqueue. Return number of cells in route, so source distance is 1; reject blocked endpoints. O(n\u00b2) time/space."
+    },
+    {
+      "title": "Path With Minimum Effort",
+      "difficulty": "Medium",
+      "url": "https://leetcode.com/problems/path-with-minimum-effort/",
+      "hint": "Path aggregation is a maximum, rather than a sum.",
+      "approach": "Dijkstra with candidate=max(currentEffort,abs(height[u]-height[v])). This aggregation is monotone under extension, enabling settlement. O(R*C log(R*C)) time/space; widen arithmetic before subtraction."
+    },
+    {
+      "title": "Swim in Rising Water",
+      "difficulty": "Hard",
+      "url": "https://leetcode.com/problems/swim-in-rising-water/",
+      "hint": "The cost of a route is its largest required elevation.",
+      "approach": "Use minimax Dijkstra with max(currentLevel,nextElevation), or binary-search a level with reachability. Heap version O(n\u00b2 log n) time and O(n\u00b2) space. Distinguish it from additive travel cost."
+    },
+    {
+      "title": "Minimum Cost to Make at Least One Valid Path in a Grid",
+      "difficulty": "Hard",
+      "url": "https://leetcode.com/problems/minimum-cost-to-make-at-least-one-valid-path-in-a-grid/",
+      "hint": "Following an arrow costs zero; choosing a different direction costs one.",
+      "approach": "Use zero-one BFS with edge cost determined by the current cell's arrow. O(R*C) time/space. Source-based edge cost differs from destination obstacle cost."
+    },
+    {
+      "title": "Find the City With the Smallest Number of Neighbors at a Threshold Distance",
+      "difficulty": "Medium",
+      "url": "https://leetcode.com/problems/find-the-city-with-the-smallest-number-of-neighbors-at-a-threshold-distance/",
+      "hint": "Many all-pairs distance queries can justify an all-pairs algorithm.",
+      "approach": "Use Floyd-Warshall in O(n\u00b3) time/O(n\u00b2) space for small n, or run Dijkstra from each source on nonnegative sparse graphs. Apply the specified tie rule and decide whether self counts."
+    },
+    {
+      "title": "Bellman-Ford negative-cycle extension",
+      "difficulty": "Advanced",
+      "url": "https://leetcode.com/problems/network-delay-time/",
+      "hint": "This is an original extension, not the linked problem's nonnegative contract.",
+      "approach": "Relax edges n-1 times from a source, guarding infinity. A further improvement identifies influence of a source-reachable negative cycle; propagate that influence to mark unbounded targets. O(n*m) time, O(n+m) space with influence traversal. A cycle irrelevant to the target does not make that target's minimum unbounded."
+    },
+    {
+      "title": "Shortest Path Visiting All Nodes",
+      "difficulty": "Hard",
+      "url": "https://leetcode.com/problems/shortest-path-visiting-all-nodes/",
+      "hint": "The route must remember which obligations it has met.",
+      "approach": "BFS over (currentNode,visitedMask), initialized from every possible start. O((n+m)*2^n) time and O(n*2^n) space for small n. Different masks at the same node are different states."
+    }
+  ],
+  "quiz": [
+    {
+      "question": "With K=0 allowed intermediate stops, how many flight edges may a route contain?",
+      "choices": [
+        "Zero.",
+        "At most one.",
+        "At most two."
+      ],
+      "answer": 1,
+      "explanation": "A direct flight has no intermediate airport and one edge."
+    },
+    {
+      "question": "Why skip a heap entry (cost,node) when cost differs from dist[node]?",
+      "choices": [
+        "A better discovered route made the older candidate stale.",
+        "The graph necessarily has a negative cycle.",
+        "The node must be unreachable."
+      ],
+      "answer": 0,
+      "explanation": "The implementation pushes improvements and leaves old entries in the heap. The distance comparison prevents duplicate expansion."
+    }
+  ],
+  "transfer": {
+    "prompt": "A robot moves in a warehouse. Entering a free aisle costs 0 energy and entering a charging-door cell costs 1 energy. Find the smallest energy from the entrance to exit; there is no limit on moves. Then explain what changes if the robot can open at most two doors but must minimize walking steps.",
+    "hints": [
+      "Energy and move count are different objectives.",
+      "For the second version, how does remaining door budget affect legal future moves?"
+    ],
+    "solution": "For minimum energy with 0/1 entry costs, use zero-one BFS, front-pushing zero-cost improvements and back-pushing one-cost improvements: O(R*C) time/space. For minimum steps under two doors, use ordinary BFS over (r,c,doorsUsed) with at most 3*R*C states. The complete state distinguishes arrivals with different remaining capabilities. A single distance per cell would discard useful routes."
+  },
+  "review": [
+    "Give a weighted counterexample to visited-on-enqueue.",
+    "Derive why nonnegative weights justify Dijkstra settlement.",
+    "Simulate a zero-cost edge placed at the front of a deque.",
+    "Explain why cloning the distance array enforces a flight count.",
+    "Distinguish unreachable targets from an unbounded negative-cycle objective."
+  ],
+  "sources": [
+    {
+      "label": "Princeton shortest paths",
+      "url": "https://algs4.cs.princeton.edu/44sp/",
+      "note": "Primary algorithms reference link; external page not retrieved in this pass. No company question-frequency claims.",
+      "status": "unverified"
+    }
+  ]
+}

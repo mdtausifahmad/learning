@@ -1,0 +1,213 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="Learn coding interview reasoning from first principles, with Java and Kotlin solutions."><title>Foundations · Coding interview</title><link rel="stylesheet" href="assets/course.css"><script src="assets/course.js" defer></script><link rel="stylesheet" href="../assets/navigation.css">
+</head><body id="page-top">
+<!-- page-navigation:start -->
+<nav class="page-navigation" aria-label="Top page navigation"><div class="page-navigation-parents"><a href="../index.html">Library home</a> <span aria-hidden="true">›</span> <a href="../index.html#technical-foundations">Technical foundations and implementation</a> <span aria-hidden="true">›</span> <a href="index.html">Coding Interviews: Patterns &amp; Problem Solving</a> <span aria-hidden="true">›</span> <a href="materials.html">Guides and resources</a></div><div class="page-navigation-sections"><a href="lessons/index.html">Lessons</a><a href="reference/index.html">Reference sheets</a><a href="materials.html">Guides and resources</a><a href="#page-top">Back to top ↑</a></div><div class="page-navigation-pager"><a href="VALIDATION.md" rel="prev">← Previous: Validation record</a><a href="practice.html" rel="next">Next: Practice room: make the pattern survive a twist →</a></div></nav>
+<!-- page-navigation:end -->
+<a class="skip" href="#main">Skip to content</a><nav class="top"><a href="../index.html">Software Engineering Library</a><a href="index.html">Coding interview</a><a href="foundations.html">Start from zero</a><a href="practice.html">Practice room</a><a href="research.html">Sources</a></nav><main id="main" class="document"><h1>Start from zero: how to think in a coding interview</h1>
+<p>The objective is to construct a correct algorithm from the problem&#39;s constraints, explain why it works, and implement it cleanly. A pattern is a reusable argument about structure. Its name is useful only after you understand that argument.</p>
+<p>Choose Java or Kotlin as your primary interview language. Read the other version to learn the same idea in a second syntax, but rehearse writing one language fluently without autocomplete. Confirm your interview&#39;s supported language and environment with the recruiter.</p>
+<h2>1. Turn the story into a contract</h2>
+<p>Write down five things before coding: input, output, valid input assumptions, examples, and bounds. “Find two matching orders” leaves many unanswered questions: two different indices? one answer or all answers? may values repeat? is the input sorted? can it be changed? can a sum exceed a 32-bit integer?</p>
+<p>For <code>[3,3]</code> and target <code>6</code>, a valid pair needs both positions. A set of values alone loses the distinction between one <code>3</code> and two <code>3</code>s. For <code>[1,2,3]</code> and target <code>100</code>, decide what “no answer” returns. These decisions change code and tests.</p>
+<h2>2. Write the obvious correct solution</h2>
+<p>For a pair summing to a target, try every pair of different indices. With n values, the number of pairs is <code>n(n−1)/2</code>. The nested loops take O(n²) time and O(1) extra space if you return the first pair.</p>
+<p>The baseline is a reference for correctness and a way to locate repeated work. Here the repeated work is searching the earlier values for <code>target − current</code>. A hash map can remember those earlier values, replacing repeated scans with expected constant-time lookups.</p>
+<p>Do not optimize before you know what must be computed. On very small constraints, a simple exhaustive search can be the right answer.</p>
+<h2>3. Understand time and space, from operations</h2>
+<p>Big-O describes how an upper bound grows as input grows; it is not a stopwatch prediction. Say what n means. For a graph, use V vertices and E edges. For a string dictionary, use the total number of characters rather than just the number of words.</p>
+<table>
+<thead>
+<tr>
+<th>Growth</th>
+<th>What creates it</th>
+<th>A useful intuition</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>O(1)</td>
+<td>Fixed amount of work</td>
+<td>A bounded number of operations</td>
+</tr>
+<tr>
+<td>O(log n)</td>
+<td>Discard a constant fraction repeatedly</td>
+<td>Halving a search interval</td>
+</tr>
+<tr>
+<td>O(n)</td>
+<td>Each item processed a bounded number of times</td>
+<td>One pass, or two pointers moving only forward</td>
+</tr>
+<tr>
+<td>O(n log n)</td>
+<td>Comparison sorting, balanced tree operations</td>
+<td>n operations with logarithmic cost</td>
+</tr>
+<tr>
+<td>O(n²)</td>
+<td>All pairs</td>
+<td>Input doubling can quadruple work</td>
+</tr>
+<tr>
+<td>O(2ⁿ)</td>
+<td>Include/exclude choices</td>
+<td>Every subset may matter</td>
+</tr>
+<tr>
+<td>O(n!)</td>
+<td>All permutations</td>
+<td>Order every item in every way</td>
+</tr>
+</tbody></table>
+<p>Nested syntax does not prove quadratic time. A sliding window can have an inner <code>while</code> loop yet stay O(n): the right pointer moves n times and the left pointer moves at most n times <strong>over the whole run</strong>. This is an amortized counting argument.</p>
+<p>Separate auxiliary memory from output memory. Returning all subsets already requires Θ(n·2ⁿ) element storage if every subset is copied. Recursive DFS consumes a call stack proportional to the maximum depth; it is not constant space. Hash-map performance is normally expected or amortized, not a universal worst-case O(1) guarantee.</p>
+<p>Constraints rule out approaches; they do not automatically select one. Values near 10⁹ can overflow a sum of only three ints. Java <code>long</code> and Kotlin <code>Long</code> help, but conversion must happen before arithmetic: <code>(long)a + b</code> or <code>a.toLong() + b</code>.</p>
+<h2>4. Define the state</h2>
+<p>State is the information you keep between steps. Too little loses necessary information. Too much repeats work or makes the algorithm hard to reason about.</p>
+<p>For a pair sum, remember <code>value → earlier index</code>. For a window, remember its boundaries and counts. For shortest unweighted paths, remember the BFS frontier and visited vertices. For dynamic programming, remember the answer to each smaller subproblem.</p>
+<p>Ask: if two partial solutions have the same state, can every possible future continuation treat them identically? If not, your state is incomplete. In a flight problem with a stop limit, “current city” alone may be insufficient because remaining stops affect what is possible next.</p>
+<h2>5. State an invariant and prove three things</h2>
+<p>An invariant is a fact that stays true at a particular point in each iteration. Specify the point. “The map contains earlier indices immediately before processing index i” is precise; “the map stores numbers” does not prove anything.</p>
+<ol>
+<li><strong>Initialization:</strong> why is it true before the first iteration? An empty map correctly represents the empty prefix.</li>
+<li><strong>Maintenance:</strong> why does one step preserve it? Check for the complement among earlier indices, then insert the current value.</li>
+<li><strong>Termination:</strong> why does it establish the answer? Every pair is considered when its later index is reached, and a reported index is always distinct.</li>
+</ol>
+<p>The order “look up, then insert” follows from the proof. Inserting first could reuse the same position for target <code>2*x</code>. This is why a template memorized without its invariant is fragile.</p>
+<h2>6. Use a small drawing before implementation</h2>
+<p>For <code>[2,7,11]</code>, target <code>9</code>:</p>
+<pre><code class="language-text">before index 0: earlier = {}          need 7 → not found
+after  index 0: earlier = {2:0}
+before index 1: earlier = {2:0}       need 2 → found index 0
+return [0,1]; both indices differ, and 2+7=9
+</code></pre>
+<p>The lessons include offline node diagrams and state-by-state execution viewers. A diagram shows relationships; a trace shows the actual changing values. Use both when a pointer update feels mysterious.</p>
+<h2>7. Recognize a pattern by its conditions</h2>
+<table>
+<thead>
+<tr>
+<th>Structural fact</th>
+<th>Candidate technique</th>
+<th>Question that can disqualify it</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Need an earlier matching value</td>
+<td>Hashing</td>
+<td>Does ordering or multiplicity matter?</td>
+</tr>
+<tr>
+<td>Sorted pair search</td>
+<td>Two pointers</td>
+<td>Is the sort allowed, and must original indices survive?</td>
+</tr>
+<tr>
+<td>Contiguous segment with repairable validity</td>
+<td>Sliding window</td>
+<td>Can adding/removing values reverse the monotonicity?</td>
+</tr>
+<tr>
+<td>Many range totals or signed subarray sums</td>
+<td>Prefix sums</td>
+<td>Static data or updates? Count, earliest, or existence?</td>
+</tr>
+<tr>
+<td>Monotone yes/no predicate</td>
+<td>Binary search</td>
+<td>Can you prove all false values precede all true values?</td>
+</tr>
+<tr>
+<td>Nearest unresolved larger/smaller value</td>
+<td>Monotonic stack</td>
+<td>What should happen to equal values?</td>
+</tr>
+<tr>
+<td>Cheapest next edge/path</td>
+<td>Heap / Dijkstra</td>
+<td>Are any edge weights negative?</td>
+</tr>
+<tr>
+<td>Explore every valid construction</td>
+<td>Backtracking</td>
+<td>Can you prune, and are equivalent paths repeated?</td>
+</tr>
+<tr>
+<td>Repeated subproblems with shared future</td>
+<td>Dynamic programming</td>
+<td>What minimal state determines all continuations?</td>
+</tr>
+</tbody></table>
+<p>Words such as “minimum” or “longest” are not sufficient clues. Longest unique substring uses a window; longest increasing <strong>subsequence</strong> is not contiguous and needs DP or a binary-search invariant. A shortest path with equal edge costs uses BFS; arbitrary nonnegative weights need more.</p>
+<h2>8. Learn the JVM tools you will actually use</h2>
+<table>
+<thead>
+<tr>
+<th>Need</th>
+<th>Java</th>
+<th>Kotlin/JVM</th>
+<th>Cost or caveat</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Primitive numbers</td>
+<td><code>int[]</code>, <code>long[]</code></td>
+<td><code>IntArray</code>, <code>LongArray</code></td>
+<td>Avoid boxing for large numeric tables</td>
+</tr>
+<tr>
+<td>Key lookup</td>
+<td><code>HashMap&lt;K,V&gt;</code></td>
+<td><code>HashMap&lt;K,V&gt;</code></td>
+<td>Expected lookup O(1); define missing-value meaning</td>
+</tr>
+<tr>
+<td>Queue/stack</td>
+<td><code>ArrayDeque&lt;T&gt;</code></td>
+<td><code>java.util.ArrayDeque&lt;T&gt;</code></td>
+<td>End operations amortized O(1); no null elements</td>
+</tr>
+<tr>
+<td>Smallest item</td>
+<td><code>PriorityQueue&lt;T&gt;</code></td>
+<td><code>PriorityQueue&lt;T&gt;</code></td>
+<td>Offer/poll O(log n), peek O(1)</td>
+</tr>
+<tr>
+<td>Sorted keys</td>
+<td><code>TreeMap&lt;K,V&gt;</code></td>
+<td><code>java.util.TreeMap&lt;K,V&gt;</code></td>
+<td>O(log n) get/put; ceiling/floor queries</td>
+</tr>
+<tr>
+<td>Sort values</td>
+<td><code>Arrays.sort(a)</code></td>
+<td><code>a.sort()</code></td>
+<td>Mutates; <code>sortedArray()</code> copies</td>
+</tr>
+<tr>
+<td>Build string</td>
+<td><code>StringBuilder</code></td>
+<td><code>StringBuilder</code></td>
+<td>Repeated immutable concatenation can be quadratic</td>
+</tr>
+<tr>
+<td>Output list</td>
+<td><code>ArrayList&lt;T&gt;</code></td>
+<td><code>mutableListOf&lt;T&gt;()</code></td>
+<td>Copy when saving a mutable backtracking path</td>
+</tr>
+</tbody></table>
+<p>In Java comparators use <code>Integer.compare(a,b)</code> rather than <code>a-b</code>, which can overflow. In Kotlin, distinguish structural equality <code>==</code> from referential equality <code>===</code>. Arrays need <code>contentEquals</code>, and mutable arrays are unsuitable as content-based hash keys without a wrapper. Kotlin&#39;s <code>0 until n</code> is empty when n=0; review inclusive ranges carefully. JVM strings contain UTF-16 code units: an ASCII count table is correct only if the contract guarantees ASCII; code points and user-perceived characters require different treatment. Deep recursion can exhaust the JVM stack; discuss iterative traversal when depth can be large.</p>
+<p>The solution snippets are standard-library functions, not online judge boilerplate. Each download includes imports and any helper types needed for that problem. No dependencies or browser network access are required to read them.</p>
+<h2>9. Test the boundaries deliberately</h2>
+<p>Test the smallest valid input, no solution, many solutions, duplicates, all equal, negative numbers if allowed, maximum magnitude, already ordered/reversed, and a case where the tempting alternative fails. For trees, test a chain as well as a balanced tree. For graphs, test disconnected vertices and cycles. For DP, test the zero state and unreachable states.</p>
+<p>For small random inputs, compare your optimized algorithm with the baseline. This catches mistakes in boundaries and assumptions that happy-path examples miss. Keep a failure notebook with: the wrong assumption, the smallest counterexample, the repaired invariant, and a future retrieval question.</p>
+<h2>10. Practice communication under time pressure</h2>
+<p>Use a 45-minute rehearsal as a starting format: 5 minutes to clarify and model, 8 to derive the baseline and improved approach, 22 to implement, 7 to test, and 3 to discuss a variation. Actual interview formats differ; ask your recruiter.</p>
+<p>Say what you know and what you are testing: “If values can be negative, shrinking this sum window may remove a useful negative value. I’ll use prefix sums instead.” That sentence demonstrates transfer better than naming five patterns.</p>
+<p>Start with <a href="lessons/01-hashing.html">hashing and complements</a>. Return here when a later invariant or complexity argument feels unfamiliar.</p>
+</main><footer>Practice deriving the invariant. Explain why every discarded candidate is safe to discard. <a href="research.html">Evidence and scope</a></footer><!-- page-navigation:start -->
+<nav class="page-navigation" aria-label="Bottom page navigation"><div class="page-navigation-parents"><a href="../index.html">Library home</a> <span aria-hidden="true">›</span> <a href="../index.html#technical-foundations">Technical foundations and implementation</a> <span aria-hidden="true">›</span> <a href="index.html">Coding Interviews: Patterns &amp; Problem Solving</a> <span aria-hidden="true">›</span> <a href="materials.html">Guides and resources</a></div><div class="page-navigation-sections"><a href="lessons/index.html">Lessons</a><a href="reference/index.html">Reference sheets</a><a href="materials.html">Guides and resources</a><a href="#page-top">Back to top ↑</a></div><div class="page-navigation-pager"><a href="VALIDATION.md" rel="prev">← Previous: Validation record</a><a href="practice.html" rel="next">Next: Practice room: make the pattern survive a twist →</a></div></nav>
+<!-- page-navigation:end -->
+<script src="../assets/course/links.js" defer></script>
+</body></html>

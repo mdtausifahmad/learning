@@ -1,93 +1,65 @@
-# From Senior → Staff → Principal Engineer
+# Software Engineering Library
 
-> Your personal, evidence-based playbook for the next stage of your engineering career.
-> Built from the canonical Staff+ literature: Will Larson's *StaffEng* / *An Elegant Puzzle*, Tanya Reilly's *The Staff Engineer's Path*, Gergely Orosz's *The Pragmatic Engineer*, public engineering ladders (Dropbox, jorgef, Artsy, CircleCI, Medium), and 10 first-person promotion stories.
+A central entry point for learning software engineering across ten areas: technical foundations, architecture, quality and operations, security, communication, product and domain knowledge, execution, leadership, learning, and career development. This is a growing library, with more topics and learning paths added over time.
 
----
+**[Open the learning library](index.html).** Follow a course from the beginning, explore a subject in depth, or return to a reference when you need it at work.
 
-## The one idea that changes everything
+## Choose a learning path
 
-**A Staff engineer is not "a better Senior engineer." It is a qualitatively different job.**[^1]
+- **Prepare for coding interviews:** start with [problem-solving foundations](coding-interview/foundations.html), then practice patterns in Java and Kotlin.
+- **Design systems:** begin with [System Design & Architecture at Scale](system-design/index.html), then deepen your understanding of messaging and event sourcing.
+- **Understand production:** work through [Reliability & Observability](Observability/index.html).
+- **Develop your engineering practice:** explore [Technical Skills](technical-skills/index.html) and [Leadership Skills](leadership-skills/index.html).
+- **Plan career growth:** follow the [Senior → Staff → Principal career path](career-path/index.html).
 
-Senior is the industry's *terminal / career level* — you can stay there for a full career and that's completely fine.[^2] Crossing into Staff/Principal means the work that *used to be* your core job (writing code, shipping features) becomes *auxiliary*, and is replaced by:
+<!-- library-areas:start -->
+## Browse by area
 
-- **Setting technical direction** ("part-time product manager for technology")[^3]
-- **Multiplying others** through sponsorship & mentorship (not personal heroics)[^3]
-- **Injecting engineering perspective** into org-level decisions ("being in the room")[^3]
-- **Exploration** of ambiguous, high-risk, important problems[^3]
-- **"Glue work"** — the invisible work that keeps teams aligned[^4]
+The ten areas below are the library’s permanent broad classification. Courses have one primary home; focused lessons are cross-linked where they help. Areas without a dedicated course still show relevant existing material.
 
-> "Increased mastery is a **necessary condition but isn't sufficient** to expand impact."[^5]
+| Area | What belongs here | Available learning |
+|---|---|---|
+| 1. Technical foundations and implementation | Understanding computers and building software effectively | [Coding Interviews: Patterns & Problem Solving](coding-interview/index.html); [Technical Skills](technical-skills/index.html) |
+| 2. Software design and architecture | Structuring systems and making technical trade-offs | [System Design & Architecture at Scale](system-design/index.html); [Async Messaging](async-messaging/index.html); [Event Sourcing](event-sourcing/index.html)<br>Related lessons: [Software architecture](technical-skills/lessons/0003-software-architecture.html) |
+| 3. Quality, delivery, and operations | Making software correct, maintainable, deployable, and reliable | [Reliability & Observability](Observability/index.html)<br>Related lessons: [Cloud infrastructure](technical-skills/lessons/0007-cloud-infrastructure.html); [Testing event-sourced systems](event-sourcing/lessons/0014-testing-event-sourced-systems.html) |
+| 4. Security, privacy, and responsible engineering | Protecting users and systems, and understanding engineering responsibilities | No dedicated course yet. Related: [Security and privacy](technical-skills/lessons/0006-security-and-privacy.html); [Privacy in event histories](event-sourcing/lessons/0013-gdpr-crypto-shredding-and-temporal-queries.html) |
+| 5. Communication and collaboration | Working effectively with other people | No dedicated course yet. Related: [Technical writing: design docs, RFCs and ADRs](technical-skills/lessons/0005-technical-writing-docs-rfcs-adrs.html); [Communication and executive writing](leadership-skills/lessons/0002-communication-and-executive-writing.html); [Stakeholder management and trust](leadership-skills/lessons/0005-stakeholder-management-and-trust.html) |
+| 6. Product, business, and domain knowledge | Understanding which problems matter and why | No dedicated course yet. Related: [Prioritization and impact](leadership-skills/lessons/0008-prioritization.html); [Cloud costs and pragmatic choices](technical-skills/lessons/0007-cloud-infrastructure.html) |
+| 7. Planning and execution | Turning ambiguous goals into completed work | No dedicated course yet. Related: [Technical and project leadership](leadership-skills/lessons/0003-technical-and-project-leadership.html); [Prioritization](leadership-skills/lessons/0008-prioritization.html); [Back-of-the-envelope estimation](system-design/lessons/0007-back-of-envelope-estimation.html) |
+| 8. Leadership and technical strategy | Helping teams and organizations make better decisions | [Leadership Skills](leadership-skills/index.html)<br>Related lessons: [Engineering strategy and technical vision](technical-skills/lessons/0004-engineering-strategy-and-vision.html) |
+| 9. Learning, thinking, and personal effectiveness | Improving how you learn, reason, and work | No dedicated course yet. Related: [Reasoning from first principles](coding-interview/foundations.html); [Deliberate practice and reflection](coding-interview/practice.html) |
+| 10. Career and professional development | Intentionally developing your professional direction | [Career path: Senior → Staff → Principal](career-path/index.html)<br>Related lessons: [Coding interview preparation](coding-interview/index.html); [Competency assessment and tracking](06-self-assessment-and-tracking.md); [T-shaped breadth and depth](technical-skills/lessons/0008-tshaped-breadth-and-depth.html) |
 
-And the promotion itself is a **lagging indicator**: you get the title by *already operating at the next level for 6–12+ months*, making that impact *visible*, and having a *sponsor* who advocates for you.[^6]
+Example topics for all ten areas are listed on the [library home page](index.html#topics). Those scope lists include future additions; links identify available material.
+<!-- library-areas:end -->
 
----
+The career playbook is one path through the library. Individual courses can be studied independently; their course maps state the intended audience and prerequisites.
 
-## How to use this folder
+## How to learn here
 
-Read the files in order the first time, then return to them as reference and re-run the operating cadence (file 06) every week.
+1. Pick a subject or a goal from the library home page.
+2. Use the course map to choose a lesson and check its prerequisites.
+3. Work through examples, diagrams, quizzes and exercises where available.
+4. Practice without the explanation, then return to the full guide or reference sheet.
+5. Record what you learned and revisit the parts you cannot yet explain independently.
 
-| # | File | What it gives you |
-|---|------|-------------------|
-| 📖 | **[01-what-is-required.md](01-what-is-required.md)** | What Staff/Principal actually *is*: definitions, the 4 archetypes, competency matrices, and the exact Senior→Staff→Principal gap. |
-| 🧠 | **[02-skills-to-upgrade.md](02-skills-to-upgrade.md)** | Every topic to level up — technical **and** leadership — with "why it matters" and "what good looks like." |
-| 🗺️ | **[03-career-progression-plan.md](03-career-progression-plan.md)** | The step-by-step, phased 12–18 month action plan combining study + leadership + a promotion campaign. |
-| 📚 | **[04-subjects-and-resources.md](04-subjects-and-resources.md)** | The detailed, sequenced study curriculum — read this and you'll gain the knowledge. Courses, books, lectures, time estimates, URLs. |
-| 🎯 | **[05-promotion-playbook.md](05-promotion-playbook.md)** | How to actually get the title: promo packet, staff projects, the 4 levers, and the committee process. |
-| 📊 | **[06-self-assessment-and-tracking.md](06-self-assessment-and-tracking.md)** | Self-score yourself, run a brag doc, track milestones, and the manager 1:1 script. |
-| 💬 | **[07-real-world-stories.md](07-real-world-stories.md)** | 10 first-person stories of people who did it — patterns and honest lessons. |
+Most courses contain an `index.html` map, interactive pages in `lessons/`, retrieval sheets in `reference/`, and a `GUIDE.md` reading edition. Some add runnable labs or capstones. The coding course also includes a generated offline `GUIDE.html` and downloadable solutions.
 
----
+Open `index.html` directly from disk or use the published GitHub Pages site. The coding course uses local assets throughout. Some other courses load Mermaid diagrams from a CDN or have labs with their own runtime requirements; check each course's instructions.
 
-## Courses
+## Career development
 
-Every course folder has the same shape: an `index.html` course map, one interactive lesson per chapter in `lessons/`, a cheat sheet per lesson in `reference/`, and a single **`GUIDE.md`** with the whole course in one Markdown file. Shared styles and scripts live in `assets/course/`; each course keeps only its colour theme in `<course>/assets/theme.css`.
+The original Senior → Staff → Principal material now has a dedicated [career-path landing page](career-path/index.html) and [career guide](career-path/GUIDE.md). Its seven playbook chapters keep their existing root-level paths so saved links and course references continue to work.
 
-| Course | Covers | Interactive | Full guide |
-|---|---|---|---|
-| **System Design & Architecture at Scale** | Skill A1 — scalability, CAP, data, caching, messaging, APIs, estimation, resilience | [8 lessons](system-design/index.html) | [GUIDE.md](system-design/GUIDE.md) |
-| **Technical Skills** | Skills A2–A9 — distributed data, SRE, architecture, strategy, writing, security, cloud, T-shape | [8 lessons](technical-skills/index.html) | [GUIDE.md](technical-skills/GUIDE.md) |
-| **Leadership Skills** | Skills B1–B8 — influence, exec writing, tech leadership, sponsorship, trust, glue work, decisions, prioritization | [8 lessons](leadership-skills/index.html) | [GUIDE.md](leadership-skills/GUIDE.md) |
-| **Async Messaging** | Queues, Kafka, delivery guarantees, idempotency, outbox, sagas, CDC | [19 lessons](async-messaging/index.html) | [GUIDE.md](async-messaging/GUIDE.md) |
-| **Event Sourcing** | Deciders, event stores, projections, schema evolution, GDPR | [16 lessons](event-sourcing/index.html) | [GUIDE.md](event-sourcing/GUIDE.md) |
-| **Reliability & Observability** | SLOs, error budgets, golden signals, incidents, overload, safe change | [16 lessons](Observability/index.html) | [GUIDE.md](Observability/GUIDE.md) |
+## Adding topics as the library grows
 
----
+Agents should follow [AGENTS.md](AGENTS.md) and its [course-authoring workflow](docs/course-authoring.md) when creating or extending learning material.
 
-## Quick start — do these 5 things this week
+- Place a new course or deep dive in a descriptive subject folder with its own `index.html`. Use existing courses as examples, adapting the format to the subject.
+- State the intended audience, prerequisites and learning outcomes. Explain from first principles where appropriate; include examples, practice and source provenance.
+- Classify new material within the ten agreed areas in `assets/library-areas.json`, then run `python3 scripts/build-library.py` to update the home page and this directory. Give each course one primary home and cross-link focused lessons in other relevant areas. See [the classification guide](docs/library-areas.md).
+- Link back to the library from the topic's course map. Keep links relative and preserve existing URLs when reorganizing content.
+- Update a course's generator when its pages are generated, then rebuild the HTML. The coding course documents its authoring and checks in [its README](coding-interview/README.md).
+- Check local links, anchors, keyboard navigation and small-screen layout. Distinguish source-backed findings from unverified references and personal learning notes.
 
-1. **Self-assess.** Score yourself 1–5 on the [jorgef radar](06-self-assessment-and-tracking.md) (Technology, System, People, Process, Influence). The **Influence axis** — Team → Multiple Teams → Company — is the one to over-index on.[^7]
-2. **Start a brag document** and a **weekly "5-15" update** (15 min to write, 5 min to read). These are the data pipeline that feeds your promotion.[^8]
-3. **Pick your archetype.** Which energizes you — Tech Lead, Architect, Solver, or Right Hand? Does your company *need* it?[^9]
-4. **Name your sponsor.** It's almost always your direct manager. Tell them explicitly: *"Attaining Staff is a goal of mine — what's missing?"*[^6]
-5. **Start file 04's Quarter 1** (System Design Foundations) at ~6 hrs/week.
-
----
-
-## The 30-second mental model
-
-```
-Operate at the next level  ─┐
-  (scope beyond your team)  │
-                            ▼
-Make the impact VISIBLE  ──►  A sponsor converts it into a promo packet
-  (brag doc, docs, talks)     and advocates for you in calibration
-                            ▲
-Work on what MATTERS  ──────┘
-  (not "snacking" or "preening")
-```
-
-Every ladder in the industry converges on the same Staff-level signal: **influence and ownership beyond your own team.**[^10] Everything in this folder is in service of getting there — and being *recognized* for it.
-
----
-
-[^1]: StaffEng, "Getting the title where you are" — https://staffeng.com/guides/getting-the-title-where-you-are/
-[^2]: StaffEng, "Overview" (Senior = the "career level") — https://staffeng.com/guides/overview-overview/
-[^3]: StaffEng, "What do Staff engineers actually do?" — https://staffeng.com/guides/what-do-staff-engineers-actually-do/
-[^4]: Tanya Reilly, "Being Glue" — https://www.noidea.dog/glue
-[^5]: Artsy Engineering Career Ladder — https://github.com/artsy/README/blob/main/careers/ladder.md
-[^6]: StaffEng, "Promotion packets" — https://staffeng.com/guides/promo-packets/ ; "Find your sponsor" — https://staffeng.com/guides/find-your-sponsor/
-[^7]: jorgef/engineeringladders — https://github.com/jorgef/engineeringladders
-[^8]: Julia Evans, "Brag documents" — https://jvns.ca/blog/brag-documents/ ; Will Larson, "Weekly updates" — https://lethain.com/weekly-updates/
-[^9]: Will Larson, "Staff archetypes" — https://staffeng.com/guides/staff-archetypes/
-[^10]: Synthesis across jorgef (Influence axis), Dropbox (scope + collaborative reach), Honeycomb (ownership), CircleCI (task→org).
+The site uses Jekyll for published Markdown pages and serves course HTML directly. Site metadata lives in `_config.yml`; shared document styles are in `assets/site.css`; most existing courses share `assets/course/`. The GitHub repository URL remains `mdtausifahmad/principal-engineering`.

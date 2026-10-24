@@ -1,0 +1,20 @@
+{% assign page_nav = site.data.navigation[page.path] %}
+<nav class="page-navigation" aria-label="{{ include.position | capitalize }} page navigation">
+  <div class="page-navigation-parents">
+  {% if page_nav %}
+    {% for parent in page_nav.parents %}{% unless forloop.first %}<span aria-hidden="true">›</span>{% endunless %}<a href="{{ parent.url | relative_url }}">{{ parent.title | escape }}</a>{% endfor %}
+  {% else %}
+    <a href="{{ '/index.html' | relative_url }}">Library home</a>
+  {% endif %}
+  </div>
+  <div class="page-navigation-sections">
+    {% for section in page_nav.sections %}<a href="{{ section.url | relative_url }}">{{ section.title | escape }}</a>{% endfor %}
+    <a href="#page-top">Back to top ↑</a>
+  </div>
+  {% if page_nav.previous or page_nav.next %}
+  <div class="page-navigation-pager">
+    {% if page_nav.previous %}<a rel="prev" href="{{ page_nav.previous.url | relative_url }}">← Previous: {{ page_nav.previous.title | escape }}</a>{% else %}<span>Start of this section</span>{% endif %}
+    {% if page_nav.next %}<a rel="next" href="{{ page_nav.next.url | relative_url }}">Next: {{ page_nav.next.title | escape }} →</a>{% else %}<span>End of this section</span>{% endif %}
+  </div>
+  {% endif %}
+</nav>

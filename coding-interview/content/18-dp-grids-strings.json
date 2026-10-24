@@ -1,0 +1,279 @@
+{
+  "id": "18",
+  "slug": "dp-grids-strings",
+  "title": "Dynamic programming on grids and strings",
+  "group": "Optimization",
+  "prerequisites": "Linear DP (17), arrays and string indexing",
+  "estimatedMinutes": 150,
+  "motivation": "Define an answer for every pair of boundaries, derive transitions from the final decision, then choose a dependency-safe evaluation order.",
+  "recognition": [
+    "Two independently changing boundaries determine the remaining task: two string prefixes, a row and column, or an item count and capacity.",
+    "Different paths reach the same state; their future depends on the state, not the route taken to it.",
+    "A local choice can be suboptimal, but all choices reduce to smaller states that can be compared or combined."
+  ],
+  "mentalModel": "Imagine walking on a grid, allowed only to move right or down. The number of ways to reach a cell is not a property of the most recent route: every route ending immediately above can step down, and every route ending immediately to the left can step right. Those two sets are disjoint because their final steps differ. Therefore the count is the sum of the two neighboring counts. The recurrence follows from a partition of all valid solutions.\n\nNow replace rows and columns with positions in two strings. A cell (i,j) can mean the answer for the first i characters of one string and the first j characters of another. These are **prefix lengths**, not character indices. There are m+1 possible lengths for a string of m characters because length zero represents the empty prefix. A large fraction of DP bugs come from mixing prefix lengths with indices. The current final characters, when they exist, are a[i\u22121] and b[j\u22121].\n\nA recurrence is a proof written as a computation. For a longest common subsequence, ask whether an optimal answer uses the two final characters together. If they match, an optimal answer can pair them and append one to a solution for the shorter prefixes. If they differ, a common subsequence cannot use both mismatching final characters together, so at least one is excluded. Compare those two possibilities. Unlike a substring, a subsequence may skip positions, so a sliding window cannot describe the state.\n\nEdit distance changes the objective: instead of maximizing matched characters, minimize paid operations. The last operation can delete a source character, insert a target character, or replace/match the final characters. Each option leads to a smaller pair of prefixes. The base cases describe converting to or from the empty string. They are not arbitrary initialization constants.\n\nWrite the state definition before the recurrence, then list every dependency. Draw arrows from a state to the smaller states it needs. A correct bottom-up order visits every dependency first. Right/down path counting can be evaluated row by row because above belongs to the preceding row and left belongs to the current row. One-dimensional storage works only when you know which entries still mean \u201cprevious row\u201d and which mean \u201ccurrent row.\u201d Save a diagonal value before overwriting it if a transition needs that diagonal.\n\nPattern matching with dot and star illustrates why guessing code from a table shape fails. The pattern is a small language. A star modifies the preceding atom, so consuming zero repetitions moves back two pattern positions. Consuming one more matching character moves back one string position while retaining the pattern position. The recurrence must encode the grammar, including empty-string matches. A table of the right dimensions with the wrong semantics is still wrong.\n\nThese examples use finite inputs and exact arithmetic within stated bounds. Counts can grow combinatorially: bigger grid constraints need a modulus or arbitrary-precision integers. Cost minimization needs explicit impossible-state sentinels when not every transition is valid. Reconstructing an actual sequence requires retaining decisions or a separate reconstruction pass; the optimized score-only table may not contain enough history.",
+  "invariant": "dp[i][j] denotes the exact answer for the stated pair of prefixes or coordinates. Every transition enumerates an exhaustive set of final decisions, with no missing valid solution and no unjustified double counting. The evaluation order computes dependencies before their consumers. A space optimization must preserve this meaning even while entries change from previous-row to current-row values.",
+  "wrongTurns": [
+    {
+      "temptation": "Treat subsequence as contiguous substring",
+      "counterexample": "a=\"abc\", b=\"ac\": longest common subsequence length is 2 (a,c), while the longest common contiguous substring length is 1.",
+      "repair": "Subsequence DP can skip either final character. Substring DP requires a matching suffix and resets to zero on mismatch."
+    },
+    {
+      "temptation": "Initialize every empty-prefix answer to zero",
+      "counterexample": "Edit distance from \"\" to \"abc\" is 3, not 0. Regex empty string against \"a*\" is true, while against \"a\" is false.",
+      "repair": "Derive base cases from the contract and grammar before writing general transitions."
+    },
+    {
+      "temptation": "Overwrite the previous row without saving a diagonal",
+      "counterexample": "In LCS of \"a\" and \"aa\", using an already updated left value as the previous-row diagonal can count the same source character twice and return 2.",
+      "repair": "Track diagonal before assigning dp[j]. Distinguish old up, new left, and saved diagonal at each step."
+    }
+  ],
+  "diagram": {
+    "caption": "Each grid/string state depends on smaller boundary pairs; evaluate the arrows before their destination.",
+    "nodes": [
+      "dp[i\u22121][j\u22121]",
+      "dp[i\u22121][j]",
+      "dp[i][j\u22121]",
+      "dp[i][j]"
+    ],
+    "edges": [
+      [
+        0,
+        3,
+        "diagonal"
+      ],
+      [
+        1,
+        3,
+        "above"
+      ],
+      [
+        2,
+        3,
+        "left"
+      ]
+    ]
+  },
+  "trace": [
+    {
+      "state": "LCS a=\"ab\", b=\"ac\"; row0=[0,0,0]",
+      "explanation": "An empty source has no common characters with any target prefix."
+    },
+    {
+      "state": "Process a[0]=a: dp[1][1]=1, dp[1][2]=1; row1=[0,1,1]",
+      "explanation": "a matches a, so diagonal+1. Against c, compare skipping c or skipping a."
+    },
+    {
+      "state": "Process a[1]=b, j=1: old up=1, new left=0; dp[2][1]=1",
+      "explanation": "b and a differ; exclude one of the final characters and keep the best."
+    },
+    {
+      "state": "j=2: b\u2260c; max(up=1,left=1)=1; row2=[0,1,1]",
+      "explanation": "All required smaller states are final. LCS length is 1, achieved by \"a\"."
+    }
+  ],
+  "problems": [
+    {
+      "title": "Count right/down grid paths",
+      "difficulty": "Easy foundation",
+      "statement": "An m by n grid has no obstacles. Starting at the top-left, move only right or down and count paths to the bottom-right. Require 1\u2264m,n\u226420, so the answer fits Long. Inputs are dimensions, not a mutable grid.",
+      "example": "m=3,n=3 \u2192 6; m=1,n=4 \u2192 1.",
+      "baseline": "Recursively branch right/down from every position. O(2^(m+n)) loose time bound and O(m+n) stack, repeatedly solving the same suffix grids.",
+      "reasoning": [
+        "Let dp[r][c] count ways to reach (r,c). Every non-start path arrives from above or left, and these final-step classes are disjoint.",
+        "The first row and first column each have one path. Initialize a one-row array to ones.",
+        "At each later row, dp[c] still holds the old above value; dp[c\u22121] already holds the new left value. Add them.",
+        "After the last row, dp[n\u22121] counts exactly all paths to the destination."
+      ],
+      "invariant": "During row r, positions before c hold row-r counts and positions from c onward hold row-(r\u22121) counts. Adding old above and new left implements the exhaustive final-step partition.",
+      "java": "static long paths(int m,int n) {\n    if(m<1 || m>20 || n<1 || n>20) throw new IllegalArgumentException();\n    long[] dp=new long[n]; Arrays.fill(dp,1L);\n    for(int r=1;r<m;r++) for(int c=1;c<n;c++) dp[c]+=dp[c-1];\n    return dp[n-1];\n}",
+      "kotlin": "fun paths(m: Int,n: Int): Long {\n    require(m in 1..20 && n in 1..20)\n    val dp=LongArray(n){1L}\n    for(r in 1 until m) for(c in 1 until n) dp[c]+=dp[c-1]\n    return dp[n-1]\n}",
+      "complexity": "O(mn) time, O(n) auxiliary space and O(1) output. Use the smaller dimension for O(min(m,n)) space if desired. The maximum count C(38,19) fits 64 bits.",
+      "edgeCases": [
+        "1\u00d71 \u2192 1: the empty sequence of moves is one path",
+        "1\u00d720 \u2192 1",
+        "2\u00d72 \u2192 2"
+      ],
+      "twist": "With obstacles, set the current cell count to zero whenever blocked. If the start is blocked, no path exists. For larger dimensions choose BigInteger or a specified modulus.",
+      "source": "https://leetcode.com/problems/unique-paths/",
+      "testJava": "if(paths(3,3)!=6L || paths(1,1)!=1L || paths(20,20)!=35345263800L) throw new AssertionError();",
+      "testKotlin": "check(paths(3,3)==6L); check(paths(1,1)==1L); check(paths(20,20)==35345263800L)"
+    },
+    {
+      "title": "Longest common subsequence",
+      "difficulty": "Medium",
+      "statement": "Return the length of a longest common subsequence of two strings. You may skip characters but may not reorder them. Empty strings are valid. This snippet compares UTF-16 Char units; use code-point arrays for a different character contract. Inputs are immutable.",
+      "example": "\"abcde\", \"ace\" \u2192 3. The common sequence skips b and d.",
+      "baseline": "Try every subsequence of the first string and check whether it occurs in the second: O((m+n)2^m) loose time bound and O(m) choice state.",
+      "reasoning": [
+        "Define dp[i][j] as the optimum for prefixes a[0,i) and b[0,j). Empty-prefix states are 0.",
+        "If the final characters match, pair them and add 1 to dp[i\u22121][j\u22121]. An optimal solution can be chosen to pair these equal final characters.",
+        "If they differ, at least one final character is unused; take max(dp[i\u22121][j],dp[i][j\u22121]).",
+        "Keep one row. Before overwriting dp[j], save its old value as the next diagonal."
+      ],
+      "invariant": "Before processing column j in row i, dp[j] is the previous-row answer, dp[j\u22121] is the current-row answer, and diagonal is the previous-row previous-column answer. The final-character case split is exhaustive.",
+      "java": "static int lcs(String a,String b) {\n    int[] dp=new int[b.length()+1];\n    for(int i=1;i<=a.length();i++) {\n        int diagonal=0;\n        for(int j=1;j<=b.length();j++) {\n            int old=dp[j];\n            dp[j]=a.charAt(i-1)==b.charAt(j-1)?diagonal+1:Math.max(dp[j],dp[j-1]);\n            diagonal=old;\n        }\n    }\n    return dp[b.length()];\n}",
+      "kotlin": "fun lcs(a: String,b: String): Int {\n    val dp=IntArray(b.length+1)\n    for(i in 1..a.length) {\n        var diagonal=0\n        for(j in 1..b.length) {\n            val old=dp[j]\n            dp[j]=if(a[i-1]==b[j-1]) diagonal+1 else maxOf(dp[j],dp[j-1])\n            diagonal=old\n        }\n    }\n    return dp[b.length]\n}",
+      "complexity": "O(mn) time, O(n) auxiliary space, where m and n are UTF-16 lengths. Swapping strings can reduce memory to O(min(m,n)). Output is O(1).",
+      "edgeCases": [
+        "\"\", \"abc\" \u2192 0",
+        "\"a\", \"aa\" \u2192 1",
+        "\"abc\", \"def\" \u2192 0"
+      ],
+      "twist": "To return one actual subsequence, retain a full table and backtrack by equal-character diagonal or the larger neighbor; define deterministic tie-breaking. Linear-space reconstruction requires a more advanced divide-and-conquer method.",
+      "source": "https://leetcode.com/problems/longest-common-subsequence/",
+      "testJava": "if(lcs(\"abcde\",\"ace\")!=3 || lcs(\"a\",\"aa\")!=1 || lcs(\"\",\"abc\")!=0) throw new AssertionError();",
+      "testKotlin": "check(lcs(\"abcde\",\"ace\")==3); check(lcs(\"a\",\"aa\")==1); check(lcs(\"\",\"abc\")==0)"
+    },
+    {
+      "title": "Edit distance",
+      "difficulty": "Medium to advanced",
+      "statement": "Return the minimum number of unit-cost insertions, deletions and replacements required to convert string a to b. Empty strings are valid. Compare UTF-16 Char units. Do not mutate input.",
+      "example": "\"horse\" \u2192 \"ros\" costs 3; \"\" \u2192 \"abc\" costs 3.",
+      "baseline": "Recursively try every final operation without caching. Exponential time in m+n, O(m+n) recursion space; repeated prefix pairs dominate the work.",
+      "reasoning": [
+        "Let dp[i][j] be the minimum cost to turn a prefix of length i into a target prefix of length j.",
+        "The empty-source row is j insertions; the empty-target column is i deletions.",
+        "Delete the final source character (above+1), insert the final target character (left+1), or replace/match the final pair (diagonal+cost). Take the minimum.",
+        "Evaluate row by row and preserve the old diagonal before overwriting. Each valid edit script ends in one of the enumerated operations, and each transition constructs a valid script."
+      ],
+      "invariant": "Each stored state is the minimum over all scripts for its prefix pair. Previous-row values, current left, and saved diagonal correspond exactly to delete, insert, and pair transitions.",
+      "java": "static int editDistance(String a,String b) {\n    int[] dp=new int[b.length()+1];\n    for(int j=0;j<dp.length;j++) dp[j]=j;\n    for(int i=1;i<=a.length();i++) {\n        int diagonal=dp[0]; dp[0]=i;\n        for(int j=1;j<=b.length();j++) {\n            int old=dp[j];\n            int cost=a.charAt(i-1)==b.charAt(j-1)?0:1;\n            dp[j]=Math.min(diagonal+cost,Math.min(old+1,dp[j-1]+1));\n            diagonal=old;\n        }\n    }\n    return dp[b.length()];\n}",
+      "kotlin": "fun editDistance(a: String,b: String): Int {\n    val dp=IntArray(b.length+1){it}\n    for(i in 1..a.length) {\n        var diagonal=dp[0]; dp[0]=i\n        for(j in 1..b.length) {\n            val old=dp[j]\n            val cost=if(a[i-1]==b[j-1]) 0 else 1\n            dp[j]=minOf(diagonal+cost,old+1,dp[j-1]+1)\n            diagonal=old\n        }\n    }\n    return dp[b.length]\n}",
+      "complexity": "O(mn) time and O(n) auxiliary space for UTF-16 lengths m,n. Output is one integer. This unit-cost distance never exceeds max(m,n), though allocation limits constrain realistic inputs.",
+      "edgeCases": [
+        "\"same\", \"same\" \u2192 0",
+        "\"abc\", \"\" \u2192 3",
+        "\"a\", \"b\" \u2192 1"
+      ],
+      "twist": "If adjacent transposition is allowed, the transition set changes. If costs depend on context, two prefix lengths might no longer be sufficient state. Re-derive rather than replacing a constant blindly.",
+      "source": "https://leetcode.com/problems/edit-distance/",
+      "testJava": "if(editDistance(\"horse\",\"ros\")!=3 || editDistance(\"\",\"abc\")!=3 || editDistance(\"same\",\"same\")!=0) throw new AssertionError();",
+      "testKotlin": "check(editDistance(\"horse\",\"ros\")==3); check(editDistance(\"\",\"abc\")==3); check(editDistance(\"same\",\"same\")==0)"
+    },
+    {
+      "title": "Full regular-expression matching with dot and star",
+      "difficulty": "Hard",
+      "statement": "Match the entire lowercase-English-letter string s against pattern p, whose atoms are lowercase letters or dot, optionally followed by star. Dot matches one character; x* matches zero or more x characters. Pattern syntax must be valid: no leading star or repeated star; invalid syntax throws. Empty string and pattern are valid. This is a restricted regex language, not the full Java regex engine.",
+      "example": "s=\"aab\", p=\"c*a*b\" \u2192 true: zero c, two a, one b. s=\"ab\", p=\".*c\" \u2192 false.",
+      "baseline": "Backtrack over every repetition split. Ambiguous repeated atoms can create exponential search and O(m+n) recursion depth.",
+      "reasoning": [
+        "Define dp[i][j] as whether the first i text characters match the first j pattern characters in full. Set dp[0][0]=true.",
+        "An ordinary atom needs a matching final character and dp[i\u22121][j\u22121].",
+        "For star, zero copies ignore atom+star: dp[i][j\u22122]. One more matching copy consumes a text character but keeps the same pattern prefix: dp[i\u22121][j].",
+        "Allow i=0 in every pattern column so zero-copy stars can construct empty matches. Fill rows from small to large, columns from left to right. Validate syntax before j\u22122 indexing."
+      ],
+      "invariant": "The table exactly represents full-prefix matches. The star cases partition matches by whether they use zero copies or at least one copy of the final atom; the latter removes one matched text character and remains in the same star state.",
+      "java": "static boolean regex(String s,String p) {\n    for(int j=0;j<p.length();j++) {\n        char c=p.charAt(j);\n        if(c=='*') {if(j==0 || p.charAt(j-1)=='*') throw new IllegalArgumentException();}\n        else if(c!='.' && (c<'a' || c>'z')) throw new IllegalArgumentException();\n    }\n    for(int i=0;i<s.length();i++) if(s.charAt(i)<'a'||s.charAt(i)>'z') throw new IllegalArgumentException();\n    boolean[][] dp=new boolean[s.length()+1][p.length()+1]; dp[0][0]=true;\n    for(int i=0;i<=s.length();i++) for(int j=1;j<=p.length();j++) {\n        char atom=p.charAt(j-1);\n        if(atom=='*') {\n            char prev=p.charAt(j-2);\n            dp[i][j]=dp[i][j-2] || (i>0 && (prev=='.'||prev==s.charAt(i-1)) && dp[i-1][j]);\n        } else dp[i][j]=i>0 && (atom=='.'||atom==s.charAt(i-1)) && dp[i-1][j-1];\n    }\n    return dp[s.length()][p.length()];\n}",
+      "kotlin": "fun regex(s: String,p: String): Boolean {\n    for(j in p.indices) {\n        val c=p[j]\n        if(c=='*') require(j>0 && p[j-1]!='*')\n        else require(c=='.' || c in 'a'..'z')\n    }\n    require(s.all { it in 'a'..'z' })\n    val dp=Array(s.length+1){BooleanArray(p.length+1)}; dp[0][0]=true\n    for(i in 0..s.length) for(j in 1..p.length) {\n        val atom=p[j-1]\n        dp[i][j]=if(atom=='*') {\n            val prev=p[j-2]\n            dp[i][j-2] || (i>0 && (prev=='.'||prev==s[i-1]) && dp[i-1][j])\n        } else i>0 && (atom=='.'||atom==s[i-1]) && dp[i-1][j-1]\n    }\n    return dp[s.length][p.length]\n}",
+      "complexity": "O((m+1)(n+1)) time and auxiliary space; m is text length, n pattern length. Output is boolean. A two-row optimization is possible because zero-copy stars refer left in the same row and positive copies refer above.",
+      "edgeCases": [
+        "\"\", \"\" \u2192 true",
+        "\"\", \"a*b*\" \u2192 true",
+        "\"a\", \"\" \u2192 false",
+        "\"ab\", \".*c\" \u2192 false"
+      ],
+      "twist": "Wildcard glob star matches any sequence by itself, so its recurrence skips one pattern character, not atom+star. Identical punctuation does not imply identical grammar.",
+      "source": "https://leetcode.com/problems/regular-expression-matching/",
+      "testJava": "if(!regex(\"aab\",\"c*a*b\") || regex(\"ab\",\".*c\") || !regex(\"\",\"a*b*\") || regex(\"a\",\"\")) throw new AssertionError();",
+      "testKotlin": "check(regex(\"aab\",\"c*a*b\")); check(!regex(\"ab\",\".*c\")); check(regex(\"\",\"a*b*\")); check(!regex(\"a\",\"\"))"
+    }
+  ],
+  "practice": [
+    {
+      "title": "Unique paths II",
+      "difficulty": "Medium",
+      "url": "https://leetcode.com/problems/unique-paths-ii/",
+      "hint": "An obstacle has zero ways to be entered.",
+      "approach": "Use row-compressed path DP, setting blocked cells to zero, including the start. O(mn) time, O(n) auxiliary space; establish count overflow policy."
+    },
+    {
+      "title": "Minimum path sum",
+      "difficulty": "Medium",
+      "url": "https://leetcode.com/problems/minimum-path-sum/",
+      "hint": "Replace sum of counts with minimum of predecessor costs.",
+      "approach": "dp[r][c]=grid[r][c]+min(above,left); missing predecessors are impossible, not zero. O(mn) time and O(n) auxiliary space. Negative values are fine in this acyclic movement model."
+    },
+    {
+      "title": "Distinct subsequences",
+      "difficulty": "Hard",
+      "url": "https://leetcode.com/problems/distinct-subsequences/",
+      "hint": "Count choices of source positions, not just the best length.",
+      "approach": "dp[i][j]=dp[i\u22121][j]+(source[i\u22121]==target[j\u22121]?dp[i\u22121][j\u22121]:0). Empty target has one construction. One-row target updates must run backwards. O(mn) time, O(n) space; counts require appropriate numeric bounds."
+    },
+    {
+      "title": "Interleaving string",
+      "difficulty": "Medium",
+      "url": "https://leetcode.com/problems/interleaving-string/",
+      "hint": "The consumed target length equals i+j.",
+      "approach": "dp[i][j] says whether prefixes of the first two strings form the target prefix of length i+j. Try consuming a matching character from either source. Reject total-length mismatch first. O(mn) time and O(n) space."
+    },
+    {
+      "title": "Longest palindromic subsequence",
+      "difficulty": "Medium",
+      "url": "https://leetcode.com/problems/longest-palindromic-subsequence/",
+      "hint": "Now the state describes an interval of one string.",
+      "approach": "dp[l][r] is the best inside [l,r]. Equal endpoints may contribute 2 plus the inside; otherwise exclude one endpoint. Iterate by increasing interval length. O(n\u00b2) time and space; empty interval contributes 0."
+    },
+    {
+      "title": "Burst balloons",
+      "difficulty": "Hard",
+      "url": "https://leetcode.com/problems/burst-balloons/",
+      "hint": "The final balloon in an interval has stable outside neighbors.",
+      "approach": "Pad with sentinel 1s; dp[l][r] is the best score for bursting strictly inside (l,r). Try each last k: dp[l][k]+dp[k][r]+a[l]*a[k]*a[r]. Evaluate short intervals before long ones. O(n\u00b3) time, O(n\u00b2) space; use long if bounds require."
+    }
+  ],
+  "quiz": [
+    {
+      "question": "In row-compressed LCS, which value must be saved before dp[j] is overwritten?",
+      "choices": [
+        "The previous row\u2019s previous-column value",
+        "Only the current left value",
+        "The whole source string reversed"
+      ],
+      "answer": 0,
+      "explanation": "The matching transition needs the old diagonal. dp[j\u22121] already means the current row, so using it can reuse a source character."
+    },
+    {
+      "question": "Why does empty target have one construction in subsequence-counting DP?",
+      "choices": [
+        "There is exactly one choice: select no positions",
+        "It is a sentinel with no meaning",
+        "Every source character creates another empty result"
+      ],
+      "answer": 0,
+      "explanation": "Counting DP counts choices of position sets. The empty set is one valid choice, including when the source is empty."
+    }
+  ],
+  "transfer": {
+    "prompt": "A migration tool converts a sequence of schema tokens into another using insert, delete or rename, each with a given nonnegative fixed cost. Derive the cheapest conversion. Then suppose renaming a token costs less if the previous action was also a rename: what changes?",
+    "hints": [
+      "Define the answer for every pair of consumed token-prefix lengths.",
+      "Does a prefix pair alone determine the future cost after the discount rule is added?"
+    ],
+    "solution": "With fixed context-free costs, use edit-distance DP: min(delete cost+above, insert cost+left, rename/match cost+diagonal). Base rows/columns are accumulated insertion/deletion costs. O(mn) time and O(n) score-only space. A previous-action discount requires an additional state for the last action type, or another sufficient summary of discount eligibility. The old two-dimensional state merges histories with different future costs and is no longer sufficient."
+  },
+  "review": [
+    "Derive the grid-path recurrence by partitioning paths according to their final step.",
+    "Draw old up, new left and saved diagonal for one LCS row update.",
+    "Explain the edit-distance empty row without reading code.",
+    "Derive zero and positive repetitions for star from the pattern grammar.",
+    "What changes between maximizing a subsequence length and counting subsequences?"
+  ],
+  "sources": [
+    {
+      "label": "MIT 6.006 dynamic programming materials",
+      "url": "https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/",
+      "note": "Reference link; not retrieved in this run. Primary course reference for state definitions and recurrence derivation; current retrieval is not verified.",
+      "status": "unverified"
+    },
+    {
+      "label": "Kotlin strings",
+      "url": "https://kotlinlang.org/docs/strings.html",
+      "note": "Reference link; not retrieved in this run. Language reference for string and character representation; see research ledger for verification status.",
+      "status": "unverified"
+    }
+  ]
+}

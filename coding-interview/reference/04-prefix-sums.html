@@ -1,0 +1,31 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="Learn coding interview reasoning from first principles, with Java and Kotlin solutions."><title>Prefix sums, balance, and range counting: retrieval sheet · Coding interview</title><link rel="stylesheet" href="../assets/course.css"><script src="../assets/course.js" defer></script><link rel="stylesheet" href="../../assets/navigation.css">
+</head><body id="page-top">
+<!-- page-navigation:start -->
+<nav class="page-navigation" aria-label="Top page navigation"><div class="page-navigation-parents"><a href="../../index.html">Library home</a> <span aria-hidden="true">›</span> <a href="../../index.html#technical-foundations">Technical foundations and implementation</a> <span aria-hidden="true">›</span> <a href="../index.html">Coding Interviews: Patterns &amp; Problem Solving</a> <span aria-hidden="true">›</span> <a href="index.html">Reference sheets</a></div><div class="page-navigation-sections"><a href="../lessons/index.html">Lessons</a><a href="index.html">Reference sheets</a><a href="../materials.html">Guides and resources</a><a href="#page-top">Back to top ↑</a></div><div class="page-navigation-pager"><a href="03-sliding-window.html" rel="prev">← Previous: Sliding windows: expand, repair, and count: retrieval sheet</a><a href="05-binary-search.html" rel="next">Next: Binary search on positions, structure, and answers: retrieval sheet →</a></div></nav>
+<!-- page-navigation:end -->
+<a class="skip" href="#main">Skip to content</a><nav class="top"><a href="../../index.html">Software Engineering Library</a><a href="../index.html">Coding interview</a><a href="../foundations.html">Start from zero</a><a href="../practice.html">Practice room</a><a href="../research.html">Sources</a></nav><main id="main" class="document"><h1>Prefix sums, balance, and range counting: retrieval sheet</h1>
+<h2>Recognition</h2>
+<ul>
+<li>Many static range-sum queries suggest one cumulative preprocessing pass.</li>
+<li>A subarray sum constraint can be rewritten as a relation between two prefixes.</li>
+<li>Divisibility means equality of normalized residues, even with negative values.</li>
+</ul>
+<h2>Invariant</h2>
+<p>A prefix is tied to a boundary, not vaguely to an element. Store P[0]=0; after consuming i values, P[i] is their exact sum. For counting, only earlier eligible boundaries belong in the query state. Translate the range condition algebraically before choosing equality hashing or ordered counting.</p>
+<h2>Failure boundaries</h2>
+<ul>
+<li>Forget the empty prefix.: [3], k=3: there is no previously stored prefix 0, so the only valid range is missed. Repair: Seed frequency[0]=1 or prefix index 0 before scanning.</li>
+<li>Insert the current prefix before counting matches.: [5],k=0: the current prefix matches itself, incorrectly counting an empty subarray. Repair: Query first, then insert.</li>
+<li>Compare raw JVM negative remainders.: [-1,2], k=2 has prefixes with raw residues -1 and 1; their difference is divisible by 2, but raw equality misses [2]. Repair: Normalize remainders into 0..k-1 using floorMod.</li>
+</ul>
+<h2>Recall</h2>
+<ul>
+<li>After one day: derive the maintained state from the brute-force repeated work without looking at code.</li>
+<li>After three days: explain the counterexample to each wrong turn and repair it.</li>
+<li>After one week: solve the transfer problem, state the invariant aloud, and compare both JVM implementations.</li>
+</ul>
+<a href="../lessons/04-prefix-sums.html">Return to lesson</a></main><footer>Practice deriving the invariant. Explain why every discarded candidate is safe to discard. <a href="../research.html">Evidence and scope</a></footer><!-- page-navigation:start -->
+<nav class="page-navigation" aria-label="Bottom page navigation"><div class="page-navigation-parents"><a href="../../index.html">Library home</a> <span aria-hidden="true">›</span> <a href="../../index.html#technical-foundations">Technical foundations and implementation</a> <span aria-hidden="true">›</span> <a href="../index.html">Coding Interviews: Patterns &amp; Problem Solving</a> <span aria-hidden="true">›</span> <a href="index.html">Reference sheets</a></div><div class="page-navigation-sections"><a href="../lessons/index.html">Lessons</a><a href="index.html">Reference sheets</a><a href="../materials.html">Guides and resources</a><a href="#page-top">Back to top ↑</a></div><div class="page-navigation-pager"><a href="03-sliding-window.html" rel="prev">← Previous: Sliding windows: expand, repair, and count: retrieval sheet</a><a href="05-binary-search.html" rel="next">Next: Binary search on positions, structure, and answers: retrieval sheet →</a></div></nav>
+<!-- page-navigation:end -->
+<script src="../../assets/course/links.js" defer></script>
+</body></html>

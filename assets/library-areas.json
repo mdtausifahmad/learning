@@ -1,0 +1,432 @@
+[
+  {
+    "id": "technical-foundations",
+    "title": "Technical foundations and implementation",
+    "description": "Understanding computers and building software effectively",
+    "topics": [
+      "Data structures",
+      "Algorithms",
+      "Operating systems",
+      "Networking",
+      "Programming languages",
+      "Concurrency",
+      "Databases",
+      "Frontend",
+      "Backend",
+      "APIs",
+      "Developer tooling"
+    ],
+    "entries": [
+      {
+        "title": "Coding Interviews: Patterns & Problem Solving",
+        "url": "coding-interview/index.html",
+        "description": "Build algorithmic thinking through baselines, correctness arguments, diagrams, counterexamples, and Java and Kotlin implementations.",
+        "meta": "20 pattern lessons · 81 worked problems · 126 practice variations",
+        "links": [
+          {
+            "title": "Foundations",
+            "url": "coding-interview/foundations.html",
+            "note": ""
+          },
+          {
+            "title": "Mixed practice",
+            "url": "coding-interview/practice.html",
+            "note": ""
+          },
+          {
+            "title": "Full guide",
+            "url": "coding-interview/GUIDE.html",
+            "note": ""
+          }
+        ]
+      },
+      {
+        "title": "Technical Skills",
+        "url": "technical-skills/index.html",
+        "description": "A cross-area course spanning distributed data, architecture, security, cloud, writing and strategy. Its focused lessons are also linked under the relevant areas.",
+        "meta": "8 lessons",
+        "links": [
+          {
+            "title": "Full guide",
+            "url": "technical-skills/GUIDE.html",
+            "note": "",
+            "md": "technical-skills/GUIDE.md"
+          }
+        ]
+      }
+    ],
+    "related": [],
+    "aliases": [
+      "coding",
+      "practice"
+    ]
+  },
+  {
+    "id": "software-design",
+    "title": "Software design and architecture",
+    "description": "Structuring systems and making technical trade-offs",
+    "topics": [
+      "Design principles",
+      "Domain modeling",
+      "Architectural patterns",
+      "Distributed systems",
+      "Scalability",
+      "Consistency",
+      "Integration",
+      "System evolution"
+    ],
+    "entries": [
+      {
+        "title": "System Design & Architecture at Scale",
+        "url": "system-design/index.html",
+        "description": "Scalability, consistency, data modeling, caching, messaging, APIs, estimation and resilience.",
+        "meta": "8 lessons",
+        "links": [
+          {
+            "title": "Full guide",
+            "url": "system-design/GUIDE.html",
+            "note": "",
+            "md": "system-design/GUIDE.md"
+          }
+        ]
+      },
+      {
+        "title": "Async Messaging",
+        "url": "async-messaging/index.html",
+        "description": "Queues, Kafka internals, delivery guarantees, idempotency, outbox, sagas and change data capture.",
+        "meta": "19 lessons",
+        "links": [
+          {
+            "title": "Capstone",
+            "url": "async-messaging/capstone/capstone-brief.html",
+            "note": ""
+          },
+          {
+            "title": "Full guide",
+            "url": "async-messaging/GUIDE.html",
+            "note": "",
+            "md": "async-messaging/GUIDE.md"
+          }
+        ]
+      },
+      {
+        "title": "Event Sourcing",
+        "url": "event-sourcing/index.html",
+        "description": "Deciders, event stores, projections, schema evolution, privacy and the trade-offs of retaining event history.",
+        "meta": "16 lessons",
+        "links": [
+          {
+            "title": "Full guide",
+            "url": "event-sourcing/GUIDE.html",
+            "note": "",
+            "md": "event-sourcing/GUIDE.md"
+          }
+        ]
+      }
+    ],
+    "related": [
+      {
+        "title": "Software architecture",
+        "url": "technical-skills/lessons/0003-software-architecture.html",
+        "note": "Architectural evolution and design trade-offs."
+      }
+    ],
+    "aliases": [
+      "systems"
+    ]
+  },
+  {
+    "id": "quality-delivery-operations",
+    "title": "Quality, delivery, and operations",
+    "description": "Making software correct, maintainable, deployable, and reliable",
+    "topics": [
+      "Testing",
+      "Code review",
+      "Debugging",
+      "Refactoring",
+      "Git",
+      "CI/CD",
+      "Cloud infrastructure",
+      "Observability",
+      "Performance",
+      "Incident response"
+    ],
+    "entries": [
+      {
+        "title": "Reliability & Observability",
+        "url": "Observability/index.html",
+        "description": "SLIs, SLOs, error budgets, golden signals, incidents, overload, safe change and capacity planning.",
+        "meta": "16 lessons",
+        "links": [
+          {
+            "title": "Full guide",
+            "url": "Observability/GUIDE.html",
+            "note": "",
+            "md": "Observability/GUIDE.md"
+          }
+        ]
+      }
+    ],
+    "related": [
+      {
+        "title": "Cloud infrastructure",
+        "url": "technical-skills/lessons/0007-cloud-infrastructure.html",
+        "note": "Infrastructure, deployment strategies and operability."
+      },
+      {
+        "title": "Testing event-sourced systems",
+        "url": "event-sourcing/lessons/0014-testing-event-sourced-systems.html",
+        "note": "Given–when–then, property and replay testing in a specific system model."
+      }
+    ],
+    "aliases": [
+      "reliability"
+    ]
+  },
+  {
+    "id": "security-privacy-responsibility",
+    "title": "Security, privacy, and responsible engineering",
+    "description": "Protecting users and systems, and understanding engineering responsibilities",
+    "topics": [
+      "Authentication",
+      "Authorization",
+      "Threat modeling",
+      "Secure coding",
+      "Secrets",
+      "Data protection",
+      "Accessibility",
+      "Ethics",
+      "Responsible AI use"
+    ],
+    "entries": [],
+    "related": [
+      {
+        "title": "Security and privacy",
+        "url": "technical-skills/lessons/0006-security-and-privacy.html",
+        "note": "Security and privacy as engineering concerns."
+      },
+      {
+        "title": "Privacy in event histories",
+        "url": "event-sourcing/lessons/0013-gdpr-crypto-shredding-and-temporal-queries.html",
+        "note": "Crypto-shredding and temporal queries in event-sourced systems."
+      }
+    ],
+    "aliases": []
+  },
+  {
+    "id": "communication-collaboration",
+    "title": "Communication and collaboration",
+    "description": "Working effectively with other people",
+    "topics": [
+      "Technical writing",
+      "Speaking",
+      "Listening",
+      "Asking questions",
+      "Feedback",
+      "Negotiation",
+      "Conflict resolution",
+      "Stakeholder communication"
+    ],
+    "entries": [],
+    "related": [
+      {
+        "title": "Technical writing: design docs, RFCs and ADRs",
+        "url": "technical-skills/lessons/0005-technical-writing-docs-rfcs-adrs.html",
+        "note": ""
+      },
+      {
+        "title": "Communication and executive writing",
+        "url": "leadership-skills/lessons/0002-communication-and-executive-writing.html",
+        "note": ""
+      },
+      {
+        "title": "Stakeholder management and trust",
+        "url": "leadership-skills/lessons/0005-stakeholder-management-and-trust.html",
+        "note": ""
+      }
+    ],
+    "aliases": []
+  },
+  {
+    "id": "product-business-domain",
+    "title": "Product, business, and domain knowledge",
+    "description": "Understanding which problems matter and why",
+    "topics": [
+      "User needs",
+      "Requirements discovery",
+      "Product metrics",
+      "Experimentation",
+      "Business models",
+      "Costs",
+      "Domain workflows",
+      "Build-versus-buy decisions"
+    ],
+    "entries": [],
+    "related": [
+      {
+        "title": "Prioritization and impact",
+        "url": "leadership-skills/lessons/0008-prioritization.html",
+        "note": "Connect engineering work to business and customer outcomes."
+      },
+      {
+        "title": "Cloud costs and pragmatic choices",
+        "url": "technical-skills/lessons/0007-cloud-infrastructure.html",
+        "note": "Consider cost, complexity and business needs in infrastructure choices."
+      }
+    ],
+    "aliases": []
+  },
+  {
+    "id": "planning-execution",
+    "title": "Planning and execution",
+    "description": "Turning ambiguous goals into completed work",
+    "topics": [
+      "Problem framing",
+      "Decomposition",
+      "Estimation",
+      "Prioritization",
+      "Dependency management",
+      "Risk management",
+      "Project planning",
+      "Incremental delivery"
+    ],
+    "entries": [],
+    "related": [
+      {
+        "title": "Technical and project leadership",
+        "url": "leadership-skills/lessons/0003-technical-and-project-leadership.html",
+        "note": "Scope ambiguity, coordinate delivery and manage project risks."
+      },
+      {
+        "title": "Prioritization",
+        "url": "leadership-skills/lessons/0008-prioritization.html",
+        "note": ""
+      },
+      {
+        "title": "Back-of-the-envelope estimation",
+        "url": "system-design/lessons/0007-back-of-envelope-estimation.html",
+        "note": "Estimate system capacity and resource needs; this is technical estimation, not a full project-planning course."
+      }
+    ],
+    "aliases": []
+  },
+  {
+    "id": "leadership-strategy",
+    "title": "Leadership and technical strategy",
+    "description": "Helping teams and organizations make better decisions",
+    "topics": [
+      "Mentoring",
+      "Coaching",
+      "Influencing without authority",
+      "Facilitating decisions",
+      "Technical vision",
+      "Cross-team alignment",
+      "Organizational change"
+    ],
+    "entries": [
+      {
+        "title": "Leadership Skills",
+        "url": "leadership-skills/index.html",
+        "description": "Influence, communication, technical leadership, sponsorship, trust, collaboration, decisions and prioritization. Focused lessons are also surfaced under communication and planning.",
+        "meta": "8 lessons",
+        "links": [
+          {
+            "title": "Full guide",
+            "url": "leadership-skills/GUIDE.html",
+            "note": "",
+            "md": "leadership-skills/GUIDE.md"
+          }
+        ]
+      }
+    ],
+    "related": [
+      {
+        "title": "Engineering strategy and technical vision",
+        "url": "technical-skills/lessons/0004-engineering-strategy-and-vision.html",
+        "note": ""
+      }
+    ],
+    "aliases": [
+      "leadership"
+    ]
+  },
+  {
+    "id": "learning-thinking-effectiveness",
+    "title": "Learning, thinking, and personal effectiveness",
+    "description": "Improving how you learn, reason, and work",
+    "topics": [
+      "Critical thinking",
+      "Research",
+      "Deliberate practice",
+      "Knowledge management",
+      "Focus",
+      "Time management",
+      "Reflection",
+      "Managing uncertainty"
+    ],
+    "entries": [],
+    "related": [
+      {
+        "title": "Reasoning from first principles",
+        "url": "coding-interview/foundations.html",
+        "note": "Algorithm-focused practice in modeling, invariants and boundary testing."
+      },
+      {
+        "title": "Deliberate practice and reflection",
+        "url": "coding-interview/practice.html",
+        "note": "Retrieval, an error log, changed assumptions and review of your reasoning."
+      }
+    ],
+    "aliases": []
+  },
+  {
+    "id": "career-development",
+    "title": "Career and professional development",
+    "description": "Intentionally developing your professional direction",
+    "topics": [
+      "Career planning",
+      "Competency assessment",
+      "Portfolios",
+      "Interviews",
+      "Networking",
+      "Promotion evidence",
+      "Professional reputation",
+      "Choosing a specialization"
+    ],
+    "entries": [
+      {
+        "title": "Career path: Senior → Staff → Principal",
+        "url": "career-path/index.html",
+        "description": "A focused path covering expectations, skills, progression planning, promotion evidence and real-world stories.",
+        "meta": "7-part career playbook",
+        "links": [
+          {
+            "title": "Career guide",
+            "url": "career-path/GUIDE.html",
+            "note": "",
+            "md": "career-path/GUIDE.md"
+          }
+        ]
+      }
+    ],
+    "related": [
+      {
+        "title": "Coding interview preparation",
+        "url": "coding-interview/index.html",
+        "note": "Follow the algorithms course and mixed practice in area 1."
+      },
+      {
+        "title": "Competency assessment and tracking",
+        "url": "06-self-assessment-and-tracking.html",
+        "note": "Career self-assessment and evidence of growth.",
+        "md": "06-self-assessment-and-tracking.md"
+      },
+      {
+        "title": "T-shaped breadth and depth",
+        "url": "technical-skills/lessons/0008-tshaped-breadth-and-depth.html",
+        "note": "Choose and build depth while retaining broad technical judgment."
+      }
+    ],
+    "aliases": []
+  }
+]

@@ -1,0 +1,288 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="Learn coding interview reasoning from first principles, with Java and Kotlin solutions."><title>Dependency order and dynamic connectivity · Coding interview</title><link rel="stylesheet" href="../assets/course.css"><script src="../assets/course.js" defer></script><link rel="stylesheet" href="../../assets/navigation.css">
+</head><body id="page-top">
+<!-- page-navigation:start -->
+<nav class="page-navigation" aria-label="Top page navigation"><div class="page-navigation-parents"><a href="../../index.html">Library home</a> <span aria-hidden="true">›</span> <a href="../../index.html#technical-foundations">Technical foundations and implementation</a> <span aria-hidden="true">›</span> <a href="../index.html">Coding Interviews: Patterns &amp; Problem Solving</a> <span aria-hidden="true">›</span> <a href="index.html">Lessons</a></div><div class="page-navigation-sections"><a href="index.html">Lessons</a><a href="../reference/index.html">Reference sheets</a><a href="../materials.html">Guides and resources</a><a href="#page-top">Back to top ↑</a></div><div class="page-navigation-pager"><a href="13-graph-traversal.html" rel="prev">← Previous: Graphs: reachability and shortest unweighted paths</a><a href="15-shortest-paths.html" rel="next">Next: Shortest paths: matching the frontier to edge costs →</a></div></nav>
+<!-- page-navigation:end -->
+<a class="skip" href="#main">Skip to content</a><nav class="top"><a href="../../index.html">Software Engineering Library</a><a href="../index.html">Coding interview</a><a href="../foundations.html">Start from zero</a><a href="../practice.html">Practice room</a><a href="../research.html">Sources</a></nav><div class="layout"><aside class="rail"><a href="../index.html">Course map</a><p>Learning sequence</p><ol><li><a  href="01-hashing.html">Hashing, complements, and canonical keys</a></li><li><a  href="02-two-pointers.html">Two pointers and safe elimination</a></li><li><a  href="03-sliding-window.html">Sliding windows: expand, repair, and count</a></li><li><a  href="04-prefix-sums.html">Prefix sums, balance, and range counting</a></li><li><a  href="05-binary-search.html">Binary search on positions, structure, and answers</a></li><li><a  href="06-sorting-intervals.html">Sorting, intervals, scheduling, and sweep lines</a></li><li><a  href="07-linked-lists.html">Linked lists: preserve the path while changing links</a></li><li><a  href="08-stacks-queues.html">Stacks, monotonic frontiers, and deques</a></li><li><a  href="09-trees.html">Trees: decide what crosses each parent-child boundary</a></li><li><a  href="10-heaps.html">Heaps: keep the next winner and forget full order</a></li><li><a  href="11-backtracking.html">Backtracking: enumerate choices with a reversible state</a></li><li><a  href="12-tries.html">Tries: share prefixes and prune impossible continuations</a></li><li><a  href="13-graph-traversal.html">Graphs: reachability and shortest unweighted paths</a></li><li><a aria-current="page" href="14-topology-union-find.html">Dependency order and dynamic connectivity</a></li><li><a  href="15-shortest-paths.html">Shortest paths: matching the frontier to edge costs</a></li><li><a  href="16-greedy.html">Greedy choices and exchange arguments</a></li><li><a  href="17-dp-linear.html">Linear dynamic programming: decisions, states, and dependencies</a></li><li><a  href="18-dp-grids-strings.html">Dynamic programming on grids and strings</a></li><li><a  href="19-range-queries.html">Range queries: precompute reusable pieces, then update only dependencies</a></li><li><a  href="20-bit-manipulation.html">Bit manipulation and state compression</a></li></ol></aside><main id="main" class="lesson"><header><p class="sequence">Pattern 14 / Graphs</p><h1>Dependency order and dynamic connectivity</h1><p class="lede">Two common graph questions require different information: directed prerequisites ask which work is ready next, while undirected connectivity asks which vertices already share a component. Learn both representations and the boundary between them. These problems start at Medium because they assume the graph basics in lesson 13.</p><p class="muted">Prerequisites: Graph traversal, queues, arrays, hashing. Suggested study block: 170 minutes, excluding extra practice.</p><nav class="lesson-jumps"><a href="#model">Build the model</a><a href="#worked">Worked problems</a><a href="#practice">Practice ladder</a><a href="#transfer">Unseen transfer</a></nav></header><section id="model"><h2>Build the idea from zero</h2><p>A graph question can ask for an ordering or for connectivity; those are different objectives. If task B needs task A, draw A -&gt; B. The arrow describes a prerequisite, not merely an undirected connection. A valid execution list must place A before B for every arrow. Such a list is called a topological ordering. Many orderings can be valid; requiring one particular numerical order is an extra constraint.</p>
+<p>Ask the simplest scheduling question: which task could run now? A task with no unfinished prerequisites is ready. Store for every task its indegree, the number of incoming prerequisite edges not yet removed. Put all zero-indegree tasks in a queue. Remove a ready task, append it to the result, and decrement indegrees of its dependents. When one reaches zero, every prerequisite is finished, so it becomes ready. This is Kahn&#39;s algorithm. It repeatedly removes sources from the remaining directed graph.</p>
+<p>Why does this detect cycles? In a nonempty directed acyclic graph there is a source: otherwise repeatedly following an incoming edge in a finite graph would eventually revisit a vertex and form a cycle. Conversely, a directed cycle cannot lose its final incoming cycle edge through source removal. If the queue empties while vertices remain, the remaining graph contains a cycle. Some leftover vertices may only depend on that cycle; do not claim every leftover vertex belongs to one. A processed-count check is enough for feasibility, while a saved output list supplies an ordering.</p>
+<p>Now change the question. Suppose undirected edges are added over time and you ask whether u and v are connected. The exact route is irrelevant. Partition vertices into sets, one for each connected component. A disjoint-set union structure, also called DSU or union-find, represents each set with a rooted parent tree. find(x) follows parents to the representative root. Two vertices are connected exactly when their roots are equal. union(a,b) links two different roots. Linking by component size keeps trees shallow; path compression rewires visited parent links toward the root without changing membership.</p>
+<p>This parent tree is an implementation device, not the original graph. Its links need not correspond to input edges, so it cannot reconstruct a graph route. Its root is an arbitrary representative that may change after merging. Store component-wide metadata such as size at roots, and always query through find before reading it. The amortized cost with union by size and compression is inverse Ackermann, effectively tiny but not literally a strict O(1) worst-case guarantee per operation.</p>
+<p>An undirected edge whose endpoints are already connected closes a cycle: an old path plus the new edge forms that cycle. That is not a directed-cycle test. In a directed diamond A-&gt;B, A-&gt;C, B-&gt;D, C-&gt;D, ignoring directions makes an undirected cycle even though the dependency graph is a valid DAG. Choose DSU only when undirected equivalence of components is the needed state.</p>
+<p>Grid merging combines these ideas with modeling. Build components of existing land. For each candidate water cell, gather the roots of its land neighbors, deduplicate them, and add their sizes plus one. Two neighboring cells may already belong to the same island; summing both would invent extra land. Because only one flip is allowed, evaluate each candidate against the unchanged original components rather than permanently merging every candidate.</p>
+<h3>When to consider it</h3><ul><li><p>A must happen before B: orient A -&gt; B and track unfinished prerequisites, rather than sorting labels.</p>
+</li><li><p>You need a valid ordering satisfying all directed edges: topological ordering exists exactly for a directed acyclic graph.</p>
+</li><li><p>Undirected edges arrive and you only need component membership: disjoint-set union merges groups without storing paths.</p>
+</li><li><p>A proposed new link or cell joins several existing components: combine component sizes, deduplicating roots.</p>
+</li></ul><div class="proof"><h3>The invariant</h3><p>For Kahn&#39;s algorithm, indegree[v] counts precisely the incoming edges from vertices not yet processed. A queued vertex has zero such edges, so appending it never violates an edge to an earlier task. At termination, processing every vertex proves the produced list satisfies all dependencies; a nonempty residue with no source proves a cycle exists. For DSU, vertices have the same representative exactly when the processed undirected edges connect them. Union merges precisely two previously distinct equivalence classes, and compression preserves class membership. Component sizes are valid at representatives only.</p>
+</div><figure><div class="diagram-scroll"><svg viewBox="0 0 950 180" role="img" aria-label="Indegree removal exposes ready work; DSU answers a different undirected membership question."><defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#3a677e"/></marker></defs><path d="M175,72 Q195,72 215,72" stroke="#3a677e" fill="none" marker-end="url(#arrow)"/><text x="195" y="46" text-anchor="middle" font-size="12">prerequisite</text><path d="M175,72 Q290,72 405,72" stroke="#3a677e" fill="none" marker-end="url(#arrow)"/><text x="290" y="46" text-anchor="middle" font-size="12">prerequisite</text><path d="M365,72 Q480,72 595,72" stroke="#3a677e" fill="none" marker-end="url(#arrow)"/><text x="480" y="46" text-anchor="middle" font-size="12">prerequisite</text><path d="M555,72 Q575,72 595,72" stroke="#3a677e" fill="none" marker-end="url(#arrow)"/><text x="575" y="46" text-anchor="middle" font-size="12">prerequisite</text><path d="M175,72 Q480,72 785,72" stroke="#3a677e" fill="none" marker-end="url(#arrow)"/><text x="480" y="46" text-anchor="middle" font-size="12">remove outgoing edges</text><rect x="25" y="52" width="150" height="66" rx="8" fill="#e9f1f6" stroke="#52748b"/><foreignObject x="30" y="57" width="140" height="60"><div xmlns="http://www.w3.org/1999/xhtml" style="font:14px system-ui;text-align:center;line-height:1.3;padding:5px;color:#203447">task 0: indegree 0</div></foreignObject><rect x="215" y="52" width="150" height="66" rx="8" fill="#e9f1f6" stroke="#52748b"/><foreignObject x="220" y="57" width="140" height="60"><div xmlns="http://www.w3.org/1999/xhtml" style="font:14px system-ui;text-align:center;line-height:1.3;padding:5px;color:#203447">task 1: indegree 1</div></foreignObject><rect x="405" y="52" width="150" height="66" rx="8" fill="#e9f1f6" stroke="#52748b"/><foreignObject x="410" y="57" width="140" height="60"><div xmlns="http://www.w3.org/1999/xhtml" style="font:14px system-ui;text-align:center;line-height:1.3;padding:5px;color:#203447">task 2: indegree 1</div></foreignObject><rect x="595" y="52" width="150" height="66" rx="8" fill="#e9f1f6" stroke="#52748b"/><foreignObject x="600" y="57" width="140" height="60"><div xmlns="http://www.w3.org/1999/xhtml" style="font:14px system-ui;text-align:center;line-height:1.3;padding:5px;color:#203447">task 3: indegree 2</div></foreignObject><rect x="785" y="52" width="150" height="66" rx="8" fill="#e9f1f6" stroke="#52748b"/><foreignObject x="790" y="57" width="140" height="60"><div xmlns="http://www.w3.org/1999/xhtml" style="font:14px system-ui;text-align:center;line-height:1.3;padding:5px;color:#203447">ready queue after 0: [1,2]</div></foreignObject></svg></div><figcaption>Indegree removal exposes ready work; DSU answers a different undirected membership question.</figcaption></figure></section><section><h2>Follow a concrete execution</h2><div class="trace" data-trace><script type="application/json">[{"state":"Edges 0->1, 0->2, 1->3, 2->3; indegree=[0,1,1,2]; queue=[0]","explanation":"Only task 0 is initially ready."},{"state":"Process 0: indegree=[0,0,0,2]; queue=[1,2]; output=[0]","explanation":"Tasks 1 and 2 lose their last unfinished prerequisite."},{"state":"Process 1: indegree[3]=1; queue=[2]; output=[0,1]","explanation":"Task 3 is still blocked by task 2."},{"state":"Process 2: indegree[3]=0; queue=[3]; output=[0,1,2]","explanation":"Every prerequisite of 3 is now complete."},{"state":"Process 3: output=[0,1,2,3], processed=4","explanation":"All vertices processed, so the ordering is valid."},{"state":"DSU edges (1,2), (2,3), proposed (1,3): roots of 1 and 3 already equal","explanation":"For an undirected graph, the proposed edge creates a cycle."}]</script><p class="trace-count" aria-live="polite"></p><pre class="trace-state"></pre><p class="trace-explanation"></p><div class="trace-controls"><button type="button" data-step="-1">Previous state</button><button type="button" data-step="1">Next state</button><button type="button" data-reset>Reset</button></div></div></section><section><h2>Where the idea breaks</h2><details class="trap"><summary>Use DSU to detect cycles in a directed dependency graph.</summary><h4>Counterexample</h4><p>A-&gt;B, A-&gt;C, B-&gt;D, C-&gt;D is a DAG. Ignoring directions, the final edge joins already-connected endpoints and DSU falsely flags a directed cycle.</p>
+<h4>Repair the reasoning</h4><p>Use indegree removal or DFS active-stack colors for directed cycles.</p>
+</details><details class="trap"><summary>Sum the component size of every land neighbor when flipping a water cell.</summary><h4>Counterexample</h4><p>[[1,1],[1,0]]: the three existing land cells belong to the same size-3 component. The bottom-right cell has two land neighbors; counting the same component twice suggests 7 instead of 4.</p>
+<h4>Repair the reasoning</h4><p>Collect distinct representative roots, then sum each size once.</p>
+</details><details class="trap"><summary>Call every vertex left after Kahn&#39;s queue empties a cycle vertex.</summary><h4>Counterexample</h4><p>A-&gt;B, B-&gt;A, B-&gt;C leaves A, B, and C unprocessed. C is blocked by the cycle but is not itself on one.</p>
+<h4>Repair the reasoning</h4><p>Use the leftover count only for feasibility unless a separate cycle/SCC analysis identifies exact cycle membership.</p>
+</details></section><section id="worked"><h2>Worked problem ladder</h2><p>Read the contract, draw a small example, and write a baseline before revealing the derivation. Code snippets include helpers; downloadable Java files add a class and standard imports. Kotlin files add imports. Input contracts are part of the solution.</p><article class="problem" id="problem-1"><div class="problem-heading"><h3>1. Can every course be completed?</h3><span class="difficulty">Medium</span></div><p>There are n courses labeled 0..n-1, n &gt;= 0. A prerequisite pair [course, prerequisite] requires prerequisite before course. Return whether all courses can be completed. Pairs contain valid labels; duplicate pairs are allowed and counted consistently. Inputs are nonnull and not mutated. n=0 with no pairs returns true.</p>
+<div class="example"><strong>Example</strong><p>n=2, pairs=[[1,0]] =&gt; true; pairs=[[1,0],[0,1]] =&gt; false.</p>
+</div><details><summary>First attempt: the baseline</summary><p>For each course separately, explore every prerequisite path while tracking its current path. Repeating path exploration can be exponential without memoization; a proper DFS coloring alternative is O(n+m).</p>
+</details><details class="solution"><summary>Reveal the derivation and solutions</summary><h4>Derive it step by step</h4><ol><li><p>Orient each pair prerequisite -&gt; course. Count all incoming edges.</p>
+</li><li><p>Enqueue zero-indegree courses, then remove their outgoing edges when processed.</p>
+</li><li><p>Return true exactly when processed count equals n.</p>
+</li></ol><div class="proof"><strong>Why it works</strong><p>A course is enqueued exactly when all its prerequisites have been processed. Removing all n courses certifies feasibility; any nonempty residue contains a directed cycle.</p>
+</div><div class="language-controls" role="group" aria-label="Solution language"><button type="button" data-lang="java">Java</button><button type="button" data-lang="kotlin">Kotlin</button><button type="button" data-lang="both">Both</button></div><div class="code" data-code="java"><h4>Java</h4><pre><code>static boolean canFinish(int n, int[][] prerequisites) {
+    if (n &lt; 0) throw new IllegalArgumentException(&quot;negative n&quot;);
+    Objects.requireNonNull(prerequisites, &quot;prerequisites&quot;);
+    List&lt;List&lt;Integer&gt;&gt; out = new ArrayList&lt;&gt;();
+    for (int i = 0; i &lt; n; i++) out.add(new ArrayList&lt;&gt;());
+    int[] indegree = new int[n];
+    for (int[] pair : prerequisites) { out.get(pair[1]).add(pair[0]); indegree[pair[0]]++; }
+    ArrayDeque&lt;Integer&gt; queue = new ArrayDeque&lt;&gt;();
+    for (int i = 0; i &lt; n; i++) if (indegree[i] == 0) queue.add(i);
+    int processed = 0;
+    while (!queue.isEmpty()) {
+        int current = queue.remove(); processed++;
+        for (int next : out.get(current)) if (--indegree[next] == 0) queue.add(next);
+    }
+    return processed == n;
+}</code></pre><a download href="../solutions/14-1.java">Download Java snippet</a></div><div class="code" data-code="kotlin"><h4>Kotlin</h4><pre><code>fun canFinish(n: Int, prerequisites: Array&lt;IntArray&gt;): Boolean {
+    require(n &gt;= 0)
+    val out = Array(n) { mutableListOf&lt;Int&gt;() }
+    val indegree = IntArray(n)
+    for (pair in prerequisites) { out[pair[1]].add(pair[0]); indegree[pair[0]]++ }
+    val queue = ArrayDeque&lt;Int&gt;()
+    for (i in 0 until n) if (indegree[i] == 0) queue.add(i)
+    var processed = 0
+    while (queue.isNotEmpty()) {
+        val current = queue.remove()
+        processed++
+        for (next in out[current]) { indegree[next]--; if (indegree[next] == 0) queue.add(next) }
+    }
+    return processed == n
+}</code></pre><a download href="../solutions/14-1.kt">Download Kotlin snippet</a></div><h4>Cost and boundaries</h4><p>O(n+m) time and auxiliary space for n courses and m prerequisite entries, including duplicate edges; O(1) output space. Int indegrees assume in-memory edge counts fit Int.</p>
+<ul><li><p>n=0, [] =&gt; true</p>
+</li><li><p>n=1, [[0,0]] =&gt; false</p>
+</li><li><p>n=2, [[1,0],[1,0]] =&gt; true</p>
+</li></ul><h4>Change one assumption</h4><p>If you must identify the actual cycle, Kahn&#39;s leftover set is insufficient. Use DFS colors with parent reconstruction or strongly connected components. For task durations, a topological DP can propagate earliest finish times.</p>
+</details><p><a href="https://leetcode.com/problems/course-schedule/" target="_blank" rel="noopener">Original practice problem</a> <label class="solved"><input type="checkbox" data-progress="14-1"> Solved independently</label></p></article><article class="problem" id="problem-2"><div class="problem-heading"><h3>2. Return a dependency-respecting course order</h3><span class="difficulty">Medium</span></div><p>Using the same valid nonnull [course, prerequisite] pairs, return any ordering of all n &gt;= 0 courses respecting every pair. If a cycle prevents completion, return an empty array. For n=0 the valid order is also empty; callers needing to distinguish cases must retain n. No input mutation.</p>
+<div class="example"><strong>Example</strong><p>n=4, [[1,0],[2,0],[3,1],[3,2]] =&gt; [0,1,2,3] or [0,2,1,3].</p>
+</div><details><summary>First attempt: the baseline</summary><p>Enumerate course permutations and test every prerequisite: O(n!*(n+m)) time, O(n) permutation storage.</p>
+</details><details class="solution"><summary>Reveal the derivation and solutions</summary><h4>Derive it step by step</h4><ol><li><p>Reuse the ready-course indegree state from feasibility.</p>
+</li><li><p>Append each removed ready course to an output array. Every prerequisite of that course is already earlier.</p>
+</li><li><p>If fewer than n courses were appended, discard the partial result because it is not a complete feasible order.</p>
+</li></ol><div class="proof"><strong>Why it works</strong><p>The current output respects every edge between its members, and no unprocessed course has an edge into a processed course that was unmet when appended.</p>
+</div><div class="language-controls" role="group" aria-label="Solution language"><button type="button" data-lang="java">Java</button><button type="button" data-lang="kotlin">Kotlin</button><button type="button" data-lang="both">Both</button></div><div class="code" data-code="java"><h4>Java</h4><pre><code>static int[] findOrder(int n, int[][] prerequisites) {
+    if (n &lt; 0) throw new IllegalArgumentException(&quot;negative n&quot;);
+    Objects.requireNonNull(prerequisites, &quot;prerequisites&quot;);
+    List&lt;List&lt;Integer&gt;&gt; out = new ArrayList&lt;&gt;();
+    for (int i = 0; i &lt; n; i++) out.add(new ArrayList&lt;&gt;());
+    int[] indegree = new int[n], order = new int[n];
+    for (int[] pair : prerequisites) { out.get(pair[1]).add(pair[0]); indegree[pair[0]]++; }
+    ArrayDeque&lt;Integer&gt; queue = new ArrayDeque&lt;&gt;();
+    for (int i = 0; i &lt; n; i++) if (indegree[i] == 0) queue.add(i);
+    int count = 0;
+    while (!queue.isEmpty()) {
+        int current = queue.remove(); order[count++] = current;
+        for (int next : out.get(current)) if (--indegree[next] == 0) queue.add(next);
+    }
+    return count == n ? order : new int[0];
+}</code></pre><a download href="../solutions/14-2.java">Download Java snippet</a></div><div class="code" data-code="kotlin"><h4>Kotlin</h4><pre><code>fun findOrder(n: Int, prerequisites: Array&lt;IntArray&gt;): IntArray {
+    require(n &gt;= 0)
+    val out = Array(n) { mutableListOf&lt;Int&gt;() }
+    val indegree = IntArray(n)
+    for (pair in prerequisites) { out[pair[1]].add(pair[0]); indegree[pair[0]]++ }
+    val queue = ArrayDeque&lt;Int&gt;()
+    for (i in 0 until n) if (indegree[i] == 0) queue.add(i)
+    val order = IntArray(n)
+    var count = 0
+    while (queue.isNotEmpty()) {
+        val current = queue.remove()
+        order[count++] = current
+        for (next in out[current]) { indegree[next]--; if (indegree[next] == 0) queue.add(next) }
+    }
+    return if (count == n) order else IntArray(0)
+}</code></pre><a download href="../solutions/14-2.kt">Download Kotlin snippet</a></div><h4>Cost and boundaries</h4><p>O(n+m) time and auxiliary space, with O(n) output. A FIFO queue returns one valid order but makes no lexicographic-minimum promise.</p>
+<ul><li><p>n=0, [] =&gt; []</p>
+</li><li><p>n=3, [] =&gt; any permutation such as [0,1,2]</p>
+</li><li><p>n=1, [[0,0]] =&gt; []</p>
+</li></ul><h4>Change one assumption</h4><p>For the lexicographically smallest order, replace the FIFO queue with a min-priority queue. Always choosing the smallest currently valid next task yields the smallest order, in O(m+n log n) time. For uniqueness, check whether more than one ready course exists at any step of a successful traversal.</p>
+</details><p><a href="https://leetcode.com/problems/course-schedule-ii/" target="_blank" rel="noopener">Original practice problem</a> <label class="solved"><input type="checkbox" data-progress="14-2"> Solved independently</label></p></article><article class="problem" id="problem-3"><div class="problem-heading"><h3>3. Find the redundant undirected edge</h3><span class="difficulty">Medium</span></div><p>A nonnull edge list describes a connected undirected simple graph formed from a tree on labels 1..n plus exactly one added edge. There are n edges, n &gt;= 3, each with valid labels and distinct endpoints. Return the edge whose removal restores a tree, choosing the latest one in input order among valid choices. Input is not mutated.</p>
+<div class="example"><strong>Example</strong><p>[[1,2],[1,3],[2,3]] =&gt; [2,3]. Before this edge, 2 already connects to 3 through 1.</p>
+</div><details><summary>First attempt: the baseline</summary><p>Before adding each edge, BFS its endpoints in the graph built so far. O(n²) time and O(n) space for this sparse input.</p>
+</details><details class="solution"><summary>Reveal the derivation and solutions</summary><h4>Derive it step by step</h4><ol><li><p>Initialize every label in its own DSU component.</p>
+</li><li><p>For each edge, compare roots. Different roots means it joins components; merge them.</p>
+</li><li><p>Equal roots means an earlier path already exists. Adding this edge closes the unique cycle, so it is the last input edge on that cycle and satisfies the requested tie rule.</p>
+</li></ol><div class="proof"><strong>Why it works</strong><p>Before an edge, DSU classes equal connectivity through earlier edges. The first failed union is precisely the edge whose endpoints are already connected. Under the tree-plus-one-edge promise, it is the only failed union.</p>
+</div><div class="language-controls" role="group" aria-label="Solution language"><button type="button" data-lang="java">Java</button><button type="button" data-lang="kotlin">Kotlin</button><button type="button" data-lang="both">Both</button></div><div class="code" data-code="java"><h4>Java</h4><pre><code>static final class DSU {
+    final int[] parent, size;
+    DSU(int n) {
+        parent = new int[n]; size = new int[n];
+        for (int i = 0; i &lt; n; i++) { parent[i] = i; size[i] = 1; }
+    }
+    int find(int x) {
+        while (x != parent[x]) { parent[x] = parent[parent[x]]; x = parent[x]; }
+        return x;
+    }
+    boolean union(int a, int b) {
+        int ra = find(a), rb = find(b);
+        if (ra == rb) return false;
+        if (size[ra] &lt; size[rb]) { int t = ra; ra = rb; rb = t; }
+        parent[rb] = ra; size[ra] += size[rb]; return true;
+    }
+}
+static int[] findRedundantConnection(int[][] edges) {
+    Objects.requireNonNull(edges, &quot;edges&quot;);
+    DSU dsu = new DSU(edges.length + 1);
+    for (int[] edge : edges) if (!dsu.union(edge[0], edge[1])) return new int[]{edge[0], edge[1]};
+    throw new IllegalArgumentException(&quot;tree plus one edge required&quot;);
+}</code></pre><a download href="../solutions/14-3.java">Download Java snippet</a></div><div class="code" data-code="kotlin"><h4>Kotlin</h4><pre><code>class DSU(n: Int) {
+    private val parent = IntArray(n) { it }
+    val size = IntArray(n) { 1 }
+    fun find(value: Int): Int {
+        var x = value
+        while (x != parent[x]) { parent[x] = parent[parent[x]]; x = parent[x] }
+        return x
+    }
+    fun union(a: Int, b: Int): Boolean {
+        var ra = find(a)
+        var rb = find(b)
+        if (ra == rb) return false
+        if (size[ra] &lt; size[rb]) { val t = ra; ra = rb; rb = t }
+        parent[rb] = ra
+        size[ra] += size[rb]
+        return true
+    }
+}
+fun findRedundantConnection(edges: Array&lt;IntArray&gt;): IntArray {
+    val dsu = DSU(edges.size + 1)
+    for (edge in edges) if (!dsu.union(edge[0], edge[1])) return intArrayOf(edge[0], edge[1])
+    throw IllegalArgumentException(&quot;tree plus one edge required&quot;)
+}</code></pre><a download href="../solutions/14-3.kt">Download Kotlin snippet</a></div><h4>Cost and boundaries</h4><p>O(n alpha(n)) amortized time for n edges and labels, O(n) auxiliary space, O(1) output. alpha is inverse Ackermann; path halving and union by size establish this bound.</p>
+<ul><li><p>[[1,2],[2,3],[1,3]] =&gt; [1,3]</p>
+</li><li><p>[[1,2],[2,3],[3,4],[1,4],[1,5]] =&gt; [1,4]</p>
+</li></ul><h4>Change one assumption</h4><p>For directed redundant-edge variants, indegree-two conflicts and direction matter; this undirected DSU proof does not apply unchanged. For online deletions, ordinary DSU cannot split components; offline reversal or rollback structures may be needed.</p>
+</details><p><a href="https://leetcode.com/problems/redundant-connection/" target="_blank" rel="noopener">Original practice problem</a> <label class="solved"><input type="checkbox" data-progress="14-3"> Solved independently</label></p></article><article class="problem" id="problem-4"><div class="problem-heading"><h3>4. Largest island after at most one flip</h3><span class="difficulty">Hard</span></div><p>Given a nonnull square binary Int grid with side n in [0,500], change at most one 0 to 1 and return the maximum possible four-direction island area. Empty returns 0; all land returns n². Input is not mutated. Square shape and 0/1 values are preconditions.</p>
+<div class="example"><strong>Example</strong><p>[[1,0],[0,1]] =&gt; 3. A flip connects both distinct size-1 land components. [[1,1],[1,0]] =&gt; 4, counting the shared neighboring component only once.</p>
+</div><details><summary>First attempt: the baseline</summary><p>For each zero, temporarily flip it in a copy and traverse the whole grid to find the largest component: O(n^4) time and O(n²) space.</p>
+</details><details class="solution"><summary>Reveal the derivation and solutions</summary><h4>Derive it step by step</h4><ol><li><p>Create one DSU position per cell and merge adjacent existing land only.</p>
+</li><li><p>Record the largest existing land component, covering the all-land case.</p>
+</li><li><p>For each zero, collect distinct roots of adjacent land components. Candidate area is 1 plus each distinct size.</p>
+</li><li><p>Take the largest candidate without merging zeros permanently; only one flip may occur.</p>
+</li></ol><div class="proof"><strong>Why it works</strong><p>DSU represents exactly original land components. Every island created by one flip consists of that cell and the distinct neighboring components, so the candidate formula is both achievable and complete.</p>
+</div><div class="language-controls" role="group" aria-label="Solution language"><button type="button" data-lang="java">Java</button><button type="button" data-lang="kotlin">Kotlin</button><button type="button" data-lang="both">Both</button></div><div class="code" data-code="java"><h4>Java</h4><pre><code>static final class DSU {
+    final int[] parent, size;
+    DSU(int n) {
+        parent = new int[n]; size = new int[n];
+        for (int i = 0; i &lt; n; i++) { parent[i] = i; size[i] = 1; }
+    }
+    int find(int x) {
+        while (x != parent[x]) { parent[x] = parent[parent[x]]; x = parent[x]; }
+        return x;
+    }
+    boolean union(int a, int b) {
+        int ra = find(a), rb = find(b);
+        if (ra == rb) return false;
+        if (size[ra] &lt; size[rb]) { int t = ra; ra = rb; rb = t; }
+        parent[rb] = ra; size[ra] += size[rb]; return true;
+    }
+}
+static int largestIsland(int[][] grid) {
+    Objects.requireNonNull(grid, &quot;grid&quot;);
+    int n = grid.length;
+    if (n &gt; 500) throw new IllegalArgumentException(&quot;n too large&quot;);
+    if (n == 0) return 0;
+    DSU dsu = new DSU(n * n);
+    for (int r = 0; r &lt; n; r++) for (int c = 0; c &lt; n; c++) if (grid[r][c] == 1) {
+        if (r + 1 &lt; n &amp;&amp; grid[r+1][c] == 1) dsu.union(r*n+c, (r+1)*n+c);
+        if (c + 1 &lt; n &amp;&amp; grid[r][c+1] == 1) dsu.union(r*n+c, r*n+c+1);
+    }
+    int answer = 0;
+    int[] dr = {-1,1,0,0}, dc = {0,0,-1,1};
+    for (int r = 0; r &lt; n; r++) for (int c = 0; c &lt; n; c++) {
+        if (grid[r][c] == 1) { answer = Math.max(answer, dsu.size[dsu.find(r*n+c)]); continue; }
+        Set&lt;Integer&gt; roots = new HashSet&lt;&gt;();
+        for (int d = 0; d &lt; 4; d++) {
+            int nr = r + dr[d], nc = c + dc[d];
+            if (nr &gt;= 0 &amp;&amp; nr &lt; n &amp;&amp; nc &gt;= 0 &amp;&amp; nc &lt; n &amp;&amp; grid[nr][nc] == 1) roots.add(dsu.find(nr*n+nc));
+        }
+        int area = 1;
+        for (int root : roots) area += dsu.size[root];
+        answer = Math.max(answer, area);
+    }
+    return answer;
+}</code></pre><a download href="../solutions/14-4.java">Download Java snippet</a></div><div class="code" data-code="kotlin"><h4>Kotlin</h4><pre><code>class DSU(n: Int) {
+    private val parent = IntArray(n) { it }
+    val size = IntArray(n) { 1 }
+    fun find(value: Int): Int {
+        var x = value
+        while (x != parent[x]) { parent[x] = parent[parent[x]]; x = parent[x] }
+        return x
+    }
+    fun union(a: Int, b: Int): Boolean {
+        var ra = find(a)
+        var rb = find(b)
+        if (ra == rb) return false
+        if (size[ra] &lt; size[rb]) { val t = ra; ra = rb; rb = t }
+        parent[rb] = ra
+        size[ra] += size[rb]
+        return true
+    }
+}
+fun largestIsland(grid: Array&lt;IntArray&gt;): Int {
+    val n = grid.size
+    require(n &lt;= 500)
+    if (n == 0) return 0
+    val dsu = DSU(n * n)
+    for (r in 0 until n) for (c in 0 until n) if (grid[r][c] == 1) {
+        if (r + 1 &lt; n &amp;&amp; grid[r+1][c] == 1) dsu.union(r*n+c, (r+1)*n+c)
+        if (c + 1 &lt; n &amp;&amp; grid[r][c+1] == 1) dsu.union(r*n+c, r*n+c+1)
+    }
+    var answer = 0
+    val dr = intArrayOf(-1,1,0,0)
+    val dc = intArrayOf(0,0,-1,1)
+    for (r in 0 until n) for (c in 0 until n) {
+        if (grid[r][c] == 1) { answer = maxOf(answer, dsu.size[dsu.find(r*n+c)]); continue }
+        val roots = mutableSetOf&lt;Int&gt;()
+        for (d in 0 until 4) {
+            val nr = r + dr[d]
+            val nc = c + dc[d]
+            if (nr in 0 until n &amp;&amp; nc in 0 until n &amp;&amp; grid[nr][nc] == 1) roots.add(dsu.find(nr*n+nc))
+        }
+        var area = 1
+        for (root in roots) area += dsu.size[root]
+        answer = maxOf(answer, area)
+    }
+    return answer
+}</code></pre><a download href="../solutions/14-4.kt">Download Kotlin snippet</a></div><h4>Cost and boundaries</h4><p>O(n² alpha(n²)) amortized time and O(n²) auxiliary space; root deduplication has at most four entries per candidate and O(1) expected cost. O(1) output. n &lt;= 500 keeps area and flattened indices within Int.</p>
+<ul><li><p>[] =&gt; 0</p>
+</li><li><p>[[0]] =&gt; 1</p>
+</li><li><p>[[1]] =&gt; 1</p>
+</li><li><p>[[1,1],[1,1]] =&gt; 4</p>
+</li><li><p>[[0,0],[0,0]] =&gt; 1</p>
+</li></ul><h4>Change one assumption</h4><p>Allowing two flips invalidates independent one-cell evaluation: the two new cells can connect to each other and join components neither reaches alone. For [[1,0],[0,0]], two flips can grow the island to 3, while a one-flip evaluation sees at most 2. Model pair interactions or derive a different constrained algorithm.</p>
+</details><p><a href="https://leetcode.com/problems/making-a-large-island/" target="_blank" rel="noopener">Original practice problem</a> <label class="solved"><input type="checkbox" data-progress="14-4"> Solved independently</label></p></article></section><section id="practice"><h2>Practice with gradually less help</h2><details class="practice-item"><summary>Find the Town Judge <span class="muted">Easy</span></summary><a href="https://leetcode.com/problems/find-the-town-judge/" target="_blank" rel="noopener">Open problem</a><details><summary>A small hint</summary><p>Track directed incoming and outgoing counts; no traversal is required.</p>
+</details><details><summary>Solution outline and cost</summary><p>Find the unique vertex with incoming n-1 and outgoing 0 under distinct trust-pair assumptions. O(n+m) time, O(n) space. This shows that directed graphs do not always require topology.</p>
+</details><label><input type="checkbox" data-progress="14-practice-0"> Solved independently</label></details><details class="practice-item"><summary>Number of Provinces <span class="muted">Medium</span></summary><a href="https://leetcode.com/problems/number-of-provinces/" target="_blank" rel="noopener">Open problem</a><details><summary>A small hint</summary><p>Connectivity is symmetric and no path details are needed.</p>
+</details><details><summary>Solution outline and cost</summary><p>Union every connected pair in the matrix and count roots. O(n² alpha(n)) time and O(n) auxiliary space; DFS is also appropriate for a static graph.</p>
+</details><label><input type="checkbox" data-progress="14-practice-1"> Solved independently</label></details><details class="practice-item"><summary>Accounts Merge <span class="muted">Medium</span></summary><a href="https://leetcode.com/problems/accounts-merge/" target="_blank" rel="noopener">Open problem</a><details><summary>A small hint</summary><p>An email is an identity link, while a display name is not.</p>
+</details><details><summary>Solution outline and cost</summary><p>Map each email to an account index and union accounts sharing an email; group emails by final representative and sort each group. O(E alpha(A)+E log E) typical bound plus string costs. Equal names alone must not merge accounts.</p>
+</details><label><input type="checkbox" data-progress="14-practice-2"> Solved independently</label></details><details class="practice-item"><summary>Alien Dictionary <span class="muted">Hard</span></summary><a href="https://leetcode.com/problems/alien-dictionary/" target="_blank" rel="noopener">Open problem</a><details><summary>A small hint</summary><p>Only the first differing character between adjacent sorted words creates an order edge.</p>
+</details><details><summary>Solution outline and cost</summary><p>Build a directed character graph, reject longer-before-prefix pairs, deduplicate edges, then topologically sort. O(total characters + alphabet + edges), plus queue choice costs. A cycle makes the order impossible; absent constraints permit multiple orders.</p>
+</details><label><input type="checkbox" data-progress="14-practice-3"> Solved independently</label></details><details class="practice-item"><summary>Minimum Height Trees <span class="muted">Medium</span></summary><a href="https://leetcode.com/problems/minimum-height-trees/" target="_blank" rel="noopener">Open problem</a><details><summary>A small hint</summary><p>Peel undirected leaves; compare this to directed source removal.</p>
+</details><details><summary>Solution outline and cost</summary><p>For a tree, repeatedly remove all leaves until at most two centers remain. O(n) time/space. This is not general topological sorting: an undirected tree has no directed prerequisites.</p>
+</details><label><input type="checkbox" data-progress="14-practice-4"> Solved independently</label></details><details class="practice-item"><summary>Number of Operations to Make Network Connected <span class="muted">Medium</span></summary><a href="https://leetcode.com/problems/number-of-operations-to-make-network-connected/" target="_blank" rel="noopener">Open problem</a><details><summary>A small hint</summary><p>Count components and spare undirected edges.</p>
+</details><details><summary>Solution outline and cost</summary><p>If fewer than n-1 cables exist, return -1. Otherwise DSU component count c implies c-1 reconnections. O((n+m) alpha(n)) time, O(n) space. Reusing a redundant cable is permitted by the problem contract.</p>
+</details><label><input type="checkbox" data-progress="14-practice-5"> Solved independently</label></details><details class="practice-item"><summary>Parallel Courses III <span class="muted">Hard</span></summary><a href="https://leetcode.com/problems/parallel-courses-iii/" target="_blank" rel="noopener">Open problem</a><details><summary>A small hint</summary><p>A prerequisite DAG supports longest-path dynamic programming.</p>
+</details><details><summary>Solution outline and cost</summary><p>Set earliestFinish[v] to duration[v] initially; in topological order relax finish[next]=max(finish[next],finish[cur]+duration[next]). Return maximum finish. O(n+m) time/space; use Long for large total durations. A cycle means the assumed schedule is invalid.</p>
+</details><label><input type="checkbox" data-progress="14-practice-6"> Solved independently</label></details></section><section><h2>Check the reasoning</h2><fieldset class="quiz" data-answer="1"><legend>Kahn processes 7 of 9 vertices and its queue becomes empty. What follows?</legend><label><input type="radio" name="q0" value="0"> All remaining vertices are on one cycle.</label><label><input type="radio" name="q0" value="1"> The directed graph contains a cycle; remaining vertices may also be blocked downstream.</label><label><input type="radio" name="q0" value="2"> The input only needs a different queue order.</label><button type="button" data-check>Check reasoning</button><p class="feedback" aria-live="polite" data-explanation="No ready vertex remains, so the nonempty residual graph has a cycle. Queue order cannot fix a dependency cycle."></p></fieldset><fieldset class="quiz" data-answer="1"><legend>Why must an island-flip candidate deduplicate neighbor roots?</legend><label><input type="radio" name="q1" value="0"> The grid contains duplicate coordinates.</label><label><input type="radio" name="q1" value="1"> Two adjacent land neighbors may already connect around another route.</label><label><input type="radio" name="q1" value="2"> DSU root sizes are always too large.</label><button type="button" data-check>Check reasoning</button><p class="feedback" aria-live="polite" data-explanation="Each existing component contributes its area once even if it touches the candidate on several sides."></p></fieldset></section><section id="transfer"><h2>An unfamiliar version</h2><p>A build tool receives directed package prerequisites and undirected cable additions between build workers. It needs a feasible package build order and whether two workers currently communicate. Choose state and algorithms for each query.</p>
+<details><summary>Hint 1</summary><p>An arrow imposes order; a cable expresses symmetric reachability.</p>
+</details><details><summary>Hint 2</summary><p>Ask whether your state needs readiness counts or equivalence classes.</p>
+</details><details><summary>Derivation</summary><p>Use directed adjacency and indegrees with Kahn for package order, O(P+D) time/space for P packages and D dependency edges. Use DSU for workers: union on cable additions and compare find roots for connectivity; O((W+Q) alpha(W)) total for initialization plus Q operations, O(W) space. DSU cannot answer directed prerequisite feasibility or show the actual cable path.</p>
+</details></section><section><h2>Retrieve it without looking</h2><ul><li><p>Derive why a nonempty DAG has a zero-indegree vertex.</p>
+</li><li><p>Explain why leftover Kahn vertices need not all lie on cycles.</p>
+</li><li><p>State the DSU membership invariant and where size metadata is valid.</p>
+</li><li><p>Draw a DAG that DSU would incorrectly classify as cyclic.</p>
+</li><li><p>Explain why evaluating one island flip must leave other candidate water cells unmerged.</p>
+</li></ul><p>Repeat after 1, 3, 7 and 21 days. A check mark records your self-report, not a mastery score. Explain the proof and solve a changed version before calling a pattern fluent.</p></section><section><h2>Sources and further study</h2><ul><li><a href="https://algs4.cs.princeton.edu/42digraph/">Princeton directed graphs</a>: Primary reference link for directed graph concepts; content not retrieved during this pass.</li><li><a href="https://algs4.cs.princeton.edu/15uf/">Princeton union-find</a>: Primary reference link for connectivity data structures; content not retrieved during this pass. No employer frequency claims.</li></ul><p class="muted">These are reference links. See the research page for live-verification limits and the distinction between a canonical algorithm and a confirmed company question.</p></section><p class="next">Next: <a href="15-shortest-paths.html">Shortest paths: matching the frontier to edge costs</a></p></main></div><footer>Practice deriving the invariant. Explain why every discarded candidate is safe to discard. <a href="../research.html">Evidence and scope</a></footer><!-- page-navigation:start -->
+<nav class="page-navigation" aria-label="Bottom page navigation"><div class="page-navigation-parents"><a href="../../index.html">Library home</a> <span aria-hidden="true">›</span> <a href="../../index.html#technical-foundations">Technical foundations and implementation</a> <span aria-hidden="true">›</span> <a href="../index.html">Coding Interviews: Patterns &amp; Problem Solving</a> <span aria-hidden="true">›</span> <a href="index.html">Lessons</a></div><div class="page-navigation-sections"><a href="index.html">Lessons</a><a href="../reference/index.html">Reference sheets</a><a href="../materials.html">Guides and resources</a><a href="#page-top">Back to top ↑</a></div><div class="page-navigation-pager"><a href="13-graph-traversal.html" rel="prev">← Previous: Graphs: reachability and shortest unweighted paths</a><a href="15-shortest-paths.html" rel="next">Next: Shortest paths: matching the frontier to edge costs →</a></div></nav>
+<!-- page-navigation:end -->
+<script src="../../assets/course/links.js" defer></script>
+</body></html>

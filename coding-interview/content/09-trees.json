@@ -1,0 +1,274 @@
+{
+  "id": "09",
+  "slug": "trees",
+  "title": "Trees: decide what crosses each parent-child boundary",
+  "group": "Structural patterns",
+  "prerequisites": "References, recursion, stacks and queues; Lesson 08",
+  "estimatedMinutes": 180,
+  "motivation": "A tree breaks a large problem into smaller trees. The central design choice is what information a parent sends down and what summary each child returns. Traversal order follows that dependency, turning many apparently different questions into a few reusable proof shapes.",
+  "recognition": [
+    "Every node has a unique route from the root: inherited constraints or prefix state can follow that route.",
+    "A parent answer depends on its children: compute children first with postorder.",
+    "Answers are organized by distance from a root: process a FIFO queue in complete levels.",
+    "A path can turn at one node but cannot branch into three directions: separate a global completed answer from a one-branch return value."
+  ],
+  "mentalModel": "A binary tree node stores a value and references to at most two children. A proper tree has no cycles and no shared child object; otherwise recursive tree algorithms may revisit nodes or fail to terminate. An empty child is itself a meaningful base case. Ask what answer an empty subtree should contribute before writing recursion: depth zero, no target found, or a gain of zero when choosing to omit a branch. Different problems need different identities.\n\nThere are three useful moments at a node. Preorder acts before children, which fits passing inherited state such as a legal numeric interval. Inorder acts between left and right children; in a valid binary search tree it produces sorted values. Postorder acts after children and fits synthesizing a result from their summaries. These are schedules, not independent tricks to memorize. If a parent requires child depths, any implementation must obtain those depths first, whether using recursion or an explicit stack.\n\nThink of each recursive call as a tiny module with a contract. State the meaning of its parameters and the meaning of its return. A search-tree validator can receive open bounds (low,high); a node and every descendant must fit all ancestor decisions, not only the immediate parent. A lowest-common-ancestor helper can return which targets were found and the best common ancestor if both were found. This richer return prevents an absent target from being mistaken for a valid result.\n\nFor path problems, distinguish what is legal inside a subtree from what can cross its connection to the parent. A complete path may join a left branch, the current node, and a right branch. A value returned upward cannot contain both branches, because the parent would create a fork rather than a simple path. Return the best one-branch gain; separately update the best complete path. Negative gains can be excluded, but the current node itself cannot be excluded when the path must be nonempty.\n\nA breadth-first queue offers another dependency schedule. Snapshot the queue size at the start of a level so newly enqueued children are processed at the next level. Without that snapshot, the boundary between depths disappears. Recursion uses O(h) call stack for height h, which can equal n for a chain. JVM stack depth is finite; use explicit frames for deeply skewed or adversarial trees.",
+  "invariant": "Each helper processes exactly its subtree, receives a precise inherited context, and returns a summary sufficient for its parent. Structural induction proves correctness: establish the empty case, assume child contracts, then show the parent composition preserves the contract. For BFS, the queue at a level boundary contains exactly the next depth in left-to-right order.",
+  "wrongTurns": [
+    {
+      "temptation": "Validate a BST using only node.left.val < node.val < node.right.val.",
+      "counterexample": "Root 10 has right child 15, and 15 has left child 6. Every local comparison passes, but 6 lies in the right subtree of 10 and violates its ancestor bound.",
+      "repair": "Propagate the entire legal interval from all ancestors, or verify strictly increasing inorder values."
+    },
+    {
+      "temptation": "Return a path containing both child gains to the parent.",
+      "counterexample": "At node 2 with children 3 and 4, returning 3+2+4=9 to parent 1 creates three incident path edges at node 2 after adding 1. That object is a fork, not a simple path.",
+      "repair": "Use both children only for a completed candidate; return node plus at most one child gain."
+    }
+  ],
+  "diagram": {
+    "caption": "A node combines two child summaries but exposes only the legal summary to its parent.",
+    "nodes": [
+      "left subtree gain 4",
+      "node value 2",
+      "right subtree gain 7",
+      "complete candidate 4+2+7=13",
+      "upward gain 2+max(4,7)=9"
+    ],
+    "edges": [
+      [
+        0,
+        1,
+        "return"
+      ],
+      [
+        2,
+        1,
+        "return"
+      ],
+      [
+        1,
+        3,
+        "consider globally"
+      ],
+      [
+        1,
+        4,
+        "return one branch"
+      ]
+    ]
+  },
+  "trace": [
+    {
+      "state": "Tree: -10 with left 9 and right 20; 20 has children 15,7. Leaf 9 returns 9; best=9.",
+      "explanation": "A leaf has no optional gains; its nonempty path is its own value."
+    },
+    {
+      "state": "Leaf 15 returns 15; best=15. Leaf 7 returns 7; best=15.",
+      "explanation": "Independent child summaries are ready before their parent."
+    },
+    {
+      "state": "At 20: completed=15+20+7=42; upward=20+15=35; best=42.",
+      "explanation": "The full two-branch path is legal locally but only one branch may extend upward."
+    },
+    {
+      "state": "At -10: completed=9-10+35=34; upward=25; final best=42.",
+      "explanation": "A globally best path need not pass through the root."
+    }
+  ],
+  "problems": [
+    {
+      "title": "Maximum depth by complete levels",
+      "difficulty": "Easy",
+      "statement": "Given a nullable root of a proper finite binary tree, return the maximum number of nodes along a root-to-leaf path. Empty tree has depth 0. Values are arbitrary Int values and are ignored; do not mutate the tree.",
+      "example": "A root with one child has depth 2.",
+      "baseline": "Run a root-to-leaf search separately for every leaf: potentially O(nh) repeated work and O(h) stack.",
+      "reasoning": [
+        "Depth is the count of edges from root plus one. A queue groups nodes by that count, so counting complete queue levels directly yields depth.",
+        "At the start of each iteration snapshot size. Remove exactly size nodes, enqueuing their non-null children. Newly appended children belong to the next depth and must not increase this iteration count.",
+        "When the queue empties every node has been processed once. The number of completed levels is the longest root-to-leaf node count."
+      ],
+      "invariant": "Before a level iteration the queue contains exactly all nodes at that depth; each child is enqueued exactly once. Both assumptions rely on a proper tree.",
+      "java": "static class Node { int val; Node left,right; Node(int v) { val=v; } }\nstatic int maxDepth(Node root) {\n if(root==null) return 0;\n Deque<Node> q=new ArrayDeque<>(); q.add(root); int depth=0;\n while(!q.isEmpty()) {\n  int size=q.size(); depth++;\n  for(int i=0;i<size;i++) {\n   Node n=q.remove();\n   if(n.left!=null) q.add(n.left);\n   if(n.right!=null) q.add(n.right);\n  }\n }\n return depth;\n}",
+      "kotlin": "class Node(val value: Int, var left: Node? = null, var right: Node? = null)\nfun maxDepth(root: Node?): Int {\n if (root == null) return 0\n val q = ArrayDeque<Node>()\n q.add(root)\n var depth = 0\n while (q.isNotEmpty()) {\n  val size = q.size\n  depth++\n  repeat(size) {\n   val n = q.remove()\n   n.left?.let { q.add(it) }\n   n.right?.let { q.add(it) }\n  }\n }\n return depth\n}",
+      "complexity": "O(n) time and O(w) queue space where w is maximum tree width; worst-case O(n). No recursive stack.",
+      "edgeCases": [
+        "null \u21d2 0",
+        "single node \u21d2 1",
+        "chain of four nodes \u21d2 4"
+      ],
+      "twist": "To return level-order values, collect each snapshot into a list. Zigzag order changes the output positions, not the actual BFS visitation proof.",
+      "source": "https://leetcode.com/problems/maximum-depth-of-binary-tree/",
+      "testJava": "Node r=new Node(1);r.left=new Node(2);r.left.right=new Node(3);if(maxDepth(r)!=3||maxDepth(null)!=0)throw new AssertionError();",
+      "testKotlin": "val r=Node(1);r.left=Node(2);r.left!!.right=Node(3);check(maxDepth(r)==3);check(maxDepth(null)==0)"
+    },
+    {
+      "title": "Validate every ancestor constraint in a BST",
+      "difficulty": "Medium",
+      "statement": "Given a nullable proper binary tree with Int node values, return whether every left descendant is strictly smaller and every right descendant strictly larger than each ancestor. Duplicate values are invalid. Empty tree is valid; do not mutate.",
+      "example": "10 with right child 15 containing left child 6 returns false.",
+      "baseline": "For each node rescan all descendants to check side constraints: O(n\u00b2) worst-case time, O(h) recursion space.",
+      "reasoning": [
+        "The root can take any Int value. Represent its legal interval using Long.MIN_VALUE and Long.MAX_VALUE so Int extremes are not accidentally excluded.",
+        "At a node, check low<value<high. Its left subtree inherits (low,value), and its right subtree inherits (value,high). Ancestor bounds survive every recursive step.",
+        "Return true for null. Reject immediately on any bound violation, otherwise require both child results. The interval encodes the full search-tree definition, so passing local checks is sufficient."
+      ],
+      "invariant": "The open interval passed to a subtree is exactly the intersection of ordering requirements created by all its ancestors.",
+      "java": "static class Node { int val; Node left,right; Node(int v) { val=v; } }\nstatic boolean isBST(Node root) {\n return within(root,Long.MIN_VALUE,Long.MAX_VALUE);\n}\nstatic boolean within(Node n,long low,long high) {\n if(n==null) return true;\n if(n.val<=low || n.val>=high) return false;\n return within(n.left,low,n.val) && within(n.right,n.val,high);\n}",
+      "kotlin": "class Node(val value: Int, var left: Node? = null, var right: Node? = null)\nfun isBST(root: Node?): Boolean {\n fun within(n: Node?, low: Long, high: Long): Boolean {\n  if (n == null) return true\n  val v = n.value.toLong()\n  if (v <= low || v >= high) return false\n  return within(n.left, low, v) && within(n.right, v, high)\n }\n return within(root, Long.MIN_VALUE, Long.MAX_VALUE)\n}",
+      "complexity": "O(n) time, O(h) recursive stack; h can be n. Bounds use Long; no arithmetic on bounds is needed.",
+      "edgeCases": [
+        "null \u21d2 true",
+        "root Int.MIN_VALUE \u21d2 true",
+        "root 2 with left child 2 \u21d2 false"
+      ],
+      "twist": "If duplicates are permitted on only one side, bounds need inclusive/exclusive metadata; simply replacing both comparisons by non-strict ones violates the one-sided policy.",
+      "source": "https://leetcode.com/problems/validate-binary-search-tree/",
+      "testJava": "Node r=new Node(10);r.right=new Node(15);r.right.left=new Node(6);if(isBST(r)||!isBST(new Node(Integer.MIN_VALUE))||!isBST(null))throw new AssertionError();",
+      "testKotlin": "val r=Node(10);r.right=Node(15);r.right!!.left=Node(6);check(!isBST(r));check(isBST(Node(Int.MIN_VALUE)));check(isBST(null))"
+    },
+    {
+      "title": "Lowest common ancestor with missing targets",
+      "difficulty": "Medium",
+      "statement": "Given a nullable proper binary tree and two non-null target node references p,q, return their deepest common ancestor only if both identities occur in the tree; otherwise return null. p may equal q. Values may repeat. Do not mutate.",
+      "example": "Root A has children B,C: LCA(B,C)=A; LCA(B,B)=B; a detached target yields null.",
+      "baseline": "Find both root-to-target paths then compare their prefixes: O(n) time, O(h) stored paths plus search stack. This is valid but stores whole routes.",
+      "reasoning": [
+        "A subtree must report target presence, not merely a possible ancestor. Encode p found as bit 1 and q found as bit 2; a node equal to both sets both bits.",
+        "Combine child masks with identity matches at the current node. If a child already contains both, its recorded ancestor is deeper and remains the answer. Otherwise the current node is the first place that can unite both presences.",
+        "At the root return an ancestor only for mask 3. This final check distinguishes a lone present target from a valid ancestor, unlike the shortcut that assumes both targets exist."
+      ],
+      "invariant": "Each helper returns exactly the presence mask for its subtree and, for mask 3, the deepest node whose subtree contains both target identities.",
+      "java": "static class Node { int val; Node left,right; Node(int v) { val=v; } }\nstatic class LcaInfo {\n int mask; Node ancestor;\n LcaInfo(int m,Node a) { mask=m; ancestor=a; }\n}\nstatic Node lca(Node root,Node p,Node q) {\n Objects.requireNonNull(p); Objects.requireNonNull(q);\n LcaInfo result=lcaInfo(root,p,q);\n return result.mask==3?result.ancestor:null;\n}\nstatic LcaInfo lcaInfo(Node n,Node p,Node q) {\n if(n==null) return new LcaInfo(0,null);\n LcaInfo l=lcaInfo(n.left,p,q), r=lcaInfo(n.right,p,q);\n int mask=l.mask|r.mask|(n==p?1:0)|(n==q?2:0);\n Node a=l.mask==3?l.ancestor:r.mask==3?r.ancestor:mask==3?n:null;\n return new LcaInfo(mask,a);\n}",
+      "kotlin": "class Node(val value: Int, var left: Node? = null, var right: Node? = null)\ndata class LcaInfo(val mask: Int, val ancestor: Node?)\nfun lca(root: Node?, p: Node, q: Node): Node? {\n fun visit(n: Node?): LcaInfo {\n  if (n == null) return LcaInfo(0, null)\n  val l = visit(n.left)\n  val r = visit(n.right)\n  val mask = l.mask or r.mask or (if (n === p) 1 else 0) or (if (n === q) 2 else 0)\n  val a = when {\n   l.mask == 3 -> l.ancestor\n   r.mask == 3 -> r.ancestor\n   mask == 3 -> n\n   else -> null\n  }\n  return LcaInfo(mask, a)\n }\n val result = visit(root)\n return if (result.mask == 3) result.ancestor else null\n}",
+      "complexity": "O(n) time, O(h) live recursive space; O(n) small result objects allocated cumulatively. No ancestor paths are retained.",
+      "edgeCases": [
+        "null root \u21d2 null",
+        "p===q and present \u21d2 p",
+        "one absent target \u21d2 null"
+      ],
+      "twist": "For many LCA queries on a fixed tree, preprocess parent/depth tables for binary lifting; O(n log n) preprocessing and O(log n) per query replaces repeating full DFS.",
+      "source": "https://leetcode.com/problems/lowest-common-ancestor-of-a-binary-tree/",
+      "testJava": "Node r=new Node(1),a=new Node(2),b=new Node(2);r.left=a;r.right=b;if(lca(r,a,b)!=r||lca(r,a,a)!=a||lca(r,a,new Node(2))!=null||lca(null,a,b)!=null)throw new AssertionError();",
+      "testKotlin": "val r=Node(1);val a=Node(2);val b=Node(2);r.left=a;r.right=b;check(lca(r,a,b)===r);check(lca(r,a,a)===a);check(lca(r,a,Node(2))==null);check(lca(null,a,b)==null)"
+    },
+    {
+      "title": "Maximum sum of any nonempty path",
+      "difficulty": "Hard",
+      "statement": "Given a nullable proper tree with Int values, return the maximum sum over nonempty simple paths as nullable Long. A path may start and end anywhere but cannot repeat nodes. Empty tree returns null; do not mutate.",
+      "example": "[-10,9,20,null,null,15,7] returns 42 from 15\u219220\u21927.",
+      "baseline": "Enumerate every pair of endpoints and find their path: O(n\u00b2h) straightforward time and O(h) traversal space.",
+      "reasoning": [
+        "Every simple path has a highest node in the rooted tree. At that node it uses at most one downward branch from each child. Obtain the best downward gain from each child with postorder.",
+        "Clamp negative child gains to zero because a branch is optional. Consider value+left+right as a completed path, updating a global best initialized to Long.MIN_VALUE so an all-negative tree remains nonempty.",
+        "Return value+max(left,right). This return can extend through the parent without creating a fork. Every possible highest node is considered once, which covers every optimal path."
+      ],
+      "invariant": "The returned gain is the best nonempty downward path beginning at this node; best is the maximum completed path found anywhere in processed subtrees.",
+      "java": "static class Node { int val; Node left,right; Node(int v) { val=v; } }\nstatic Long maximumPath(Node root) {\n if(root==null) return null;\n long[] best={Long.MIN_VALUE}; gain(root,best); return best[0];\n}\nstatic long gain(Node n,long[] best) {\n if(n==null) return 0;\n long left=Math.max(0,gain(n.left,best));\n long right=Math.max(0,gain(n.right,best));\n best[0]=Math.max(best[0],(long)n.val+left+right);\n return (long)n.val+Math.max(left,right);\n}",
+      "kotlin": "class Node(val value: Int, var left: Node? = null, var right: Node? = null)\nfun maximumPath(root: Node?): Long? {\n if (root == null) return null\n var best = Long.MIN_VALUE\n fun gain(n: Node?): Long {\n  if (n == null) return 0L\n  val left = maxOf(0L, gain(n.left))\n  val right = maxOf(0L, gain(n.right))\n  best = maxOf(best, n.value.toLong() + left + right)\n  return n.value.toLong() + maxOf(left, right)\n }\n gain(root)\n return best\n}",
+      "complexity": "O(n) time and O(h) recursive space. Long holds sums for Int-valued trees with an Int-sized node count. Extremely deep trees need explicit postorder frames.",
+      "edgeCases": [
+        "null \u21d2 null",
+        "[-5] \u21d2 -5",
+        "root -2 with child -3 \u21d2 -2"
+      ],
+      "twist": "To reconstruct the path, record which child supplied each positive downward gain and remember the best turning node. Reconstruct only once at the end to avoid copying paths at every node.",
+      "source": "https://leetcode.com/problems/binary-tree-maximum-path-sum/",
+      "testJava": "Node r=new Node(-10);r.left=new Node(9);r.right=new Node(20);r.right.left=new Node(15);r.right.right=new Node(7);if(!Objects.equals(maximumPath(r),42L)||!Objects.equals(maximumPath(new Node(-5)),-5L)||maximumPath(null)!=null)throw new AssertionError();",
+      "testKotlin": "val r=Node(-10);r.left=Node(9);r.right=Node(20);r.right!!.left=Node(15);r.right!!.right=Node(7);check(maximumPath(r)==42L);check(maximumPath(Node(-5)) == -5L);check(maximumPath(null)==null)"
+    }
+  ],
+  "practice": [
+    {
+      "title": "Binary Tree Inorder Traversal",
+      "difficulty": "Easy",
+      "url": "https://leetcode.com/problems/binary-tree-inorder-traversal/",
+      "hint": "An explicit stack stores suspended ancestor visits.",
+      "approach": "Push the left chain, pop and emit, then move to its right child. O(n) time/O(h) stack plus O(n) output; shared nodes are outside the tree contract."
+    },
+    {
+      "title": "Diameter of Binary Tree",
+      "difficulty": "Easy",
+      "url": "https://leetcode.com/problems/diameter-of-binary-tree/",
+      "hint": "Return height but update a two-child candidate.",
+      "approach": "Postorder returns max child height+1, updates diameter with leftHeight+rightHeight in edges. O(n)/O(h); distinguish edge count from node count."
+    },
+    {
+      "title": "Path Sum III",
+      "difficulty": "Medium",
+      "url": "https://leetcode.com/problems/path-sum-iii/",
+      "hint": "A current root-path prefix sum asks for earlier prefix minus target.",
+      "approach": "Maintain frequencies of prefix sums only on the active recursion path; add before descending and remove while backtracking. O(n) expected time/O(h) map and stack; use Long."
+    },
+    {
+      "title": "Construct Binary Tree from Preorder and Inorder Traversal",
+      "difficulty": "Medium",
+      "url": "https://leetcode.com/problems/construct-binary-tree-from-preorder-and-inorder-traversal/",
+      "hint": "Preorder names the root; inorder divides descendants.",
+      "approach": "For distinct values, map inorder positions and recurse on index intervals with a preorder cursor. O(n) time/O(n) map+O(h) stack; duplicate values need extra identity information."
+    },
+    {
+      "title": "Serialize and Deserialize Binary Tree",
+      "difficulty": "Hard",
+      "url": "https://leetcode.com/problems/serialize-and-deserialize-binary-tree/",
+      "hint": "Null child markers make structure recoverable.",
+      "approach": "Preorder emits value/null tokens; parser consumes one token per recursive subtree. O(n) time/O(n) serialized output and stack; define escaping and malformed-input behavior."
+    },
+    {
+      "title": "Kth Smallest Element in a BST",
+      "difficulty": "Medium",
+      "url": "https://leetcode.com/problems/kth-smallest-element-in-a-bst/",
+      "hint": "Inorder traversal exposes rank order.",
+      "approach": "Count iterative inorder visits until k. O(h+k) time/O(h) space; repeated queries benefit from subtree sizes maintained through updates."
+    }
+  ],
+  "quiz": [
+    {
+      "question": "A returned maximum-path gain may include how many child branches?",
+      "choices": [
+        "At most one",
+        "Always two",
+        "Any number if positive"
+      ],
+      "answer": 0,
+      "explanation": "The connection to the parent consumes another path edge. Two children plus parent would create degree three."
+    },
+    {
+      "question": "Why do BST bounds use Long for Int node values?",
+      "choices": [
+        "Trees require floating point.",
+        "Int extremes must remain valid inside open outer bounds.",
+        "It makes recursion iterative."
+      ],
+      "answer": 1,
+      "explanation": "Using Int.MIN_VALUE as an exclusive lower bound would incorrectly reject a valid node with that value."
+    }
+  ],
+  "transfer": {
+    "prompt": "In a company hierarchy, each employee has an integer benefit. Select a nonempty chain of directly connected employees, possibly climbing then descending once, to maximize total benefit. A manager may have many direct reports. Derive the returned state.",
+    "hints": [
+      "A simple chain can use at most two child branches at its highest manager.",
+      "Only one branch can be exposed to a manager above."
+    ],
+    "solution": "Postorder each employee, retain the two largest positive child downward gains, update best with employee benefit plus both, return employee benefit plus the largest. This generalizes the binary-tree path proof to arbitrary degree. O(n) time/O(h) stack when scanning each reporting edge once; use Long and preserve an all-negative answer."
+  },
+  "review": [
+    "Write a helper contract before coding LCA or path sum.",
+    "Explain the difference between inherited bounds and synthesized gain.",
+    "Convert recursive postorder into an explicit stack with visited-state frames."
+  ],
+  "sources": [
+    {
+      "label": "LeetCode tree taxonomy",
+      "url": "https://leetcode.com/tag/tree/",
+      "note": "Reference link; not retrieved in this run. Primary source of named practice contracts.",
+      "status": "unverified"
+    },
+    {
+      "label": "Maximum path sum",
+      "url": "https://leetcode.com/problems/binary-tree-maximum-path-sum/",
+      "note": "Reference link; not retrieved in this run. Canonical nonempty path task underlying the branch-return distinction.",
+      "status": "unverified"
+    }
+  ]
+}

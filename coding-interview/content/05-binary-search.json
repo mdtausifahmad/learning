@@ -1,0 +1,285 @@
+{
+  "id": "05",
+  "slug": "binary-search",
+  "title": "Binary search on positions, structure, and answers",
+  "group": "Linear data",
+  "prerequisites": "Lesson 00; arrays, loops, functions, and Big-O",
+  "estimatedMinutes": 150,
+  "motivation": "Binary search is an argument about a boundary in an ordered set of possibilities. It is broader than finding a value in a sorted array. Start by imagining a yes/no predicate over candidate positions: false, false, false, true, true. The task is to locate the first true position. Each test discards half the remaining candidates because monotonicity proves that every position on one side has the same answer. Without that proof, halving is only a guess.",
+  "mentalModel": "Binary search is an argument about a boundary in an ordered set of possibilities. It is broader than finding a value in a sorted array. Start by imagining a yes/no predicate over candidate positions: false, false, false, true, true. The task is to locate the first true position. Each test discards half the remaining candidates because monotonicity proves that every position on one side has the same answer. Without that proof, halving is only a guess.\n\nA lower-bound search uses the half-open interval [lo,hi). We seek the first index whose value is at least target. Initially lo=0 and hi=n; n is the legitimate answer when every value is smaller. At midpoint, a value below target proves every position through mid is too small, so lo=mid+1. Otherwise mid may be the first valid position, so keep it by setting hi=mid. The interval shrinks on every iteration and termination lo==hi identifies the boundary. Duplicates need no special case because the predicate still has a single false-to-true transition.\n\nRotated arrays show that global sortedness is not always necessary, but local structure must replace it. With distinct values, at least one half around the midpoint is sorted. Determine which half, check whether the target lies in that half's value interval, and retain the appropriate side. Duplicates can make the sorted-half inference ambiguous; then the worst case may require linear shrinking. State the distinctness assumption rather than quietly inheriting it from a remembered solution.\n\nSearching an answer space requires two separate algorithms: a feasibility checker and the boundary search around it. For shipping packages in order, a capacity is feasible if a greedy scan uses at most D days. Larger capacity cannot make a feasible schedule fail, giving monotonicity. The minimum possible capacity is the heaviest package, and the sum of all weights is always sufficient for at least one day. Greedy is correct because filling each day as far as possible leaves no more remaining work than any other schedule with the same number of days. Binary search then finds the first feasible capacity.\n\nMedian partition is advanced because the search variable is a cut, not a returned value. Choose how many elements to take from the first sorted array; the required left-half size determines the cut in the other. A partition is correct when both left boundary values are no greater than the opposite right boundary. If the first left boundary is too large, reduce that cut; if the other left boundary is too large, increase it. Sentinels model empty sides. Search the shorter array so every complementary cut is in range.\n\nFor unfamiliar twists, first write the candidate domain, monotone predicate, endpoint meaning, and progress measure. Then test empty input, all-false, all-true, duplicates, and a two-candidate interval by hand. Overflow-safe midpoint calculation prevents an implementation failure, but it does not repair a false monotonicity assumption.",
+  "invariant": "Define what each endpoint means and show that the answer remains between them after every update. The comparison must prove an entire discarded region cannot contain the answer, and the candidate interval must strictly shrink. Feasibility search additionally requires a correct checker and a monotone predicate.",
+  "recognition": [
+    "A sorted predicate with one false-to-true boundary suggests lower bound.",
+    "A requested minimum feasible or maximum feasible numeric answer suggests searching the answer domain.",
+    "Two sorted arrays may permit searching a partition rather than merging elements."
+  ],
+  "wrongTurns": [
+    {
+      "temptation": "Set lo=mid in a first-true search with floor midpoint.",
+      "counterexample": "lo=0,hi=1 gives mid=0; if false, lo stays 0 forever.",
+      "repair": "For a half-open first-true search, false means lo=mid+1."
+    },
+    {
+      "temptation": "Binary-search any numeric objective without proving feasibility monotone.",
+      "counterexample": "Predicate \"exactly two divisors\" is true at 2, false at 4, true at 5; discarding a half based on one test loses solutions.",
+      "repair": "State the false/true ordering of the predicate or choose another algorithm."
+    },
+    {
+      "temptation": "Average two int median values before widening.",
+      "counterexample": "[2147483647] and [2147483647] overflow int addition and produce a negative median.",
+      "repair": "Widen both boundary values before summing."
+    }
+  ],
+  "diagram": {
+    "caption": "Lower bound locates a boundary in a false-to-true predicate.",
+    "nodes": [
+      "Values [1, 2, 2, 5]; target 2",
+      "Predicate [false, true, true, true]",
+      "[lo,hi) = [0,4) \u2192 [0,2) \u2192 [0,1)",
+      "a[0] fails \u2192 lo=1=hi; first true is 1"
+    ],
+    "edges": [
+      [
+        0,
+        1,
+        "ask value \u2265 target"
+      ],
+      [
+        1,
+        2,
+        "true midpoint remains a candidate"
+      ],
+      [
+        2,
+        3,
+        "false midpoint is discarded"
+      ]
+    ]
+  },
+  "trace": [
+    {
+      "state": "Lower bound a=[1,2,2,5], target=2; lo=0,hi=4,mid=2",
+      "explanation": "a[2]>=2, so position 2 may be first; set hi=2."
+    },
+    {
+      "state": "lo=0,hi=2,mid=1",
+      "explanation": "a[1]>=2; retain it by setting hi=1."
+    },
+    {
+      "state": "lo=0,hi=1,mid=0",
+      "explanation": "a[0]<2; discard through index 0 by lo=1."
+    },
+    {
+      "state": "lo=hi=1; return 1",
+      "explanation": "Every earlier value is too small and this position meets the predicate."
+    }
+  ],
+  "problems": [
+    {
+      "title": "Lower Bound: First Position At Least Target",
+      "difficulty": "Easy",
+      "statement": "Given a non-null ascending int array, return the first index with value >=target, or n when no such value exists. Empty input returns 0. Input is unchanged.",
+      "example": "[1,2,2,5], target 2 => 1; target 6 => 4.",
+      "baseline": "Scan left-to-right until a value meets the threshold: O(n) time/O(1) space.",
+      "reasoning": [
+        "Define the monotone predicate a[i]>=target. Search candidate boundary positions from 0 through n.",
+        "Use [lo,hi) with hi=n. If a[mid]<target discard through mid; otherwise retain mid as a possible first valid index.",
+        "At termination all indices before lo fail and every existing index at or after lo meets the threshold."
+      ],
+      "invariant": "All indices below lo are too small, and all indices at or above hi are large enough. The first valid boundary remains in [lo,hi].",
+      "java": "static int lowerBound(int[] a,int target) {\n    int lo=0,hi=a.length;\n    while(lo<hi) {\n        int mid=lo+(hi-lo)/2;\n        if(a[mid]<target) lo=mid+1; else hi=mid;\n    }\n    return lo;\n}",
+      "kotlin": "fun lowerBound(a: IntArray, target: Int): Int {\n    var lo = 0; var hi = a.size\n    while (lo < hi) {\n        val mid = lo + (hi - lo) / 2\n        if (a[mid] < target) lo = mid + 1 else hi = mid\n    }\n    return lo\n}",
+      "complexity": "O(log(n+1)) time, O(1) auxiliary space.",
+      "edgeCases": [
+        "[] => 0",
+        "[2,2],target=2 => 0",
+        "[2,2],target=3 => 2"
+      ],
+      "twist": "Upper bound changes the predicate to a[i]>target. The difference upperBound(target)-lowerBound(target) counts duplicates without scanning them.",
+      "source": "https://leetcode.com/problems/search-insert-position/",
+      "testJava": "if (!(lowerBound(new int[]{1,2,2,5},2)==1 && lowerBound(new int[]{1,2,2,5},6)==4 && lowerBound(new int[]{},2)==0)) throw new AssertionError(\"Lower Bound: First Position At Least Target\");",
+      "testKotlin": "check(lowerBound(intArrayOf(1,2,2,5),2) == 1 && lowerBound(intArrayOf(1,2,2,5),6) == 4 && lowerBound(intArrayOf(),2) == 0) { \"Lower Bound: First Position At Least Target\" }"
+    },
+    {
+      "title": "Search a Rotated Sorted Array",
+      "difficulty": "Medium",
+      "statement": "Given a non-null array obtained by rotating a strictly increasing int array, return the target index or -1. Values are distinct; empty input returns -1. Input is unchanged.",
+      "example": "[4,5,6,7,0,1,2], target 0 => 4.",
+      "baseline": "Scan all values: O(n) time/O(1) space.",
+      "reasoning": [
+        "Compare midpoint to the target first. If equal, return.",
+        "If a[lo]<=a[mid], the left half is sorted. Keep it only when a[lo]<=target<a[mid]; otherwise keep the right half.",
+        "Otherwise the right half is sorted; retain it precisely when a[mid]<target<=a[hi]. Each update removes the midpoint and one impossible half."
+      ],
+      "invariant": "If the target exists, it remains in the inclusive candidate interval [lo,hi]. Distinctness makes the sorted-half classification decisive.",
+      "java": "static int searchRotated(int[] a,int target) {\n    int lo=0,hi=a.length-1;\n    while(lo<=hi) {\n        int mid=lo+(hi-lo)/2;\n        if(a[mid]==target) return mid;\n        if(a[lo]<=a[mid]) {\n            if(a[lo]<=target && target<a[mid]) hi=mid-1; else lo=mid+1;\n        } else {\n            if(a[mid]<target && target<=a[hi]) lo=mid+1; else hi=mid-1;\n        }\n    }\n    return -1;\n}",
+      "kotlin": "fun searchRotated(a: IntArray, target: Int): Int {\n    var lo = 0; var hi = a.lastIndex\n    while (lo <= hi) {\n        val mid = lo + (hi - lo) / 2\n        if (a[mid] == target) return mid\n        if (a[lo] <= a[mid]) {\n            if (a[lo] <= target && target < a[mid]) hi = mid - 1 else lo = mid + 1\n        } else {\n            if (a[mid] < target && target <= a[hi]) lo = mid + 1 else hi = mid - 1\n        }\n    }\n    return -1\n}",
+      "complexity": "O(log(n+1)) time and O(1) auxiliary space for distinct values.",
+      "edgeCases": [
+        "[] => -1",
+        "[1],target=1 => 0",
+        "[3,1],target=1 => 1"
+      ],
+      "twist": "Allow duplicates: if a[lo]==a[mid]==a[hi], shrink both ends after checking midpoint. Ambiguity can force O(n) time, for example all equal values with one hidden exceptional value.",
+      "source": "https://leetcode.com/problems/search-in-rotated-sorted-array/",
+      "testJava": "if (!(searchRotated(new int[]{4,5,6,7,0,1,2},0)==4 && searchRotated(new int[]{3,1},1)==1 && searchRotated(new int[]{},1)==-1)) throw new AssertionError(\"Search a Rotated Sorted Array\");",
+      "testKotlin": "check(searchRotated(intArrayOf(4,5,6,7,0,1,2),0) == 4 && searchRotated(intArrayOf(3,1),1) == 1 && searchRotated(intArrayOf(),1) == -1) { \"Search a Rotated Sorted Array\" }"
+    },
+    {
+      "title": "Minimum Shipping Capacity Within D Days",
+      "difficulty": "Medium",
+      "statement": "Given a non-null array of nonnegative int package weights, preserve their order and ship a contiguous batch each day. Return the minimum long capacity that ships everything in at most positive int days. Empty input returns 0. Invalid days or negative weights throw. Input is unchanged.",
+      "example": "[1,2,3,1,1], days=4 => 3, using [1,2],[3],[1],[1].",
+      "baseline": "Try every integer capacity from maximum weight through total weight and simulate: O(nS), where S is the numeric search range.",
+      "reasoning": [
+        "Capacity must be at least the heaviest package and at most the total weight. Sum in long.",
+        "For a candidate capacity, greedily put each next package on the current day if it fits; otherwise start a new day. This minimizes days because no schedule can place a longer prefix on that same day.",
+        "Feasibility changes from false to true as capacity grows. Keep mid on feasible, discard through mid on infeasible, and return the first feasible value."
+      ],
+      "invariant": "The minimum feasible capacity lies in [lo,hi]; hi is feasible. The checker counts the fewest days possible at its capacity.",
+      "java": "static long shipWithinDays(int[] weights,int days) {\n    if(days<=0) throw new IllegalArgumentException(\"days\");\n    long lo=0,hi=0;\n    for(int w:weights) {\n        if(w<0) throw new IllegalArgumentException(\"negative weight\");\n        lo=Math.max(lo,w); hi+=w;\n    }\n    while(lo<hi) {\n        long mid=lo+(hi-lo)/2,load=0; int used=1;\n        for(int w:weights) {\n            if(load+w>mid) { used++; load=0; }\n            load+=w;\n        }\n        if(used<=days) hi=mid; else lo=mid+1;\n    }\n    return lo;\n}",
+      "kotlin": "fun shipWithinDays(weights: IntArray, days: Int): Long {\n    require(days > 0) { \"days\" }\n    var lo = 0L; var hi = 0L\n    for (w in weights) { require(w >= 0); lo = maxOf(lo, w.toLong()); hi += w }\n    while (lo < hi) {\n        val mid = lo + (hi - lo) / 2; var load = 0L; var used = 1\n        for (w in weights) {\n            if (load + w > mid) { used++; load = 0L }\n            load += w\n        }\n        if (used <= days) hi = mid else lo = mid + 1\n    }\n    return lo\n}",
+      "complexity": "O(n log(S+1)) time for S=sum(weights)-max(weights); O(1) auxiliary space. Input validation is O(n) even when all weights are zero.",
+      "edgeCases": [
+        "[] with days=1 => 0",
+        "[0,0],days=3 => 0",
+        "[10,20],days=1 => 30",
+        "[10,20],days=5 => 20"
+      ],
+      "twist": "If reordering packages is allowed, the greedy contiguous-batch checker no longer models the problem. Monotonicity of capacity may remain, but the feasibility subproblem can become bin packing.",
+      "source": "https://leetcode.com/problems/capacity-to-ship-packages-within-d-days/",
+      "testJava": "if (!(shipWithinDays(new int[]{1,2,3,1,1},4)==3 && shipWithinDays(new int[]{},1)==0 && shipWithinDays(new int[]{10,20},1)==30 && shipWithinDays(new int[]{0,0},3)==0)) throw new AssertionError(\"Minimum Shipping Capacity Within D Days\");",
+      "testKotlin": "check(shipWithinDays(intArrayOf(1,2,3,1,1),4) == 3L && shipWithinDays(intArrayOf(),1) == 0L && shipWithinDays(intArrayOf(10,20),1) == 30L && shipWithinDays(intArrayOf(0,0),3) == 0L) { \"Minimum Shipping Capacity Within D Days\" }"
+    },
+    {
+      "title": "Median of Two Sorted Arrays by Partition",
+      "difficulty": "Hard",
+      "statement": "Given two non-null ascending int arrays with at least one total element, return their combined median as double without merging. Empty+empty throws. Input is unchanged.",
+      "example": "[1,3] and [2] => 2.0; [1,2] and [3,4] => 2.5.",
+      "baseline": "Merge the arrays: O(m+n) time, O(m+n) extra space; a partial merge can reduce auxiliary space to O(1).",
+      "reasoning": [
+        "Search a cut i in the shorter array. The other cut j satisfies i+j=(m+n+1)/2, making the left side have the extra item when total length is odd.",
+        "Use long sentinels at missing boundary elements. A valid cut satisfies leftA<=rightB and leftB<=rightA, so all left-half values are at most all right-half values.",
+        "If leftA>rightB, reduce i. Otherwise if leftB>rightA, increase i. At a valid cut, odd median is max(lefts), even median averages max(lefts) and min(rights)."
+      ],
+      "invariant": "The desired partition remains among the candidate cuts. Increasing the first cut increases leftA and decreases the second cut, giving the directional correction when either cross-order constraint fails.",
+      "java": "static double medianSorted(int[] first,int[] second) {\n    int[] a=first,b=second;\n    if(a.length>b.length) { a=second; b=first; }\n    int m=a.length,n=b.length;\n    if(m==0 && n==0) throw new IllegalArgumentException(\"empty\");\n    int half=(int)(((long)m+n+1)/2),lo=0,hi=m;\n    while(lo<=hi) {\n        int i=lo+(hi-lo)/2,j=half-i;\n        long al=i==0?Long.MIN_VALUE:a[i-1], ar=i==m?Long.MAX_VALUE:a[i];\n        long bl=j==0?Long.MIN_VALUE:b[j-1], br=j==n?Long.MAX_VALUE:b[j];\n        if(al<=br && bl<=ar) {\n            long left=Math.max(al,bl);\n            if(((long)m+n)%2==1) return (double)left;\n            return (left+Math.min(ar,br))/2.0;\n        }\n        if(al>br) hi=i-1; else lo=i+1;\n    }\n    throw new IllegalArgumentException(\"arrays must be sorted\");\n}",
+      "kotlin": "fun medianSorted(first: IntArray, second: IntArray): Double {\n    val a = if (first.size <= second.size) first else second\n    val b = if (first.size <= second.size) second else first\n    val m = a.size; val n = b.size\n    require(m != 0 || n != 0) { \"empty\" }\n    val half = ((m.toLong() + n + 1) / 2).toInt()\n    var lo = 0; var hi = m\n    while (lo <= hi) {\n        val i = lo + (hi - lo) / 2; val j = half - i\n        val al = if (i == 0) Long.MIN_VALUE else a[i - 1].toLong()\n        val ar = if (i == m) Long.MAX_VALUE else a[i].toLong()\n        val bl = if (j == 0) Long.MIN_VALUE else b[j - 1].toLong()\n        val br = if (j == n) Long.MAX_VALUE else b[j].toLong()\n        if (al <= br && bl <= ar) {\n            val left = maxOf(al, bl)\n            return if ((m.toLong() + n) % 2 == 1L) left.toDouble()\n                else (left + minOf(ar, br)) / 2.0\n        }\n        if (al > br) hi = i - 1 else lo = i + 1\n    }\n    throw IllegalArgumentException(\"arrays must be sorted\")\n}",
+      "complexity": "O(log(min(m,n)+1)) time and O(1) auxiliary space. Real boundary values are int, so their sum fits long; sortedness is a precondition, not exhaustively validated.",
+      "edgeCases": [
+        "[] and [1] => 1.0",
+        "[1,1] and [1] => 1.0",
+        "[2147483647] and [2147483647] => 2147483647.0"
+      ],
+      "twist": "To find the kth smallest, use left size k and restrict i to max(0,k-n)..min(k,m). The valid partition returns max(left boundaries), with 1<=k<=m+n.",
+      "source": "https://leetcode.com/problems/median-of-two-sorted-arrays/",
+      "testJava": "if (!(medianSorted(new int[]{1,3},new int[]{2})==2.0 && medianSorted(new int[]{1,2},new int[]{3,4})==2.5 && medianSorted(new int[]{},new int[]{1})==1.0 && medianSorted(new int[]{Integer.MAX_VALUE},new int[]{Integer.MAX_VALUE})==2147483647.0)) throw new AssertionError(\"Median of Two Sorted Arrays by Partition\");",
+      "testKotlin": "check(medianSorted(intArrayOf(1,3),intArrayOf(2)) == 2.0 && medianSorted(intArrayOf(1,2),intArrayOf(3,4)) == 2.5 && medianSorted(intArrayOf(),intArrayOf(1)) == 1.0 && medianSorted(intArrayOf(Int.MAX_VALUE),intArrayOf(Int.MAX_VALUE)) == 2147483647.0) { \"Median of Two Sorted Arrays by Partition\" }"
+    }
+  ],
+  "practice": [
+    {
+      "title": "Find First and Last Position of Element in Sorted Array",
+      "difficulty": "Medium",
+      "url": "https://leetcode.com/problems/find-first-and-last-position-of-element-in-sorted-array/",
+      "hint": "Search two boundaries rather than one arbitrary occurrence.",
+      "approach": "Find first >=target and first >target. If the first does not equal target, return absent; otherwise last=upper-1. O(log n), O(1), no target+1 overflow."
+    },
+    {
+      "title": "Find Minimum in Rotated Sorted Array",
+      "difficulty": "Medium",
+      "url": "https://leetcode.com/problems/find-minimum-in-rotated-sorted-array/",
+      "hint": "Compare the midpoint to the rightmost value.",
+      "approach": "If mid>right, minimum is strictly right of mid; otherwise retain mid and left half. O(log n), O(1) for distinct values. Duplicates require ambiguity shrinking."
+    },
+    {
+      "title": "Koko Eating Bananas",
+      "difficulty": "Medium",
+      "url": "https://leetcode.com/problems/koko-eating-bananas/",
+      "hint": "Can a fixed speed finish within h hours?",
+      "approach": "Count hours as \u03a3 ceil(pile/speed) with long. Search 1..maxPile when h>=number of positive piles. O(n log maxPile), O(1). State impossible-input policy."
+    },
+    {
+      "title": "Find Peak Element",
+      "difficulty": "Medium",
+      "url": "https://leetcode.com/problems/find-peak-element/",
+      "hint": "A slope points toward at least one peak.",
+      "approach": "Compare a[mid] to a[mid+1]; rise means a peak exists rightward, fall means one exists at or left of mid. O(log n), O(1), assumes adjacent elements differ and virtual boundaries are -infinity."
+    },
+    {
+      "title": "Split Array Largest Sum",
+      "difficulty": "Hard",
+      "url": "https://leetcode.com/problems/split-array-largest-sum/",
+      "hint": "For nonnegative values, the minimum number of blocks for a limit is greedy.",
+      "approach": "Search maximum block-sum limit with a contiguous greedy checker. O(n log total), O(1). Exact k nonempty blocks follows by splitting blocks when k<=n; negative values invalidate this checker."
+    },
+    {
+      "title": "Kth Smallest Element in a Sorted Matrix",
+      "difficulty": "Medium",
+      "url": "https://leetcode.com/problems/kth-smallest-element-in-a-sorted-matrix/",
+      "hint": "Search a value and count entries <=it.",
+      "approach": "Staircase count in a row/column sorted matrix takes O(rows+cols); binary search the value range. O((rows+cols)log range), O(1), with long midpoint arithmetic."
+    }
+  ],
+  "quiz": [
+    {
+      "question": "In half-open lower bound, a[mid] is below target. What is the safe update?",
+      "choices": [
+        "lo=mid",
+        "hi=mid\u22121",
+        "lo=mid+1"
+      ],
+      "answer": 2,
+      "explanation": "All indices through mid are too small, so all must be discarded. lo=mid can fail to make progress on a two-boundary interval."
+    },
+    {
+      "question": "What makes shipping capacity suitable for answer-space binary search?",
+      "choices": [
+        "The average package weight",
+        "Feasibility is monotone and a greedy scan checks it correctly",
+        "Package weights are distinct"
+      ],
+      "answer": 1,
+      "explanation": "If capacity C works, every larger capacity works. The checker separately needs the proof that maximal-prefix daily packing minimizes days."
+    }
+  ],
+  "transfer": {
+    "prompt": "Jobs arrive in fixed order. A worker processes one contiguous batch per day. Each nonempty day also consumes a fixed setup cost c from its capacity. Find the smallest daily capacity needed to finish within D days.",
+    "hints": [
+      "Can the setup cost be separated from the variable workload limit?",
+      "What happens to feasibility when capacity grows?"
+    ],
+    "solution": "For nonnegative job workloads and c>=0, any nonempty day at capacity C can process at most C-c workload. Greedily pack in order using this effective capacity; search from maxJob+c to sumJobs+c. Larger C cannot increase needed days, so first-feasible binary search works in O(n log(sumJobs+1)) time and O(1) auxiliary space. Empty input requires no setup and returns zero; use overflow-aware long bounds."
+  },
+  "review": [
+    "After one day: derive the maintained state from the brute-force repeated work without looking at code.",
+    "After three days: explain the counterexample to each wrong turn and repair it.",
+    "After one week: solve the transfer problem, state the invariant aloud, and compare both JVM implementations."
+  ],
+  "sources": [
+    {
+      "label": "Lower Bound: First Position At Least Target",
+      "url": "https://leetcode.com/problems/search-insert-position/",
+      "note": "Reference link; not retrieved in this run. Canonical problem statement and constraints; used to identify the technique and offer optional practice, not as evidence of company frequency.",
+      "status": "unverified"
+    },
+    {
+      "label": "Search a Rotated Sorted Array",
+      "url": "https://leetcode.com/problems/search-in-rotated-sorted-array/",
+      "note": "Reference link; not retrieved in this run. Canonical problem statement and constraints; used to identify the technique and offer optional practice, not as evidence of company frequency.",
+      "status": "unverified"
+    },
+    {
+      "label": "Minimum Shipping Capacity Within D Days",
+      "url": "https://leetcode.com/problems/capacity-to-ship-packages-within-d-days/",
+      "note": "Reference link; not retrieved in this run. Canonical problem statement and constraints; used to identify the technique and offer optional practice, not as evidence of company frequency.",
+      "status": "unverified"
+    },
+    {
+      "label": "Median of Two Sorted Arrays by Partition",
+      "url": "https://leetcode.com/problems/median-of-two-sorted-arrays/",
+      "note": "Reference link; not retrieved in this run. Canonical problem statement and constraints; used to identify the technique and offer optional practice, not as evidence of company frequency.",
+      "status": "unverified"
+    }
+  ]
+}

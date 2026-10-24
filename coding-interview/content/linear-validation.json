@@ -1,0 +1,60 @@
+{
+  "kind": "validation-report",
+  "date": "2026-10-24",
+  "lessons": [
+    "01-hashing",
+    "02-two-pointers",
+    "03-sliding-window",
+    "04-prefix-sums",
+    "05-binary-search",
+    "06-sorting-intervals",
+    "17-dp-linear"
+  ],
+  "review": {
+    "concepts": "Reviewed elimination, multiplicity, monotone validity, prefix-boundary eligibility, partition and feasibility search, endpoint equality, sweep batching, and DP take/skip dependency proofs.",
+    "numericContracts": "Long used for sums, counts, and rewards. First-missing-positive checks bounds before indexing; consecutive sequence uses long neighbors; median widens before addition; exact-prefix subtraction guards long overflow; stair count limits n to 91; coin amount explicitly bounded to keep sentinel/allocation arithmetic defined.",
+    "mutation": "All owned snippets preserve input except explicitly documented firstMissingPositive placement. Interval sorting copies rows or reference lists; no original row is written.",
+    "hardMethods": "Range merge counting counts original-index cross-half pairs and uses monotone value bounds; skyline batches equal-coordinate events with multiplicity; median searches shorter-array cuts with long sentinels; weighted jobs finds compatible prefix counts before take/skip."
+  },
+  "representativeChecks": {
+    "language": "Java",
+    "compatibility": "javac --release 17",
+    "workedProblems": 29,
+    "result": "passed",
+    "details": "All29 standalone snippet classes compiled and executed representative and boundary assertions. Equivalent testKotlin fields are supplied for the parent compiler harness; not independently executed by this author."
+  },
+  "differentialChecks": {
+    "language": "Java",
+    "seed": 2471026,
+    "result": "passed",
+    "totalRandomCases": 11000,
+    "methods": [
+      {
+        "name": "medianSorted",
+        "cases": 3000,
+        "oracle": "Sort concatenated arrays and compute middle value(s); includes empty sides, duplicates, and int extremes."
+      },
+      {
+        "name": "countRangeSum",
+        "cases": 3000,
+        "oracle": "Enumerate every nonempty contiguous range with long running sums; includes negatives and selected int extremes."
+      },
+      {
+        "name": "skyline",
+        "cases": 2000,
+        "oracle": "At each unique endpoint, scan every building active on the right-open span; compare canonical height-change key points."
+      },
+      {
+        "name": "maxJobReward",
+        "cases": 1000,
+        "oracle": "Enumerate every subset of up to8 jobs; reject pairwise overlaps; maximize reward including empty selection."
+      },
+      {
+        "name": "trap",
+        "cases": 2000,
+        "oracle": "For every position scan complete left and right maxima and sum exact long contributions."
+      }
+    ]
+  },
+  "provenance": "All lesson source notes identify reference links as not retrieved in this author run. No company frequency or interview-success guarantees are asserted."
+}

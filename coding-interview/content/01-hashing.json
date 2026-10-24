@@ -1,0 +1,285 @@
+{
+  "id": "01",
+  "slug": "hashing",
+  "title": "Hashing, complements, and canonical keys",
+  "group": "Linear data",
+  "prerequisites": "Lesson 00; arrays, loops, functions, and Big-O",
+  "estimatedMinutes": 150,
+  "motivation": "An array scan often hides a repeated question: have I seen this value, how many times, or where? Start with the literal algorithm. For each new value, scan the previous values. That works, but repeats the same lookup and costs quadratic time. A hash table records the answer to the repeated question so the next query usually takes constant time. A set records membership; a map records a value such as count, index, or a whole group. These are different states, and choosing the wrong one loses information.",
+  "mentalModel": "An array scan often hides a repeated question: have I seen this value, how many times, or where? Start with the literal algorithm. For each new value, scan the previous values. That works, but repeats the same lookup and costs quadratic time. A hash table records the answer to the repeated question so the next query usually takes constant time. A set records membership; a map records a value such as count, index, or a whole group. These are different states, and choosing the wrong one loses information.\n\nA complement is the missing piece of an equation. If x + y = target and you are reading x, the only useful partner is target - x. Deriving that equation is more reliable than remembering the name Two Sum. The same thinking extends to prefix sums, residues, string signatures, and graph states. First ask which details can be forgotten while preserving exactly what the future needs. Two words can share a group if their sorted characters match; a set of characters would forget repeated letters and would be an invalid signature.\n\nHashing changes the lookup operation, not the logical order of the algorithm. If the current element must pair with an earlier element, query before insertion. Otherwise a lone 3 can appear to pair with itself for target 6. If you need all pair counts, store frequencies rather than one index. If you need the earliest position, preserve the first index rather than overwriting it. Each of these choices follows from the requested output, not from the container syntax.\n\nExpected constant-time lookup is a performance model, not a mathematical worst-case guarantee. We report expected linear time for ordinary hash-based solutions and linear additional storage. Hash collisions are handled by the implementation; a collision of hash codes does not make unequal keys equal. By contrast, inventing an ambiguous signature can merge genuinely different inputs. Use immutable, equality-correct keys. For Java arrays, object identity is not content equality, so a List or String is often a safer signature.\n\nTo recognize a disguised hashing problem, narrate the brute force and locate a repeated equality test. Then derive a key from the relation, decide what information belongs behind the key, and establish when that information becomes valid. The advanced consecutive-sequence problem adds an amortization lesson: a nested loop can still be linear when every value is visited in the inner loop only once, starting at genuine sequence beginnings.",
+  "invariant": "Choose the exact information the future needs. Query state representing only eligible earlier items, account for the answer, then update state. A key must preserve the equivalence relation, and a stored value must preserve the requested multiplicity or position.",
+  "recognition": [
+    "Repeated membership or equality searches inside a loop suggest a set or map.",
+    "An equation with one known operand suggests deriving its complement.",
+    "Grouping by rearrangement suggests a canonical key rather than pairwise comparisons."
+  ],
+  "wrongTurns": [
+    {
+      "temptation": "Insert before checking Two Sum.",
+      "counterexample": "[3] with target 6 finds the current index twice and reports an invalid pair.",
+      "repair": "Query earlier state first, then insert."
+    },
+    {
+      "temptation": "Use a set of letters as an anagram signature.",
+      "counterexample": "\"aab\" and \"ab\" both become {a,b}, although their multiplicities differ.",
+      "repair": "Use sorted characters or a complete frequency vector."
+    },
+    {
+      "temptation": "Walk a consecutive sequence from every value.",
+      "counterexample": "[1,2,3,4] walks lengths 4+3+2+1; the general case is quadratic.",
+      "repair": "Only walk from values whose predecessor is absent."
+    }
+  ],
+  "diagram": {
+    "caption": "Two Sum: the lookup stores only earlier positions; query before insertion.",
+    "nodes": [
+      "Read x = 4 at index 2",
+      "Derive missing value: 6 \u2212 4 = 2",
+      "Earlier map {3\u21920, 2\u21921}",
+      "Found 2 at index 1: return [1,2]"
+    ],
+    "edges": [
+      [
+        0,
+        1,
+        "solve the equation"
+      ],
+      [
+        1,
+        2,
+        "query prior history"
+      ],
+      [
+        2,
+        3,
+        "distinct indices guaranteed"
+      ]
+    ]
+  },
+  "trace": [
+    {
+      "state": "Two Sum [3,2,4], target=6; i=0; map={}",
+      "explanation": "Need 3; absent. Insert 3\u21920 only after the query."
+    },
+    {
+      "state": "i=1; map={3:0}; need=4",
+      "explanation": "4 is absent; insert 2\u21921."
+    },
+    {
+      "state": "i=2; map={3:0,2:1}; need=2",
+      "explanation": "Find index 1; return [1,2], using distinct positions."
+    },
+    {
+      "state": "Consecutive set={1,2,3,4,100,200}; starts={1,100,200}",
+      "explanation": "Each start owns a disjoint walk; 2,3,4 never launch redundant walks."
+    }
+  ],
+  "problems": [
+    {
+      "title": "Two Sum: derive the complement",
+      "difficulty": "Easy",
+      "statement": "Given a non-null int array and a long target, return indices of any two distinct elements whose sum is target, or an empty int array if none. Do not mutate input.",
+      "example": "[3, 2, 4], target 6 => [1, 2].",
+      "baseline": "Check all index pairs: O(n\u00b2) time and O(1) auxiliary space.",
+      "reasoning": [
+        "At index i, solve nums[j] = target - nums[i]. Only earlier indices may answer.",
+        "Store each previously seen number with one index. Query the long complement only if it fits an int.",
+        "Return on a hit; otherwise insert the current value. At exhaustion every pair has been considered at its later endpoint."
+      ],
+      "invariant": "Before i, the map contains a representative index for each value in indices below i; therefore a hit always uses distinct positions.",
+      "java": "static int[] twoSum(int[] nums, long target) {\n    Map<Integer,Integer> seen = new HashMap<>();\n    for (int i=0;i<nums.length;i++) {\n        long need=target-(long)nums[i];\n        if (need>=Integer.MIN_VALUE && need<=Integer.MAX_VALUE) {\n            Integer j=seen.get((int)need);\n            if (j!=null) return new int[]{j,i};\n        }\n        seen.put(nums[i],i);\n    }\n    return new int[0];\n}",
+      "kotlin": "fun twoSum(nums: IntArray, target: Long): IntArray {\n    val seen = HashMap<Int, Int>()\n    for (i in nums.indices) {\n        val need = target - nums[i].toLong()\n        if (need in Int.MIN_VALUE.toLong()..Int.MAX_VALUE.toLong()) {\n            val j = seen[need.toInt()]\n            if (j != null) return intArrayOf(j, i)\n        }\n        seen[nums[i]] = i\n    }\n    return intArrayOf()\n}",
+      "complexity": "Expected O(n) time, O(n) auxiliary space; output has at most two indices.",
+      "edgeCases": [
+        "[] => []",
+        "[3], target 6 => []",
+        "[3,3], target 6 => [0,1]"
+      ],
+      "twist": "Count index pairs instead: add the complement frequency before incrementing the current frequency; use long for the total.",
+      "source": "https://leetcode.com/problems/two-sum/",
+      "testJava": "if (!(Arrays.equals(twoSum(new int[]{3,2,4},6),new int[]{1,2}) && twoSum(new int[]{3},6).length==0)) throw new AssertionError(\"Two Sum: derive the complement\");",
+      "testKotlin": "check(twoSum(intArrayOf(3,2,4),6L).contentEquals(intArrayOf(1,2)) && twoSum(intArrayOf(3),6L).isEmpty()) { \"Two Sum: derive the complement\" }"
+    },
+    {
+      "title": "Group Anagrams: design an equality key",
+      "difficulty": "Medium",
+      "statement": "Given a non-null array of non-null lowercase a-z strings, group strings that contain the same character multiplicities. Return all groups in any order; keep duplicates. Do not mutate input.",
+      "example": "[\"eat\",\"tea\",\"tan\",\"ate\"] => [[\"eat\",\"tea\",\"ate\"],[\"tan\"]].",
+      "baseline": "Compare each string with existing group representatives by counting characters: up to O(m\u00b2L), for m words of maximum length L.",
+      "reasoning": [
+        "Two strings belong together exactly when their sorted characters are equal.",
+        "Create a sorted character copy as an immutable String key; append the original word to its key bucket.",
+        "Each input contributes exactly once; equality of keys proves equality of multiplicities."
+      ],
+      "invariant": "After k words, every processed word is in exactly the bucket for its canonical character ordering.",
+      "java": "static List<List<String>> groupAnagrams(String[] words) {\n    Map<String,List<String>> groups=new HashMap<>();\n    for (String word:words) {\n        char[] key=word.toCharArray(); Arrays.sort(key);\n        groups.computeIfAbsent(new String(key),k->new ArrayList<>()).add(word);\n    }\n    return new ArrayList<>(groups.values());\n}",
+      "kotlin": "fun groupAnagrams(words: Array<String>): List<List<String>> {\n    val groups = HashMap<String, MutableList<String>>()\n    for (word in words) {\n        val chars = word.toCharArray(); chars.sort()\n        val key = String(chars)\n        groups.getOrPut(key) { mutableListOf() }.add(word)\n    }\n    return groups.values.map { it.toList() }\n}",
+      "complexity": "O(\u03a3 Li log Li) sorting time for word lengths Li (with O(m) overhead); O(\u03a3 Li + m) auxiliary keys/buckets and output references.",
+      "edgeCases": [
+        "[] => []",
+        "[\"\",\"\"] => [[\"\",\"\"]]",
+        "[\"aab\",\"ab\"] => separate groups"
+      ],
+      "twist": "For arbitrary Unicode code points, sort code points instead of UTF-16 chars if the intended unit is a Unicode character. For lowercase a-z, a 26-count signature reduces key construction to O(L+26).",
+      "source": "https://leetcode.com/problems/group-anagrams/",
+      "testJava": "if (!(groupAnagrams(new String[]{\"eat\",\"tea\",\"tan\",\"ate\"}).stream().anyMatch(g->g.size()==3 && g.containsAll(List.of(\"eat\",\"tea\",\"ate\"))) && groupAnagrams(new String[]{}).isEmpty())) throw new AssertionError(\"Group Anagrams: design an equality key\");",
+      "testKotlin": "check(groupAnagrams(arrayOf(\"eat\",\"tea\",\"tan\",\"ate\")).any { it.size == 3 && it.containsAll(listOf(\"eat\",\"tea\",\"ate\")) } && groupAnagrams(emptyArray()).isEmpty()) { \"Group Anagrams: design an equality key\" }"
+    },
+    {
+      "title": "Longest Consecutive Sequence: count work globally",
+      "difficulty": "Medium",
+      "statement": "Given a non-null unsorted int array, return the largest number of distinct consecutive integer values present. Duplicates do not extend a sequence. Do not mutate input.",
+      "example": "[100,4,200,1,3,2,2] => 4 for 1,2,3,4.",
+      "baseline": "For each value repeatedly search the array for its successor: O(n\u00b3) in a literal implementation; sorting gives O(n log n).",
+      "reasoning": [
+        "Put all values in a set so duplicates disappear.",
+        "Only start walking at x if x-1 is absent. A non-start would repeat a suffix of a sequence already counted.",
+        "Walk successors using long arithmetic at int boundaries. Every distinct value belongs to one start, so total successful successor visits are linear."
+      ],
+      "invariant": "Each completed walk accounts for one maximal disjoint sequence; no value is walked from a non-start.",
+      "java": "static int longestConsecutive(int[] nums) {\n    Set<Long> values=new HashSet<>();\n    for (int x:nums) values.add((long)x);\n    int best=0;\n    for (long x:values) {\n        if (values.contains(x-1)) continue;\n        long cur=x; int length=0;\n        while (values.contains(cur)) { length++; cur++; }\n        best=Math.max(best,length);\n    }\n    return best;\n}",
+      "kotlin": "fun longestConsecutive(nums: IntArray): Int {\n    val values = nums.map { it.toLong() }.toHashSet()\n    var best = 0\n    for (x in values) {\n        if (x - 1 in values) continue\n        var cur = x; var length = 0\n        while (cur in values) { length++; cur++ }\n        best = maxOf(best, length)\n    }\n    return best\n}",
+      "complexity": "Expected O(n) time and O(u) auxiliary space, where u is the number of unique values; scalar output.",
+      "edgeCases": [
+        "[] => 0",
+        "[7,7] => 1",
+        "[2147483647,-2147483648] => 1"
+      ],
+      "twist": "With online insertions and a request after every insertion, store component lengths at sequence boundaries and merge left/right lengths; ignore duplicate insertions.",
+      "source": "https://leetcode.com/problems/longest-consecutive-sequence/",
+      "testJava": "if (!(longestConsecutive(new int[]{100,4,200,1,3,2,2})==4 && longestConsecutive(new int[]{Integer.MAX_VALUE,Integer.MIN_VALUE})==1 && longestConsecutive(new int[]{})==0)) throw new AssertionError(\"Longest Consecutive Sequence: count work globally\");",
+      "testKotlin": "check(longestConsecutive(intArrayOf(100,4,200,1,3,2,2)) == 4 && longestConsecutive(intArrayOf(Int.MAX_VALUE,Int.MIN_VALUE)) == 1 && longestConsecutive(intArrayOf()) == 0) { \"Longest Consecutive Sequence: count work globally\" }"
+    },
+    {
+      "title": "First Missing Positive: encode membership in the array",
+      "difficulty": "Hard",
+      "statement": "Given a non-null mutable int array, return its smallest absent positive integer. Input may be reordered. Empty input returns 1.",
+      "example": "[3,4,-1,1] => 2.",
+      "baseline": "Test 1,2,... with repeated array scans: O(n\u00b2) time and O(1) auxiliary space; a set uses O(n) space.",
+      "reasoning": [
+        "The answer is in 1..n+1: n slots cannot contain all n+1 positive candidates.",
+        "Use slot x-1 as the membership location for x in 1..n. Swap until the current item is out of range or already in its destination.",
+        "Avoid swapping equal duplicates forever. The first slot without its expected value gives the answer."
+      ],
+      "invariant": "Each successful swap fixes at least one destination slot permanently; a fixed slot cannot be displaced by a different value because only its own value targets it.",
+      "java": "static int firstMissingPositive(int[] a) {\n    int n=a.length;\n    for (int i=0;i<n;i++) {\n        while (a[i]>=1 && a[i]<=n && a[a[i]-1]!=a[i]) {\n            int j=a[i]-1, tmp=a[j]; a[j]=a[i]; a[i]=tmp;\n        }\n    }\n    for (int i=0;i<n;i++) if (a[i]!=i+1) return i+1;\n    return n+1;\n}",
+      "kotlin": "fun firstMissingPositive(a: IntArray): Int {\n    val n = a.size\n    for (i in a.indices) {\n        while (a[i] >= 1 && a[i] <= n && a[a[i] - 1] != a[i]) {\n            val j = a[i] - 1; val tmp = a[j]; a[j] = a[i]; a[i] = tmp\n        }\n    }\n    for (i in a.indices) if (a[i] != i + 1) return i + 1\n    return n + 1\n}",
+      "complexity": "O(n) time by at most n successful placements, O(1) auxiliary space; mutates input.",
+      "edgeCases": [
+        "[] => 1",
+        "[1,1] => 2",
+        "[-1,0] => 1",
+        "[1,2,3] => 4"
+      ],
+      "twist": "If mutation is forbidden, use a membership set or copy the array, paying O(n) space. This is a bounded direct-address table, illustrating how a domain bound can replace hashing.",
+      "source": "https://leetcode.com/problems/first-missing-positive/",
+      "testJava": "if (!(firstMissingPositive(new int[]{3,4,-1,1})==2 && firstMissingPositive(new int[]{1,1})==2 && firstMissingPositive(new int[]{})==1)) throw new AssertionError(\"First Missing Positive: encode membership in the array\");",
+      "testKotlin": "check(firstMissingPositive(intArrayOf(3,4,-1,1)) == 2 && firstMissingPositive(intArrayOf(1,1)) == 2 && firstMissingPositive(intArrayOf()) == 1) { \"First Missing Positive: encode membership in the array\" }"
+    }
+  ],
+  "practice": [
+    {
+      "title": "Contains Duplicate",
+      "difficulty": "Easy",
+      "url": "https://leetcode.com/problems/contains-duplicate/",
+      "hint": "What single bit of history is needed?",
+      "approach": "Maintain a set; a failed insertion means repetition. Expected O(n) time, O(n) space. Streaming input needs the same state."
+    },
+    {
+      "title": "Valid Anagram",
+      "difficulty": "Easy",
+      "url": "https://leetcode.com/problems/valid-anagram/",
+      "hint": "Preserve multiplicity, not just distinct letters.",
+      "approach": "Count symbols and subtract the other string; all counts must be zero. O(n+m) time and O(alphabet) space; define code-point versus UTF-16 semantics."
+    },
+    {
+      "title": "Intersection of Two Arrays II",
+      "difficulty": "Easy",
+      "url": "https://leetcode.com/problems/intersection-of-two-arrays-ii/",
+      "hint": "The output contract keeps duplicates.",
+      "approach": "Count the shorter array and consume counts while scanning the longer: expected O(n+m), O(min(n,m)) auxiliary space plus output."
+    },
+    {
+      "title": "Isomorphic Strings",
+      "difficulty": "Easy",
+      "url": "https://leetcode.com/problems/isomorphic-strings/",
+      "hint": "One-way consistency is insufficient.",
+      "approach": "Maintain mappings in both directions so two sources cannot map to one target. O(n) time and O(alphabet) state; account for chosen symbol representation."
+    },
+    {
+      "title": "Subarray Sum Equals K",
+      "difficulty": "Medium",
+      "url": "https://leetcode.com/problems/subarray-sum-equals-k/",
+      "hint": "Turn a range sum into a difference of cumulative sums.",
+      "approach": "Count earlier prefix values equal to currentPrefix-k, querying before insertion. Expected O(n), O(n) state. Negative values are allowed; see prefix-sums lesson."
+    },
+    {
+      "title": "Substring with Concatenation of All Words",
+      "difficulty": "Hard",
+      "url": "https://leetcode.com/problems/substring-with-concatenation-of-all-words/",
+      "hint": "Equal word lengths create independent alignment classes.",
+      "approach": "For each alignment, slide by word length with required/current frequencies and shrink excess words. O(text length \u00d7 word length) for straightforward substring keys; O(distinct words) map state plus results."
+    }
+  ],
+  "quiz": [
+    {
+      "question": "Which state counts all index pairs with sum T, including duplicates?",
+      "choices": [
+        "Set of values",
+        "One index per value",
+        "Frequency per value"
+      ],
+      "answer": 2,
+      "explanation": "A frequency preserves how many earlier positions can pair with the current one; query before incrementing to exclude self-pairing."
+    },
+    {
+      "question": "Why start a consecutive walk only when the predecessor is absent?",
+      "choices": [
+        "To sort the set",
+        "To visit every distinct value in only one walk",
+        "To avoid hash collisions"
+      ],
+      "answer": 1,
+      "explanation": "Each maximal consecutive component has exactly one start. Walking from every member repeats suffixes and becomes quadratic."
+    }
+  ],
+  "transfer": {
+    "prompt": "A stream contains customer IDs and amounts. Return how many earlier purchases by the same customer make a pair totaling T with the current purchase. Negative amounts and duplicates are allowed.",
+    "hints": [
+      "Which fields must be part of a key?",
+      "What information is lost if you store only one earlier index?"
+    ],
+    "solution": "Maintain customer \u2192 amount \u2192 long frequency. For each record, add the count of T-currentAmount in that customer bucket, then increment currentAmount. Query before insert excludes self-pairing. Expected O(n) time and O(n) space; count pairs in long and use overflow-aware arithmetic if amounts span all long values."
+  },
+  "review": [
+    "After one day: derive the maintained state from the brute-force repeated work without looking at code.",
+    "After three days: explain the counterexample to each wrong turn and repair it.",
+    "After one week: solve the transfer problem, state the invariant aloud, and compare both JVM implementations."
+  ],
+  "sources": [
+    {
+      "label": "Two Sum: derive the complement",
+      "url": "https://leetcode.com/problems/two-sum/",
+      "note": "Reference link; not retrieved in this run. Canonical problem statement and constraints; used to identify the technique and offer optional practice, not as evidence of company frequency.",
+      "status": "unverified"
+    },
+    {
+      "label": "Group Anagrams: design an equality key",
+      "url": "https://leetcode.com/problems/group-anagrams/",
+      "note": "Reference link; not retrieved in this run. Canonical problem statement and constraints; used to identify the technique and offer optional practice, not as evidence of company frequency.",
+      "status": "unverified"
+    },
+    {
+      "label": "Longest Consecutive Sequence: count work globally",
+      "url": "https://leetcode.com/problems/longest-consecutive-sequence/",
+      "note": "Reference link; not retrieved in this run. Canonical problem statement and constraints; used to identify the technique and offer optional practice, not as evidence of company frequency.",
+      "status": "unverified"
+    },
+    {
+      "label": "First Missing Positive: encode membership in the array",
+      "url": "https://leetcode.com/problems/first-missing-positive/",
+      "note": "Reference link; not retrieved in this run. Canonical problem statement and constraints; used to identify the technique and offer optional practice, not as evidence of company frequency.",
+      "status": "unverified"
+    }
+  ]
+}

@@ -1,0 +1,311 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="Learn coding interview reasoning from first principles, with Java and Kotlin solutions."><title>Graphs: reachability and shortest unweighted paths · Coding interview</title><link rel="stylesheet" href="../assets/course.css"><script src="../assets/course.js" defer></script><link rel="stylesheet" href="../../assets/navigation.css">
+</head><body id="page-top">
+<!-- page-navigation:start -->
+<nav class="page-navigation" aria-label="Top page navigation"><div class="page-navigation-parents"><a href="../../index.html">Library home</a> <span aria-hidden="true">›</span> <a href="../../index.html#technical-foundations">Technical foundations and implementation</a> <span aria-hidden="true">›</span> <a href="../index.html">Coding Interviews: Patterns &amp; Problem Solving</a> <span aria-hidden="true">›</span> <a href="index.html">Lessons</a></div><div class="page-navigation-sections"><a href="index.html">Lessons</a><a href="../reference/index.html">Reference sheets</a><a href="../materials.html">Guides and resources</a><a href="#page-top">Back to top ↑</a></div><div class="page-navigation-pager"><a href="12-tries.html" rel="prev">← Previous: Tries: share prefixes and prune impossible continuations</a><a href="14-topology-union-find.html" rel="next">Next: Dependency order and dynamic connectivity →</a></div></nav>
+<!-- page-navigation:end -->
+<a class="skip" href="#main">Skip to content</a><nav class="top"><a href="../../index.html">Software Engineering Library</a><a href="../index.html">Coding interview</a><a href="../foundations.html">Start from zero</a><a href="../practice.html">Practice room</a><a href="../research.html">Sources</a></nav><div class="layout"><aside class="rail"><a href="../index.html">Course map</a><p>Learning sequence</p><ol><li><a  href="01-hashing.html">Hashing, complements, and canonical keys</a></li><li><a  href="02-two-pointers.html">Two pointers and safe elimination</a></li><li><a  href="03-sliding-window.html">Sliding windows: expand, repair, and count</a></li><li><a  href="04-prefix-sums.html">Prefix sums, balance, and range counting</a></li><li><a  href="05-binary-search.html">Binary search on positions, structure, and answers</a></li><li><a  href="06-sorting-intervals.html">Sorting, intervals, scheduling, and sweep lines</a></li><li><a  href="07-linked-lists.html">Linked lists: preserve the path while changing links</a></li><li><a  href="08-stacks-queues.html">Stacks, monotonic frontiers, and deques</a></li><li><a  href="09-trees.html">Trees: decide what crosses each parent-child boundary</a></li><li><a  href="10-heaps.html">Heaps: keep the next winner and forget full order</a></li><li><a  href="11-backtracking.html">Backtracking: enumerate choices with a reversible state</a></li><li><a  href="12-tries.html">Tries: share prefixes and prune impossible continuations</a></li><li><a aria-current="page" href="13-graph-traversal.html">Graphs: reachability and shortest unweighted paths</a></li><li><a  href="14-topology-union-find.html">Dependency order and dynamic connectivity</a></li><li><a  href="15-shortest-paths.html">Shortest paths: matching the frontier to edge costs</a></li><li><a  href="16-greedy.html">Greedy choices and exchange arguments</a></li><li><a  href="17-dp-linear.html">Linear dynamic programming: decisions, states, and dependencies</a></li><li><a  href="18-dp-grids-strings.html">Dynamic programming on grids and strings</a></li><li><a  href="19-range-queries.html">Range queries: precompute reusable pieces, then update only dependencies</a></li><li><a  href="20-bit-manipulation.html">Bit manipulation and state compression</a></li></ol></aside><main id="main" class="lesson"><header><p class="sequence">Pattern 13 / Graphs</p><h1>Graphs: reachability and shortest unweighted paths</h1><p class="lede">Treat cells, words, or objects as states joined by legal moves. Explore each state deliberately instead of repeating the same search from every starting point. These worked problems start at Medium because constructing graph state from grids and objects adds complexity; begin with the one-node examples before increasing size.</p><p class="muted">Prerequisites: Queues, stacks, arrays, hashing, tree traversal. Suggested study block: 180 minutes, excluding extra practice.</p><nav class="lesson-jumps"><a href="#model">Build the model</a><a href="#worked">Worked problems</a><a href="#practice">Practice ladder</a><a href="#transfer">Unseen transfer</a></nav></header><section id="model"><h2>Build the idea from zero</h2><p>A graph is a collection of states and connections. A state is called a vertex; a connection is called an edge. A road network is an obvious graph, but a grid is also a graph when a cell is a vertex and legal adjacent moves are edges. In a word puzzle, each allowed word can be a vertex and a one-letter transformation can be an edge. State modeling is the first decision: what facts must be known to determine the next legal moves? A position is sufficient for an ordinary maze; a position plus held keys may be necessary in a locked maze.</p>
+<p>Start from the most basic question: can I get from one vertex to another? Keep a frontier of discovered vertices whose outgoing edges are not fully explored. Remove one, examine its neighbors, and add previously undiscovered neighbors. Mark a state when adding it, not when removing it. This ensures that many parents cannot enqueue the same state repeatedly before its first processing. A visited set is a semantic commitment: all later histories arriving at the same state are redundant for the answer being computed. If time, keys, remaining budget, or visited obligations affect future moves, position alone is not a complete state and such a commitment can discard valid solutions.</p>
+<p>A stack gives depth-first search: continue down one branch, returning when it ends. A queue gives breadth-first search: finish the oldest discovered work first. Both discover reachable states. Only the FIFO queue gives the shortest number of edges in an unweighted graph without additional machinery. The reason is not that a queue somehow guesses the right route: every distance-d vertex is processed before any distance-(d+1) vertex. When a new neighbor is discovered from distance d, a shorter route would have had to come from an earlier layer and would already have discovered it.</p>
+<p>Connected components arise by restarting a reachability traversal at each still-unvisited vertex. Each restart identifies one entire component. On a land/water grid, scanning all land cells and traversing from each unseen one counts islands. Marking does not create an island; it records that the island has already been counted.</p>
+<p>Multi-source BFS places every initial source into the queue before expansion. This is equivalent, for distances, to connecting a virtual starting point to every source at the same cost. Each cell receives its distance from the nearest source, not the source encountered first in a separate sequential simulation. That distinction models simultaneous spreading correctly.</p>
+<p>When cloning a graph, visited state becomes an original-to-copy map. Allocate and record a copy before exploring neighbors so cycles can refer back to an already allocated object. Values are not identities: two vertices with the same label can still be different vertices.</p>
+<p>Count work on the modeled graph. With adjacency lists, each vertex is discovered once and each edge is inspected once per relevant endpoint, giving O(V+E). Grid degree is bounded, so traversal is linear in cells. If neighbor generation itself constructs many candidate words or copies strings, include that cost instead of writing O(V+E) without explaining what an edge costs.</p>
+<h3>When to consider it</h3><ul><li><p>An answer depends on what can be reached through local moves: define vertices and edges, even if the input never says graph.</p>
+</li><li><p>You need the minimum number of equal-cost moves: FIFO breadth-first search explores distance layers.</p>
+</li><li><p>Several sources spread simultaneously: initialize one BFS queue with all sources at distance zero.</p>
+</li><li><p>Objects reference one another and can form cycles: store visited identity or an original-to-copy map before following outgoing references.</p>
+</li></ul><div class="proof"><h3>The invariant</h3><p>Every frontier state has already been marked discovered and is reachable from the starting set. Every processed state&#39;s legal neighbors have been discovered. At termination no reachable state can remain undiscovered: on a hypothetical path to one, the first undiscovered state would follow a processed reachable predecessor. For BFS, frontier distances are nondecreasing, and first discovery is a shortest distance because all shorter predecessor layers were processed earlier. This proof assumes equal edge costs. For cloning, the map additionally preserves one distinct copy per discovered original; recording before expansion handles cycles and self-loops.</p>
+</div><figure><div class="diagram-scroll"><svg viewBox="0 0 950 180" role="img" aria-label="FIFO BFS processes one complete distance layer before the next."><defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#3a677e"/></marker></defs><path d="M175,72 Q195,72 215,72" stroke="#3a677e" fill="none" marker-end="url(#arrow)"/><text x="195" y="46" text-anchor="middle" font-size="12">discover</text><path d="M175,72 Q290,72 405,72" stroke="#3a677e" fill="none" marker-end="url(#arrow)"/><text x="290" y="46" text-anchor="middle" font-size="12">discover</text><path d="M365,72 Q480,72 595,72" stroke="#3a677e" fill="none" marker-end="url(#arrow)"/><text x="480" y="46" text-anchor="middle" font-size="12">discover once</text><path d="M555,72 Q575,72 595,72" stroke="#3a677e" fill="none" marker-end="url(#arrow)"/><text x="575" y="46" text-anchor="middle" font-size="12">already seen</text><path d="M555,72 Q670,72 785,72" stroke="#3a677e" fill="none" marker-end="url(#arrow)"/><text x="670" y="46" text-anchor="middle" font-size="12">first route is shortest</text><rect x="25" y="52" width="150" height="66" rx="8" fill="#e9f1f6" stroke="#52748b"/><foreignObject x="30" y="57" width="140" height="60"><div xmlns="http://www.w3.org/1999/xhtml" style="font:14px system-ui;text-align:center;line-height:1.3;padding:5px;color:#203447">S distance 0</div></foreignObject><rect x="215" y="52" width="150" height="66" rx="8" fill="#e9f1f6" stroke="#52748b"/><foreignObject x="220" y="57" width="140" height="60"><div xmlns="http://www.w3.org/1999/xhtml" style="font:14px system-ui;text-align:center;line-height:1.3;padding:5px;color:#203447">A distance 1</div></foreignObject><rect x="405" y="52" width="150" height="66" rx="8" fill="#e9f1f6" stroke="#52748b"/><foreignObject x="410" y="57" width="140" height="60"><div xmlns="http://www.w3.org/1999/xhtml" style="font:14px system-ui;text-align:center;line-height:1.3;padding:5px;color:#203447">B distance 1</div></foreignObject><rect x="595" y="52" width="150" height="66" rx="8" fill="#e9f1f6" stroke="#52748b"/><foreignObject x="600" y="57" width="140" height="60"><div xmlns="http://www.w3.org/1999/xhtml" style="font:14px system-ui;text-align:center;line-height:1.3;padding:5px;color:#203447">C distance 2</div></foreignObject><rect x="785" y="52" width="150" height="66" rx="8" fill="#e9f1f6" stroke="#52748b"/><foreignObject x="790" y="57" width="140" height="60"><div xmlns="http://www.w3.org/1999/xhtml" style="font:14px system-ui;text-align:center;line-height:1.3;padding:5px;color:#203447">T distance 2</div></foreignObject></svg></div><figcaption>FIFO BFS processes one complete distance layer before the next.</figcaption></figure></section><section><h2>Follow a concrete execution</h2><div class="trace" data-trace><script type="application/json">[{"state":"Queue=[S]; distances={S:0}","explanation":"The source is marked immediately."},{"state":"Pop S; queue=[A,B]; distances A=B=1","explanation":"Every one-edge neighbor is now discovered."},{"state":"Pop A; queue=[B,C]; distance C=2","explanation":"Distance-1 B remains ahead of new distance-2 work."},{"state":"Pop B; queue=[C,T]; C already seen, distance T=2","explanation":"A second route to C does not enqueue it again."},{"state":"Pop C then T; queue=[]","explanation":"All reachable vertices are processed; each first distance is minimal."}]</script><p class="trace-count" aria-live="polite"></p><pre class="trace-state"></pre><p class="trace-explanation"></p><div class="trace-controls"><button type="button" data-step="-1">Previous state</button><button type="button" data-step="1">Next state</button><button type="button" data-reset>Reset</button></div></div></section><section><h2>Where the idea breaks</h2><details class="trap"><summary>Use DFS and return the first path as the shortest path.</summary><h4>Counterexample</h4><p>Edges S-A, A-B, B-T and S-T. DFS taking A first finds length 3 although direct S-T has length 1.</p>
+<h4>Repair the reasoning</h4><p>Use BFS for equal-cost edges; use weighted shortest-path methods when costs differ.</p>
+</details><details class="trap"><summary>Mark visited only when a node is removed from the queue.</summary><h4>Counterexample</h4><p>S connects to A and B; both connect to C. A and B can enqueue C before C is processed, repeating its work. A layered graph compounds the duplication.</p>
+<h4>Repair the reasoning</h4><p>Mark at enqueue time. The first BFS discovery already has a shortest distance.</p>
+</details><details class="trap"><summary>Clone graph nodes by label instead of identity.</summary><h4>Counterexample</h4><p>Two distinct adjacent objects both labeled 7 collapse into one self-loop if a map keyed only by label is used.</p>
+<h4>Repair the reasoning</h4><p>Map original object identity to its one copy.</p>
+</details></section><section id="worked"><h2>Worked problem ladder</h2><p>Read the contract, draw a small example, and write a baseline before revealing the derivation. Code snippets include helpers; downloadable Java files add a class and standard imports. Kotlin files add imports. Input contracts are part of the solution.</p><article class="problem" id="problem-1"><div class="problem-heading"><h3>1. Count islands</h3><span class="difficulty">Medium</span></div><p>Given a nonnull rectangular Int grid containing only 0 (water) and 1 (land), count components under four-direction adjacency. Empty grids or zero columns return 0. Do not mutate input. Rows are nonnull; rectangular shape and binary values are preconditions.</p>
+<div class="example"><strong>Example</strong><p>[[1,1,0],[0,1,0],[1,0,1]] =&gt; 3. Diagonal contact does not connect land.</p>
+</div><details><summary>First attempt: the baseline</summary><p>For each land cell, independently rediscover its whole component and deduplicate component sets: O((R<em>C)²) time in the worst case and O(R</em>C) space.</p>
+</details><details class="solution"><summary>Reveal the derivation and solutions</summary><h4>Derive it step by step</h4><ol><li><p>Scan every cell. An already seen land cell belongs to an island counted earlier.</p>
+</li><li><p>At each unseen land cell, increment the answer and BFS its entire component.</p>
+</li><li><p>Mark neighbors at enqueue time so every land cell enters one traversal exactly once.</p>
+</li></ol><div class="proof"><strong>Why it works</strong><p>After each scan position, every seen land cell belongs to an island already counted, and each counted island is fully marked. No unseen island is counted twice.</p>
+</div><div class="language-controls" role="group" aria-label="Solution language"><button type="button" data-lang="java">Java</button><button type="button" data-lang="kotlin">Kotlin</button><button type="button" data-lang="both">Both</button></div><div class="code" data-code="java"><h4>Java</h4><pre><code>static int numIslands(int[][] grid) {
+    Objects.requireNonNull(grid, &quot;grid&quot;);
+    int rows = grid.length;
+    if (rows == 0) return 0;
+    int cols = grid[0].length, answer = 0;
+    boolean[][] seen = new boolean[rows][cols];
+    int[] dr = {-1, 1, 0, 0}, dc = {0, 0, -1, 1};
+    ArrayDeque&lt;int[]&gt; queue = new ArrayDeque&lt;&gt;();
+    for (int r = 0; r &lt; rows; r++) for (int c = 0; c &lt; cols; c++) {
+        if (grid[r][c] != 1 || seen[r][c]) continue;
+        answer++;
+        seen[r][c] = true;
+        queue.add(new int[]{r, c});
+        while (!queue.isEmpty()) {
+            int[] cell = queue.remove();
+            for (int d = 0; d &lt; 4; d++) {
+                int nr = cell[0] + dr[d], nc = cell[1] + dc[d];
+                if (nr &gt;= 0 &amp;&amp; nr &lt; rows &amp;&amp; nc &gt;= 0 &amp;&amp; nc &lt; cols &amp;&amp; grid[nr][nc] == 1 &amp;&amp; !seen[nr][nc]) {
+                    seen[nr][nc] = true;
+                    queue.add(new int[]{nr, nc});
+                }
+            }
+        }
+    }
+    return answer;
+}</code></pre><a download href="../solutions/13-1.java">Download Java snippet</a></div><div class="code" data-code="kotlin"><h4>Kotlin</h4><pre><code>fun numIslands(grid: Array&lt;IntArray&gt;): Int {
+    val rows = grid.size
+    if (rows == 0) return 0
+    val cols = grid[0].size
+    val seen = Array(rows) { BooleanArray(cols) }
+    val dr = intArrayOf(-1, 1, 0, 0)
+    val dc = intArrayOf(0, 0, -1, 1)
+    val queue = ArrayDeque&lt;Pair&lt;Int, Int&gt;&gt;()
+    var answer = 0
+    for (r in 0 until rows) for (c in 0 until cols) {
+        if (grid[r][c] != 1 || seen[r][c]) continue
+        answer++
+        seen[r][c] = true
+        queue.add(r to c)
+        while (queue.isNotEmpty()) {
+            val (cr, cc) = queue.remove()
+            for (d in 0 until 4) {
+                val nr = cr + dr[d]
+                val nc = cc + dc[d]
+                if (nr in 0 until rows &amp;&amp; nc in 0 until cols &amp;&amp; grid[nr][nc] == 1 &amp;&amp; !seen[nr][nc]) {
+                    seen[nr][nc] = true
+                    queue.add(nr to nc)
+                }
+            }
+        }
+    }
+    return answer
+}</code></pre><a download href="../solutions/13-1.kt">Download Kotlin snippet</a></div><h4>Cost and boundaries</h4><p>O(R*C) time and auxiliary space for R rows and C columns, plus O(1) output. Iterative BFS avoids recursion-depth failure. Java null throws; Kotlin uses nonnull input.</p>
+<ul><li><p>[] =&gt; 0</p>
+</li><li><p>[[0]] =&gt; 0</p>
+</li><li><p>[[1]] =&gt; 1</p>
+</li><li><p>[[1,0],[0,1]] =&gt; 2</p>
+</li></ul><h4>Change one assumption</h4><p>For eight-direction adjacency change the neighbor list; the component proof is unchanged. For a streaming sequence of land additions, maintain components with union-find instead of retraversing the grid.</p>
+</details><p><a href="https://leetcode.com/problems/number-of-islands/" target="_blank" rel="noopener">Original practice problem</a> <label class="solved"><input type="checkbox" data-progress="13-1"> Solved independently</label></p></article><article class="problem" id="problem-2"><div class="problem-heading"><h3>2. Clone a graph with cycles</h3><span class="difficulty">Medium</span></div><p>Given a nullable root of a graph whose Node has an integer value and an ordered mutable list of nonnull neighbor references, return a deep copy of every reachable node. Preserve neighbor order, duplicate edges and self-loops. Distinct nodes may share values. Null returns null. Do not mutate originals.</p>
+<div class="example"><strong>Example</strong><p>A(value=7) -&gt; B(value=7), B -&gt; A must produce distinct copies A&#39; and B&#39; joined cyclically, with no edge into the originals.</p>
+</div><details><summary>First attempt: the baseline</summary><p>Recursively copy each reference without remembering prior copies: does not terminate on a cycle and duplicates shared nodes even in a DAG.</p>
+</details><details class="solution"><summary>Reveal the derivation and solutions</summary><h4>Derive it step by step</h4><ol><li><p>Allocate a root copy and immediately map original root to it.</p>
+</li><li><p>BFS originals. For each neighbor, allocate and enqueue a copy only if identity is absent from the map.</p>
+</li><li><p>Append the mapped neighbor copy to the current copy in original neighbor order.</p>
+</li></ol><div class="proof"><strong>Why it works</strong><p>The identity map contains exactly one new copy per discovered original. All edges of processed originals are copied to mapped objects, preserving order and multiplicity.</p>
+</div><div class="language-controls" role="group" aria-label="Solution language"><button type="button" data-lang="java">Java</button><button type="button" data-lang="kotlin">Kotlin</button><button type="button" data-lang="both">Both</button></div><div class="code" data-code="java"><h4>Java</h4><pre><code>static final class Node {
+    final int value;
+    final List&lt;Node&gt; neighbors = new ArrayList&lt;&gt;();
+    Node(int value) { this.value = value; }
+}
+static Node cloneGraph(Node root) {
+    if (root == null) return null;
+    IdentityHashMap&lt;Node, Node&gt; copies = new IdentityHashMap&lt;&gt;();
+    ArrayDeque&lt;Node&gt; queue = new ArrayDeque&lt;&gt;();
+    copies.put(root, new Node(root.value));
+    queue.add(root);
+    while (!queue.isEmpty()) {
+        Node current = queue.remove();
+        for (Node neighbor : current.neighbors) {
+            if (!copies.containsKey(neighbor)) {
+                copies.put(neighbor, new Node(neighbor.value));
+                queue.add(neighbor);
+            }
+            copies.get(current).neighbors.add(copies.get(neighbor));
+        }
+    }
+    return copies.get(root);
+}</code></pre><a download href="../solutions/13-2.java">Download Java snippet</a></div><div class="code" data-code="kotlin"><h4>Kotlin</h4><pre><code>class Node(val value: Int) {
+    val neighbors: MutableList&lt;Node&gt; = mutableListOf()
+}
+fun cloneGraph(root: Node?): Node? {
+    if (root == null) return null
+    val copies = IdentityHashMap&lt;Node, Node&gt;()
+    val queue = ArrayDeque&lt;Node&gt;()
+    copies[root] = Node(root.value)
+    queue.add(root)
+    while (queue.isNotEmpty()) {
+        val current = queue.remove()
+        for (neighbor in current.neighbors) {
+            if (!copies.containsKey(neighbor)) {
+                copies[neighbor] = Node(neighbor.value)
+                queue.add(neighbor)
+            }
+            copies.getValue(current).neighbors.add(copies.getValue(neighbor))
+        }
+    }
+    return copies[root]
+}</code></pre><a download href="../solutions/13-2.kt">Download Kotlin snippet</a></div><h4>Cost and boundaries</h4><p>Expected O(V+E) time for reachable vertices and neighbor-list entries, O(V) auxiliary map/queue space, and O(V+E) output space. Identity hashing assumptions apply.</p>
+<ul><li><p>null =&gt; null</p>
+</li><li><p>one node without neighbors =&gt; distinct isolated copy</p>
+</li><li><p>self-loop =&gt; copied node points to itself</p>
+</li></ul><h4>Change one assumption</h4><p>If Node stores additional mutable payload objects, copying only graph structure is no longer a full payload deep copy. Define which nested objects must also be cloned, and memoize shared payload identity when necessary.</p>
+</details><p><a href="https://leetcode.com/problems/clone-graph/" target="_blank" rel="noopener">Original practice problem</a> <label class="solved"><input type="checkbox" data-progress="13-2"> Solved independently</label></p></article><article class="problem" id="problem-3"><div class="problem-heading"><h3>3. Simultaneous rotting spread</h3><span class="difficulty">Medium</span></div><p>Given a nonnull rectangular grid of 0 (empty), 1 (fresh), and 2 (rotten), each minute all rotten cells infect adjacent fresh cells in four directions. Return the fewest minutes until none remain fresh, or -1 if impossible. Empty/no-fresh grids return 0. Do not mutate input. Shape and values are preconditions.</p>
+<div class="example"><strong>Example</strong><p>[[2,1,1],[1,1,0],[0,1,1]] =&gt; 4. Spread from every initial rotten cell begins at minute 0.</p>
+</div><details><summary>First attempt: the baseline</summary><p>Repeatedly scan all cells to find the next minute&#39;s fresh infections, applying changes simultaneously on a copy: O((R<em>C)²) worst-case time and O(R</em>C) space.</p>
+</details><details class="solution"><summary>Reveal the derivation and solutions</summary><h4>Derive it step by step</h4><ol><li><p>Enqueue all rotten sources with time 0; count fresh cells.</p>
+</li><li><p>BFS unvisited fresh neighbors, assigning parent time + 1 and decrementing fresh exactly once.</p>
+</li><li><p>Track the largest assigned time. If fresh remains after traversal, some cells are unreachable.</p>
+</li></ol><div class="proof"><strong>Why it works</strong><p>A discovered fresh cell is assigned its shortest distance from any initial rotten source. Remaining fresh counts precisely the not-yet-discovered fresh cells.</p>
+</div><div class="language-controls" role="group" aria-label="Solution language"><button type="button" data-lang="java">Java</button><button type="button" data-lang="kotlin">Kotlin</button><button type="button" data-lang="both">Both</button></div><div class="code" data-code="java"><h4>Java</h4><pre><code>static int orangesRotting(int[][] grid) {
+    Objects.requireNonNull(grid, &quot;grid&quot;);
+    int rows = grid.length;
+    if (rows == 0) return 0;
+    int cols = grid[0].length, fresh = 0, minutes = 0;
+    int[][] distance = new int[rows][cols];
+    ArrayDeque&lt;int[]&gt; queue = new ArrayDeque&lt;&gt;();
+    for (int r = 0; r &lt; rows; r++) {
+        Arrays.fill(distance[r], -1);
+        for (int c = 0; c &lt; cols; c++) {
+            if (grid[r][c] == 1) fresh++;
+            if (grid[r][c] == 2) { distance[r][c] = 0; queue.add(new int[]{r,c}); }
+        }
+    }
+    int[] dr = {-1,1,0,0}, dc = {0,0,-1,1};
+    while (!queue.isEmpty()) {
+        int[] cell = queue.remove();
+        for (int d = 0; d &lt; 4; d++) {
+            int r = cell[0] + dr[d], c = cell[1] + dc[d];
+            if (r &gt;= 0 &amp;&amp; r &lt; rows &amp;&amp; c &gt;= 0 &amp;&amp; c &lt; cols &amp;&amp; grid[r][c] == 1 &amp;&amp; distance[r][c] == -1) {
+                distance[r][c] = distance[cell[0]][cell[1]] + 1;
+                minutes = Math.max(minutes, distance[r][c]);
+                fresh--;
+                queue.add(new int[]{r,c});
+            }
+        }
+    }
+    return fresh == 0 ? minutes : -1;
+}</code></pre><a download href="../solutions/13-3.java">Download Java snippet</a></div><div class="code" data-code="kotlin"><h4>Kotlin</h4><pre><code>fun orangesRotting(grid: Array&lt;IntArray&gt;): Int {
+    val rows = grid.size
+    if (rows == 0) return 0
+    val cols = grid[0].size
+    val distance = Array(rows) { IntArray(cols) { -1 } }
+    val queue = ArrayDeque&lt;Pair&lt;Int, Int&gt;&gt;()
+    var fresh = 0
+    var minutes = 0
+    for (r in 0 until rows) for (c in 0 until cols) {
+        if (grid[r][c] == 1) fresh++
+        if (grid[r][c] == 2) { distance[r][c] = 0; queue.add(r to c) }
+    }
+    val dr = intArrayOf(-1,1,0,0)
+    val dc = intArrayOf(0,0,-1,1)
+    while (queue.isNotEmpty()) {
+        val (cr, cc) = queue.remove()
+        for (d in 0 until 4) {
+            val r = cr + dr[d]
+            val c = cc + dc[d]
+            if (r in 0 until rows &amp;&amp; c in 0 until cols &amp;&amp; grid[r][c] == 1 &amp;&amp; distance[r][c] == -1) {
+                distance[r][c] = distance[cr][cc] + 1
+                minutes = maxOf(minutes, distance[r][c])
+                fresh--
+                queue.add(r to c)
+            }
+        }
+    }
+    return if (fresh == 0) minutes else -1
+}</code></pre><a download href="../solutions/13-3.kt">Download Kotlin snippet</a></div><h4>Cost and boundaries</h4><p>O(R*C) time and auxiliary space, O(1) output. Time labels assume a feasible in-memory grid whose number of cells fits Int.</p>
+<ul><li><p>[] =&gt; 0</p>
+</li><li><p>[[1]] =&gt; -1</p>
+</li><li><p>[[2]] =&gt; 0</p>
+</li><li><p>[[2,1,1,2]] =&gt; 1</p>
+</li></ul><h4>Change one assumption</h4><p>If infection times differ by edge, FIFO layers no longer model time. Use a priority queue and Dijkstra relaxation from all sources when all transmission costs are nonnegative.</p>
+</details><p><a href="https://leetcode.com/problems/rotting-oranges/" target="_blank" rel="noopener">Original practice problem</a> <label class="solved"><input type="checkbox" data-progress="13-3"> Solved independently</label></p></article><article class="problem" id="problem-4"><div class="problem-heading"><h3>4. Shortest word transformation</h3><span class="difficulty">Hard</span></div><p>Given nonempty same-length begin and end strings, and a nonnull list of same-length words, all containing only lowercase English a-z, return the number of words in a shortest transformation chain. Each step changes exactly one letter; every word after begin must be in the list. Return 0 if no chain exists. begin=end returns 1 even if absent from the list. Do not mutate the caller&#39;s list. Alphabet and equal lengths are explicit preconditions.</p>
+<div class="example"><strong>Example</strong><p>hit -&gt; cog using [hot,dot,dog,lot,log,cog] =&gt; 5: hit,hot,dot,dog,cog.</p>
+</div><details><summary>First attempt: the baseline</summary><p>Build adjacency by comparing every pair of dictionary words (O(N²L)), then BFS; graph storage can be O(N²).</p>
+</details><details class="solution"><summary>Reveal the derivation and solutions</summary><h4>Derive it step by step</h4><ol><li><p>Treat words as vertices. A one-letter substitution is an equal-cost edge.</p>
+</li><li><p>Generate neighbors on demand by replacing each position with each of 26 letters. Only dictionary members are valid next states.</p>
+</li><li><p>Remove a word from a copied remaining set when enqueuing it so it is visited once.</p>
+</li><li><p>Process queue layers and count words, starting at 1 for begin. Return upon discovering end.</p>
+</li></ol><div class="proof"><strong>Why it works</strong><p>Every queued word is reachable with its layer&#39;s number of words, and no shorter chain can be discovered later. Remaining contains exactly dictionary words not yet discovered.</p>
+</div><div class="language-controls" role="group" aria-label="Solution language"><button type="button" data-lang="java">Java</button><button type="button" data-lang="kotlin">Kotlin</button><button type="button" data-lang="both">Both</button></div><div class="code" data-code="java"><h4>Java</h4><pre><code>static int ladderLength(String begin, String end, List&lt;String&gt; words) {
+    Objects.requireNonNull(begin, &quot;begin&quot;); Objects.requireNonNull(end, &quot;end&quot;);
+    Objects.requireNonNull(words, &quot;words&quot;);
+    if (begin.equals(end)) return 1;
+    Set&lt;String&gt; remaining = new HashSet&lt;&gt;(words);
+    if (!remaining.contains(end)) return 0;
+    remaining.remove(begin);
+    ArrayDeque&lt;String&gt; queue = new ArrayDeque&lt;&gt;(); queue.add(begin);
+    int length = 1;
+    while (!queue.isEmpty()) {
+        int layer = queue.size();
+        for (int k = 0; k &lt; layer; k++) {
+            char[] chars = queue.remove().toCharArray();
+            for (int i = 0; i &lt; chars.length; i++) {
+                char saved = chars[i];
+                for (char ch = &#39;a&#39;; ch &lt;= &#39;z&#39;; ch++) {
+                    if (ch == saved) continue;
+                    chars[i] = ch;
+                    String next = new String(chars);
+                    if (remaining.remove(next)) {
+                        if (next.equals(end)) return length + 1;
+                        queue.add(next);
+                    }
+                }
+                chars[i] = saved;
+            }
+        }
+        length++;
+    }
+    return 0;
+}</code></pre><a download href="../solutions/13-4.java">Download Java snippet</a></div><div class="code" data-code="kotlin"><h4>Kotlin</h4><pre><code>fun ladderLength(begin: String, end: String, words: List&lt;String&gt;): Int {
+    if (begin == end) return 1
+    val remaining = words.toHashSet()
+    if (end !in remaining) return 0
+    remaining.remove(begin)
+    val queue = ArrayDeque&lt;String&gt;()
+    queue.add(begin)
+    var length = 1
+    while (queue.isNotEmpty()) {
+        val layer = queue.size
+        repeat(layer) {
+            val chars = queue.remove().toCharArray()
+            for (i in chars.indices) {
+                val saved = chars[i]
+                for (ch in &#39;a&#39;..&#39;z&#39;) {
+                    if (ch == saved) continue
+                    chars[i] = ch
+                    val next = String(chars)
+                    if (remaining.remove(next)) {
+                        if (next == end) return length + 1
+                        queue.add(next)
+                    }
+                }
+                chars[i] = saved
+            }
+        }
+        length++
+    }
+    return 0
+}</code></pre><a download href="../solutions/13-4.kt">Download Kotlin snippet</a></div><h4>Cost and boundaries</h4><p>For N dictionary words of length L, expected O(N<em>26</em>L² + N<em>L) time including O(L) String creation/hash per candidate, and O(N</em>L) auxiliary storage including queued generated strings. Extra transient characters per word use O(L) space. Hash membership is expected-time.</p>
+<ul><li><p>begin=a, end=a, words=[] =&gt; 1</p>
+</li><li><p>begin=a, end=c, words=[c] =&gt; 2</p>
+</li><li><p>hit,cog,[hot,dot,dog] =&gt; 0</p>
+</li></ul><h4>Change one assumption</h4><p>For large search frontiers use bidirectional BFS: maintain two complete frontier layers and expand the smaller, detecting an edge into the opposite frontier. Track each side&#39;s distances carefully so the sum counts edges, then add 1 for words. Worst-case bounds need not improve, though practical exploration often shrinks. To return all shortest chains, retain all predecessor edges that respect shortest-distance layers and enumerate afterward.</p>
+</details><p><a href="https://leetcode.com/problems/word-ladder/" target="_blank" rel="noopener">Original practice problem</a> <label class="solved"><input type="checkbox" data-progress="13-4"> Solved independently</label></p></article></section><section id="practice"><h2>Practice with gradually less help</h2><details class="practice-item"><summary>Find if Path Exists in Graph <span class="muted">Easy</span></summary><a href="https://leetcode.com/problems/find-if-path-exists-in-graph/" target="_blank" rel="noopener">Open problem</a><details><summary>A small hint</summary><p>Start with ordinary reachability and a complete vertex state.</p>
+</details><details><summary>Solution outline and cost</summary><p>Build undirected adjacency lists; BFS/DFS from source, marking at discovery. O(V+E) time/space. source=destination is reachable without any edge.</p>
+</details><label><input type="checkbox" data-progress="13-practice-0"> Solved independently</label></details><details class="practice-item"><summary>Flood Fill <span class="muted">Easy</span></summary><a href="https://leetcode.com/problems/flood-fill/" target="_blank" rel="noopener">Open problem</a><details><summary>A small hint</summary><p>A component is constrained by its original color.</p>
+</details><details><summary>Solution outline and cost</summary><p>Traverse neighbors matching the original color and recolor. O(R*C) worst case. If new color equals old color, return immediately or use visited to avoid rediscovering cells.</p>
+</details><label><input type="checkbox" data-progress="13-practice-1"> Solved independently</label></details><details class="practice-item"><summary>Max Area of Island <span class="muted">Medium</span></summary><a href="https://leetcode.com/problems/max-area-of-island/" target="_blank" rel="noopener">Open problem</a><details><summary>A small hint</summary><p>Count nodes in each discovered component.</p>
+</details><details><summary>Solution outline and cost</summary><p>Run one traversal per unseen land cell, accumulate each component area and take the maximum. O(R*C) time/space; do not combine disconnected islands.</p>
+</details><label><input type="checkbox" data-progress="13-practice-2"> Solved independently</label></details><details class="practice-item"><summary>01 Matrix <span class="muted">Medium</span></summary><a href="https://leetcode.com/problems/01-matrix/" target="_blank" rel="noopener">Open problem</a><details><summary>A small hint</summary><p>Distances are to the nearest zero; reverse the sources.</p>
+</details><details><summary>Solution outline and cost</summary><p>Initialize every zero at distance 0 and multi-source BFS over all cells. O(R*C) time/space. Define behavior for no-zero inputs explicitly if expanding the original contract.</p>
+</details><label><input type="checkbox" data-progress="13-practice-3"> Solved independently</label></details><details class="practice-item"><summary>Pacific Atlantic Water Flow <span class="muted">Medium</span></summary><a href="https://leetcode.com/problems/pacific-atlantic-water-flow/" target="_blank" rel="noopener">Open problem</a><details><summary>A small hint</summary><p>Reverse directed reachability from the destination borders.</p>
+</details><details><summary>Solution outline and cost</summary><p>From each ocean border, traverse to equal or higher neighbors, then intersect the visited sets. O(R*C) time/space; reversing the inequality is essential.</p>
+</details><label><input type="checkbox" data-progress="13-practice-4"> Solved independently</label></details><details class="practice-item"><summary>Open the Lock <span class="muted">Medium</span></summary><a href="https://leetcode.com/problems/open-the-lock/" target="_blank" rel="noopener">Open problem</a><details><summary>A small hint</summary><p>A lock combination is a vertex with eight neighbors.</p>
+</details><details><summary>Solution outline and cost</summary><p>BFS from 0000 excluding dead states; generate one-wheel ±1 moves with wraparound. O(S*D) transitions for S reachable states and D digits, plus state-string costs. Reject a dead starting state.</p>
+</details><label><input type="checkbox" data-progress="13-practice-5"> Solved independently</label></details><details class="practice-item"><summary>Shortest Path in a Grid with Obstacles Elimination <span class="muted">Hard</span></summary><a href="https://leetcode.com/problems/shortest-path-in-a-grid-with-obstacles-elimination/" target="_blank" rel="noopener">Open problem</a><details><summary>A small hint</summary><p>Position plus remaining eliminations determines future moves.</p>
+</details><details><summary>Solution outline and cost</summary><p>BFS (r,c,kRemaining), marking full states; O(R<em>C</em>K) time/space. A stronger remaining-budget state at equal or smaller distance can dominate a weaker one, but position alone cannot.</p>
+</details><label><input type="checkbox" data-progress="13-practice-6"> Solved independently</label></details></section><section><h2>Check the reasoning</h2><fieldset class="quiz" data-answer="1"><legend>A move costs either 1 or 7. Does ordinary FIFO BFS minimize total cost?</legend><label><input type="radio" name="q0" value="0"> Yes, because every node is marked once.</label><label><input type="radio" name="q0" value="1"> No; its proof minimizes edges, so use an algorithm supporting weights.</label><label><input type="radio" name="q0" value="2"> Yes, if you sort adjacency lists.</label><button type="button" data-check>Check reasoning</button><p class="feedback" aria-live="polite" data-explanation="Fewest edges and smallest weight can differ. Dijkstra handles nonnegative weights."></p></fieldset><fieldset class="quiz" data-answer="1"><legend>Two paths reach the same cell, but one holds a key. Can visited use only the cell?</legend><label><input type="radio" name="q1" value="0"> Always.</label><label><input type="radio" name="q1" value="1"> Only if keys cannot affect any future legal move or objective.</label><label><input type="radio" name="q1" value="2"> Never, even in an ordinary open grid.</label><button type="button" data-check>Check reasoning</button><p class="feedback" aria-live="polite" data-explanation="Equivalent states must have equivalent future options. With doors, include the key set in the state."></p></fieldset></section><section id="transfer"><h2>An unfamiliar version</h2><p>Several charging stations are placed in an unweighted warehouse grid with blocked cells. For every open cell, return the minimum walking steps to any station, or -1 if unreachable.</p>
+<details><summary>Hint 1</summary><p>Running one independent search per cell repeats almost all work.</p>
+</details><details><summary>Hint 2</summary><p>Reverse the perspective: start every station at distance zero.</p>
+</details><details><summary>Derivation</summary><p>Initialize all station cells as discovered with distance 0 in one queue. BFS through legal open neighbors and assign distance parent+1 on first discovery. Queue layering proves minimum distance from the whole starting set. O(R*C) time and space; absent stations leave all distances -1.</p>
+</details></section><section><h2>Retrieve it without looking</h2><ul><li><p>Model a word transformation graph without drawing every possible edge.</p>
+</li><li><p>Explain why marking on enqueue prevents duplicate frontier work.</p>
+</li><li><p>Derive the simultaneous-spread algorithm from nearest-source distance.</p>
+</li><li><p>Show a cyclic two-node graph and the moment each clone enters the map.</p>
+</li><li><p>Give a maze where position alone is insufficient state.</p>
+</li></ul><p>Repeat after 1, 3, 7 and 21 days. A check mark records your self-report, not a mastery score. Explain the proof and solve a changed version before calling a pattern fluent.</p></section><section><h2>Sources and further study</h2><ul><li><a href="https://algs4.cs.princeton.edu/40graphs/">Princeton graph algorithms</a>: Primary algorithm reference link; external content not retrieved during this pass. Practice links identify problems, not company frequency.</li></ul><p class="muted">These are reference links. See the research page for live-verification limits and the distinction between a canonical algorithm and a confirmed company question.</p></section><p class="next">Next: <a href="14-topology-union-find.html">Dependency order and dynamic connectivity</a></p></main></div><footer>Practice deriving the invariant. Explain why every discarded candidate is safe to discard. <a href="../research.html">Evidence and scope</a></footer><!-- page-navigation:start -->
+<nav class="page-navigation" aria-label="Bottom page navigation"><div class="page-navigation-parents"><a href="../../index.html">Library home</a> <span aria-hidden="true">›</span> <a href="../../index.html#technical-foundations">Technical foundations and implementation</a> <span aria-hidden="true">›</span> <a href="../index.html">Coding Interviews: Patterns &amp; Problem Solving</a> <span aria-hidden="true">›</span> <a href="index.html">Lessons</a></div><div class="page-navigation-sections"><a href="index.html">Lessons</a><a href="../reference/index.html">Reference sheets</a><a href="../materials.html">Guides and resources</a><a href="#page-top">Back to top ↑</a></div><div class="page-navigation-pager"><a href="12-tries.html" rel="prev">← Previous: Tries: share prefixes and prune impossible continuations</a><a href="14-topology-union-find.html" rel="next">Next: Dependency order and dynamic connectivity →</a></div></nav>
+<!-- page-navigation:end -->
+<script src="../../assets/course/links.js" defer></script>
+</body></html>

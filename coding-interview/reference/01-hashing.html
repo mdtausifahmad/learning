@@ -1,0 +1,31 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="Learn coding interview reasoning from first principles, with Java and Kotlin solutions."><title>Hashing, complements, and canonical keys: retrieval sheet · Coding interview</title><link rel="stylesheet" href="../assets/course.css"><script src="../assets/course.js" defer></script><link rel="stylesheet" href="../../assets/navigation.css">
+</head><body id="page-top">
+<!-- page-navigation:start -->
+<nav class="page-navigation" aria-label="Top page navigation"><div class="page-navigation-parents"><a href="../../index.html">Library home</a> <span aria-hidden="true">›</span> <a href="../../index.html#technical-foundations">Technical foundations and implementation</a> <span aria-hidden="true">›</span> <a href="../index.html">Coding Interviews: Patterns &amp; Problem Solving</a> <span aria-hidden="true">›</span> <a href="index.html">Reference sheets</a></div><div class="page-navigation-sections"><a href="../lessons/index.html">Lessons</a><a href="index.html">Reference sheets</a><a href="../materials.html">Guides and resources</a><a href="#page-top">Back to top ↑</a></div><div class="page-navigation-pager"><span>Start of this section</span><a href="02-two-pointers.html" rel="next">Next: Two pointers and safe elimination: retrieval sheet →</a></div></nav>
+<!-- page-navigation:end -->
+<a class="skip" href="#main">Skip to content</a><nav class="top"><a href="../../index.html">Software Engineering Library</a><a href="../index.html">Coding interview</a><a href="../foundations.html">Start from zero</a><a href="../practice.html">Practice room</a><a href="../research.html">Sources</a></nav><main id="main" class="document"><h1>Hashing, complements, and canonical keys: retrieval sheet</h1>
+<h2>Recognition</h2>
+<ul>
+<li>Repeated membership or equality searches inside a loop suggest a set or map.</li>
+<li>An equation with one known operand suggests deriving its complement.</li>
+<li>Grouping by rearrangement suggests a canonical key rather than pairwise comparisons.</li>
+</ul>
+<h2>Invariant</h2>
+<p>Choose the exact information the future needs. Query state representing only eligible earlier items, account for the answer, then update state. A key must preserve the equivalence relation, and a stored value must preserve the requested multiplicity or position.</p>
+<h2>Failure boundaries</h2>
+<ul>
+<li>Insert before checking Two Sum.: [3] with target 6 finds the current index twice and reports an invalid pair. Repair: Query earlier state first, then insert.</li>
+<li>Use a set of letters as an anagram signature.: &quot;aab&quot; and &quot;ab&quot; both become {a,b}, although their multiplicities differ. Repair: Use sorted characters or a complete frequency vector.</li>
+<li>Walk a consecutive sequence from every value.: [1,2,3,4] walks lengths 4+3+2+1; the general case is quadratic. Repair: Only walk from values whose predecessor is absent.</li>
+</ul>
+<h2>Recall</h2>
+<ul>
+<li>After one day: derive the maintained state from the brute-force repeated work without looking at code.</li>
+<li>After three days: explain the counterexample to each wrong turn and repair it.</li>
+<li>After one week: solve the transfer problem, state the invariant aloud, and compare both JVM implementations.</li>
+</ul>
+<a href="../lessons/01-hashing.html">Return to lesson</a></main><footer>Practice deriving the invariant. Explain why every discarded candidate is safe to discard. <a href="../research.html">Evidence and scope</a></footer><!-- page-navigation:start -->
+<nav class="page-navigation" aria-label="Bottom page navigation"><div class="page-navigation-parents"><a href="../../index.html">Library home</a> <span aria-hidden="true">›</span> <a href="../../index.html#technical-foundations">Technical foundations and implementation</a> <span aria-hidden="true">›</span> <a href="../index.html">Coding Interviews: Patterns &amp; Problem Solving</a> <span aria-hidden="true">›</span> <a href="index.html">Reference sheets</a></div><div class="page-navigation-sections"><a href="../lessons/index.html">Lessons</a><a href="index.html">Reference sheets</a><a href="../materials.html">Guides and resources</a><a href="#page-top">Back to top ↑</a></div><div class="page-navigation-pager"><span>Start of this section</span><a href="02-two-pointers.html" rel="next">Next: Two pointers and safe elimination: retrieval sheet →</a></div></nav>
+<!-- page-navigation:end -->
+<script src="../../assets/course/links.js" defer></script>
+</body></html>

@@ -1,0 +1,31 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="Learn coding interview reasoning from first principles, with Java and Kotlin solutions."><title>Heaps: keep the next winner and forget full order: retrieval sheet · Coding interview</title><link rel="stylesheet" href="../assets/course.css"><script src="../assets/course.js" defer></script><link rel="stylesheet" href="../../assets/navigation.css">
+</head><body id="page-top">
+<!-- page-navigation:start -->
+<nav class="page-navigation" aria-label="Top page navigation"><div class="page-navigation-parents"><a href="../../index.html">Library home</a> <span aria-hidden="true">›</span> <a href="../../index.html#technical-foundations">Technical foundations and implementation</a> <span aria-hidden="true">›</span> <a href="../index.html">Coding Interviews: Patterns &amp; Problem Solving</a> <span aria-hidden="true">›</span> <a href="index.html">Reference sheets</a></div><div class="page-navigation-sections"><a href="../lessons/index.html">Lessons</a><a href="index.html">Reference sheets</a><a href="../materials.html">Guides and resources</a><a href="#page-top">Back to top ↑</a></div><div class="page-navigation-pager"><a href="09-trees.html" rel="prev">← Previous: Trees: decide what crosses each parent-child boundary: retrieval sheet</a><a href="11-backtracking.html" rel="next">Next: Backtracking: enumerate choices with a reversible state: retrieval sheet →</a></div></nav>
+<!-- page-navigation:end -->
+<a class="skip" href="#main">Skip to content</a><nav class="top"><a href="../../index.html">Software Engineering Library</a><a href="../index.html">Coding interview</a><a href="../foundations.html">Start from zero</a><a href="../practice.html">Practice room</a><a href="../research.html">Sources</a></nav><main id="main" class="document"><h1>Heaps: keep the next winner and forget full order: retrieval sheet</h1>
+<h2>Recognition</h2>
+<ul>
+<li>The next action repeatedly consumes the smallest or largest currently available candidate.</li>
+<li>Only k winners matter, and k is much smaller than the full input size.</li>
+<li>Several already sorted streams must become one: only their exposed heads can win next.</li>
+<li>A dynamic median asks for the boundary between a lower half and an upper half, not a fully sorted sequence.</li>
+</ul>
+<h2>Invariant</h2>
+<p>A heap guarantees only its parent-child order and therefore one accessible extreme. The problem-specific invariant must say which candidates are stored, why omitted candidates cannot improve the requested answer, and what the root represents. Charge insert/remove costs to individual candidate events; peak heap size, rather than total input size, determines the logarithmic factor.</p>
+<h2>Failure boundaries</h2>
+<ul>
+<li>Use a max-heap of k values to keep the k largest by evicting its root.: With k=2 and retained [10,9], incoming 8 followed by evicting the maximum leaves [9,8], discarding the true largest value 10. Repair: Keep a min-heap so the smallest retained winner is evicted.</li>
+<li>Compare heap priorities with a-b.: a=2147483647 and b=-1 gives overflowed a-b=-2147483648 in Int, incorrectly ordering the larger value first in an ascending comparator. Repair: Use comparison APIs and promote sums before arithmetic; do not derive ordering by overflowing subtraction.</li>
+</ul>
+<h2>Recall</h2>
+<ul>
+<li>For each heap problem say what the root represents before choosing direction.</li>
+<li>Reconstruct the median invariants and explain each rebalance transfer.</li>
+<li>Explain why changing a stored entry priority silently can corrupt future results.</li>
+</ul>
+<a href="../lessons/10-heaps.html">Return to lesson</a></main><footer>Practice deriving the invariant. Explain why every discarded candidate is safe to discard. <a href="../research.html">Evidence and scope</a></footer><!-- page-navigation:start -->
+<nav class="page-navigation" aria-label="Bottom page navigation"><div class="page-navigation-parents"><a href="../../index.html">Library home</a> <span aria-hidden="true">›</span> <a href="../../index.html#technical-foundations">Technical foundations and implementation</a> <span aria-hidden="true">›</span> <a href="../index.html">Coding Interviews: Patterns &amp; Problem Solving</a> <span aria-hidden="true">›</span> <a href="index.html">Reference sheets</a></div><div class="page-navigation-sections"><a href="../lessons/index.html">Lessons</a><a href="index.html">Reference sheets</a><a href="../materials.html">Guides and resources</a><a href="#page-top">Back to top ↑</a></div><div class="page-navigation-pager"><a href="09-trees.html" rel="prev">← Previous: Trees: decide what crosses each parent-child boundary: retrieval sheet</a><a href="11-backtracking.html" rel="next">Next: Backtracking: enumerate choices with a reversible state: retrieval sheet →</a></div></nav>
+<!-- page-navigation:end -->
+<script src="../../assets/course/links.js" defer></script>
+</body></html>

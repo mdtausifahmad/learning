@@ -1,0 +1,31 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="Learn coding interview reasoning from first principles, with Java and Kotlin solutions."><title>Tries: share prefixes and prune impossible continuations: retrieval sheet · Coding interview</title><link rel="stylesheet" href="../assets/course.css"><script src="../assets/course.js" defer></script><link rel="stylesheet" href="../../assets/navigation.css">
+</head><body id="page-top">
+<!-- page-navigation:start -->
+<nav class="page-navigation" aria-label="Top page navigation"><div class="page-navigation-parents"><a href="../../index.html">Library home</a> <span aria-hidden="true">›</span> <a href="../../index.html#technical-foundations">Technical foundations and implementation</a> <span aria-hidden="true">›</span> <a href="../index.html">Coding Interviews: Patterns &amp; Problem Solving</a> <span aria-hidden="true">›</span> <a href="index.html">Reference sheets</a></div><div class="page-navigation-sections"><a href="../lessons/index.html">Lessons</a><a href="index.html">Reference sheets</a><a href="../materials.html">Guides and resources</a><a href="#page-top">Back to top ↑</a></div><div class="page-navigation-pager"><a href="11-backtracking.html" rel="prev">← Previous: Backtracking: enumerate choices with a reversible state: retrieval sheet</a><a href="13-graph-traversal.html" rel="next">Next: Graphs: reachability and shortest unweighted paths: retrieval sheet →</a></div></nav>
+<!-- page-navigation:end -->
+<a class="skip" href="#main">Skip to content</a><nav class="top"><a href="../../index.html">Software Engineering Library</a><a href="../index.html">Coding interview</a><a href="../foundations.html">Start from zero</a><a href="../practice.html">Practice room</a><a href="../research.html">Sources</a></nav><main id="main" class="document"><h1>Tries: share prefixes and prune impossible continuations: retrieval sheet</h1>
+<h2>Recognition</h2>
+<ul>
+<li>Queries repeatedly ask whether a string is a word or a prefix of any stored word.</li>
+<li>A dictionary is searched one character at a time, with early rejection when no prefix remains.</li>
+<li>Several target words are explored together in another search space, such as board paths.</li>
+<li>A wildcard represents several next-character alternatives, so search may branch at a prefix node.</li>
+</ul>
+<h2>Invariant</h2>
+<p>At a trie node reached after consuming k symbols, the path from root spells exactly those k symbols. A terminal marker means that exact prefix is an inserted word. In product searches, the board path, trie path, and consumed character count describe the same prefix, while visited cells match only that active route. Missing edges prove no stored extension exists.</p>
+<h2>Failure boundaries</h2>
+<ul>
+<li>Treat every existing prefix path as a complete stored word.: After inserting apple, the path app exists, but exact search(app) must be false. Prefix search(app) is true. Repair: Store an independent terminal marker and distinguish exact search from prefix search.</li>
+<li>Keep board cells visited after returning from one search branch.: Board [a,b] with dictionary [ab,ba]: a first search can visit both cells; permanently marking them prevents the second starting position from finding ba. Repair: Mark only on the active recursion route and unmark before returning; global terminal clearing is a separate deduplication decision.</li>
+</ul>
+<h2>Recall</h2>
+<ul>
+<li>Explain terminal versus prefix using app and apple.</li>
+<li>Derive wildcard state and its actual visited-node runtime.</li>
+<li>Explain why found-word clearing is global but board visited flags are path-local.</li>
+</ul>
+<a href="../lessons/12-tries.html">Return to lesson</a></main><footer>Practice deriving the invariant. Explain why every discarded candidate is safe to discard. <a href="../research.html">Evidence and scope</a></footer><!-- page-navigation:start -->
+<nav class="page-navigation" aria-label="Bottom page navigation"><div class="page-navigation-parents"><a href="../../index.html">Library home</a> <span aria-hidden="true">›</span> <a href="../../index.html#technical-foundations">Technical foundations and implementation</a> <span aria-hidden="true">›</span> <a href="../index.html">Coding Interviews: Patterns &amp; Problem Solving</a> <span aria-hidden="true">›</span> <a href="index.html">Reference sheets</a></div><div class="page-navigation-sections"><a href="../lessons/index.html">Lessons</a><a href="index.html">Reference sheets</a><a href="../materials.html">Guides and resources</a><a href="#page-top">Back to top ↑</a></div><div class="page-navigation-pager"><a href="11-backtracking.html" rel="prev">← Previous: Backtracking: enumerate choices with a reversible state: retrieval sheet</a><a href="13-graph-traversal.html" rel="next">Next: Graphs: reachability and shortest unweighted paths: retrieval sheet →</a></div></nav>
+<!-- page-navigation:end -->
+<script src="../../assets/course/links.js" defer></script>
+</body></html>

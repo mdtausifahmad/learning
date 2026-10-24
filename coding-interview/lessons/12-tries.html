@@ -1,0 +1,282 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="Learn coding interview reasoning from first principles, with Java and Kotlin solutions."><title>Tries: share prefixes and prune impossible continuations · Coding interview</title><link rel="stylesheet" href="../assets/course.css"><script src="../assets/course.js" defer></script><link rel="stylesheet" href="../../assets/navigation.css">
+</head><body id="page-top">
+<!-- page-navigation:start -->
+<nav class="page-navigation" aria-label="Top page navigation"><div class="page-navigation-parents"><a href="../../index.html">Library home</a> <span aria-hidden="true">›</span> <a href="../../index.html#technical-foundations">Technical foundations and implementation</a> <span aria-hidden="true">›</span> <a href="../index.html">Coding Interviews: Patterns &amp; Problem Solving</a> <span aria-hidden="true">›</span> <a href="index.html">Lessons</a></div><div class="page-navigation-sections"><a href="index.html">Lessons</a><a href="../reference/index.html">Reference sheets</a><a href="../materials.html">Guides and resources</a><a href="#page-top">Back to top ↑</a></div><div class="page-navigation-pager"><a href="11-backtracking.html" rel="prev">← Previous: Backtracking: enumerate choices with a reversible state</a><a href="13-graph-traversal.html" rel="next">Next: Graphs: reachability and shortest unweighted paths →</a></div></nav>
+<!-- page-navigation:end -->
+<a class="skip" href="#main">Skip to content</a><nav class="top"><a href="../../index.html">Software Engineering Library</a><a href="../index.html">Coding interview</a><a href="../foundations.html">Start from zero</a><a href="../practice.html">Practice room</a><a href="../research.html">Sources</a></nav><div class="layout"><aside class="rail"><a href="../index.html">Course map</a><p>Learning sequence</p><ol><li><a  href="01-hashing.html">Hashing, complements, and canonical keys</a></li><li><a  href="02-two-pointers.html">Two pointers and safe elimination</a></li><li><a  href="03-sliding-window.html">Sliding windows: expand, repair, and count</a></li><li><a  href="04-prefix-sums.html">Prefix sums, balance, and range counting</a></li><li><a  href="05-binary-search.html">Binary search on positions, structure, and answers</a></li><li><a  href="06-sorting-intervals.html">Sorting, intervals, scheduling, and sweep lines</a></li><li><a  href="07-linked-lists.html">Linked lists: preserve the path while changing links</a></li><li><a  href="08-stacks-queues.html">Stacks, monotonic frontiers, and deques</a></li><li><a  href="09-trees.html">Trees: decide what crosses each parent-child boundary</a></li><li><a  href="10-heaps.html">Heaps: keep the next winner and forget full order</a></li><li><a  href="11-backtracking.html">Backtracking: enumerate choices with a reversible state</a></li><li><a aria-current="page" href="12-tries.html">Tries: share prefixes and prune impossible continuations</a></li><li><a  href="13-graph-traversal.html">Graphs: reachability and shortest unweighted paths</a></li><li><a  href="14-topology-union-find.html">Dependency order and dynamic connectivity</a></li><li><a  href="15-shortest-paths.html">Shortest paths: matching the frontier to edge costs</a></li><li><a  href="16-greedy.html">Greedy choices and exchange arguments</a></li><li><a  href="17-dp-linear.html">Linear dynamic programming: decisions, states, and dependencies</a></li><li><a  href="18-dp-grids-strings.html">Dynamic programming on grids and strings</a></li><li><a  href="19-range-queries.html">Range queries: precompute reusable pieces, then update only dependencies</a></li><li><a  href="20-bit-manipulation.html">Bit manipulation and state compression</a></li></ol></aside><main id="main" class="lesson"><header><p class="sequence">Pattern 12 / Structural patterns</p><h1>Tries: share prefixes and prune impossible continuations</h1><p class="lede">When many words share a beginning, checking each word independently repeats the same character comparisons. A trie stores a path for each distinct prefix so one traversal answers exact-word, prefix, wildcard, or multiword board-search questions.</p><p class="muted">Prerequisites: Hashing, trees, backtracking; Lessons 01,09,11. Suggested study block: 170 minutes, excluding extra practice.</p><nav class="lesson-jumps"><a href="#model">Build the model</a><a href="#worked">Worked problems</a><a href="#practice">Practice ladder</a><a href="#transfer">Unseen transfer</a></nav></header><section id="model"><h2>Build the idea from zero</h2><p>A trie is a rooted tree whose edges are labeled with symbols. The root represents the empty prefix. Following c, a, t from the root reaches the prefix cat. Nodes represent prefixes, not automatically complete words. If both car and cart are stored, the node for car needs an end-of-word marker even though it has children. Without that marker, searching ca might incorrectly succeed as a whole word just because a path exists. Conversely, a word can be a prefix of another word, so insertion must never stop merely because an earlier terminal marker is encountered.</p>
+<p>Start with a simple dictionary interface: insert, exact search, and prefix search. Insertion creates missing child nodes while scanning the word, then marks its final node terminal. Exact search requires both an existing path and a terminal marker; prefix search requires only an existing path. Empty strings force a useful design decision: this lesson permits an empty word in the basic and wildcard dictionaries, represented by the root terminal marker, while replacement roots and board-search targets must be nonempty.</p>
+<p>The symbol model is part of the contract. The code below deliberately uses lowercase Latin a through z so child lookup is an array index and has constant cost. It validates that restriction rather than silently treating all strings as ASCII. For arbitrary Unicode, choose whether symbols are UTF-16 code units, Unicode code points, or normalized grapheme clusters, then use maps or another suitable branching structure. A 26-way array is inappropriate without a bounded alphabet contract.</p>
+<p>Wildcard search changes one deterministic edge into a set of possible edges. A dot can follow any existing child, but consumes exactly one character. The recursion state must include the current trie node and pattern position; a terminal marker is checked only when the entire pattern is consumed. A wildcard may multiply work, so it is wrong to claim every query is always linear in its pattern length.</p>
+<p>Board search combines two trees of possibilities. Board adjacency proposes a next cell; the trie says whether the resulting letters remain a prefix of any desired word. A missing trie edge rejects every dictionary word sharing that failed route at once. Keep a visited marker only for the current board path, restore it on return, and clear a found terminal word when output should be unique. Prefix pruning reduces real work but does not eliminate exponential worst cases on repetitive boards.</p>
+<h3>When to consider it</h3><ul><li><p>Queries repeatedly ask whether a string is a word or a prefix of any stored word.</p>
+</li><li><p>A dictionary is searched one character at a time, with early rejection when no prefix remains.</p>
+</li><li><p>Several target words are explored together in another search space, such as board paths.</p>
+</li><li><p>A wildcard represents several next-character alternatives, so search may branch at a prefix node.</p>
+</li></ul><div class="proof"><h3>The invariant</h3><p>At a trie node reached after consuming k symbols, the path from root spells exactly those k symbols. A terminal marker means that exact prefix is an inserted word. In product searches, the board path, trie path, and consumed character count describe the same prefix, while visited cells match only that active route. Missing edges prove no stored extension exists.</p>
+</div><figure><div class="diagram-scroll"><svg viewBox="0 0 1140 180" role="img" aria-label="A shared prefix can represent a word and still have longer descendants."><defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#3a677e"/></marker></defs><path d="M175,72 Q195,72 215,72" stroke="#3a677e" fill="none" marker-end="url(#arrow)"/><text x="195" y="46" text-anchor="middle" font-size="12">c</text><path d="M365,72 Q385,72 405,72" stroke="#3a677e" fill="none" marker-end="url(#arrow)"/><text x="385" y="46" text-anchor="middle" font-size="12">a</text><path d="M555,72 Q575,72 595,72" stroke="#3a677e" fill="none" marker-end="url(#arrow)"/><text x="575" y="46" text-anchor="middle" font-size="12">r</text><path d="M745,72 Q765,72 785,72" stroke="#3a677e" fill="none" marker-end="url(#arrow)"/><text x="765" y="46" text-anchor="middle" font-size="12">t</text><path d="M555,72 Q765,72 975,72" stroke="#3a677e" fill="none" marker-end="url(#arrow)"/><text x="765" y="46" text-anchor="middle" font-size="12">t</text><rect x="25" y="52" width="150" height="66" rx="8" fill="#e9f1f6" stroke="#52748b"/><foreignObject x="30" y="57" width="140" height="60"><div xmlns="http://www.w3.org/1999/xhtml" style="font:14px system-ui;text-align:center;line-height:1.3;padding:5px;color:#203447">root: empty prefix</div></foreignObject><rect x="215" y="52" width="150" height="66" rx="8" fill="#e9f1f6" stroke="#52748b"/><foreignObject x="220" y="57" width="140" height="60"><div xmlns="http://www.w3.org/1999/xhtml" style="font:14px system-ui;text-align:center;line-height:1.3;padding:5px;color:#203447">c</div></foreignObject><rect x="405" y="52" width="150" height="66" rx="8" fill="#e9f1f6" stroke="#52748b"/><foreignObject x="410" y="57" width="140" height="60"><div xmlns="http://www.w3.org/1999/xhtml" style="font:14px system-ui;text-align:center;line-height:1.3;padding:5px;color:#203447">ca</div></foreignObject><rect x="595" y="52" width="150" height="66" rx="8" fill="#e9f1f6" stroke="#52748b"/><foreignObject x="600" y="57" width="140" height="60"><div xmlns="http://www.w3.org/1999/xhtml" style="font:14px system-ui;text-align:center;line-height:1.3;padding:5px;color:#203447">car: terminal</div></foreignObject><rect x="785" y="52" width="150" height="66" rx="8" fill="#e9f1f6" stroke="#52748b"/><foreignObject x="790" y="57" width="140" height="60"><div xmlns="http://www.w3.org/1999/xhtml" style="font:14px system-ui;text-align:center;line-height:1.3;padding:5px;color:#203447">cart: terminal</div></foreignObject><rect x="975" y="52" width="150" height="66" rx="8" fill="#e9f1f6" stroke="#52748b"/><foreignObject x="980" y="57" width="140" height="60"><div xmlns="http://www.w3.org/1999/xhtml" style="font:14px system-ui;text-align:center;line-height:1.3;padding:5px;color:#203447">cat: terminal</div></foreignObject></svg></div><figcaption>A shared prefix can represent a word and still have longer descendants.</figcaption></figure></section><section><h2>Follow a concrete execution</h2><div class="trace" data-trace><script type="application/json">[{"state":"Insert car: root→c→a→r; mark r terminal.","explanation":"Each edge extends the represented prefix by one symbol."},{"state":"Insert cart: reuse c,a,r; append t; keep r terminal.","explanation":"A terminal node can still be a proper prefix of another word."},{"state":"search(ca): path exists, terminal=false ⇒ false.","explanation":"Exact membership needs more than reachability."},{"state":"startsWith(ca) ⇒ true; search(cart) ⇒ true.","explanation":"Prefix and exact-word queries have different stopping conditions."}]</script><p class="trace-count" aria-live="polite"></p><pre class="trace-state"></pre><p class="trace-explanation"></p><div class="trace-controls"><button type="button" data-step="-1">Previous state</button><button type="button" data-step="1">Next state</button><button type="button" data-reset>Reset</button></div></div></section><section><h2>Where the idea breaks</h2><details class="trap"><summary>Treat every existing prefix path as a complete stored word.</summary><h4>Counterexample</h4><p>After inserting apple, the path app exists, but exact search(app) must be false. Prefix search(app) is true.</p>
+<h4>Repair the reasoning</h4><p>Store an independent terminal marker and distinguish exact search from prefix search.</p>
+</details><details class="trap"><summary>Keep board cells visited after returning from one search branch.</summary><h4>Counterexample</h4><p>Board [a,b] with dictionary [ab,ba]: a first search can visit both cells; permanently marking them prevents the second starting position from finding ba.</p>
+<h4>Repair the reasoning</h4><p>Mark only on the active recursion route and unmark before returning; global terminal clearing is a separate deduplication decision.</p>
+</details></section><section id="worked"><h2>Worked problem ladder</h2><p>Read the contract, draw a small example, and write a baseline before revealing the derivation. Code snippets include helpers; downloadable Java files add a class and standard imports. Kotlin files add imports. Input contracts are part of the solution.</p><article class="problem" id="problem-1"><div class="problem-heading"><h3>1. Build an exact and prefix dictionary</h3><span class="difficulty">Easy to Medium</span></div><p>Implement insert(word), search(word), and startsWith(prefix) for non-null lowercase a-z strings. Reject other symbols. Empty words are allowed, repeated insertion is idempotent, and startsWith(&quot;&quot;) is always true. This foundational exercise establishes the trie contract.</p>
+<div class="example"><strong>Example</strong><p>Insert apple: search(apple)=true, search(app)=false, startsWith(app)=true. Then insert app: search(app)=true.</p>
+</div><details><summary>First attempt: the baseline</summary><p>Store full words in a hash set: expected O(L) exact lookup but a prefix query scans all words, O(S) total characters in the worst case.</p>
+</details><details class="solution"><summary>Reveal the derivation and solutions</summary><h4>Derive it step by step</h4><ol><li><p>Represent each possible next letter with one child reference. The root stands for zero characters, so no special first-letter branch is needed.</p>
+</li><li><p>Insertion follows or creates edges then marks terminal. Search and startsWith share a path-following helper; only search also requires the final terminal flag.</p>
+</li><li><p>Validate an entire argument before mutating the structure. Otherwise inserting an invalid word such as ab! could partially add prefixes before throwing, violating clean operation behavior.</p>
+</li></ol><div class="proof"><strong>Why it works</strong><p>Every inserted word has a terminal endpoint, and every created path is a prefix of some successfully inserted word. Repeated insertion changes no structure once the path exists.</p>
+</div><div class="language-controls" role="group" aria-label="Solution language"><button type="button" data-lang="java">Java</button><button type="button" data-lang="kotlin">Kotlin</button><button type="button" data-lang="both">Both</button></div><div class="code" data-code="java"><h4>Java</h4><pre><code>static class Trie {
+ private static class TNode { TNode[] next=new TNode[26]; boolean terminal; }
+ private final TNode root=new TNode();
+ private void validate(String s) {
+  Objects.requireNonNull(s);
+  for(int i=0;i&lt;s.length();i++) if(s.charAt(i)&lt;&#39;a&#39;||s.charAt(i)&gt;&#39;z&#39;) throw new IllegalArgumentException(&quot;lowercase a-z only&quot;);
+ }
+ void insert(String word) {
+  validate(word); TNode n=root;
+  for(int i=0;i&lt;word.length();i++) {
+   int c=word.charAt(i)-&#39;a&#39;;
+   if(n.next[c]==null) n.next[c]=new TNode();
+   n=n.next[c];
+  }
+  n.terminal=true;
+ }
+ private TNode follow(String s) {
+  validate(s); TNode n=root;
+  for(int i=0;i&lt;s.length();i++) { n=n.next[s.charAt(i)-&#39;a&#39;]; if(n==null) return null; }
+  return n;
+ }
+ boolean search(String word) { TNode n=follow(word); return n!=null&amp;&amp;n.terminal; }
+ boolean startsWith(String prefix) { return follow(prefix)!=null; }
+}</code></pre><a download href="../solutions/12-1.java">Download Java snippet</a></div><div class="code" data-code="kotlin"><h4>Kotlin</h4><pre><code>class Trie {
+ private class TNode { val next = arrayOfNulls&lt;TNode&gt;(26); var terminal = false }
+ private val root = TNode()
+ private fun validate(s: String) { require(s.all { it in &#39;a&#39;..&#39;z&#39; }) }
+ fun insert(word: String) {
+  validate(word)
+  var n = root
+  for (c in word) {
+   val index = c - &#39;a&#39;
+   if (n.next[index] == null) n.next[index] = TNode()
+   n = n.next[index]!!
+  }
+  n.terminal = true
+ }
+ private fun follow(s: String): TNode? {
+  validate(s)
+  var n = root
+  for (c in s) n = n.next[c - &#39;a&#39;] ?: return null
+  return n
+ }
+ fun search(word: String): Boolean = follow(word)?.terminal == true
+ fun startsWith(prefix: String): Boolean = follow(prefix) != null
+}</code></pre><a download href="../solutions/12-1.kt">Download Kotlin snippet</a></div><h4>Cost and boundaries</h4><p>O(L) time per operation for L argument characters including validation. O(S) trie nodes for S total inserted characters; 26 references per node is a fixed alphabet factor.</p>
+<ul><li><p>new trie startsWith(&quot;&quot;) ⇒ true; search(&quot;&quot;) ⇒ false</p>
+</li><li><p>insert(&quot;&quot;); search(&quot;&quot;) ⇒ true</p>
+</li><li><p>insert apple twice ⇒ unchanged membership</p>
+</li><li><p>insert A ⇒ rejected</p>
+</li></ul><h4>Change one assumption</h4><p>For deletion, clear terminal only after confirming the word exists, then optionally prune childless nonterminal ancestors. Shared prefix nodes cannot be deleted while other words depend on them.</p>
+</details><p><a href="https://leetcode.com/problems/implement-trie-prefix-tree/" target="_blank" rel="noopener">Original practice problem</a> <label class="solved"><input type="checkbox" data-progress="12-1"> Solved independently</label></p></article><article class="problem" id="problem-2"><div class="problem-heading"><h3>2. Replace words by their shortest dictionary root</h3><span class="difficulty">Medium</span></div><p>Given a non-null list of nonempty lowercase a-z roots and a sentence of lowercase a-z words separated by exactly one space, replace each word with its shortest dictionary root prefix if one exists. Empty sentence is allowed. Reject malformed roots or sentence. Input is unchanged.</p>
+<div class="example"><strong>Example</strong><p>roots=[cat,bat,rat], sentence=&quot;the cattle was rattled&quot; returns &quot;the cat was rat&quot;.</p>
+</div><details><summary>First attempt: the baseline</summary><p>For each word try each root with a prefix comparison: O(W·D·L) worst case for W words, D roots and max compared length L.</p>
+</details><details class="solution"><summary>Reveal the derivation and solutions</summary><h4>Derive it step by step</h4><ol><li><p>Insert all roots into a trie. Multiple roots may share a prefix, so one word traversal tests them simultaneously. Validate all arguments before constructing the answer.</p>
+</li><li><p>Walk each word from root. Stop at the first terminal node and return the consumed prefix: the first terminal is the shortest available root, even if longer roots also match.</p>
+</li><li><p>If a child edge is absent, no root can match the remaining word; preserve the original word. Join replacements with the same single-space format.</p>
+</li></ol><div class="proof"><strong>Why it works</strong><p>Before consuming each word character, the trie node matches exactly the already consumed prefix, and no shorter matching root has been skipped.</p>
+</div><div class="language-controls" role="group" aria-label="Solution language"><button type="button" data-lang="java">Java</button><button type="button" data-lang="kotlin">Kotlin</button><button type="button" data-lang="both">Both</button></div><div class="code" data-code="java"><h4>Java</h4><pre><code>static class RootNode { RootNode[] next=new RootNode[26]; boolean terminal; }
+static String replaceRoots(List&lt;String&gt; roots,String sentence) {
+ Objects.requireNonNull(sentence);
+ if(!sentence.isEmpty() &amp;&amp; !sentence.matches(&quot;[a-z]+( [a-z]+)*&quot;)) throw new IllegalArgumentException(&quot;invalid sentence&quot;);
+ RootNode root=new RootNode();
+ for(String word:roots) {
+  if(word==null||!word.matches(&quot;[a-z]+&quot;)) throw new IllegalArgumentException(&quot;invalid root&quot;);
+  RootNode n=root;
+  for(char c:word.toCharArray()) { int i=c-&#39;a&#39;; if(n.next[i]==null)n.next[i]=new RootNode(); n=n.next[i]; }
+  n.terminal=true;
+ }
+ if(sentence.isEmpty()) return &quot;&quot;;
+ String[] words=sentence.split(&quot; &quot;);
+ for(int w=0;w&lt;words.length;w++) {
+  RootNode n=root;
+  for(int i=0;i&lt;words[w].length();i++) {
+   n=n.next[words[w].charAt(i)-&#39;a&#39;]; if(n==null) break;
+   if(n.terminal) { words[w]=words[w].substring(0,i+1); break; }
+  }
+ }
+ return String.join(&quot; &quot;,words);
+}</code></pre><a download href="../solutions/12-2.java">Download Java snippet</a></div><div class="code" data-code="kotlin"><h4>Kotlin</h4><pre><code>class RootNode { val next = arrayOfNulls&lt;RootNode&gt;(26); var terminal = false }
+fun replaceRoots(roots: List&lt;String&gt;, sentence: String): String {
+ require(sentence.isEmpty() || sentence.matches(Regex(&quot;[a-z]+( [a-z]+)*&quot;)))
+ val root = RootNode()
+ for (word in roots) {
+  require(word.matches(Regex(&quot;[a-z]+&quot;)))
+  var n = root
+  for (c in word) {
+   val i = c - &#39;a&#39;
+   if (n.next[i] == null) n.next[i] = RootNode()
+   n = n.next[i]!!
+  }
+  n.terminal = true
+ }
+ if (sentence.isEmpty()) return &quot;&quot;
+ return sentence.split(&quot; &quot;).joinToString(&quot; &quot;) { word -&gt;
+  var n = root
+  var replacement = word
+  for (i in word.indices) {
+   n = n.next[word[i] - &#39;a&#39;] ?: break
+   if (n.terminal) { replacement = word.substring(0, i + 1); break }
+  }
+  replacement
+ }
+}</code></pre><a download href="../solutions/12-2.kt">Download Kotlin snippet</a></div><h4>Cost and boundaries</h4><p>O(S+T) time for S total root characters and T sentence characters, including validation and output assembly. O(S+T) trie/token/output space. The fixed regular expressions validate simple character structure.</p>
+<ul><li><p>roots=[], sentence=&quot;hello&quot; ⇒ &quot;hello&quot;</p>
+</li><li><p>roots=[a,ab], sentence=&quot;abc&quot; ⇒ &quot;a&quot;</p>
+</li><li><p>empty sentence ⇒ empty string</p>
+</li></ul><h4>Change one assumption</h4><p>If the longest root is required, continue past terminal nodes while recording the latest terminal position. Stopping at the first terminal would then be incorrect.</p>
+</details><p><a href="https://leetcode.com/problems/replace-words/" target="_blank" rel="noopener">Original practice problem</a> <label class="solved"><input type="checkbox" data-progress="12-2"> Solved independently</label></p></article><article class="problem" id="problem-3"><div class="problem-heading"><h3>3. Dictionary lookup with single-character wildcards</h3><span class="difficulty">Medium</span></div><p>Implement addWord for lowercase a-z strings (empty allowed) and search for lowercase a-z plus dot, where dot matches exactly one arbitrary letter. Reject all other symbols. Search returns whether any inserted whole word matches; duplicate additions are harmless.</p>
+<div class="example"><strong>Example</strong><p>Insert bad,dad,mad: search(.ad)=true, search(b..)=true, search(..)=false.</p>
+</div><details><summary>First attempt: the baseline</summary><p>Store all words and scan each equal-length candidate against the pattern: O(DL) per query for D words and pattern length L.</p>
+</details><details class="solution"><summary>Reveal the derivation and solutions</summary><h4>Derive it step by step</h4><ol><li><p>Literal pattern characters follow one edge. A dot branches across existing children, which share the same consumed pattern length plus one. The helper state is node and index.</p>
+</li><li><p>When index equals pattern length, return terminal. Reaching a prefix node alone is insufficient, and a dot cannot consume zero or multiple characters.</p>
+</li><li><p>For a dot, stop as soon as any child succeeds; otherwise return false after trying all children. Validate the full query before searching so invalid later characters are rejected even if an early missing edge would otherwise return false.</p>
+</li></ol><div class="proof"><strong>Why it works</strong><p>A helper call searches exactly the suffix pattern[index..] among word suffixes rooted at the current prefix node.</p>
+</div><div class="language-controls" role="group" aria-label="Solution language"><button type="button" data-lang="java">Java</button><button type="button" data-lang="kotlin">Kotlin</button><button type="button" data-lang="both">Both</button></div><div class="code" data-code="java"><h4>Java</h4><pre><code>static class WordDictionary {
+ private static class TNode { TNode[] next=new TNode[26]; boolean terminal; }
+ private final TNode root=new TNode();
+ void addWord(String word) {
+  Objects.requireNonNull(word);
+  for(char c:word.toCharArray()) if(c&lt;&#39;a&#39;||c&gt;&#39;z&#39;) throw new IllegalArgumentException(&quot;invalid word&quot;);
+  TNode n=root;
+  for(char c:word.toCharArray()) { int i=c-&#39;a&#39;; if(n.next[i]==null)n.next[i]=new TNode(); n=n.next[i]; }
+  n.terminal=true;
+ }
+ boolean search(String pattern) {
+  Objects.requireNonNull(pattern);
+  for(char c:pattern.toCharArray()) if(c!=&#39;.&#39;&amp;&amp;(c&lt;&#39;a&#39;||c&gt;&#39;z&#39;)) throw new IllegalArgumentException(&quot;invalid pattern&quot;);
+  return match(root,pattern,0);
+ }
+ private boolean match(TNode n,String p,int index) {
+  if(index==p.length()) return n.terminal;
+  char c=p.charAt(index);
+  if(c!=&#39;.&#39;) { TNode child=n.next[c-&#39;a&#39;]; return child!=null&amp;&amp;match(child,p,index+1); }
+  for(TNode child:n.next) if(child!=null&amp;&amp;match(child,p,index+1)) return true;
+  return false;
+ }
+}</code></pre><a download href="../solutions/12-3.java">Download Java snippet</a></div><div class="code" data-code="kotlin"><h4>Kotlin</h4><pre><code>class WordDictionary {
+ private class TNode { val next = arrayOfNulls&lt;TNode&gt;(26); var terminal = false }
+ private val root = TNode()
+ fun addWord(word: String) {
+  require(word.all { it in &#39;a&#39;..&#39;z&#39; })
+  var n = root
+  for (c in word) {
+   val i = c - &#39;a&#39;
+   if (n.next[i] == null) n.next[i] = TNode()
+   n = n.next[i]!!
+  }
+  n.terminal = true
+ }
+ fun search(pattern: String): Boolean {
+  require(pattern.all { it == &#39;.&#39; || it in &#39;a&#39;..&#39;z&#39; })
+  fun match(n: TNode, index: Int): Boolean {
+   if (index == pattern.length) return n.terminal
+   val c = pattern[index]
+   if (c != &#39;.&#39;) return n.next[c - &#39;a&#39;]?.let { match(it, index + 1) } ?: false
+   for (child in n.next) if (child != null &amp;&amp; match(child, index + 1)) return true
+   return false
+  }
+  return match(root, 0)
+ }
+}</code></pre><a download href="../solutions/12-3.kt">Download Kotlin snippet</a></div><h4>Cost and boundaries</h4><p>Insertion O(L). Literal-only search O(L). Wildcard search visits V compatible trie nodes with O(26V+L) work, bounded by trie size times the fixed alphabet factor and by the exponential pattern branching. O(L) recursive stack. Storage O(S) nodes for total inserted length S.</p>
+<ul><li><p>empty dictionary search(.) ⇒ false</p>
+</li><li><p>addWord(&quot;&quot;); search(&quot;&quot;) ⇒ true</p>
+</li><li><p>addWord(ab); search(a.) ⇒ true; search(a) ⇒ false</p>
+</li></ul><h4>Change one assumption</h4><p>A star that matches zero or more characters changes the transition: either advance pattern without consuming or consume a trie edge without advancing the star. Memoize (node,index) to avoid repeated subproblems.</p>
+</details><p><a href="https://leetcode.com/problems/design-add-and-search-words-data-structure/" target="_blank" rel="noopener">Original practice problem</a> <label class="solved"><input type="checkbox" data-progress="12-3"> Solved independently</label></p></article><article class="problem" id="problem-4"><div class="problem-heading"><h3>4. Find many dictionary words on a board</h3><span class="difficulty">Hard</span></div><p>Given a rectangular non-null board of lowercase a-z characters and non-null nonempty lowercase a-z dictionary words, return each dictionary word found by horizontal/vertical adjacent cells at most once. A cell cannot be reused within one word. Duplicate words are deduplicated. Empty board or zero columns returns empty. Reject malformed words/board; leave board unchanged.</p>
+<div class="example"><strong>Example</strong><p>board=[[o,a],[e,t]], words=[oat,oa,eat,oat] returns {oa,oat}; eat cannot follow adjacent e→a.</p>
+</div><details><summary>First attempt: the baseline</summary><p>Run independent DFS for each word: O(D·RC·3^L) worst-case time, repeating shared prefixes for D words.</p>
+</details><details class="solution"><summary>Reveal the derivation and solutions</summary><h4>Derive it step by step</h4><ol><li><p>Build one trie and store each full word at its terminal node. Start DFS from every cell, following a board letter only if the trie has that child. This combines prefix work across the dictionary.</p>
+</li><li><p>After matching a cell, mark it on the active path. If the node has a terminal word, emit it and clear that field so other board routes do not duplicate the output. Continue searching because the same node may prefix a longer word.</p>
+</li><li><p>Explore four unvisited neighbors and unmark the cell before return. Clearing terminal words is global answer deduplication; visited markers are local path constraints. They must not be confused.</p>
+</li></ol><div class="proof"><strong>Why it works</strong><p>The active board route spells exactly the current trie prefix, contains no repeated cell, and every emitted word is removed only from the output eligibility marker, preserving longer descendants.</p>
+</div><div class="language-controls" role="group" aria-label="Solution language"><button type="button" data-lang="java">Java</button><button type="button" data-lang="kotlin">Kotlin</button><button type="button" data-lang="both">Both</button></div><div class="code" data-code="java"><h4>Java</h4><pre><code>static class BoardNode { BoardNode[] next=new BoardNode[26]; String word; }
+static List&lt;String&gt; boardWords(char[][] board,String[] words) {
+ BoardNode root=new BoardNode();
+ for(String word:words) {
+  if(word==null||!word.matches(&quot;[a-z]+&quot;)) throw new IllegalArgumentException(&quot;invalid word&quot;);
+  BoardNode n=root;
+  for(char c:word.toCharArray()) { int i=c-&#39;a&#39;; if(n.next[i]==null)n.next[i]=new BoardNode(); n=n.next[i]; }
+  n.word=word;
+ }
+ int rows=board.length, cols=rows==0?0:board[0].length;
+ for(char[] row:board) {
+  if(row.length!=cols) throw new IllegalArgumentException(&quot;ragged board&quot;);
+  for(char c:row) if(c&lt;&#39;a&#39;||c&gt;&#39;z&#39;) throw new IllegalArgumentException(&quot;invalid board&quot;);
+ }
+ List&lt;String&gt; out=new ArrayList&lt;&gt;(); boolean[][] used=new boolean[rows][cols];
+ for(int r=0;r&lt;rows;r++) for(int c=0;c&lt;cols;c++) boardDfs(board,r,c,root,used,out);
+ return out;
+}
+static void boardDfs(char[][] b,int r,int c,BoardNode parent,boolean[][] used,List&lt;String&gt; out) {
+ if(r&lt;0||r&gt;=b.length||c&lt;0||c&gt;=b[0].length||used[r][c]) return;
+ BoardNode n=parent.next[b[r][c]-&#39;a&#39;]; if(n==null) return;
+ if(n.word!=null) { out.add(n.word); n.word=null; }
+ used[r][c]=true;
+ boardDfs(b,r-1,c,n,used,out); boardDfs(b,r+1,c,n,used,out);
+ boardDfs(b,r,c-1,n,used,out); boardDfs(b,r,c+1,n,used,out);
+ used[r][c]=false;
+}</code></pre><a download href="../solutions/12-4.java">Download Java snippet</a></div><div class="code" data-code="kotlin"><h4>Kotlin</h4><pre><code>class BoardNode { val next = arrayOfNulls&lt;BoardNode&gt;(26); var word: String? = null }
+fun boardWords(board: Array&lt;CharArray&gt;, words: Array&lt;String&gt;): List&lt;String&gt; {
+ val root = BoardNode()
+ for (word in words) {
+  require(word.isNotEmpty() &amp;&amp; word.all { it in &#39;a&#39;..&#39;z&#39; })
+  var n = root
+  for (c in word) {
+   val i = c - &#39;a&#39;
+   if (n.next[i] == null) n.next[i] = BoardNode()
+   n = n.next[i]!!
+  }
+  n.word = word
+ }
+ val rows = board.size
+ val cols = if (rows == 0) 0 else board[0].size
+ require(board.all { row -&gt; row.size == cols &amp;&amp; row.all { it in &#39;a&#39;..&#39;z&#39; } })
+ val used = Array(rows) { BooleanArray(cols) }
+ val out = mutableListOf&lt;String&gt;()
+ fun dfs(r: Int, c: Int, parent: BoardNode) {
+  if (r !in 0 until rows || c !in 0 until cols || used[r][c]) return
+  val n = parent.next[board[r][c] - &#39;a&#39;] ?: return
+  n.word?.let { out.add(it); n.word = null }
+  used[r][c] = true
+  dfs(r - 1, c, n); dfs(r + 1, c, n); dfs(r, c - 1, n); dfs(r, c + 1, n)
+  used[r][c] = false
+ }
+ for (r in 0 until rows) for (c in 0 until cols) dfs(r, c, root)
+ return out
+}</code></pre><a download href="../solutions/12-4.kt">Download Kotlin snippet</a></div><h4>Cost and boundaries</h4><p>Build O(S) for S dictionary characters; search O(RC·4·3^(min(L,RC)-1)) conventional worst-case upper bound for nonempty board and max word length L, with substantial prefix pruning in practice. Add O(RC+S) validation. O(S+RC+min(L,RC)) auxiliary trie/visited/stack, excluding output references. Empty dictionary yields O(RC) search.</p>
+<ul><li><p>empty board ⇒ []</p>
+</li><li><p>board=[[a]], words=[a,a,aa] ⇒ [a]</p>
+</li><li><p>board=[[a,b]], words=[aba] ⇒ [] because reuse is forbidden</p>
+</li></ul><h4>Change one assumption</h4><p>If words may use diagonal neighbors, change branching to eight directions and update the worst-case bound accordingly. If counting routes instead of unique words, terminal clearing is invalid and counts may need Long or modular arithmetic.</p>
+</details><p><a href="https://leetcode.com/problems/word-search-ii/" target="_blank" rel="noopener">Original practice problem</a> <label class="solved"><input type="checkbox" data-progress="12-4"> Solved independently</label></p></article></section><section id="practice"><h2>Practice with gradually less help</h2><details class="practice-item"><summary>Longest Word in Dictionary <span class="muted">Medium</span></summary><a href="https://leetcode.com/problems/longest-word-in-dictionary/" target="_blank" rel="noopener">Open problem</a><details><summary>A small hint</summary><p>Only descend through terminal prefixes.</p>
+</details><details><summary>Solution outline and cost</summary><p>Insert all words, then DFS children whose nodes are terminal; update longest and lexicographic tie. O(S) trie work/O(S) storage; define alphabetical order.</p>
+</details><label><input type="checkbox" data-progress="12-practice-0"> Solved independently</label></details><details class="practice-item"><summary>Search Suggestions System <span class="muted">Medium</span></summary><a href="https://leetcode.com/problems/search-suggestions-system/" target="_blank" rel="noopener">Open problem</a><details><summary>A small hint</summary><p>Each prefix needs its first three lexicographic completions.</p>
+</details><details><summary>Solution outline and cost</summary><p>Sort products then store up to three suggestions at each traversed prefix, or DFS ordered children at query time. O(S+sorting) preprocessing with fixed top-3 storage per node; output O(prefixLength).</p>
+</details><label><input type="checkbox" data-progress="12-practice-1"> Solved independently</label></details><details class="practice-item"><summary>Map Sum Pairs <span class="muted">Medium</span></summary><a href="https://leetcode.com/problems/map-sum-pairs/" target="_blank" rel="noopener">Open problem</a><details><summary>A small hint</summary><p>Prefix aggregation needs a delta on replacement.</p>
+</details><details><summary>Solution outline and cost</summary><p>Store prior exact key values; insertion applies new-old delta to each prefix aggregate. O(L) insert/query, O(S) trie+key map; use Long for aggregate sums.</p>
+</details><label><input type="checkbox" data-progress="12-practice-2"> Solved independently</label></details><details class="practice-item"><summary>Maximum XOR of Two Numbers in an Array <span class="muted">Medium</span></summary><a href="https://leetcode.com/problems/maximum-xor-of-two-numbers-in-an-array/" target="_blank" rel="noopener">Open problem</a><details><summary>A small hint</summary><p>A trie can index bits rather than letters.</p>
+</details><details><summary>Solution outline and cost</summary><p>For nonnegative Int values use bits 30..0; greedily choose opposite bit when available to maximize the highest undecided XOR bit. O(31n) time/O(31n) nodes; signed values require an explicit objective.</p>
+</details><label><input type="checkbox" data-progress="12-practice-3"> Solved independently</label></details><details class="practice-item"><summary>Concatenated Words <span class="muted">Hard</span></summary><a href="https://leetcode.com/problems/concatenated-words/" target="_blank" rel="noopener">Open problem</a><details><summary>A small hint</summary><p>Trie transitions find candidate pieces; DP records reachable cut positions.</p>
+</details><details><summary>Solution outline and cost</summary><p>For each word test segmentation into at least two shorter dictionary words, excluding whole-word self-use. O(sum L²) typical character-traversal bound/O(S) trie plus per-word DP; avoid exponential raw recursion.</p>
+</details><label><input type="checkbox" data-progress="12-practice-4"> Solved independently</label></details><details class="practice-item"><summary>Palindrome Pairs <span class="muted">Hard</span></summary><a href="https://leetcode.com/problems/palindrome-pairs/" target="_blank" rel="noopener">Open problem</a><details><summary>A small hint</summary><p>Reversed trie lookup can combine suffix matches with palindrome leftovers.</p>
+</details><details><summary>Solution outline and cost</summary><p>Insert reversed words, record palindromic remaining prefixes, then scan forward query words with terminal/palindrome checks. O(sum L²+output) with direct palindrome tests; duplicate/empty word indices require careful handling.</p>
+</details><label><input type="checkbox" data-progress="12-practice-5"> Solved independently</label></details></section><section><h2>Check the reasoning</h2><fieldset class="quiz" data-answer="0"><legend>After inserting car and cart, what must be true at the car node?</legend><label><input type="radio" name="q0" value="0"> It is terminal and may have a child.</label><label><input type="radio" name="q0" value="1"> It cannot be terminal because it has a child.</label><label><input type="radio" name="q0" value="2"> Its child must be removed.</label><button type="button" data-check>Check reasoning</button><p class="feedback" aria-live="polite" data-explanation="Whole-word membership and ability to continue are independent properties."></p></fieldset><fieldset class="quiz" data-answer="1"><legend>Why does a wildcard query not always take O(L) time?</legend><label><input type="radio" name="q1" value="0"> It must sort words first.</label><label><input type="radio" name="q1" value="1"> A dot can branch into many compatible prefixes.</label><label><input type="radio" name="q1" value="2"> Tries cannot store empty words.</label><button type="button" data-check>Check reasoning</button><p class="feedback" aria-live="polite" data-explanation="Literal lookup has one path; wildcards can explore a branching subtree, bounded by stored compatible nodes."></p></fieldset></section><section id="transfer"><h2>An unfamiliar version</h2><p>A router receives URL paths split into segments. Rules contain literal segments or a wildcard matching exactly one segment. Return whether any complete rule matches a request path; a rule ending early must not match longer paths. Design the index and search.</p>
+<details><summary>Hint 1</summary><p>Treat whole segments as symbols rather than individual characters.</p>
+</details><details><summary>Hint 2</summary><p>A terminal marker still distinguishes a complete rule from a prefix.</p>
+</details><details><summary>Derivation</summary><p>Build a trie with a map of literal segment children and a separate wildcard child. Query state is node and request-segment index; try the matching literal and wildcard edge, and accept only at the final index on a terminal node. O(V) visited compatible nodes and O(depth) stack, potentially branching per segment. Normalize/parse URLs before indexing under an explicit policy; prefix sharing and terminal logic are unchanged by the new alphabet.</p>
+</details></section><section><h2>Retrieve it without looking</h2><ul><li><p>Explain terminal versus prefix using app and apple.</p>
+</li><li><p>Derive wildcard state and its actual visited-node runtime.</p>
+</li><li><p>Explain why found-word clearing is global but board visited flags are path-local.</p>
+</li></ul><p>Repeat after 1, 3, 7 and 21 days. A check mark records your self-report, not a mastery score. Explain the proof and solve a changed version before calling a pattern fluent.</p></section><section><h2>Sources and further study</h2><ul><li><a href="https://leetcode.com/tag/trie/">LeetCode trie catalogue</a>: Reference link; not retrieved in this run. Primary public problem contracts and practice taxonomy.</li><li><a href="https://leetcode.com/problems/word-search-ii/">Word Search II</a>: Reference link; not retrieved in this run. Canonical multiword board search; lowercase symbol and uniqueness contracts are made explicit here.</li></ul><p class="muted">These are reference links. See the research page for live-verification limits and the distinction between a canonical algorithm and a confirmed company question.</p></section><p class="next">Next: <a href="13-graph-traversal.html">Graphs: reachability and shortest unweighted paths</a></p></main></div><footer>Practice deriving the invariant. Explain why every discarded candidate is safe to discard. <a href="../research.html">Evidence and scope</a></footer><!-- page-navigation:start -->
+<nav class="page-navigation" aria-label="Bottom page navigation"><div class="page-navigation-parents"><a href="../../index.html">Library home</a> <span aria-hidden="true">›</span> <a href="../../index.html#technical-foundations">Technical foundations and implementation</a> <span aria-hidden="true">›</span> <a href="../index.html">Coding Interviews: Patterns &amp; Problem Solving</a> <span aria-hidden="true">›</span> <a href="index.html">Lessons</a></div><div class="page-navigation-sections"><a href="index.html">Lessons</a><a href="../reference/index.html">Reference sheets</a><a href="../materials.html">Guides and resources</a><a href="#page-top">Back to top ↑</a></div><div class="page-navigation-pager"><a href="11-backtracking.html" rel="prev">← Previous: Backtracking: enumerate choices with a reversible state</a><a href="13-graph-traversal.html" rel="next">Next: Graphs: reachability and shortest unweighted paths →</a></div></nav>
+<!-- page-navigation:end -->
+<script src="../../assets/course/links.js" defer></script>
+</body></html>

@@ -1,0 +1,197 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="Learn coding interview reasoning from first principles, with Java and Kotlin solutions."><title>Two pointers and safe elimination · Coding interview</title><link rel="stylesheet" href="../assets/course.css"><script src="../assets/course.js" defer></script><link rel="stylesheet" href="../../assets/navigation.css">
+</head><body id="page-top">
+<!-- page-navigation:start -->
+<nav class="page-navigation" aria-label="Top page navigation"><div class="page-navigation-parents"><a href="../../index.html">Library home</a> <span aria-hidden="true">›</span> <a href="../../index.html#technical-foundations">Technical foundations and implementation</a> <span aria-hidden="true">›</span> <a href="../index.html">Coding Interviews: Patterns &amp; Problem Solving</a> <span aria-hidden="true">›</span> <a href="index.html">Lessons</a></div><div class="page-navigation-sections"><a href="index.html">Lessons</a><a href="../reference/index.html">Reference sheets</a><a href="../materials.html">Guides and resources</a><a href="#page-top">Back to top ↑</a></div><div class="page-navigation-pager"><a href="01-hashing.html" rel="prev">← Previous: Hashing, complements, and canonical keys</a><a href="03-sliding-window.html" rel="next">Next: Sliding windows: expand, repair, and count →</a></div></nav>
+<!-- page-navigation:end -->
+<a class="skip" href="#main">Skip to content</a><nav class="top"><a href="../../index.html">Software Engineering Library</a><a href="../index.html">Coding interview</a><a href="../foundations.html">Start from zero</a><a href="../practice.html">Practice room</a><a href="../research.html">Sources</a></nav><div class="layout"><aside class="rail"><a href="../index.html">Course map</a><p>Learning sequence</p><ol><li><a  href="01-hashing.html">Hashing, complements, and canonical keys</a></li><li><a aria-current="page" href="02-two-pointers.html">Two pointers and safe elimination</a></li><li><a  href="03-sliding-window.html">Sliding windows: expand, repair, and count</a></li><li><a  href="04-prefix-sums.html">Prefix sums, balance, and range counting</a></li><li><a  href="05-binary-search.html">Binary search on positions, structure, and answers</a></li><li><a  href="06-sorting-intervals.html">Sorting, intervals, scheduling, and sweep lines</a></li><li><a  href="07-linked-lists.html">Linked lists: preserve the path while changing links</a></li><li><a  href="08-stacks-queues.html">Stacks, monotonic frontiers, and deques</a></li><li><a  href="09-trees.html">Trees: decide what crosses each parent-child boundary</a></li><li><a  href="10-heaps.html">Heaps: keep the next winner and forget full order</a></li><li><a  href="11-backtracking.html">Backtracking: enumerate choices with a reversible state</a></li><li><a  href="12-tries.html">Tries: share prefixes and prune impossible continuations</a></li><li><a  href="13-graph-traversal.html">Graphs: reachability and shortest unweighted paths</a></li><li><a  href="14-topology-union-find.html">Dependency order and dynamic connectivity</a></li><li><a  href="15-shortest-paths.html">Shortest paths: matching the frontier to edge costs</a></li><li><a  href="16-greedy.html">Greedy choices and exchange arguments</a></li><li><a  href="17-dp-linear.html">Linear dynamic programming: decisions, states, and dependencies</a></li><li><a  href="18-dp-grids-strings.html">Dynamic programming on grids and strings</a></li><li><a  href="19-range-queries.html">Range queries: precompute reusable pieces, then update only dependencies</a></li><li><a  href="20-bit-manipulation.html">Bit manipulation and state compression</a></li></ol></aside><main id="main" class="lesson"><header><p class="sequence">Pattern 02 / Linear data</p><h1>Two pointers and safe elimination</h1><p class="lede">Two pointers means maintaining two positions whose movement removes a whole family of candidates. Merely having two indices does not make an algorithm useful. The essential question is: after comparing the values at these positions, why can every candidate skipped by moving a pointer be discarded? Start with a quadratic search over all pairs. A sorted array gives order, which lets one comparison rule out many pairs simultaneously.</p><p class="muted">Prerequisites: Lesson 00; arrays, loops, functions, and Big-O. Suggested study block: 150 minutes, excluding extra practice.</p><nav class="lesson-jumps"><a href="#model">Build the model</a><a href="#worked">Worked problems</a><a href="#practice">Practice ladder</a><a href="#transfer">Unseen transfer</a></nav></header><section id="model"><h2>Build the idea from zero</h2><p>Two pointers means maintaining two positions whose movement removes a whole family of candidates. Merely having two indices does not make an algorithm useful. The essential question is: after comparing the values at these positions, why can every candidate skipped by moving a pointer be discarded? Start with a quadratic search over all pairs. A sorted array gives order, which lets one comparison rule out many pairs simultaneously.</p>
+<p>Suppose a sorted pair sum is too small. Keeping the left value and moving the right endpoint inward can only make the sum smaller. Therefore no pair using this left value and any current or smaller right value can succeed. Advance left. If the sum is too large, discard the right value for the symmetric reason. The proof explains both the direction and the requirement for sorted data. Sorting is not free, and if the requested output is original indices, you must retain indices in records or choose hashing instead.</p>
+<p>A second form compares symmetric positions. For a palindrome, every outer pair must match; after matching them, only the inner substring remains undecided. An allowed deletion changes the state: at the first mismatch, one of exactly two endpoints must be removed. You cannot arbitrarily skip both. This becomes a useful small branching argument followed by deterministic scans.</p>
+<p>A third form maintains a processed region and an unresolved region, as in trapping water. Water above a position is limited by the smaller of its best left wall and best right wall. Initially it seems that both complete wall arrays are necessary. But if the best known left wall is no taller than the best known right wall, the unresolved future on the right cannot reduce the known right boundary below the left wall. The left position can be settled now. Choosing the smaller boundary is a correctness argument, not a greedy guess.</p>
+<p>Three Sum evolves the sorted pair technique by fixing one value and solving a smaller pair problem on its suffix. This adds a loop, but the inner two-pointer scan remains linear for each fixed value. The output asks for unique value triples, so duplicates require deliberate skipping. Duplicate handling is part of the output proof: it prevents repeated triples without removing the first occurrence of a valid value combination.</p>
+<p>When facing a twist, classify the pointer roles: opposite endpoints of candidates, symmetric checks, or boundaries of settled work. Write the region still eligible before each move. Then construct an adversarial input that violates a hidden assumption, such as unsorted values, negative heights, or an altered distance objective. A familiar pointer motion is safe only when its elimination proof still holds.</p>
+<h3>When to consider it</h3><ul><li><p>Sorted values plus a pair relation often allow opposite endpoints.</p>
+</li><li><p>Symmetric constraints suggest comparing the two ends of an interval.</p>
+</li><li><p>A local result limited by the smaller of two known boundaries suggests settling that side.</p>
+</li></ul><div class="proof"><h3>The invariant</h3><p>Before each move, describe the candidates still unresolved. A pointer advances only when a comparison proves that every candidate it abandons is impossible or has been fully accounted for. Termination follows from a decreasing interval or increasing processed region.</p>
+</div><figure><div class="diagram-scroll"><svg viewBox="0 0 760 180" role="img" aria-label="Sorted pair search discards a whole family of impossible pairs at each move."><defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#3a677e"/></marker></defs><path d="M175,72 Q195,72 215,72" stroke="#3a677e" fill="none" marker-end="url(#arrow)"/><text x="195" y="46" text-anchor="middle" font-size="12">start at opposite ends</text><path d="M365,72 Q385,72 405,72" stroke="#3a677e" fill="none" marker-end="url(#arrow)"/><text x="385" y="46" text-anchor="middle" font-size="12">discard 7: even smallest partner is too large</text><path d="M555,72 Q575,72 595,72" stroke="#3a677e" fill="none" marker-end="url(#arrow)"/><text x="575" y="46" text-anchor="middle" font-size="12">discard 1: even largest partner is too small</text><rect x="25" y="52" width="150" height="66" rx="8" fill="#e9f1f6" stroke="#52748b"/><foreignObject x="30" y="57" width="140" height="60"><div xmlns="http://www.w3.org/1999/xhtml" style="font:14px system-ui;text-align:center;line-height:1.3;padding:5px;color:#203447">[1, 2, 4, 7], target 6</div></foreignObject><rect x="215" y="52" width="150" height="66" rx="8" fill="#e9f1f6" stroke="#52748b"/><foreignObject x="220" y="57" width="140" height="60"><div xmlns="http://www.w3.org/1999/xhtml" style="font:14px system-ui;text-align:center;line-height:1.3;padding:5px;color:#203447">1 + 7 = 8 &gt; 6</div></foreignObject><rect x="405" y="52" width="150" height="66" rx="8" fill="#e9f1f6" stroke="#52748b"/><foreignObject x="410" y="57" width="140" height="60"><div xmlns="http://www.w3.org/1999/xhtml" style="font:14px system-ui;text-align:center;line-height:1.3;padding:5px;color:#203447">[1, 2, 4]: 1 + 4 = 5 &lt; 6</div></foreignObject><rect x="595" y="52" width="150" height="66" rx="8" fill="#e9f1f6" stroke="#52748b"/><foreignObject x="600" y="57" width="140" height="60"><div xmlns="http://www.w3.org/1999/xhtml" style="font:14px system-ui;text-align:center;line-height:1.3;padding:5px;color:#203447">[2, 4]: sum 6</div></foreignObject></svg></div><figcaption>Sorted pair search discards a whole family of impossible pairs at each move.</figcaption></figure></section><section><h2>Follow a concrete execution</h2><div class="trace" data-trace><script type="application/json">[{"state":"Sorted [1,2,4,7], target 6; l=0,r=3; sum=8","explanation":"The right value 7 is too large even with the smallest candidate; discard it."},{"state":"l=0,r=2; sum=5","explanation":"The left value 1 is too small even with the largest remaining candidate; discard it."},{"state":"l=1,r=2; sum=6","explanation":"Return indices [1,2]; neither prior elimination could remove a solution."},{"state":"Rain [3,0,3]: leftMax=3,rightMax=3, unresolved middle height=0","explanation":"Either side can settle the middle; its exact contribution is 3."}]</script><p class="trace-count" aria-live="polite"></p><pre class="trace-state"></pre><p class="trace-explanation"></p><div class="trace-controls"><button type="button" data-step="-1">Previous state</button><button type="button" data-step="1">Next state</button><button type="button" data-reset>Reset</button></div></div></section><section><h2>Where the idea breaks</h2><details class="trap"><summary>Use sorted-pair pointer moves on arbitrary order.</summary><h4>Counterexample</h4><p>[3,2,4], target 6: 3+4 is too large, moving right loses the valid pair 2+4.</p>
+<h4>Repair the reasoning</h4><p>Sort while preserving indices or use hashing.</p>
+</details><details class="trap"><summary>At a palindrome mismatch always delete the left character.</summary><h4>Counterexample</h4><p>&quot;abbab&quot;: deleting rightmost b gives &quot;abba&quot;; deleting leftmost a gives &quot;bbab&quot;, which fails.</p>
+<h4>Repair the reasoning</h4><p>Test both possible single deletions.</p>
+</details><details class="trap"><summary>For rainwater, sum distances to the nearest taller neighbor.</summary><h4>Counterexample</h4><p>[3,1,2,0,3] has water limited by the distant height-3 boundaries; nearest local peaks underestimate cells.</p>
+<h4>Repair the reasoning</h4><p>Use maximum boundary heights, not nearest neighbors.</p>
+</details></section><section id="worked"><h2>Worked problem ladder</h2><p>Read the contract, draw a small example, and write a baseline before revealing the derivation. Code snippets include helpers; downloadable Java files add a class and standard imports. Kotlin files add imports. Input contracts are part of the solution.</p><article class="problem" id="problem-1"><div class="problem-heading"><h3>1. Pair Sum in Sorted Order</h3><span class="difficulty">Easy</span></div><p>Given a non-null ascending int array and a long target, return zero-based indices of a matching distinct pair, or an empty array. Input is not modified.</p>
+<div class="example"><strong>Example</strong><p>[1,2,4,7], target 6 =&gt; [1,2].</p>
+</div><details><summary>First attempt: the baseline</summary><p>Enumerate all O(n²) pairs with O(1) space.</p>
+</details><details class="solution"><summary>Reveal the derivation and solutions</summary><h4>Derive it step by step</h4><ol><li><p>Start left at 0 and right at n-1, covering all candidate pairs.</p>
+</li><li><p>If sum is too small, all pairs using left with endpoints at most right are too small; increment left. If too large, decrement right.</p>
+</li><li><p>Stop at equality or when pointers meet, leaving no distinct candidate pair.</p>
+</li></ol><div class="proof"><strong>Why it works</strong><p>At each step any still-possible answer lies between the pointers; every discarded endpoint is proved unable to participate in a remaining answer.</p>
+</div><div class="language-controls" role="group" aria-label="Solution language"><button type="button" data-lang="java">Java</button><button type="button" data-lang="kotlin">Kotlin</button><button type="button" data-lang="both">Both</button></div><div class="code" data-code="java"><h4>Java</h4><pre><code>static int[] sortedPair(int[] a,long target) {
+    int l=0,r=a.length-1;
+    while(l&lt;r) {
+        long sum=(long)a[l]+a[r];
+        if(sum==target) return new int[]{l,r};
+        if(sum&lt;target) l++; else r--;
+    }
+    return new int[0];
+}</code></pre><a download href="../solutions/02-1.java">Download Java snippet</a></div><div class="code" data-code="kotlin"><h4>Kotlin</h4><pre><code>fun sortedPair(a: IntArray, target: Long): IntArray {
+    var l = 0; var r = a.lastIndex
+    while (l &lt; r) {
+        val sum = a[l].toLong() + a[r]
+        if (sum == target) return intArrayOf(l, r)
+        if (sum &lt; target) l++ else r--
+    }
+    return intArrayOf()
+}</code></pre><a download href="../solutions/02-1.kt">Download Kotlin snippet</a></div><h4>Cost and boundaries</h4><p>O(n) time because each move decreases the gap; O(1) auxiliary space.</p>
+<ul><li><p>[] =&gt; []</p>
+</li><li><p>[3], target 6 =&gt; []</p>
+</li><li><p>[3,3], target 6 =&gt; [0,1]</p>
+</li></ul><h4>Change one assumption</h4><p>If input is unsorted and original indices are required, sort (value,index) records with O(n log n) time/O(n) space, or use a complement map.</p>
+</details><p><a href="https://leetcode.com/problems/two-sum-ii-input-array-is-sorted/" target="_blank" rel="noopener">Original practice problem</a> <label class="solved"><input type="checkbox" data-progress="02-1"> Solved independently</label></p></article><article class="problem" id="problem-2"><div class="problem-heading"><h3>2. Valid Palindrome After At Most One Deletion</h3><span class="difficulty">Easy</span></div><p>Given a non-null string, decide whether deleting zero or one UTF-16 code unit can make it a palindrome. All characters matter, including punctuation and case. Empty string is valid.</p>
+<div class="example"><strong>Example</strong><p>&quot;abca&quot; =&gt; true by removing b or c; &quot;abc&quot; =&gt; false.</p>
+</div><details><summary>First attempt: the baseline</summary><p>Try deleting each position and scan the remainder: O(n²) time, with O(n) copies if physically constructing strings.</p>
+</details><details class="solution"><summary>Reveal the derivation and solutions</summary><h4>Derive it step by step</h4><ol><li><p>Move inward while outer code units match. Matching endpoints can be retained in a valid one-deletion solution.</p>
+</li><li><p>At the first mismatch, at least one endpoint must be deleted. Test the two remaining intervals, with no further deletion permitted.</p>
+</li><li><p>Return true if either interval is an exact palindrome; two checks are linear, not a recursive exponential search.</p>
+</li></ol><div class="proof"><strong>Why it works</strong><p>All pairs outside [l,r] already match. The one allowed deletion is unused until the first mismatch; thereafter exactly one endpoint is skipped.</p>
+</div><div class="language-controls" role="group" aria-label="Solution language"><button type="button" data-lang="java">Java</button><button type="button" data-lang="kotlin">Kotlin</button><button type="button" data-lang="both">Both</button></div><div class="code" data-code="java"><h4>Java</h4><pre><code>static boolean validPalindrome(String s) {
+    int l=0,r=s.length()-1;
+    while(l&lt;r) {
+        if(s.charAt(l)!=s.charAt(r)) return exact(s,l+1,r)||exact(s,l,r-1);
+        l++; r--;
+    }
+    return true;
+}
+static boolean exact(String s,int l,int r) {
+    while(l&lt;r) if(s.charAt(l++)!=s.charAt(r--)) return false;
+    return true;
+}</code></pre><a download href="../solutions/02-2.java">Download Java snippet</a></div><div class="code" data-code="kotlin"><h4>Kotlin</h4><pre><code>fun validPalindrome(s: String): Boolean {
+    fun exact(start: Int, end: Int): Boolean {
+        var l = start; var r = end
+        while (l &lt; r) if (s[l++] != s[r--]) return false
+        return true
+    }
+    var l = 0; var r = s.lastIndex
+    while (l &lt; r) {
+        if (s[l] != s[r]) return exact(l + 1, r) || exact(l, r - 1)
+        l++; r--
+    }
+    return true
+}</code></pre><a download href="../solutions/02-2.kt">Download Kotlin snippet</a></div><h4>Cost and boundaries</h4><p>O(n) time and O(1) auxiliary space under UTF-16 code-unit semantics.</p>
+<ul><li><p>&quot;&quot; =&gt; true</p>
+</li><li><p>&quot;a&quot; =&gt; true</p>
+</li><li><p>&quot;deeee&quot; =&gt; true</p>
+</li><li><p>&quot;abc&quot; =&gt; false</p>
+</li></ul><h4>Change one assumption</h4><p>If the intended characters are Unicode code points, convert to a code-point array first, using O(n) space. For k deletions, interval DP or bounded branching is needed; blindly skipping either mismatch no longer gives a linear proof.</p>
+</details><p><a href="https://leetcode.com/problems/valid-palindrome-ii/" target="_blank" rel="noopener">Original practice problem</a> <label class="solved"><input type="checkbox" data-progress="02-2"> Solved independently</label></p></article><article class="problem" id="problem-3"><div class="problem-heading"><h3>3. Three Sum Without Duplicate Triples</h3><span class="difficulty">Medium</span></div><p>Given a non-null int array, return every unique value triple summing to zero. Each triple uses three distinct indices. Order is arbitrary. Sort a copy, leaving input unchanged.</p>
+<div class="example"><strong>Example</strong><p>[-1,0,1,2,-1,-4] =&gt; [[-1,-1,2],[-1,0,1]].</p>
+</div><details><summary>First attempt: the baseline</summary><p>Enumerate O(n³) triples, canonicalize each, and deduplicate.</p>
+</details><details class="solution"><summary>Reveal the derivation and solutions</summary><h4>Derive it step by step</h4><ol><li><p>Sort a copy so value order becomes monotone. Fix each distinct first value.</p>
+</li><li><p>Run a pair scan on the suffix for target -first, using long sums to avoid overflow.</p>
+</li><li><p>On equality record the triple, then skip all duplicates of both selected endpoint values; skip duplicate first values in the outer loop.</p>
+</li></ol><div class="proof"><strong>Why it works</strong><p>For each fixed first value, the unresolved pair region contains all unseen solutions; endpoint moves discard impossible pairs, and duplicate skipping removes only identical value triples.</p>
+</div><div class="language-controls" role="group" aria-label="Solution language"><button type="button" data-lang="java">Java</button><button type="button" data-lang="kotlin">Kotlin</button><button type="button" data-lang="both">Both</button></div><div class="code" data-code="java"><h4>Java</h4><pre><code>static List&lt;List&lt;Integer&gt;&gt; threeSum(int[] nums) {
+    int[] a=nums.clone(); Arrays.sort(a);
+    List&lt;List&lt;Integer&gt;&gt; ans=new ArrayList&lt;&gt;();
+    for(int i=0;i&lt;a.length-2;i++) {
+        if(i&gt;0 &amp;&amp; a[i]==a[i-1]) continue;
+        int l=i+1,r=a.length-1;
+        while(l&lt;r) {
+            long sum=(long)a[i]+a[l]+a[r];
+            if(sum&lt;0) l++; else if(sum&gt;0) r--;
+            else {
+                ans.add(List.of(a[i],a[l],a[r]));
+                int lv=a[l],rv=a[r];
+                while(l&lt;r &amp;&amp; a[l]==lv) l++;
+                while(l&lt;r &amp;&amp; a[r]==rv) r--;
+            }
+        }
+    }
+    return ans;
+}</code></pre><a download href="../solutions/02-3.java">Download Java snippet</a></div><div class="code" data-code="kotlin"><h4>Kotlin</h4><pre><code>fun threeSum(nums: IntArray): List&lt;List&lt;Int&gt;&gt; {
+    val a = nums.copyOf(); a.sort()
+    val ans = mutableListOf&lt;List&lt;Int&gt;&gt;()
+    for (i in 0 until maxOf(0, a.size - 2)) {
+        if (i &gt; 0 &amp;&amp; a[i] == a[i - 1]) continue
+        var l = i + 1; var r = a.lastIndex
+        while (l &lt; r) {
+            val sum = a[i].toLong() + a[l] + a[r]
+            when {
+                sum &lt; 0 -&gt; l++
+                sum &gt; 0 -&gt; r--
+                else -&gt; {
+                    ans.add(listOf(a[i], a[l], a[r]))
+                    val lv = a[l]; val rv = a[r]
+                    while (l &lt; r &amp;&amp; a[l] == lv) l++
+                    while (l &lt; r &amp;&amp; a[r] == rv) r--
+                }
+            }
+        }
+    }
+    return ans
+}</code></pre><a download href="../solutions/02-3.kt">Download Kotlin snippet</a></div><h4>Cost and boundaries</h4><p>O(n²) time plus O(n log n) sorting; O(n) copy and O(log n) primitive-sort stack, plus O(k) triples in output.</p>
+<ul><li><p>[] =&gt; []</p>
+</li><li><p>[0,0,0,0] =&gt; [[0,0,0]]</p>
+</li><li><p>[-2147483648,1,2147483647] =&gt; one triple</p>
+</li></ul><h4>Change one assumption</h4><p>If the output counts index triples, skipping duplicate values is wrong: multiply endpoint frequencies, with a combination count when both endpoints have the same value.</p>
+</details><p><a href="https://leetcode.com/problems/3sum/" target="_blank" rel="noopener">Original practice problem</a> <label class="solved"><input type="checkbox" data-progress="02-3"> Solved independently</label></p></article><article class="problem" id="problem-4"><div class="problem-heading"><h3>4. Trapping Rain Water</h3><span class="difficulty">Hard</span></div><p>Given a non-null array of nonnegative int bar heights with unit width, return total trapped water as long. Empty input returns 0; input is unchanged.</p>
+<div class="example"><strong>Example</strong><p>[0,1,0,2,1,0,1,3,2,1,2,1] =&gt; 6.</p>
+</div><details><summary>First attempt: the baseline</summary><p>For every position scan both sides for their maximum wall: O(n²) time/O(1) space. Prefix/suffix maxima improve to O(n) time/O(n) space.</p>
+</details><details class="solution"><summary>Reveal the derivation and solutions</summary><h4>Derive it step by step</h4><ol><li><p>At each index water equals min(maxLeft,maxRight)-height, never negative.</p>
+</li><li><p>Track the largest settled wall from each side. Process the side with smaller current maximum; the opposite known wall is already high enough, so unseen bars cannot reduce the limiting boundary.</p>
+</li><li><p>Add the gap for that side and advance it. Every position becomes settled once.</p>
+</li></ol><div class="proof"><strong>Why it works</strong><p>All positions outside [l,r] have their exact contribution counted; leftMax and rightMax summarize the settled boundary heights, and the chosen smaller bound is sufficient to finalize the next cell.</p>
+</div><div class="language-controls" role="group" aria-label="Solution language"><button type="button" data-lang="java">Java</button><button type="button" data-lang="kotlin">Kotlin</button><button type="button" data-lang="both">Both</button></div><div class="code" data-code="java"><h4>Java</h4><pre><code>static long trap(int[] h) {
+    int l=0,r=h.length-1,leftMax=0,rightMax=0;
+    long water=0;
+    while(l&lt;=r) {
+        if(leftMax&lt;=rightMax) {
+            leftMax=Math.max(leftMax,h[l]);
+            water+=(long)leftMax-h[l++];
+        } else {
+            rightMax=Math.max(rightMax,h[r]);
+            water+=(long)rightMax-h[r--];
+        }
+    }
+    return water;
+}</code></pre><a download href="../solutions/02-4.java">Download Java snippet</a></div><div class="code" data-code="kotlin"><h4>Kotlin</h4><pre><code>fun trap(h: IntArray): Long {
+    var l = 0; var r = h.lastIndex
+    var leftMax = 0; var rightMax = 0; var water = 0L
+    while (l &lt;= r) {
+        if (leftMax &lt;= rightMax) {
+            leftMax = maxOf(leftMax, h[l]); water += leftMax.toLong() - h[l]; l++
+        } else {
+            rightMax = maxOf(rightMax, h[r]); water += rightMax.toLong() - h[r]; r--
+        }
+    }
+    return water
+}</code></pre><a download href="../solutions/02-4.kt">Download Kotlin snippet</a></div><h4>Cost and boundaries</h4><p>O(n) time, O(1) auxiliary space; long total avoids overflow across many bars.</p>
+<ul><li><p>[] =&gt; 0</p>
+</li><li><p>[3,0,3] =&gt; 3</p>
+</li><li><p>[1,2,3] =&gt; 0</p>
+</li><li><p>[3,0,0,3] =&gt; 6</p>
+</li></ul><h4>Change one assumption</h4><p>With variable widths, multiply each finalized gap by its bar width using long. In a 2D height map, opposite pointers do not describe the boundary; use a min-heap flood from the perimeter.</p>
+</details><p><a href="https://leetcode.com/problems/trapping-rain-water/" target="_blank" rel="noopener">Original practice problem</a> <label class="solved"><input type="checkbox" data-progress="02-4"> Solved independently</label></p></article></section><section id="practice"><h2>Practice with gradually less help</h2><details class="practice-item"><summary>Move Zeroes <span class="muted">Easy</span></summary><a href="https://leetcode.com/problems/move-zeroes/" target="_blank" rel="noopener">Open problem</a><details><summary>A small hint</summary><p>Separate the read position from the next write position.</p>
+</details><details><summary>Solution outline and cost</summary><p>Copy each nonzero forward, preserving order, then fill the tail with zero. O(n), O(1), mutates input; the written prefix contains exactly processed nonzero values.</p>
+</details><label><input type="checkbox" data-progress="02-practice-0"> Solved independently</label></details><details class="practice-item"><summary>Remove Duplicates from Sorted Array <span class="muted">Easy</span></summary><a href="https://leetcode.com/problems/remove-duplicates-from-sorted-array/" target="_blank" rel="noopener">Open problem</a><details><summary>A small hint</summary><p>The output prefix stores one representative per run.</p>
+</details><details><summary>Solution outline and cost</summary><p>Read every item and write only if it differs from the last retained value. O(n), O(1). Allowing at most k copies changes the comparison to write-k.</p>
+</details><label><input type="checkbox" data-progress="02-practice-1"> Solved independently</label></details><details class="practice-item"><summary>Container With Most Water <span class="muted">Medium</span></summary><a href="https://leetcode.com/problems/container-with-most-water/" target="_blank" rel="noopener">Open problem</a><details><summary>A small hint</summary><p>Which endpoint limits area, and what happens as width shrinks?</p>
+</details><details><summary>Solution outline and cost</summary><p>Record area and move the shorter endpoint; keeping it while reducing width cannot improve the area. O(n), O(1). This is a different objective from total rainwater.</p>
+</details><label><input type="checkbox" data-progress="02-practice-2"> Solved independently</label></details><details class="practice-item"><summary>Sort Colors <span class="muted">Medium</span></summary><a href="https://leetcode.com/problems/sort-colors/" target="_blank" rel="noopener">Open problem</a><details><summary>A small hint</summary><p>Maintain finished zero, one, unknown, and two regions.</p>
+</details><details><summary>Solution outline and cost</summary><p>Dutch-national-flag partition in O(n), O(1). After swapping an unknown with the right region, inspect the incoming value before advancing.</p>
+</details><label><input type="checkbox" data-progress="02-practice-3"> Solved independently</label></details><details class="practice-item"><summary>Four Sum <span class="muted">Medium</span></summary><a href="https://leetcode.com/problems/4sum/" target="_blank" rel="noopener">Open problem</a><details><summary>A small hint</summary><p>Fix two values, then solve a sorted pair problem.</p>
+</details><details><summary>Solution outline and cost</summary><p>Sort, skip duplicates at both outer levels, and two-pointer scan the suffix. O(n³) plus output, O(n) if preserving input. Use long sums.</p>
+</details><label><input type="checkbox" data-progress="02-practice-4"> Solved independently</label></details><details class="practice-item"><summary>Boats to Save People <span class="muted">Medium</span></summary><a href="https://leetcode.com/problems/boats-to-save-people/" target="_blank" rel="noopener">Open problem</a><details><summary>A small hint</summary><p>The heaviest remaining person must go now.</p>
+</details><details><summary>Solution outline and cost</summary><p>If lightest+heaviest fits, pair them; otherwise heaviest goes alone. Sort O(n log n), scan O(n). Assumes at most two per boat and every person individually fits.</p>
+</details><label><input type="checkbox" data-progress="02-practice-5"> Solved independently</label></details></section><section><h2>Check the reasoning</h2><fieldset class="quiz" data-answer="1"><legend>For sorted pair sum, the current sum is too small. Which move is justified?</legend><label><input type="radio" name="q0" value="0"> Decrease right</label><label><input type="radio" name="q0" value="1"> Increase left</label><label><input type="radio" name="q0" value="2"> Move either endpoint arbitrarily</label><button type="button" data-check>Check reasoning</button><p class="feedback" aria-live="polite" data-explanation="Keeping the current left value with any smaller right value can only decrease the sum, so that left endpoint has no remaining valid partner."></p></fieldset><fieldset class="quiz" data-answer="0"><legend>For unique Three Sum value triples, when should duplicate endpoint values be skipped?</legend><label><input type="radio" name="q1" value="0"> After recording a matching triple</label><label><input type="radio" name="q1" value="1"> Never</label><label><input type="radio" name="q1" value="2"> Before checking any pair, remove all repeated values from the array</label><button type="button" data-check>Check reasoning</button><p class="feedback" aria-live="polite" data-explanation="After one matching value pair is recorded, equal endpoint values only repeat that triple. Globally removing duplicates would lose valid triples such as [-1,-1,2]."></p></fieldset></section><section id="transfer"><h2>An unfamiliar version</h2><p>A sorted list of sensor readings must be split into as many disjoint pairs as possible, each with sum at most a limit. Every unpaired reading is allowed. Return the maximum pair count.</p>
+<details><summary>Hint 1</summary><p>Consider the largest remaining reading.</p>
+</details><details><summary>Hint 2</summary><p>If it cannot fit with the smallest, can it fit with anyone?</p>
+</details><details><summary>Derivation</summary><p>Use opposite endpoints. If smallest+largest exceeds the limit, discard the largest as unpairable. Otherwise pair them and advance both. An exchange argument shows an optimum can use this pair: if each endpoint was paired elsewhere, re-pair their partners, whose sum is no greater than the original feasible cross-sum. O(n) time and O(1) space; sortedness is required.</p>
+</details></section><section><h2>Retrieve it without looking</h2><ul><li><p>After one day: derive the maintained state from the brute-force repeated work without looking at code.</p>
+</li><li><p>After three days: explain the counterexample to each wrong turn and repair it.</p>
+</li><li><p>After one week: solve the transfer problem, state the invariant aloud, and compare both JVM implementations.</p>
+</li></ul><p>Repeat after 1, 3, 7 and 21 days. A check mark records your self-report, not a mastery score. Explain the proof and solve a changed version before calling a pattern fluent.</p></section><section><h2>Sources and further study</h2><ul><li><a href="https://leetcode.com/problems/two-sum-ii-input-array-is-sorted/">Pair Sum in Sorted Order</a>: Reference link; not retrieved in this run. Canonical problem statement and constraints; used to identify the technique and offer optional practice, not as evidence of company frequency.</li><li><a href="https://leetcode.com/problems/valid-palindrome-ii/">Valid Palindrome After At Most One Deletion</a>: Reference link; not retrieved in this run. Canonical problem statement and constraints; used to identify the technique and offer optional practice, not as evidence of company frequency.</li><li><a href="https://leetcode.com/problems/3sum/">Three Sum Without Duplicate Triples</a>: Reference link; not retrieved in this run. Canonical problem statement and constraints; used to identify the technique and offer optional practice, not as evidence of company frequency.</li><li><a href="https://leetcode.com/problems/trapping-rain-water/">Trapping Rain Water</a>: Reference link; not retrieved in this run. Canonical problem statement and constraints; used to identify the technique and offer optional practice, not as evidence of company frequency.</li></ul><p class="muted">These are reference links. See the research page for live-verification limits and the distinction between a canonical algorithm and a confirmed company question.</p></section><p class="next">Next: <a href="03-sliding-window.html">Sliding windows: expand, repair, and count</a></p></main></div><footer>Practice deriving the invariant. Explain why every discarded candidate is safe to discard. <a href="../research.html">Evidence and scope</a></footer><!-- page-navigation:start -->
+<nav class="page-navigation" aria-label="Bottom page navigation"><div class="page-navigation-parents"><a href="../../index.html">Library home</a> <span aria-hidden="true">›</span> <a href="../../index.html#technical-foundations">Technical foundations and implementation</a> <span aria-hidden="true">›</span> <a href="../index.html">Coding Interviews: Patterns &amp; Problem Solving</a> <span aria-hidden="true">›</span> <a href="index.html">Lessons</a></div><div class="page-navigation-sections"><a href="index.html">Lessons</a><a href="../reference/index.html">Reference sheets</a><a href="../materials.html">Guides and resources</a><a href="#page-top">Back to top ↑</a></div><div class="page-navigation-pager"><a href="01-hashing.html" rel="prev">← Previous: Hashing, complements, and canonical keys</a><a href="03-sliding-window.html" rel="next">Next: Sliding windows: expand, repair, and count →</a></div></nav>
+<!-- page-navigation:end -->
+<script src="../../assets/course/links.js" defer></script>
+</body></html>

@@ -1,0 +1,36 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="Learn coding interview reasoning from first principles, with Java and Kotlin solutions."><title>Shortest paths: matching the frontier to edge costs: retrieval sheet · Coding interview</title><link rel="stylesheet" href="../assets/course.css"><script src="../assets/course.js" defer></script><link rel="stylesheet" href="../../assets/navigation.css">
+</head><body id="page-top">
+<!-- page-navigation:start -->
+<nav class="page-navigation" aria-label="Top page navigation"><div class="page-navigation-parents"><a href="../../index.html">Library home</a> <span aria-hidden="true">›</span> <a href="../../index.html#technical-foundations">Technical foundations and implementation</a> <span aria-hidden="true">›</span> <a href="../index.html">Coding Interviews: Patterns &amp; Problem Solving</a> <span aria-hidden="true">›</span> <a href="index.html">Reference sheets</a></div><div class="page-navigation-sections"><a href="../lessons/index.html">Lessons</a><a href="index.html">Reference sheets</a><a href="../materials.html">Guides and resources</a><a href="#page-top">Back to top ↑</a></div><div class="page-navigation-pager"><a href="14-topology-union-find.html" rel="prev">← Previous: Dependency order and dynamic connectivity: retrieval sheet</a><a href="16-greedy.html" rel="next">Next: Greedy choices and exchange arguments: retrieval sheet →</a></div></nav>
+<!-- page-navigation:end -->
+<a class="skip" href="#main">Skip to content</a><nav class="top"><a href="../../index.html">Software Engineering Library</a><a href="../index.html">Coding interview</a><a href="../foundations.html">Start from zero</a><a href="../practice.html">Practice room</a><a href="../research.html">Sources</a></nav><main id="main" class="document"><h1>Shortest paths: matching the frontier to edge costs: retrieval sheet</h1>
+<h2>Recognition</h2>
+<ul>
+<li>Equal-cost moves: BFS orders states by distance in edges.</li>
+<li>Nonnegative varying costs: always expand the smallest tentative total distance with Dijkstra.</li>
+<li>Edge costs are exactly zero or one: a deque maintains the necessary order more cheaply than a heap.</li>
+<li>The route has a maximum number of edges or stops: carry the resource dimension or update from a frozen previous layer.</li>
+<li>Negative edges: Dijkstra&#39;s settlement proof fails; consider Bellman-Ford and explicitly address reachable negative cycles.</li>
+</ul>
+<h2>Invariant</h2>
+<p>All finite tentative distances correspond to actual legal paths. BFS first discovery is final only under equal edge costs. Dijkstra settles a vertex only when its smallest nonstale heap entry is removed, relying on nonnegative edges. Zero-one BFS maintains a deque in nondecreasing current candidate cost by putting zero-cost extensions before cost-one extensions. In bounded Bellman-Ford, after e passes the array contains exact optima among paths of at most e edges, because the next pass extends only previous-layer paths. These are separate correctness arguments; a universal visited rule cannot replace them.</p>
+<h2>Failure boundaries</h2>
+<ul>
+<li>Use ordinary BFS to minimize weighted cost.: Edges S-&gt;T cost 10, S-&gt;A cost 1, A-&gt;T cost 1. BFS discovers the direct one-edge route first, but the cheapest route costs 2. Repair: For nonnegative varying weights, use a min-heap of total distances.</li>
+<li>Mark a weighted vertex permanently visited when first pushed.: S-&gt;A cost 8, S-&gt;B cost 1, B-&gt;A cost 1. First discovery sets A=8, but the optimum is 2. Repair: Allow improvements; settle only when removing the smallest nonstale candidate.</li>
+<li>Update the same distance array in one constrained-flight pass.: Edges 0-&gt;1 cost 1 and 1-&gt;2 cost 1, K=0 stops. An in-place pass can set dist[1]=1 then dist[2]=2, illegally using two flights where only one is allowed. Repair: Read the frozen previous layer and write into a copied next layer.</li>
+<li>Apply Dijkstra when a reachable negative edge exists.: S-&gt;A cost 1, S-&gt;B cost 2, B-&gt;A cost -5. Settling A at 1 before exploring B misses the better cost -3 under the settlement proof. Repair: Use an algorithm whose proof allows negative edges; address negative cycles and any edge budget.</li>
+</ul>
+<h2>Recall</h2>
+<ul>
+<li>Give a weighted counterexample to visited-on-enqueue.</li>
+<li>Derive why nonnegative weights justify Dijkstra settlement.</li>
+<li>Simulate a zero-cost edge placed at the front of a deque.</li>
+<li>Explain why cloning the distance array enforces a flight count.</li>
+<li>Distinguish unreachable targets from an unbounded negative-cycle objective.</li>
+</ul>
+<a href="../lessons/15-shortest-paths.html">Return to lesson</a></main><footer>Practice deriving the invariant. Explain why every discarded candidate is safe to discard. <a href="../research.html">Evidence and scope</a></footer><!-- page-navigation:start -->
+<nav class="page-navigation" aria-label="Bottom page navigation"><div class="page-navigation-parents"><a href="../../index.html">Library home</a> <span aria-hidden="true">›</span> <a href="../../index.html#technical-foundations">Technical foundations and implementation</a> <span aria-hidden="true">›</span> <a href="../index.html">Coding Interviews: Patterns &amp; Problem Solving</a> <span aria-hidden="true">›</span> <a href="index.html">Reference sheets</a></div><div class="page-navigation-sections"><a href="../lessons/index.html">Lessons</a><a href="index.html">Reference sheets</a><a href="../materials.html">Guides and resources</a><a href="#page-top">Back to top ↑</a></div><div class="page-navigation-pager"><a href="14-topology-union-find.html" rel="prev">← Previous: Dependency order and dynamic connectivity: retrieval sheet</a><a href="16-greedy.html" rel="next">Next: Greedy choices and exchange arguments: retrieval sheet →</a></div></nav>
+<!-- page-navigation:end -->
+<script src="../../assets/course/links.js" defer></script>
+</body></html>

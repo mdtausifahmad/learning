@@ -1,0 +1,258 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="Learn coding interview reasoning from first principles, with Java and Kotlin solutions."><title>Shortest paths: matching the frontier to edge costs · Coding interview</title><link rel="stylesheet" href="../assets/course.css"><script src="../assets/course.js" defer></script><link rel="stylesheet" href="../../assets/navigation.css">
+</head><body id="page-top">
+<!-- page-navigation:start -->
+<nav class="page-navigation" aria-label="Top page navigation"><div class="page-navigation-parents"><a href="../../index.html">Library home</a> <span aria-hidden="true">›</span> <a href="../../index.html#technical-foundations">Technical foundations and implementation</a> <span aria-hidden="true">›</span> <a href="../index.html">Coding Interviews: Patterns &amp; Problem Solving</a> <span aria-hidden="true">›</span> <a href="index.html">Lessons</a></div><div class="page-navigation-sections"><a href="index.html">Lessons</a><a href="../reference/index.html">Reference sheets</a><a href="../materials.html">Guides and resources</a><a href="#page-top">Back to top ↑</a></div><div class="page-navigation-pager"><a href="14-topology-union-find.html" rel="prev">← Previous: Dependency order and dynamic connectivity</a><a href="16-greedy.html" rel="next">Next: Greedy choices and exchange arguments →</a></div></nav>
+<!-- page-navigation:end -->
+<a class="skip" href="#main">Skip to content</a><nav class="top"><a href="../../index.html">Software Engineering Library</a><a href="../index.html">Coding interview</a><a href="../foundations.html">Start from zero</a><a href="../practice.html">Practice room</a><a href="../research.html">Sources</a></nav><div class="layout"><aside class="rail"><a href="../index.html">Course map</a><p>Learning sequence</p><ol><li><a  href="01-hashing.html">Hashing, complements, and canonical keys</a></li><li><a  href="02-two-pointers.html">Two pointers and safe elimination</a></li><li><a  href="03-sliding-window.html">Sliding windows: expand, repair, and count</a></li><li><a  href="04-prefix-sums.html">Prefix sums, balance, and range counting</a></li><li><a  href="05-binary-search.html">Binary search on positions, structure, and answers</a></li><li><a  href="06-sorting-intervals.html">Sorting, intervals, scheduling, and sweep lines</a></li><li><a  href="07-linked-lists.html">Linked lists: preserve the path while changing links</a></li><li><a  href="08-stacks-queues.html">Stacks, monotonic frontiers, and deques</a></li><li><a  href="09-trees.html">Trees: decide what crosses each parent-child boundary</a></li><li><a  href="10-heaps.html">Heaps: keep the next winner and forget full order</a></li><li><a  href="11-backtracking.html">Backtracking: enumerate choices with a reversible state</a></li><li><a  href="12-tries.html">Tries: share prefixes and prune impossible continuations</a></li><li><a  href="13-graph-traversal.html">Graphs: reachability and shortest unweighted paths</a></li><li><a  href="14-topology-union-find.html">Dependency order and dynamic connectivity</a></li><li><a aria-current="page" href="15-shortest-paths.html">Shortest paths: matching the frontier to edge costs</a></li><li><a  href="16-greedy.html">Greedy choices and exchange arguments</a></li><li><a  href="17-dp-linear.html">Linear dynamic programming: decisions, states, and dependencies</a></li><li><a  href="18-dp-grids-strings.html">Dynamic programming on grids and strings</a></li><li><a  href="19-range-queries.html">Range queries: precompute reusable pieces, then update only dependencies</a></li><li><a  href="20-bit-manipulation.html">Bit manipulation and state compression</a></li></ol></aside><main id="main" class="lesson"><header><p class="sequence">Pattern 15 / Graphs</p><h1>Shortest paths: matching the frontier to edge costs</h1><p class="lede">Minimizing the number of moves and minimizing total cost agree only when every move has equal cost. Derive the right frontier discipline from the weight assumptions, and expand the state when a limited resource affects future options.</p><p class="muted">Prerequisites: BFS, graph modeling, queues, priority queues, dynamic programming basics. Suggested study block: 180 minutes, excluding extra practice.</p><nav class="lesson-jumps"><a href="#model">Build the model</a><a href="#worked">Worked problems</a><a href="#practice">Practice ladder</a><a href="#transfer">Unseen transfer</a></nav></header><section id="model"><h2>Build the idea from zero</h2><p>A shortest-path problem asks for the cheapest legal route between states. First define its cost. If every move costs one, route cost equals number of edges, and BFS layers already sort that cost. If one move costs 100 while another costs 1, a route with more edges may be cheaper. The data structure is not the starting point: the ordering property required by the proof is.</p>
+<p>Begin with distances. dist[v] is the smallest cost of any route to v discovered so far. Initialize the source to zero and every other vertex to infinity, a sentinel meaning no route discovered. For an edge u-&gt;v of weight w, a route to u can be extended to v, so compare dist[u]+w with dist[v]. Replacing a larger tentative value with this smaller candidate is called relaxation. A tentative value is an upper bound on the true optimum because it corresponds to an actual discovered route, not an optimistic guess.</p>
+<p>For nonnegative weights, Dijkstra repeatedly takes the currently smallest tentative distance from a min-priority queue. Why can this vertex be settled? Consider a hypothetical cheaper route to it. On that route, the first not-yet-settled vertex has a settled predecessor whose outgoing edge was already relaxed. Its tentative distance would be no greater than the cost of that prefix, and nonnegative remaining edges cannot reduce that prefix to less than the vertex just selected. The supposed cheaper route contradicts the minimum selection. Negative edges destroy the last step of this argument.</p>
+<p>A practical heap can contain several entries for one vertex because a new improvement is pushed without deleting the old entry. Store both vertex and candidate distance. When popping, discard entries whose saved distance differs from the current dist[vertex]. Such entries are stale, not new work. Marking a vertex visited when first enqueued is wrong for weighted graphs: the first discovered route need not be cheapest. Settlement happens when its minimum current distance is removed from the correctly ordered frontier.</p>
+<p>When weights are only zero or one, relaxation from distance d produces only d or d+1. A deque can preserve order: put a zero-edge improvement at the front, and a one-edge improvement at the back. The deque replaces the general min-heap because the range of possible next distances has special structure. Continue using relaxation and stale-entry checks; an ordinary “visited on enqueue” BFS proof does not transfer to zero-cost edges.</p>
+<p>Constraints can change the state even when edge weights stay nonnegative. In a flight network, a cheap arrival using all allowed flights may be useless while a more expensive arrival with one flight used can still reach the destination. The airport alone is not enough state. One approach is (airport, flightsUsed). A simpler bounded Bellman-Ford recurrence lets layer e contain the minimum costs using at most e edges. To build the next layer, read exclusively from the previous layer and write into a copy. Reading updated values from the same pass can silently chain several flights and violate the budget.</p>
+<p>A stop is an intermediate airport. At most K stops allows at most K+1 edges, while direct source-to-destination uses one edge and zero stops. Clarify this off-by-one rule with examples before coding. Finally, no finite minimum exists when a reachable negative-cost cycle can be repeated on a route to the target without a limiting resource. Report the condition under the problem&#39;s contract instead of returning an arbitrary finite distance.</p>
+<h3>When to consider it</h3><ul><li><p>Equal-cost moves: BFS orders states by distance in edges.</p>
+</li><li><p>Nonnegative varying costs: always expand the smallest tentative total distance with Dijkstra.</p>
+</li><li><p>Edge costs are exactly zero or one: a deque maintains the necessary order more cheaply than a heap.</p>
+</li><li><p>The route has a maximum number of edges or stops: carry the resource dimension or update from a frozen previous layer.</p>
+</li><li><p>Negative edges: Dijkstra&#39;s settlement proof fails; consider Bellman-Ford and explicitly address reachable negative cycles.</p>
+</li></ul><div class="proof"><h3>The invariant</h3><p>All finite tentative distances correspond to actual legal paths. BFS first discovery is final only under equal edge costs. Dijkstra settles a vertex only when its smallest nonstale heap entry is removed, relying on nonnegative edges. Zero-one BFS maintains a deque in nondecreasing current candidate cost by putting zero-cost extensions before cost-one extensions. In bounded Bellman-Ford, after e passes the array contains exact optima among paths of at most e edges, because the next pass extends only previous-layer paths. These are separate correctness arguments; a universal visited rule cannot replace them.</p>
+</div><figure><div class="diagram-scroll"><svg viewBox="0 0 950 180" role="img" aria-label="A min-heap corrects an early expensive discovery; FIFO edge count would choose the direct route."><defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#3a677e"/></marker></defs><path d="M175,72 Q195,72 215,72" stroke="#3a677e" fill="none" marker-end="url(#arrow)"/><text x="195" y="46" text-anchor="middle" font-size="12">cost 8</text><path d="M175,72 Q290,72 405,72" stroke="#3a677e" fill="none" marker-end="url(#arrow)"/><text x="290" y="46" text-anchor="middle" font-size="12">cost 1</text><path d="M555,72 Q385,15 215,72" stroke="#3a677e" fill="none" marker-end="url(#arrow)"/><text x="385" y="20" text-anchor="middle" font-size="12">cost 1</text><path d="M175,72 Q385,72 595,72" stroke="#3a677e" fill="none" marker-end="url(#arrow)"/><text x="385" y="46" text-anchor="middle" font-size="12">relax outgoing edges</text><path d="M745,72 Q765,72 785,72" stroke="#3a677e" fill="none" marker-end="url(#arrow)"/><text x="765" y="46" text-anchor="middle" font-size="12">pop B; improve A; later skip stale 8</text><rect x="25" y="52" width="150" height="66" rx="8" fill="#e9f1f6" stroke="#52748b"/><foreignObject x="30" y="57" width="140" height="60"><div xmlns="http://www.w3.org/1999/xhtml" style="font:14px system-ui;text-align:center;line-height:1.3;padding:5px;color:#203447">S distance 0</div></foreignObject><rect x="215" y="52" width="150" height="66" rx="8" fill="#e9f1f6" stroke="#52748b"/><foreignObject x="220" y="57" width="140" height="60"><div xmlns="http://www.w3.org/1999/xhtml" style="font:14px system-ui;text-align:center;line-height:1.3;padding:5px;color:#203447">A tentative 8, later 2</div></foreignObject><rect x="405" y="52" width="150" height="66" rx="8" fill="#e9f1f6" stroke="#52748b"/><foreignObject x="410" y="57" width="140" height="60"><div xmlns="http://www.w3.org/1999/xhtml" style="font:14px system-ui;text-align:center;line-height:1.3;padding:5px;color:#203447">B distance 1</div></foreignObject><rect x="595" y="52" width="150" height="66" rx="8" fill="#e9f1f6" stroke="#52748b"/><foreignObject x="600" y="57" width="140" height="60"><div xmlns="http://www.w3.org/1999/xhtml" style="font:14px system-ui;text-align:center;line-height:1.3;padding:5px;color:#203447">heap after S: [(1,B),(8,A)]</div></foreignObject><rect x="785" y="52" width="150" height="66" rx="8" fill="#e9f1f6" stroke="#52748b"/><foreignObject x="790" y="57" width="140" height="60"><div xmlns="http://www.w3.org/1999/xhtml" style="font:14px system-ui;text-align:center;line-height:1.3;padding:5px;color:#203447">after B: [(2,A),(8,A)]</div></foreignObject></svg></div><figcaption>A min-heap corrects an early expensive discovery; FIFO edge count would choose the direct route.</figcaption></figure></section><section><h2>Follow a concrete execution</h2><div class="trace" data-trace><script type="application/json">[{"state":"dist[S]=0, dist[A]=∞, dist[B]=∞; heap=[(0,S)]","explanation":"Only the empty source route is known."},{"state":"Pop S; dist[A]=8, dist[B]=1; heap=[(1,B),(8,A)]","explanation":"Both entries are real paths; neither first push settles A."},{"state":"Pop B at 1; candidate A=1+1=2; heap=[(2,A),(8,A)]","explanation":"Relaxation replaces an expensive tentative route."},{"state":"Pop A at 2; settle A","explanation":"Nonnegative edges and minimum extraction certify its optimum."},{"state":"Pop A at 8; discard because 8 != dist[A]","explanation":"The old entry is stale and must not expand edges again."},{"state":"Flight budget 1 edge: previous=[0,∞,∞], next after edges 0->1,1->2 is [0,1,∞]","explanation":"Frozen reads prevent illegally chaining two edges in one pass."}]</script><p class="trace-count" aria-live="polite"></p><pre class="trace-state"></pre><p class="trace-explanation"></p><div class="trace-controls"><button type="button" data-step="-1">Previous state</button><button type="button" data-step="1">Next state</button><button type="button" data-reset>Reset</button></div></div></section><section><h2>Where the idea breaks</h2><details class="trap"><summary>Use ordinary BFS to minimize weighted cost.</summary><h4>Counterexample</h4><p>Edges S-&gt;T cost 10, S-&gt;A cost 1, A-&gt;T cost 1. BFS discovers the direct one-edge route first, but the cheapest route costs 2.</p>
+<h4>Repair the reasoning</h4><p>For nonnegative varying weights, use a min-heap of total distances.</p>
+</details><details class="trap"><summary>Mark a weighted vertex permanently visited when first pushed.</summary><h4>Counterexample</h4><p>S-&gt;A cost 8, S-&gt;B cost 1, B-&gt;A cost 1. First discovery sets A=8, but the optimum is 2.</p>
+<h4>Repair the reasoning</h4><p>Allow improvements; settle only when removing the smallest nonstale candidate.</p>
+</details><details class="trap"><summary>Update the same distance array in one constrained-flight pass.</summary><h4>Counterexample</h4><p>Edges 0-&gt;1 cost 1 and 1-&gt;2 cost 1, K=0 stops. An in-place pass can set dist[1]=1 then dist[2]=2, illegally using two flights where only one is allowed.</p>
+<h4>Repair the reasoning</h4><p>Read the frozen previous layer and write into a copied next layer.</p>
+</details><details class="trap"><summary>Apply Dijkstra when a reachable negative edge exists.</summary><h4>Counterexample</h4><p>S-&gt;A cost 1, S-&gt;B cost 2, B-&gt;A cost -5. Settling A at 1 before exploring B misses the better cost -3 under the settlement proof.</p>
+<h4>Repair the reasoning</h4><p>Use an algorithm whose proof allows negative edges; address negative cycles and any edge budget.</p>
+</details></section><section id="worked"><h2>Worked problem ladder</h2><p>Read the contract, draw a small example, and write a baseline before revealing the derivation. Code snippets include helpers; downloadable Java files add a class and standard imports. Kotlin files add imports. Input contracts are part of the solution.</p><article class="problem" id="problem-1"><div class="problem-heading"><h3>1. Minimum edges in an unweighted network</h3><span class="difficulty">Easy</span></div><p>Given n &gt;= 1 vertices labeled 0..n-1, a nonnull array of valid undirected edge pairs, and valid source/target labels, return the minimum number of edges on a source-to-target path, or -1 when unreachable. This is an original distance variation of ordinary reachability. Self-loops and repeated edges are allowed. Inputs are not mutated.</p>
+<div class="example"><strong>Example</strong><p>n=4, edges=[[0,1],[1,2],[0,2]], source=0,target=2 =&gt; 1. target=3 =&gt; -1.</p>
+</div><details><summary>First attempt: the baseline</summary><p>Enumerate all simple paths and keep the shortest: exponential time in the worst case, O(n) active path storage. A reachable walk with a cycle can always be shortened by deleting that cycle.</p>
+</details><details class="solution"><summary>Reveal the derivation and solutions</summary><h4>Derive it step by step</h4><ol><li><p>Build undirected adjacency lists.</p>
+</li><li><p>Initialize distances to -1 and enqueue source at 0.</p>
+</li><li><p>Assign each unseen neighbor distance current+1 on enqueue. FIFO ordering means first discovery is the minimum edge count.</p>
+</li></ol><div class="proof"><strong>Why it works</strong><p>Queue distances are nondecreasing. Any hypothetical shorter route to a newly discovered vertex would have had a predecessor processed earlier, contradicting that it was unseen.</p>
+</div><div class="language-controls" role="group" aria-label="Solution language"><button type="button" data-lang="java">Java</button><button type="button" data-lang="kotlin">Kotlin</button><button type="button" data-lang="both">Both</button></div><div class="code" data-code="java"><h4>Java</h4><pre><code>static int shortestEdges(int n, int[][] edges, int source, int target) {
+    if (n &lt; 1) throw new IllegalArgumentException(&quot;positive n required&quot;);
+    Objects.requireNonNull(edges, &quot;edges&quot;);
+    List&lt;List&lt;Integer&gt;&gt; out = new ArrayList&lt;&gt;();
+    for (int i = 0; i &lt; n; i++) out.add(new ArrayList&lt;&gt;());
+    for (int[] edge : edges) { out.get(edge[0]).add(edge[1]); out.get(edge[1]).add(edge[0]); }
+    int[] distance = new int[n]; Arrays.fill(distance, -1); distance[source] = 0;
+    ArrayDeque&lt;Integer&gt; queue = new ArrayDeque&lt;&gt;(); queue.add(source);
+    while (!queue.isEmpty()) {
+        int current = queue.remove();
+        if (current == target) return distance[current];
+        for (int next : out.get(current)) if (distance[next] == -1) {
+            distance[next] = distance[current] + 1; queue.add(next);
+        }
+    }
+    return -1;
+}</code></pre><a download href="../solutions/15-1.java">Download Java snippet</a></div><div class="code" data-code="kotlin"><h4>Kotlin</h4><pre><code>fun shortestEdges(n: Int, edges: Array&lt;IntArray&gt;, source: Int, target: Int): Int {
+    require(n &gt;= 1)
+    val out = Array(n) { mutableListOf&lt;Int&gt;() }
+    for (edge in edges) { out[edge[0]].add(edge[1]); out[edge[1]].add(edge[0]) }
+    val distance = IntArray(n) { -1 }
+    distance[source] = 0
+    val queue = ArrayDeque&lt;Int&gt;()
+    queue.add(source)
+    while (queue.isNotEmpty()) {
+        val current = queue.remove()
+        if (current == target) return distance[current]
+        for (next in out[current]) if (distance[next] == -1) {
+            distance[next] = distance[current] + 1
+            queue.add(next)
+        }
+    }
+    return -1
+}</code></pre><a download href="../solutions/15-1.kt">Download Kotlin snippet</a></div><h4>Cost and boundaries</h4><p>O(n+m) time and auxiliary space for n vertices and m edge entries; O(1) output. Distances fit Int because a shortest simple path has at most n-1 edges.</p>
+<ul><li><p>n=1,edges=[],source=target=0 =&gt; 0</p>
+</li><li><p>n=2,edges=[],source=0,target=1 =&gt; -1</p>
+</li><li><p>n=2,edges=[[0,0],[0,1]],source=0,target=1 =&gt; 1</p>
+</li></ul><h4>Change one assumption</h4><p>For directed edges, add only the forward adjacency. To reconstruct one shortest path, record parent[next]=current at discovery and reverse the parent chain after reaching target.</p>
+</details><p><a href="https://leetcode.com/problems/find-if-path-exists-in-graph/" target="_blank" rel="noopener">Original practice problem</a> <label class="solved"><input type="checkbox" data-progress="15-1"> Solved independently</label></p></article><article class="problem" id="problem-2"><div class="problem-heading"><h3>2. Network delay with nonnegative weights</h3><span class="difficulty">Medium</span></div><p>There are n nodes labeled 1..n, 1 &lt;= n &lt;= 100_000, and a nonnull list of directed [u,v,weight] edges with weight in [0,1_000_000_000] and at most 200_000 entries. Starting at valid source k, return the minimum time by which all nodes receive a signal, or -1 if any are unreachable. Return Long; no input mutation. Labels, weight range, and entry shape are preconditions.</p>
+<div class="example"><strong>Example</strong><p>n=3, k=1, edges=[[1,2,8],[1,3,1],[3,2,1]] =&gt; 2. Node 2 is reached via node 3.</p>
+</div><details><summary>First attempt: the baseline</summary><p>Repeated full-edge Bellman-Ford relaxation for n-1 rounds: O(n*m) time, O(n) distance space.</p>
+</details><details class="solution"><summary>Reveal the derivation and solutions</summary><h4>Derive it step by step</h4><ol><li><p>Build directed adjacency lists and start dist[k]=0.</p>
+</li><li><p>Use a min-priority queue of (candidateDistance,node). Discard stale candidates.</p>
+</li><li><p>Relax every outgoing edge of the smallest current candidate. Nonnegative weights certify its settled distance.</p>
+</li><li><p>If any distance remains infinite, return -1; otherwise the slowest node determines the total delay.</p>
+</li></ol><div class="proof"><strong>Why it works</strong><p>Each settled nonstale minimum has its true shortest distance. Every finite tentative distance is the cost of an actual source path.</p>
+</div><div class="language-controls" role="group" aria-label="Solution language"><button type="button" data-lang="java">Java</button><button type="button" data-lang="kotlin">Kotlin</button><button type="button" data-lang="both">Both</button></div><div class="code" data-code="java"><h4>Java</h4><pre><code>static long networkDelayTime(int[][] times, int n, int k) {
+    Objects.requireNonNull(times, &quot;times&quot;);
+    if (n &lt; 1 || n &gt; 100_000) throw new IllegalArgumentException(&quot;n out of range&quot;);
+    List&lt;List&lt;int[]&gt;&gt; out = new ArrayList&lt;&gt;();
+    for (int i = 0; i &lt;= n; i++) out.add(new ArrayList&lt;&gt;());
+    for (int[] edge : times) out.get(edge[0]).add(new int[]{edge[1], edge[2]});
+    long[] dist = new long[n + 1]; Arrays.fill(dist, Long.MAX_VALUE); dist[k] = 0;
+    PriorityQueue&lt;long[]&gt; heap = new PriorityQueue&lt;&gt;((a,b) -&gt; Long.compare(a[0],b[0]));
+    heap.add(new long[]{0,k});
+    while (!heap.isEmpty()) {
+        long[] entry = heap.remove(); long cost = entry[0]; int current = (int)entry[1];
+        if (cost != dist[current]) continue;
+        for (int[] edge : out.get(current)) {
+            long nextCost = cost + edge[1];
+            if (nextCost &lt; dist[edge[0]]) { dist[edge[0]] = nextCost; heap.add(new long[]{nextCost, edge[0]}); }
+        }
+    }
+    long answer = 0;
+    for (int i = 1; i &lt;= n; i++) { if (dist[i] == Long.MAX_VALUE) return -1; answer = Math.max(answer, dist[i]); }
+    return answer;
+}</code></pre><a download href="../solutions/15-2.java">Download Java snippet</a></div><div class="code" data-code="kotlin"><h4>Kotlin</h4><pre><code>fun networkDelayTime(times: Array&lt;IntArray&gt;, n: Int, k: Int): Long {
+    require(n in 1..100_000)
+    val out = Array(n + 1) { mutableListOf&lt;IntArray&gt;() }
+    for (edge in times) out[edge[0]].add(intArrayOf(edge[1], edge[2]))
+    val dist = LongArray(n + 1) { Long.MAX_VALUE }
+    dist[k] = 0L
+    val heap = PriorityQueue&lt;LongArray&gt; { a, b -&gt; a[0].compareTo(b[0]) }
+    heap.add(longArrayOf(0L, k.toLong()))
+    while (heap.isNotEmpty()) {
+        val entry = heap.remove()
+        val cost = entry[0]
+        val current = entry[1].toInt()
+        if (cost != dist[current]) continue
+        for (edge in out[current]) {
+            val nextCost = cost + edge[1].toLong()
+            if (nextCost &lt; dist[edge[0]]) { dist[edge[0]] = nextCost; heap.add(longArrayOf(nextCost, edge[0].toLong())) }
+        }
+    }
+    var answer = 0L
+    for (i in 1..n) { if (dist[i] == Long.MAX_VALUE) return -1L; answer = maxOf(answer, dist[i]) }
+    return answer
+}</code></pre><a download href="../solutions/15-2.kt">Download Kotlin snippet</a></div><h4>Cost and boundaries</h4><p>O(n + m log(m+1)) time and O(n+m) auxiliary space for n nodes and m edges, including stale heap entries. With arbitrary parallel edges, log(m+1) is more precise than assuming a heap of at most n entries. O(1) output. Long arithmetic is safe under stated bounds.</p>
+<ul><li><p>n=1,k=1,times=[] =&gt; 0</p>
+</li><li><p>n=2,k=1,times=[] =&gt; -1</p>
+</li><li><p>n=2,k=1,times=[[1,2,0]] =&gt; 0</p>
+</li></ul><h4>Change one assumption</h4><p>To find a route rather than all-node delay, retain predecessor pointers on successful relaxations. If only one target matters, return when its nonstale entry is popped, never when it is first inserted.</p>
+</details><p><a href="https://leetcode.com/problems/network-delay-time/" target="_blank" rel="noopener">Original practice problem</a> <label class="solved"><input type="checkbox" data-progress="15-2"> Solved independently</label></p></article><article class="problem" id="problem-3"><div class="problem-heading"><h3>3. Cheapest flight with a stop budget</h3><span class="difficulty">Medium</span></div><p>Given 1 &lt;= n &lt;= 1000 airports labeled 0..n-1, a nonnull list of directed [from,to,price] flights with prices in [0,1_000_000_000], valid src/dst, and K in [0,1000], return the minimum Long fare using at most K intermediate stops (K+1 flights), or -1 if impossible. src=dst permits the empty zero-cost route. No input mutation. Valid labels and flight shape are preconditions.</p>
+<div class="example"><strong>Example</strong><p>n=3, flights=[[0,1,1],[1,2,1],[0,2,8]], src=0,dst=2: K=0 =&gt; 8, K=1 =&gt; 2.</p>
+</div><details><summary>First attempt: the baseline</summary><p>Enumerate all flight sequences up to K+1 edges: exponential in the budget and branching factor; O(K) recursion storage apart from the graph.</p>
+</details><details class="solution"><summary>Reveal the derivation and solutions</summary><h4>Derive it step by step</h4><ol><li><p>Let prev[v] be the minimum fare using at most e edges. Initially only src is reachable with e=0.</p>
+</li><li><p>Copy prev to next, retaining paths that use fewer edges.</p>
+</li><li><p>For every flight u-&gt;v, relax next[v] from prev[u]+price, reading only the previous array.</p>
+</li><li><p>After K+1 passes, return the dst entry unless infinite.</p>
+</li></ol><div class="proof"><strong>Why it works</strong><p>After pass e, distances are exact minima among paths with at most e edges. Every legal nonempty path in the next layer is a previous-layer path plus one final edge.</p>
+</div><div class="language-controls" role="group" aria-label="Solution language"><button type="button" data-lang="java">Java</button><button type="button" data-lang="kotlin">Kotlin</button><button type="button" data-lang="both">Both</button></div><div class="code" data-code="java"><h4>Java</h4><pre><code>static long cheapestFlight(int n, int[][] flights, int src, int dst, int stops) {
+    Objects.requireNonNull(flights, &quot;flights&quot;);
+    if (n &lt; 1 || n &gt; 1000 || stops &lt; 0 || stops &gt; 1000) throw new IllegalArgumentException(&quot;bounds violated&quot;);
+    long[] previous = new long[n]; Arrays.fill(previous, Long.MAX_VALUE); previous[src] = 0;
+    for (int used = 1; used &lt;= stops + 1; used++) {
+        long[] next = previous.clone();
+        for (int[] flight : flights) {
+            if (previous[flight[0]] == Long.MAX_VALUE) continue;
+            next[flight[1]] = Math.min(next[flight[1]], previous[flight[0]] + flight[2]);
+        }
+        previous = next;
+    }
+    return previous[dst] == Long.MAX_VALUE ? -1 : previous[dst];
+}</code></pre><a download href="../solutions/15-3.java">Download Java snippet</a></div><div class="code" data-code="kotlin"><h4>Kotlin</h4><pre><code>fun cheapestFlight(n: Int, flights: Array&lt;IntArray&gt;, src: Int, dst: Int, stops: Int): Long {
+    require(n in 1..1000 &amp;&amp; stops in 0..1000)
+    var previous = LongArray(n) { Long.MAX_VALUE }
+    previous[src] = 0L
+    for (used in 1..stops + 1) {
+        val next = previous.copyOf()
+        for (flight in flights) {
+            if (previous[flight[0]] == Long.MAX_VALUE) continue
+            next[flight[1]] = minOf(next[flight[1]], previous[flight[0]] + flight[2].toLong())
+        }
+        previous = next
+    }
+    return if (previous[dst] == Long.MAX_VALUE) -1L else previous[dst]
+}</code></pre><a download href="../solutions/15-3.kt">Download Kotlin snippet</a></div><h4>Cost and boundaries</h4><p>O((K+1)*(n+m)) time because every pass copies n distances and scans m flights; O(n) working space, excluding input, and O(1) output. Bound K &lt;= 1000 and prices &lt;= 1e9 keep totals safely within Long.</p>
+<ul><li><p>src=dst, flights=[] =&gt; 0</p>
+</li><li><p>n=2,src=0,dst=1,flights=[] =&gt; -1</p>
+</li><li><p>two-edge-only route with K=0 =&gt; -1</p>
+</li></ul><h4>Change one assumption</h4><p>If the requirement is exactly K stops, do not carry previous distances into the next layer: initialize next to infinity each pass, and take exactly K+1 transitions. If reconstructing routes, retain layer-specific predecessors, because one parent per airport loses the budget dimension.</p>
+</details><p><a href="https://leetcode.com/problems/cheapest-flights-within-k-stops/" target="_blank" rel="noopener">Original practice problem</a> <label class="solved"><input type="checkbox" data-progress="15-3"> Solved independently</label></p></article><article class="problem" id="problem-4"><div class="problem-heading"><h3>4. Minimum obstacles to remove</h3><span class="difficulty">Hard</span></div><p>Given a nonnull rectangular binary grid with R,C &gt;= 1 and R*C &lt;= 1_000_000, move four directions from top-left to bottom-right. Entering a 1 cell removes that obstacle and costs 1; entering 0 costs 0. Endpoints are 0. Return the minimum obstacles removed, not minimum moves. No input mutation. Shape, size, values, and endpoint conditions are preconditions.</p>
+<div class="example"><strong>Example</strong><p>[[0,1,1],[1,1,0],[1,1,0]] =&gt; 2. A longer route can still be preferable if it crosses fewer obstacles.</p>
+</div><details><summary>First attempt: the baseline</summary><p>Use ordinary Dijkstra on this grid: O(R<em>C log(R</em>C)) time and O(R*C) space. It is correct but ignores the special 0/1 edge weights.</p>
+</details><details class="solution"><summary>Reveal the derivation and solutions</summary><h4>Derive it step by step</h4><ol><li><p>View the destination cell value as the directed edge entry cost.</p>
+</li><li><p>Maintain best obstacle counts. A zero-cost improvement has the same distance as the current state and goes to the deque front.</p>
+</li><li><p>A one-cost improvement goes to the back, after the same-distance work.</p>
+</li><li><p>Pop in nondecreasing candidate distance, discard stale entries, and return when the destination is popped nonstale.</p>
+</li></ol><div class="proof"><strong>Why it works</strong><p>Deque candidates remain ordered by cost. Relaxation creates only cost d or d+1 from a current minimum d; front/back placement preserves the ordering needed for settlement.</p>
+</div><div class="language-controls" role="group" aria-label="Solution language"><button type="button" data-lang="java">Java</button><button type="button" data-lang="kotlin">Kotlin</button><button type="button" data-lang="both">Both</button></div><div class="code" data-code="java"><h4>Java</h4><pre><code>static int minimumObstacles(int[][] grid) {
+    Objects.requireNonNull(grid, &quot;grid&quot;);
+    int rows = grid.length, cols = grid[0].length;
+    int[][] dist = new int[rows][cols];
+    for (int[] row : dist) Arrays.fill(row, Integer.MAX_VALUE);
+    dist[0][0] = 0;
+    ArrayDeque&lt;int[]&gt; deque = new ArrayDeque&lt;&gt;(); deque.addFirst(new int[]{0,0,0});
+    int[] dr = {-1,1,0,0}, dc = {0,0,-1,1};
+    while (!deque.isEmpty()) {
+        int[] entry = deque.removeFirst(); int r = entry[0], c = entry[1], cost = entry[2];
+        if (cost != dist[r][c]) continue;
+        if (r == rows - 1 &amp;&amp; c == cols - 1) return cost;
+        for (int d = 0; d &lt; 4; d++) {
+            int nr = r + dr[d], nc = c + dc[d];
+            if (nr &lt; 0 || nr &gt;= rows || nc &lt; 0 || nc &gt;= cols) continue;
+            int nextCost = cost + grid[nr][nc];
+            if (nextCost &lt; dist[nr][nc]) {
+                dist[nr][nc] = nextCost;
+                int[] next = {nr,nc,nextCost};
+                if (grid[nr][nc] == 0) deque.addFirst(next); else deque.addLast(next);
+            }
+        }
+    }
+    return -1;
+}</code></pre><a download href="../solutions/15-4.java">Download Java snippet</a></div><div class="code" data-code="kotlin"><h4>Kotlin</h4><pre><code>fun minimumObstacles(grid: Array&lt;IntArray&gt;): Int {
+    val rows = grid.size
+    val cols = grid[0].size
+    val dist = Array(rows) { IntArray(cols) { Int.MAX_VALUE } }
+    dist[0][0] = 0
+    val deque = ArrayDeque&lt;IntArray&gt;()
+    deque.addFirst(intArrayOf(0,0,0))
+    val dr = intArrayOf(-1,1,0,0)
+    val dc = intArrayOf(0,0,-1,1)
+    while (deque.isNotEmpty()) {
+        val entry = deque.removeFirst()
+        val r = entry[0]
+        val c = entry[1]
+        val cost = entry[2]
+        if (cost != dist[r][c]) continue
+        if (r == rows - 1 &amp;&amp; c == cols - 1) return cost
+        for (d in 0 until 4) {
+            val nr = r + dr[d]
+            val nc = c + dc[d]
+            if (nr !in 0 until rows || nc !in 0 until cols) continue
+            val nextCost = cost + grid[nr][nc]
+            if (nextCost &lt; dist[nr][nc]) {
+                dist[nr][nc] = nextCost
+                val next = intArrayOf(nr,nc,nextCost)
+                if (grid[nr][nc] == 0) deque.addFirst(next) else deque.addLast(next)
+            }
+        }
+    }
+    return -1
+}</code></pre><a download href="../solutions/15-4.kt">Download Kotlin snippet</a></div><h4>Cost and boundaries</h4><p>O(R<em>C) time and auxiliary space because the implicit grid graph has O(R</em>C) vertices and edges and zero-one BFS performs linear relaxation work; O(1) output. A shortest simple route crosses at most R*C cells, so cost fits Int under the contract.</p>
+<ul><li><p>[[0]] =&gt; 0</p>
+</li><li><p>[[0,0,0]] =&gt; 0</p>
+</li><li><p>[[0,1,0]] =&gt; 1</p>
+</li></ul><h4>Change one assumption</h4><p>If values can be 0, 1, or 2, front/back placement no longer preserves the required order; use a min-heap Dijkstra implementation, or a carefully derived bounded-integer bucket algorithm. If you minimize moves subject to an obstacle-removal budget instead, BFS over (r,c,budgetRemaining).</p>
+</details><p><a href="https://leetcode.com/problems/minimum-obstacle-removal-to-reach-corner/" target="_blank" rel="noopener">Original practice problem</a> <label class="solved"><input type="checkbox" data-progress="15-4"> Solved independently</label></p></article></section><section id="practice"><h2>Practice with gradually less help</h2><details class="practice-item"><summary>Shortest Path in Binary Matrix <span class="muted">Medium</span></summary><a href="https://leetcode.com/problems/shortest-path-in-binary-matrix/" target="_blank" rel="noopener">Open problem</a><details><summary>A small hint</summary><p>All allowed eight-direction moves have equal cost.</p>
+</details><details><summary>Solution outline and cost</summary><p>BFS through zero cells, marking on enqueue. Return number of cells in route, so source distance is 1; reject blocked endpoints. O(n²) time/space.</p>
+</details><label><input type="checkbox" data-progress="15-practice-0"> Solved independently</label></details><details class="practice-item"><summary>Path With Minimum Effort <span class="muted">Medium</span></summary><a href="https://leetcode.com/problems/path-with-minimum-effort/" target="_blank" rel="noopener">Open problem</a><details><summary>A small hint</summary><p>Path aggregation is a maximum, rather than a sum.</p>
+</details><details><summary>Solution outline and cost</summary><p>Dijkstra with candidate=max(currentEffort,abs(height[u]-height[v])). This aggregation is monotone under extension, enabling settlement. O(R<em>C log(R</em>C)) time/space; widen arithmetic before subtraction.</p>
+</details><label><input type="checkbox" data-progress="15-practice-1"> Solved independently</label></details><details class="practice-item"><summary>Swim in Rising Water <span class="muted">Hard</span></summary><a href="https://leetcode.com/problems/swim-in-rising-water/" target="_blank" rel="noopener">Open problem</a><details><summary>A small hint</summary><p>The cost of a route is its largest required elevation.</p>
+</details><details><summary>Solution outline and cost</summary><p>Use minimax Dijkstra with max(currentLevel,nextElevation), or binary-search a level with reachability. Heap version O(n² log n) time and O(n²) space. Distinguish it from additive travel cost.</p>
+</details><label><input type="checkbox" data-progress="15-practice-2"> Solved independently</label></details><details class="practice-item"><summary>Minimum Cost to Make at Least One Valid Path in a Grid <span class="muted">Hard</span></summary><a href="https://leetcode.com/problems/minimum-cost-to-make-at-least-one-valid-path-in-a-grid/" target="_blank" rel="noopener">Open problem</a><details><summary>A small hint</summary><p>Following an arrow costs zero; choosing a different direction costs one.</p>
+</details><details><summary>Solution outline and cost</summary><p>Use zero-one BFS with edge cost determined by the current cell&#39;s arrow. O(R*C) time/space. Source-based edge cost differs from destination obstacle cost.</p>
+</details><label><input type="checkbox" data-progress="15-practice-3"> Solved independently</label></details><details class="practice-item"><summary>Find the City With the Smallest Number of Neighbors at a Threshold Distance <span class="muted">Medium</span></summary><a href="https://leetcode.com/problems/find-the-city-with-the-smallest-number-of-neighbors-at-a-threshold-distance/" target="_blank" rel="noopener">Open problem</a><details><summary>A small hint</summary><p>Many all-pairs distance queries can justify an all-pairs algorithm.</p>
+</details><details><summary>Solution outline and cost</summary><p>Use Floyd-Warshall in O(n³) time/O(n²) space for small n, or run Dijkstra from each source on nonnegative sparse graphs. Apply the specified tie rule and decide whether self counts.</p>
+</details><label><input type="checkbox" data-progress="15-practice-4"> Solved independently</label></details><details class="practice-item"><summary>Bellman-Ford negative-cycle extension <span class="muted">Advanced</span></summary><a href="https://leetcode.com/problems/network-delay-time/" target="_blank" rel="noopener">Open problem</a><details><summary>A small hint</summary><p>This is an original extension, not the linked problem&#39;s nonnegative contract.</p>
+</details><details><summary>Solution outline and cost</summary><p>Relax edges n-1 times from a source, guarding infinity. A further improvement identifies influence of a source-reachable negative cycle; propagate that influence to mark unbounded targets. O(n*m) time, O(n+m) space with influence traversal. A cycle irrelevant to the target does not make that target&#39;s minimum unbounded.</p>
+</details><label><input type="checkbox" data-progress="15-practice-5"> Solved independently</label></details><details class="practice-item"><summary>Shortest Path Visiting All Nodes <span class="muted">Hard</span></summary><a href="https://leetcode.com/problems/shortest-path-visiting-all-nodes/" target="_blank" rel="noopener">Open problem</a><details><summary>A small hint</summary><p>The route must remember which obligations it has met.</p>
+</details><details><summary>Solution outline and cost</summary><p>BFS over (currentNode,visitedMask), initialized from every possible start. O((n+m)<em>2^n) time and O(n</em>2^n) space for small n. Different masks at the same node are different states.</p>
+</details><label><input type="checkbox" data-progress="15-practice-6"> Solved independently</label></details></section><section><h2>Check the reasoning</h2><fieldset class="quiz" data-answer="1"><legend>With K=0 allowed intermediate stops, how many flight edges may a route contain?</legend><label><input type="radio" name="q0" value="0"> Zero.</label><label><input type="radio" name="q0" value="1"> At most one.</label><label><input type="radio" name="q0" value="2"> At most two.</label><button type="button" data-check>Check reasoning</button><p class="feedback" aria-live="polite" data-explanation="A direct flight has no intermediate airport and one edge."></p></fieldset><fieldset class="quiz" data-answer="0"><legend>Why skip a heap entry (cost,node) when cost differs from dist[node]?</legend><label><input type="radio" name="q1" value="0"> A better discovered route made the older candidate stale.</label><label><input type="radio" name="q1" value="1"> The graph necessarily has a negative cycle.</label><label><input type="radio" name="q1" value="2"> The node must be unreachable.</label><button type="button" data-check>Check reasoning</button><p class="feedback" aria-live="polite" data-explanation="The implementation pushes improvements and leaves old entries in the heap. The distance comparison prevents duplicate expansion."></p></fieldset></section><section id="transfer"><h2>An unfamiliar version</h2><p>A robot moves in a warehouse. Entering a free aisle costs 0 energy and entering a charging-door cell costs 1 energy. Find the smallest energy from the entrance to exit; there is no limit on moves. Then explain what changes if the robot can open at most two doors but must minimize walking steps.</p>
+<details><summary>Hint 1</summary><p>Energy and move count are different objectives.</p>
+</details><details><summary>Hint 2</summary><p>For the second version, how does remaining door budget affect legal future moves?</p>
+</details><details><summary>Derivation</summary><p>For minimum energy with 0/1 entry costs, use zero-one BFS, front-pushing zero-cost improvements and back-pushing one-cost improvements: O(R<em>C) time/space. For minimum steps under two doors, use ordinary BFS over (r,c,doorsUsed) with at most 3</em>R*C states. The complete state distinguishes arrivals with different remaining capabilities. A single distance per cell would discard useful routes.</p>
+</details></section><section><h2>Retrieve it without looking</h2><ul><li><p>Give a weighted counterexample to visited-on-enqueue.</p>
+</li><li><p>Derive why nonnegative weights justify Dijkstra settlement.</p>
+</li><li><p>Simulate a zero-cost edge placed at the front of a deque.</p>
+</li><li><p>Explain why cloning the distance array enforces a flight count.</p>
+</li><li><p>Distinguish unreachable targets from an unbounded negative-cycle objective.</p>
+</li></ul><p>Repeat after 1, 3, 7 and 21 days. A check mark records your self-report, not a mastery score. Explain the proof and solve a changed version before calling a pattern fluent.</p></section><section><h2>Sources and further study</h2><ul><li><a href="https://algs4.cs.princeton.edu/44sp/">Princeton shortest paths</a>: Primary algorithms reference link; external page not retrieved in this pass. No company question-frequency claims.</li></ul><p class="muted">These are reference links. See the research page for live-verification limits and the distinction between a canonical algorithm and a confirmed company question.</p></section><p class="next">Next: <a href="16-greedy.html">Greedy choices and exchange arguments</a></p></main></div><footer>Practice deriving the invariant. Explain why every discarded candidate is safe to discard. <a href="../research.html">Evidence and scope</a></footer><!-- page-navigation:start -->
+<nav class="page-navigation" aria-label="Bottom page navigation"><div class="page-navigation-parents"><a href="../../index.html">Library home</a> <span aria-hidden="true">›</span> <a href="../../index.html#technical-foundations">Technical foundations and implementation</a> <span aria-hidden="true">›</span> <a href="../index.html">Coding Interviews: Patterns &amp; Problem Solving</a> <span aria-hidden="true">›</span> <a href="index.html">Lessons</a></div><div class="page-navigation-sections"><a href="index.html">Lessons</a><a href="../reference/index.html">Reference sheets</a><a href="../materials.html">Guides and resources</a><a href="#page-top">Back to top ↑</a></div><div class="page-navigation-pager"><a href="14-topology-union-find.html" rel="prev">← Previous: Dependency order and dynamic connectivity</a><a href="16-greedy.html" rel="next">Next: Greedy choices and exchange arguments →</a></div></nav>
+<!-- page-navigation:end -->
+<script src="../../assets/course/links.js" defer></script>
+</body></html>

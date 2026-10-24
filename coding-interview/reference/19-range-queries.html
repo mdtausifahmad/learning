@@ -1,0 +1,31 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="Learn coding interview reasoning from first principles, with Java and Kotlin solutions."><title>Range queries: precompute reusable pieces, then update only dependencies: retrieval sheet · Coding interview</title><link rel="stylesheet" href="../assets/course.css"><script src="../assets/course.js" defer></script><link rel="stylesheet" href="../../assets/navigation.css">
+</head><body id="page-top">
+<!-- page-navigation:start -->
+<nav class="page-navigation" aria-label="Top page navigation"><div class="page-navigation-parents"><a href="../../index.html">Library home</a> <span aria-hidden="true">›</span> <a href="../../index.html#technical-foundations">Technical foundations and implementation</a> <span aria-hidden="true">›</span> <a href="../index.html">Coding Interviews: Patterns &amp; Problem Solving</a> <span aria-hidden="true">›</span> <a href="index.html">Reference sheets</a></div><div class="page-navigation-sections"><a href="../lessons/index.html">Lessons</a><a href="index.html">Reference sheets</a><a href="../materials.html">Guides and resources</a><a href="#page-top">Back to top ↑</a></div><div class="page-navigation-pager"><a href="18-dp-grids-strings.html" rel="prev">← Previous: Dynamic programming on grids and strings: retrieval sheet</a><a href="20-bit-manipulation.html" rel="next">Next: Bit manipulation and state compression: retrieval sheet →</a></div></nav>
+<!-- page-navigation:end -->
+<a class="skip" href="#main">Skip to content</a><nav class="top"><a href="../../index.html">Software Engineering Library</a><a href="../index.html">Coding interview</a><a href="../foundations.html">Start from zero</a><a href="../practice.html">Practice room</a><a href="../research.html">Sources</a></nav><main id="main" class="document"><h1>Range queries: precompute reusable pieces, then update only dependencies: retrieval sheet</h1>
+<h2>Recognition</h2>
+<ul>
+<li>Many queries ask for an aggregate over contiguous intervals of the same array.</li>
+<li>Static sums allow subtracting two prefixes, but point updates would invalidate many prefixes.</li>
+<li>The aggregate is associative, such as sum, minimum, maximum, gcd, or matrix multiplication: fixed interval summaries may compose.</li>
+<li>A value-order question such as counts smaller than a threshold can become a prefix query after coordinate compression.</li>
+</ul>
+<h2>Invariant</h2>
+<p>Each stored summary corresponds to a precisely defined set of original elements. A query combines disjoint summaries covering exactly the requested interval, with neither gaps nor double counting. An update changes exactly the summaries whose sets contain the modified point. For compression, rank order and equality match original value order, so prefix frequency answers preserve the original comparison meaning.</p>
+<h2>Failure boundaries</h2>
+<ul>
+<li>Compute a range maximum by subtracting two prefix maxima.: Arrays [5,1] and [5,4] both have prefix maxima [5,5]. Their range [1,2) maxima are 1 and 4, so no subtraction of those equal summaries can recover the answer. Repair: Use a segment tree for mutable associative aggregates, or an appropriate sparse table for static idempotent queries.</li>
+<li>Use index zero directly in a one-based Fenwick update loop.: With i=0, i &amp; -i=0. The update i+=lowbit(i) stays at zero forever and the loop does not terminate. Repair: Translate external index p to internal p+1; prefix queries receive a count of elements and stop at zero.</li>
+</ul>
+<h2>Recall</h2>
+<ul>
+<li>Draw the one-based block represented by bit[12] and derive both update and query transitions.</li>
+<li>Explain why associativity is enough for a segment tree but insufficient for subtracting prefixes.</li>
+<li>Implement strict-smaller counts and then change the boundary for smaller-or-equal.</li>
+</ul>
+<a href="../lessons/19-range-queries.html">Return to lesson</a></main><footer>Practice deriving the invariant. Explain why every discarded candidate is safe to discard. <a href="../research.html">Evidence and scope</a></footer><!-- page-navigation:start -->
+<nav class="page-navigation" aria-label="Bottom page navigation"><div class="page-navigation-parents"><a href="../../index.html">Library home</a> <span aria-hidden="true">›</span> <a href="../../index.html#technical-foundations">Technical foundations and implementation</a> <span aria-hidden="true">›</span> <a href="../index.html">Coding Interviews: Patterns &amp; Problem Solving</a> <span aria-hidden="true">›</span> <a href="index.html">Reference sheets</a></div><div class="page-navigation-sections"><a href="../lessons/index.html">Lessons</a><a href="index.html">Reference sheets</a><a href="../materials.html">Guides and resources</a><a href="#page-top">Back to top ↑</a></div><div class="page-navigation-pager"><a href="18-dp-grids-strings.html" rel="prev">← Previous: Dynamic programming on grids and strings: retrieval sheet</a><a href="20-bit-manipulation.html" rel="next">Next: Bit manipulation and state compression: retrieval sheet →</a></div></nav>
+<!-- page-navigation:end -->
+<script src="../../assets/course/links.js" defer></script>
+</body></html>

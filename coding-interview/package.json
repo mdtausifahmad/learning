@@ -1,0 +1,14 @@
+{
+  "name": "coding-interview-course",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "python3 scripts/validate.py && node scripts/test-ui.mjs",
+    "test:java": "python3 scripts/validate.py --java",
+    "test:kotlin": "python3 scripts/validate.py --kotlin"
+  },
+  "devDependencies": {
+    "marked": "17.0.5"
+  }
+}

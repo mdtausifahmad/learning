@@ -1,0 +1,198 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="Learn coding interview reasoning from first principles, with Java and Kotlin solutions."><title>Heaps: keep the next winner and forget full order · Coding interview</title><link rel="stylesheet" href="../assets/course.css"><script src="../assets/course.js" defer></script><link rel="stylesheet" href="../../assets/navigation.css">
+</head><body id="page-top">
+<!-- page-navigation:start -->
+<nav class="page-navigation" aria-label="Top page navigation"><div class="page-navigation-parents"><a href="../../index.html">Library home</a> <span aria-hidden="true">›</span> <a href="../../index.html#technical-foundations">Technical foundations and implementation</a> <span aria-hidden="true">›</span> <a href="../index.html">Coding Interviews: Patterns &amp; Problem Solving</a> <span aria-hidden="true">›</span> <a href="index.html">Lessons</a></div><div class="page-navigation-sections"><a href="index.html">Lessons</a><a href="../reference/index.html">Reference sheets</a><a href="../materials.html">Guides and resources</a><a href="#page-top">Back to top ↑</a></div><div class="page-navigation-pager"><a href="09-trees.html" rel="prev">← Previous: Trees: decide what crosses each parent-child boundary</a><a href="11-backtracking.html" rel="next">Next: Backtracking: enumerate choices with a reversible state →</a></div></nav>
+<!-- page-navigation:end -->
+<a class="skip" href="#main">Skip to content</a><nav class="top"><a href="../../index.html">Software Engineering Library</a><a href="../index.html">Coding interview</a><a href="../foundations.html">Start from zero</a><a href="../practice.html">Practice room</a><a href="../research.html">Sources</a></nav><div class="layout"><aside class="rail"><a href="../index.html">Course map</a><p>Learning sequence</p><ol><li><a  href="01-hashing.html">Hashing, complements, and canonical keys</a></li><li><a  href="02-two-pointers.html">Two pointers and safe elimination</a></li><li><a  href="03-sliding-window.html">Sliding windows: expand, repair, and count</a></li><li><a  href="04-prefix-sums.html">Prefix sums, balance, and range counting</a></li><li><a  href="05-binary-search.html">Binary search on positions, structure, and answers</a></li><li><a  href="06-sorting-intervals.html">Sorting, intervals, scheduling, and sweep lines</a></li><li><a  href="07-linked-lists.html">Linked lists: preserve the path while changing links</a></li><li><a  href="08-stacks-queues.html">Stacks, monotonic frontiers, and deques</a></li><li><a  href="09-trees.html">Trees: decide what crosses each parent-child boundary</a></li><li><a aria-current="page" href="10-heaps.html">Heaps: keep the next winner and forget full order</a></li><li><a  href="11-backtracking.html">Backtracking: enumerate choices with a reversible state</a></li><li><a  href="12-tries.html">Tries: share prefixes and prune impossible continuations</a></li><li><a  href="13-graph-traversal.html">Graphs: reachability and shortest unweighted paths</a></li><li><a  href="14-topology-union-find.html">Dependency order and dynamic connectivity</a></li><li><a  href="15-shortest-paths.html">Shortest paths: matching the frontier to edge costs</a></li><li><a  href="16-greedy.html">Greedy choices and exchange arguments</a></li><li><a  href="17-dp-linear.html">Linear dynamic programming: decisions, states, and dependencies</a></li><li><a  href="18-dp-grids-strings.html">Dynamic programming on grids and strings</a></li><li><a  href="19-range-queries.html">Range queries: precompute reusable pieces, then update only dependencies</a></li><li><a  href="20-bit-manipulation.html">Bit manipulation and state compression</a></li></ol></aside><main id="main" class="lesson"><header><p class="sequence">Pattern 10 / Structural patterns</p><h1>Heaps: keep the next winner and forget full order</h1><p class="lede">Sorting establishes the order of every pair even when a problem needs only the next minimum, a few winners, or a middle boundary. A heap maintains enough partial order to expose one extreme quickly while supporting incremental changes.</p><p class="muted">Prerequisites: Arrays, hashing; Lesson 07 sorted merging; Lesson 08 queues. Suggested study block: 160 minutes, excluding extra practice.</p><nav class="lesson-jumps"><a href="#model">Build the model</a><a href="#worked">Worked problems</a><a href="#practice">Practice ladder</a><a href="#transfer">Unseen transfer</a></nav></header><section id="model"><h2>Build the idea from zero</h2><p>A binary heap is a complete binary tree usually stored in an array. In a min-heap each parent is no larger than its children. Consequently the root is a minimum, but siblings and different subtrees are not sorted. Reading heap storage or iterating a priority queue does not return sorted order. To emit sorted values, repeatedly remove the root. Insertion restores order by moving a new leaf upward; removal replaces the root with a last leaf and moves that value downward. Both need O(log m) work for m stored values because the tree height is logarithmic.</p>
+<p>Derive the direction of the heap from what you need to discard. To keep the k largest values, the least desirable retained winner is the smallest of them; a min-heap exposes that eviction boundary. A max-heap of all inputs also works but keeps more state. Before coding, say aloud what the root means. If the root means worst retained winner, a better incoming item replaces it. If it means next output, removing it advances a stream. These are different invariants using the same structure.</p>
+<p>For merging sorted streams, each stream hides a suffix behind its head. Nothing inside that suffix can be smaller than the head, so the global next value must be among the visible heads. Keep at most one entry per nonempty stream, including enough metadata to reveal its successor after removal. The heap eliminates a repeated scan across all stream heads.</p>
+<p>Two heaps maintain a median by separating values rather than sorting them. The lower half is a max-heap, the upper half a min-heap. Every lower value must be at most every upper value. Keep the lower half the same size as the upper half or one larger. Then an odd median is the lower root, and an even median averages the two roots. Balance alone is insufficient if the ordering partition is wrong.</p>
+<p>Comparators are part of correctness. Comparing integers by subtraction can overflow and reverse their order, so use Integer.compare or compareBy. Never change a heap entry’s priority in place and expect the heap to reorganize itself; remove/reinsert it or use immutable entries and a deliberate stale-entry policy. The foundational top-k exercise below starts around medium because selection and eviction proofs matter more than syntax.</p>
+<h3>When to consider it</h3><ul><li><p>The next action repeatedly consumes the smallest or largest currently available candidate.</p>
+</li><li><p>Only k winners matter, and k is much smaller than the full input size.</p>
+</li><li><p>Several already sorted streams must become one: only their exposed heads can win next.</p>
+</li><li><p>A dynamic median asks for the boundary between a lower half and an upper half, not a fully sorted sequence.</p>
+</li></ul><div class="proof"><h3>The invariant</h3><p>A heap guarantees only its parent-child order and therefore one accessible extreme. The problem-specific invariant must say which candidates are stored, why omitted candidates cannot improve the requested answer, and what the root represents. Charge insert/remove costs to individual candidate events; peak heap size, rather than total input size, determines the logarithmic factor.</p>
+</div><figure><div class="diagram-scroll"><svg viewBox="0 0 760 180" role="img" aria-label="Two heaps expose exactly the two values bordering the median."><defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#3a677e"/></marker></defs><path d="M175,72 Q195,72 215,72" stroke="#3a677e" fill="none" marker-end="url(#arrow)"/><text x="195" y="46" text-anchor="middle" font-size="12">ordered lower half</text><path d="M365,72 Q385,72 405,72" stroke="#3a677e" fill="none" marker-end="url(#arrow)"/><text x="385" y="46" text-anchor="middle" font-size="12">ordered upper half</text><path d="M175,72 Q385,72 595,72" stroke="#3a677e" fill="none" marker-end="url(#arrow)"/><text x="385" y="46" text-anchor="middle" font-size="12">one extra lower item</text><rect x="25" y="52" width="150" height="66" rx="8" fill="#e9f1f6" stroke="#52748b"/><foreignObject x="30" y="57" width="140" height="60"><div xmlns="http://www.w3.org/1999/xhtml" style="font:14px system-ui;text-align:center;line-height:1.3;padding:5px;color:#203447">lower max-heap: 1,2,4; root 4</div></foreignObject><rect x="215" y="52" width="150" height="66" rx="8" fill="#e9f1f6" stroke="#52748b"/><foreignObject x="220" y="57" width="140" height="60"><div xmlns="http://www.w3.org/1999/xhtml" style="font:14px system-ui;text-align:center;line-height:1.3;padding:5px;color:#203447">partition: every lower ≤ every upper</div></foreignObject><rect x="405" y="52" width="150" height="66" rx="8" fill="#e9f1f6" stroke="#52748b"/><foreignObject x="410" y="57" width="140" height="60"><div xmlns="http://www.w3.org/1999/xhtml" style="font:14px system-ui;text-align:center;line-height:1.3;padding:5px;color:#203447">upper min-heap: 7,9; root 7</div></foreignObject><rect x="595" y="52" width="150" height="66" rx="8" fill="#e9f1f6" stroke="#52748b"/><foreignObject x="600" y="57" width="140" height="60"><div xmlns="http://www.w3.org/1999/xhtml" style="font:14px system-ui;text-align:center;line-height:1.3;padding:5px;color:#203447">odd median = lower root = 4</div></foreignObject></svg></div><figcaption>Two heaps expose exactly the two values bordering the median.</figcaption></figure></section><section><h2>Follow a concrete execution</h2><div class="trace" data-trace><script type="application/json">[{"state":"Insert 5: lower=[5], upper=[]; median=5","explanation":"The lower half owns the extra item."},{"state":"Insert 2: lower=[2], upper=[5]; median=3.5","explanation":"Move the previous lower maximum to upper to restore size balance."},{"state":"Insert 8: lower=[5,2], upper=[8]; median=5","explanation":"Insert into upper, then transfer its minimum to lower."},{"state":"Insert 1: lower=[2,1], upper=[5,8]; median=3.5","explanation":"All lower values stay no larger than all upper values while sizes become equal."}]</script><p class="trace-count" aria-live="polite"></p><pre class="trace-state"></pre><p class="trace-explanation"></p><div class="trace-controls"><button type="button" data-step="-1">Previous state</button><button type="button" data-step="1">Next state</button><button type="button" data-reset>Reset</button></div></div></section><section><h2>Where the idea breaks</h2><details class="trap"><summary>Use a max-heap of k values to keep the k largest by evicting its root.</summary><h4>Counterexample</h4><p>With k=2 and retained [10,9], incoming 8 followed by evicting the maximum leaves [9,8], discarding the true largest value 10.</p>
+<h4>Repair the reasoning</h4><p>Keep a min-heap so the smallest retained winner is evicted.</p>
+</details><details class="trap"><summary>Compare heap priorities with a-b.</summary><h4>Counterexample</h4><p>a=2147483647 and b=-1 gives overflowed a-b=-2147483648 in Int, incorrectly ordering the larger value first in an ascending comparator.</p>
+<h4>Repair the reasoning</h4><p>Use comparison APIs and promote sums before arithmetic; do not derive ordering by overflowing subtraction.</p>
+</details></section><section id="worked"><h2>Worked problem ladder</h2><p>Read the contract, draw a small example, and write a baseline before revealing the derivation. Code snippets include helpers; downloadable Java files add a class and standard imports. Kotlin files add imports. Input contracts are part of the solution.</p><article class="problem" id="problem-1"><div class="problem-heading"><h3>1. Kth largest value, counting duplicates</h3><span class="difficulty">Easy to Medium</span></div><p>Given non-null Int array a and 1≤k≤a.length, return the kth largest element with duplicate occurrences counted separately. Reject invalid k; input is unchanged. This is a foundational selection exercise.</p>
+<div class="example"><strong>Example</strong><p>[3,2,1,5,6,4], k=2 returns 5; [5,5,1], k=2 returns 5.</p>
+</div><details><summary>First attempt: the baseline</summary><p>Sort a copy and select index n-k: O(n log n) time and O(n) copied space.</p>
+</details><details class="solution"><summary>Reveal the derivation and solutions</summary><h4>Derive it step by step</h4><ol><li><p>After reading a prefix, keep only its largest k values, or all values if fewer than k have arrived. The smallest retained value is the current kth-largest boundary.</p>
+</li><li><p>Insert each value into a min-heap. If size exceeds k, remove its minimum. That removed value has at least k retained values no smaller, so it cannot improve the final kth-largest value.</p>
+</li><li><p>At the end the heap contains exactly k winners. Its root is the kth largest, even when equal values occur because each occurrence is inserted independently.</p>
+</li></ol><div class="proof"><strong>Why it works</strong><p>After each input item, the heap is a multiset of the min(k,prefixLength) largest occurrences in that prefix.</p>
+</div><div class="language-controls" role="group" aria-label="Solution language"><button type="button" data-lang="java">Java</button><button type="button" data-lang="kotlin">Kotlin</button><button type="button" data-lang="both">Both</button></div><div class="code" data-code="java"><h4>Java</h4><pre><code>static int kthLargest(int[] a,int k) {
+ if(k&lt;1||k&gt;a.length) throw new IllegalArgumentException(&quot;invalid k&quot;);
+ PriorityQueue&lt;Integer&gt; heap=new PriorityQueue&lt;&gt;();
+ for(int value:a) {
+  heap.add(value);
+  if(heap.size()&gt;k) heap.remove();
+ }
+ return heap.element();
+}</code></pre><a download href="../solutions/10-1.java">Download Java snippet</a></div><div class="code" data-code="kotlin"><h4>Kotlin</h4><pre><code>fun kthLargest(a: IntArray, k: Int): Int {
+ require(k &gt;= 1 &amp;&amp; k &lt;= a.size)
+ val heap = PriorityQueue&lt;Int&gt;()
+ for (value in a) {
+  heap.add(value)
+  if (heap.size &gt; k) heap.remove()
+ }
+ return heap.element()
+}</code></pre><a download href="../solutions/10-1.kt">Download Kotlin snippet</a></div><h4>Cost and boundaries</h4><p>O(n log(k+1)) time and O(k) auxiliary space. The +1 handles k=1 without claiming zero work.</p>
+<ul><li><p>[1],k=1 ⇒ 1</p>
+</li><li><p>[5,5,1],k=2 ⇒ 5</p>
+</li><li><p>empty array ⇒ invalid k</p>
+</li></ul><h4>Change one assumption</h4><p>A one-shot in-memory selection can use quickselect for expected O(n) time, but it mutates a copy/input and has different worst-case guarantees. A heap also supports a stream.</p>
+</details><p><a href="https://leetcode.com/problems/kth-largest-element-in-an-array/" target="_blank" rel="noopener">Original practice problem</a> <label class="solved"><input type="checkbox" data-progress="10-1"> Solved independently</label></p></article><article class="problem" id="problem-2"><div class="problem-heading"><h3>2. Top k frequent values with deterministic ties</h3><span class="difficulty">Medium</span></div><p>Given non-null Int array a and k≥0, return k distinct values with highest frequency. Break ties by preferring smaller numeric values. Output order is unspecified. k must not exceed the number of distinct values; k=0 returns empty. Input is unchanged.</p>
+<div class="example"><strong>Example</strong><p>[4,4,2,2,9], k=1 returns [2] because 2 and 4 tie and 2 is preferred.</p>
+</div><details><summary>First attempt: the baseline</summary><p>Count then sort all u distinct values by frequency descending and value ascending: O(n+u log u) time/O(u) space.</p>
+</details><details class="solution"><summary>Reveal the derivation and solutions</summary><h4>Derive it step by step</h4><ol><li><p>Frequencies are properties of distinct values, so count all occurrences first. A heap of raw occurrences would answer a different question. Each heap entry is a value plus its fixed final count.</p>
+</li><li><p>The root must be the worst retained entry: lower frequency is worse; on a tie, larger numeric value is worse. Define both comparator levels explicitly to implement the requested preference.</p>
+</li><li><p>Insert all distinct entries and evict whenever size exceeds k. Every evicted entry is no better than all remaining k candidates. Return their values; heap removal order need not match preference order because output order is unspecified.</p>
+</li></ol><div class="proof"><strong>Why it works</strong><p>The heap contains the k most preferred entries among the distinct values examined, with the least preferred retained entry at its root.</p>
+</div><div class="language-controls" role="group" aria-label="Solution language"><button type="button" data-lang="java">Java</button><button type="button" data-lang="kotlin">Kotlin</button><button type="button" data-lang="both">Both</button></div><div class="code" data-code="java"><h4>Java</h4><pre><code>static int[] topFrequent(int[] a,int k) {
+ Map&lt;Integer,Integer&gt; counts=new HashMap&lt;&gt;();
+ for(int v:a) counts.merge(v,1,Integer::sum);
+ if(k&lt;0||k&gt;counts.size()) throw new IllegalArgumentException(&quot;invalid k&quot;);
+ PriorityQueue&lt;int[]&gt; heap=new PriorityQueue&lt;&gt;((x,y)-&gt; {
+  int c=Integer.compare(x[1],y[1]);
+  return c!=0?c:Integer.compare(y[0],x[0]);
+ });
+ for(Map.Entry&lt;Integer,Integer&gt; e:counts.entrySet()) {
+  heap.add(new int[]{e.getKey(),e.getValue()});
+  if(heap.size()&gt;k) heap.remove();
+ }
+ int[] out=new int[k];
+ for(int i=0;i&lt;k;i++) out[i]=heap.remove()[0];
+ return out;
+}</code></pre><a download href="../solutions/10-2.java">Download Java snippet</a></div><div class="code" data-code="kotlin"><h4>Kotlin</h4><pre><code>fun topFrequent(a: IntArray, k: Int): IntArray {
+ val counts = HashMap&lt;Int, Int&gt;()
+ for (v in a) counts[v] = (counts[v] ?: 0) + 1
+ require(k &gt;= 0 &amp;&amp; k &lt;= counts.size)
+ val heap = PriorityQueue&lt;IntArray&gt;(Comparator { x, y -&gt;
+  val c = x[1].compareTo(y[1])
+  if (c != 0) c else y[0].compareTo(x[0])
+ })
+ for ((value, count) in counts) {
+  heap.add(intArrayOf(value, count))
+  if (heap.size &gt; k) heap.remove()
+ }
+ return IntArray(k) { heap.remove()[0] }
+}</code></pre><a download href="../solutions/10-2.kt">Download Kotlin snippet</a></div><h4>Cost and boundaries</h4><p>O(n+u log(k+1)) expected time with u distinct values; O(u) count map, O(k) heap, O(k) output.</p>
+<ul><li><p>[],k=0 ⇒ []</p>
+</li><li><p>[1,1,2],k=2 ⇒ {1,2}</p>
+</li><li><p>[Int.MIN_VALUE,Int.MAX_VALUE],k=1 ⇒ [Int.MIN_VALUE]</p>
+</li></ul><h4>Change one assumption</h4><p>If frequencies change after every event, mutating count fields inside existing heap entries breaks heap order. Use indexed updates or immutable versioned entries plus stale-entry removal.</p>
+</details><p><a href="https://leetcode.com/problems/top-k-frequent-elements/" target="_blank" rel="noopener">Original practice problem</a> <label class="solved"><input type="checkbox" data-progress="10-2"> Solved independently</label></p></article><article class="problem" id="problem-3"><div class="problem-heading"><h3>3. Merge sorted streams</h3><span class="difficulty">Hard</span></div><p>Given a non-null array of non-null Int arrays, each sorted in nondecreasing order, return all values in sorted order. Arrays may be empty. Input is unchanged. Total result length must fit Int indexing; throw if length overflows. Sortedness is a precondition.</p>
+<div class="example"><strong>Example</strong><p>[[1,4],[1,3,5],[],[2]] returns [1,1,2,3,4,5].</p>
+</div><details><summary>First attempt: the baseline</summary><p>Concatenate then sort: O(N log N) time and O(N) output storage.</p>
+</details><details class="solution"><summary>Reveal the derivation and solutions</summary><h4>Derive it step by step</h4><ol><li><p>From each nonempty stream expose only its first unread value. Any hidden value is at least that stream head, so the global minimum must be one exposed head.</p>
+</li><li><p>Store (value,row,column) in a min-heap. Remove the smallest entry and append its value. Its successor is now the only new candidate from that stream, so insert that successor if present.</p>
+</li><li><p>When the heap empties all streams are exhausted. The emitted sequence is sorted because each emission was the smallest among every unread value, not merely among arbitrary samples.</p>
+</li></ol><div class="proof"><strong>Why it works</strong><p>The heap contains exactly one head for every stream with unread values, and output is the sorted prefix of all input occurrences.</p>
+</div><div class="language-controls" role="group" aria-label="Solution language"><button type="button" data-lang="java">Java</button><button type="button" data-lang="kotlin">Kotlin</button><button type="button" data-lang="both">Both</button></div><div class="code" data-code="java"><h4>Java</h4><pre><code>static class Entry {
+ int value,row,col;
+ Entry(int v,int r,int c) { value=v; row=r; col=c; }
+}
+static int[] mergeStreams(int[][] streams) {
+ int total=0;
+ PriorityQueue&lt;Entry&gt; heap=new PriorityQueue&lt;&gt;(Comparator.comparingInt(e-&gt;e.value));
+ for(int r=0;r&lt;streams.length;r++) {
+  total=Math.addExact(total,streams[r].length);
+  if(streams[r].length&gt;0) heap.add(new Entry(streams[r][0],r,0));
+ }
+ int[] out=new int[total]; int position=0;
+ while(!heap.isEmpty()) {
+  Entry e=heap.remove(); out[position++]=e.value;
+  int next=e.col+1;
+  if(next&lt;streams[e.row].length) heap.add(new Entry(streams[e.row][next],e.row,next));
+ }
+ return out;
+}</code></pre><a download href="../solutions/10-3.java">Download Java snippet</a></div><div class="code" data-code="kotlin"><h4>Kotlin</h4><pre><code>data class Entry(val value: Int, val row: Int, val col: Int)
+fun mergeStreams(streams: Array&lt;IntArray&gt;): IntArray {
+ var total = 0
+ val heap = PriorityQueue&lt;Entry&gt;(compareBy { it.value })
+ for (r in streams.indices) {
+  total = Math.addExact(total, streams[r].size)
+  if (streams[r].isNotEmpty()) heap.add(Entry(streams[r][0], r, 0))
+ }
+ val out = IntArray(total)
+ var position = 0
+ while (heap.isNotEmpty()) {
+  val e = heap.remove()
+  out[position++] = e.value
+  val next = e.col + 1
+  if (next &lt; streams[e.row].size) heap.add(Entry(streams[e.row][next], e.row, next))
+ }
+ return out
+}</code></pre><a download href="../solutions/10-3.kt">Download Kotlin snippet</a></div><h4>Cost and boundaries</h4><p>O(k+N log(k+1)) time for k streams and N total items; O(k) auxiliary heap and O(N) output. Entry allocation is O(N) cumulatively.</p>
+<ul><li><p>[] ⇒ []</p>
+</li><li><p>[[],[]] ⇒ []</p>
+</li><li><p>[[2,2],[2]] ⇒ [2,2,2]</p>
+</li></ul><h4>Change one assumption</h4><p>For lazy or infinite streams return an iterator and read only enough winners for the requested prefix. Equal values need a secondary stream/sequence tie-breaker only if stable identity order is required.</p>
+</details><p><a href="https://leetcode.com/problems/merge-k-sorted-lists/" target="_blank" rel="noopener">Original practice problem</a> <label class="solved"><input type="checkbox" data-progress="10-3"> Solved independently</label></p></article><article class="problem" id="problem-4"><div class="problem-heading"><h3>4. Median of an insertion-only stream</h3><span class="difficulty">Hard</span></div><p>Implement add(Int) and median(): Double over all inserted occurrences. Calling median before any insertion throws. Do not discard duplicates. The number of inserted values fits Int; no deletion operation is required.</p>
+<div class="example"><strong>Example</strong><p>After adding 5,2,8,1, medians are 5.0,3.5,5.0,3.5.</p>
+</div><details><summary>First attempt: the baseline</summary><p>Keep a sorted array, inserting by shifting: O(n) insertion, O(1) median, O(n) space.</p>
+</details><details class="solution"><summary>Reveal the derivation and solutions</summary><h4>Derive it step by step</h4><ol><li><p>Partition values into lower and upper halves. A max-heap exposes the largest lower value and a min-heap exposes the smallest upper value, the only two values relevant to the median.</p>
+</li><li><p>Insert relative to the lower root. If lower becomes two larger, move its maximum to upper. If upper becomes larger, move its minimum to lower. These root transfers preserve cross-half ordering.</p>
+</li><li><p>For unequal sizes return lower.peek. For equal sizes average the two roots after converting to Long. This avoids Int overflow for two extreme values.</p>
+</li></ol><div class="proof"><strong>Why it works</strong><p>Every lower value is ≤every upper value, and lower.size equals upper.size or upper.size+1. Together these establish the middle rank(s).</p>
+</div><div class="language-controls" role="group" aria-label="Solution language"><button type="button" data-lang="java">Java</button><button type="button" data-lang="kotlin">Kotlin</button><button type="button" data-lang="both">Both</button></div><div class="code" data-code="java"><h4>Java</h4><pre><code>static class MedianStream {
+ private final PriorityQueue&lt;Integer&gt; lower=new PriorityQueue&lt;&gt;(Comparator.reverseOrder());
+ private final PriorityQueue&lt;Integer&gt; upper=new PriorityQueue&lt;&gt;();
+ void add(int value) {
+  if(lower.isEmpty()||value&lt;=lower.element()) lower.add(value);
+  else upper.add(value);
+  if(lower.size()&gt;upper.size()+1) upper.add(lower.remove());
+  else if(upper.size()&gt;lower.size()) lower.add(upper.remove());
+ }
+ double median() {
+  if(lower.isEmpty()) throw new IllegalStateException(&quot;empty stream&quot;);
+  if(lower.size()&gt;upper.size()) return lower.element();
+  return ((long)lower.element()+upper.element())/2.0;
+ }
+}</code></pre><a download href="../solutions/10-4.java">Download Java snippet</a></div><div class="code" data-code="kotlin"><h4>Kotlin</h4><pre><code>class MedianStream {
+ private val lower = PriorityQueue&lt;Int&gt;(Comparator.reverseOrder())
+ private val upper = PriorityQueue&lt;Int&gt;()
+ fun add(value: Int) {
+  if (lower.isEmpty() || value &lt;= lower.element()) lower.add(value)
+  else upper.add(value)
+  if (lower.size &gt; upper.size + 1) upper.add(lower.remove())
+  else if (upper.size &gt; lower.size) lower.add(upper.remove())
+ }
+ fun median(): Double {
+  check(lower.isNotEmpty()) { &quot;empty stream&quot; }
+  if (lower.size &gt; upper.size) return lower.element().toDouble()
+  return (lower.element().toLong() + upper.element()) / 2.0
+ }
+}</code></pre><a download href="../solutions/10-4.kt">Download Kotlin snippet</a></div><h4>Cost and boundaries</h4><p>O(log(n+1)) per insertion, O(1) median, O(n) stored values after n insertions. No sorting is performed.</p>
+<ul><li><p>add(Int.MAX_VALUE) twice ⇒ median 2147483647.0</p>
+</li><li><p>add(Int.MIN_VALUE),add(Int.MAX_VALUE) ⇒ -0.5</p>
+</li><li><p>empty median ⇒ exception</p>
+</li></ul><h4>Change one assumption</h4><p>A sliding-window median additionally needs removal of expired values. Add identity-aware lazy deletion with logical heap sizes or use balanced multisets; ordinary priority-queue arbitrary removal is O(n).</p>
+</details><p><a href="https://leetcode.com/problems/find-median-from-data-stream/" target="_blank" rel="noopener">Original practice problem</a> <label class="solved"><input type="checkbox" data-progress="10-4"> Solved independently</label></p></article></section><section id="practice"><h2>Practice with gradually less help</h2><details class="practice-item"><summary>Last Stone Weight <span class="muted">Easy</span></summary><a href="https://leetcode.com/problems/last-stone-weight/" target="_blank" rel="noopener">Open problem</a><details><summary>A small hint</summary><p>Repeatedly take the two largest active values.</p>
+</details><details><summary>Solution outline and cost</summary><p>Use a max-heap, remove two, insert positive difference. O(n log n) time/O(n) space; a final empty heap means zero.</p>
+</details><label><input type="checkbox" data-progress="10-practice-0"> Solved independently</label></details><details class="practice-item"><summary>K Closest Points to Origin <span class="muted">Medium</span></summary><a href="https://leetcode.com/problems/k-closest-points-to-origin/" target="_blank" rel="noopener">Open problem</a><details><summary>A small hint</summary><p>Worst retained distance belongs at the root.</p>
+</details><details><summary>Solution outline and cost</summary><p>Maintain a max-heap of k points by squared distance. O(n log(k+1))/O(k); with unrestricted Int coordinates use BigInteger or a proven safe coordinate bound because two squared Int coordinates can exceed signed Long.</p>
+</details><label><input type="checkbox" data-progress="10-practice-1"> Solved independently</label></details><details class="practice-item"><summary>Find K Pairs with Smallest Sums <span class="muted">Medium</span></summary><a href="https://leetcode.com/problems/find-k-pairs-with-smallest-sums/" target="_blank" rel="noopener">Open problem</a><details><summary>A small hint</summary><p>Each row of pair sums is a sorted stream.</p>
+</details><details><summary>Solution outline and cost</summary><p>Seed (i,0) for up to k rows of sorted inputs, pop and advance the same row. O(k log(min(k,m)+1)) after seeding; use Long sums and stop at available pairs.</p>
+</details><label><input type="checkbox" data-progress="10-practice-2"> Solved independently</label></details><details class="practice-item"><summary>Reorganize String <span class="muted">Medium</span></summary><a href="https://leetcode.com/problems/reorganize-string/" target="_blank" rel="noopener">Open problem</a><details><summary>A small hint</summary><p>Choose the most frequent available symbol while withholding the last used one.</p>
+</details><details><summary>Solution outline and cost</summary><p>Max-heap remaining counts; release previous symbol only after choosing a different one. O(n log u)/O(u); impossible when maximum count&gt;(n+1)/2.</p>
+</details><label><input type="checkbox" data-progress="10-practice-3"> Solved independently</label></details><details class="practice-item"><summary>IPO <span class="muted">Hard</span></summary><a href="https://leetcode.com/problems/ipo/" target="_blank" rel="noopener">Open problem</a><details><summary>A small hint</summary><p>Separate eligibility order from reward order.</p>
+</details><details><summary>Solution outline and cost</summary><p>Sort projects by required capital, insert newly affordable profits into max-heap, select up to k. O(n log n+k log n)/O(n); nonnegative profits justify stopping when none are available.</p>
+</details><label><input type="checkbox" data-progress="10-practice-4"> Solved independently</label></details><details class="practice-item"><summary>Smallest Range Covering Elements from K Lists <span class="muted">Hard</span></summary><a href="https://leetcode.com/problems/smallest-range-covering-elements-from-k-lists/" target="_blank" rel="noopener">Open problem</a><details><summary>A small hint</summary><p>A heap minimum plus a running maximum describes one covering range.</p>
+</details><details><summary>Solution outline and cost</summary><p>Keep one item per sorted list, update best range, advance the minimum list. Stop when a list ends. O(N log k)/O(k); compare widths using Long.</p>
+</details><label><input type="checkbox" data-progress="10-practice-5"> Solved independently</label></details></section><section><h2>Check the reasoning</h2><fieldset class="quiz" data-answer="1"><legend>What does a min-heap of the k largest values expose?</legend><label><input type="radio" name="q0" value="0"> The largest value overall</label><label><input type="radio" name="q0" value="1"> The smallest retained winner, which is the eviction boundary</label><label><input type="radio" name="q0" value="2"> The median of all values</label><button type="button" data-check>Check reasoning</button><p class="feedback" aria-live="polite" data-explanation="The root is intentionally the worst winner; a larger incoming value may replace it."></p></fieldset><fieldset class="quiz" data-answer="1"><legend>Are balanced two-heap sizes sufficient for a correct median?</legend><label><input type="radio" name="q1" value="0"> Yes</label><label><input type="radio" name="q1" value="1"> No, cross-half ordering must also hold</label><label><input type="radio" name="q1" value="2"> Only for odd counts</label><button type="button" data-check>Check reasoning</button><p class="feedback" aria-live="polite" data-explanation="Lower=[100] and upper=[1] have equal sizes but the partition is reversed. Ordering and size must both be invariant."></p></fieldset></section><section id="transfer"><h2>An unfamiliar version</h2><p>A service reads many sorted files of timestamps and must publish only the first 1000 events globally, preserving source order for equal timestamps. Design the candidate state without loading all files.</p>
+<details><summary>Hint 1</summary><p>Only one unread head per file can win next.</p>
+</details><details><summary>Hint 2</summary><p>A deterministic tie rule can include file index and per-file sequence.</p>
+</details><details><summary>Derivation</summary><p>Maintain a min-heap of (timestamp,fileId,sequence,event) for one current head per nonempty file. Pop, publish, and read the next record from that file until 1000 events or exhaustion. O(k+1000 log(k+1)) heap work after seeding k files and O(k) memory, excluding output and I/O buffers. The tie key must match the exact meaning of source order; no global stable order exists across different files unless specified.</p>
+</details></section><section><h2>Retrieve it without looking</h2><ul><li><p>For each heap problem say what the root represents before choosing direction.</p>
+</li><li><p>Reconstruct the median invariants and explain each rebalance transfer.</p>
+</li><li><p>Explain why changing a stored entry priority silently can corrupt future results.</p>
+</li></ul><p>Repeat after 1, 3, 7 and 21 days. A check mark records your self-report, not a mastery score. Explain the proof and solve a changed version before calling a pattern fluent.</p></section><section><h2>Sources and further study</h2><ul><li><a href="https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/PriorityQueue.html">Java PriorityQueue documentation</a>: Reference link; not retrieved in this run. Heap ordering, iterator order, and operation complexity.</li><li><a href="https://leetcode.com/tag/heap-priority-queue/">LeetCode heap catalogue</a>: Reference link; not retrieved in this run. Primary public practice statements; no company frequency inference.</li></ul><p class="muted">These are reference links. See the research page for live-verification limits and the distinction between a canonical algorithm and a confirmed company question.</p></section><p class="next">Next: <a href="11-backtracking.html">Backtracking: enumerate choices with a reversible state</a></p></main></div><footer>Practice deriving the invariant. Explain why every discarded candidate is safe to discard. <a href="../research.html">Evidence and scope</a></footer><!-- page-navigation:start -->
+<nav class="page-navigation" aria-label="Bottom page navigation"><div class="page-navigation-parents"><a href="../../index.html">Library home</a> <span aria-hidden="true">›</span> <a href="../../index.html#technical-foundations">Technical foundations and implementation</a> <span aria-hidden="true">›</span> <a href="../index.html">Coding Interviews: Patterns &amp; Problem Solving</a> <span aria-hidden="true">›</span> <a href="index.html">Lessons</a></div><div class="page-navigation-sections"><a href="index.html">Lessons</a><a href="../reference/index.html">Reference sheets</a><a href="../materials.html">Guides and resources</a><a href="#page-top">Back to top ↑</a></div><div class="page-navigation-pager"><a href="09-trees.html" rel="prev">← Previous: Trees: decide what crosses each parent-child boundary</a><a href="11-backtracking.html" rel="next">Next: Backtracking: enumerate choices with a reversible state →</a></div></nav>
+<!-- page-navigation:end -->
+<script src="../../assets/course/links.js" defer></script>
+</body></html>

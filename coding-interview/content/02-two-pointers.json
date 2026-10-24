@@ -1,0 +1,286 @@
+{
+  "id": "02",
+  "slug": "two-pointers",
+  "title": "Two pointers and safe elimination",
+  "group": "Linear data",
+  "prerequisites": "Lesson 00; arrays, loops, functions, and Big-O",
+  "estimatedMinutes": 150,
+  "motivation": "Two pointers means maintaining two positions whose movement removes a whole family of candidates. Merely having two indices does not make an algorithm useful. The essential question is: after comparing the values at these positions, why can every candidate skipped by moving a pointer be discarded? Start with a quadratic search over all pairs. A sorted array gives order, which lets one comparison rule out many pairs simultaneously.",
+  "mentalModel": "Two pointers means maintaining two positions whose movement removes a whole family of candidates. Merely having two indices does not make an algorithm useful. The essential question is: after comparing the values at these positions, why can every candidate skipped by moving a pointer be discarded? Start with a quadratic search over all pairs. A sorted array gives order, which lets one comparison rule out many pairs simultaneously.\n\nSuppose a sorted pair sum is too small. Keeping the left value and moving the right endpoint inward can only make the sum smaller. Therefore no pair using this left value and any current or smaller right value can succeed. Advance left. If the sum is too large, discard the right value for the symmetric reason. The proof explains both the direction and the requirement for sorted data. Sorting is not free, and if the requested output is original indices, you must retain indices in records or choose hashing instead.\n\nA second form compares symmetric positions. For a palindrome, every outer pair must match; after matching them, only the inner substring remains undecided. An allowed deletion changes the state: at the first mismatch, one of exactly two endpoints must be removed. You cannot arbitrarily skip both. This becomes a useful small branching argument followed by deterministic scans.\n\nA third form maintains a processed region and an unresolved region, as in trapping water. Water above a position is limited by the smaller of its best left wall and best right wall. Initially it seems that both complete wall arrays are necessary. But if the best known left wall is no taller than the best known right wall, the unresolved future on the right cannot reduce the known right boundary below the left wall. The left position can be settled now. Choosing the smaller boundary is a correctness argument, not a greedy guess.\n\nThree Sum evolves the sorted pair technique by fixing one value and solving a smaller pair problem on its suffix. This adds a loop, but the inner two-pointer scan remains linear for each fixed value. The output asks for unique value triples, so duplicates require deliberate skipping. Duplicate handling is part of the output proof: it prevents repeated triples without removing the first occurrence of a valid value combination.\n\nWhen facing a twist, classify the pointer roles: opposite endpoints of candidates, symmetric checks, or boundaries of settled work. Write the region still eligible before each move. Then construct an adversarial input that violates a hidden assumption, such as unsorted values, negative heights, or an altered distance objective. A familiar pointer motion is safe only when its elimination proof still holds.",
+  "invariant": "Before each move, describe the candidates still unresolved. A pointer advances only when a comparison proves that every candidate it abandons is impossible or has been fully accounted for. Termination follows from a decreasing interval or increasing processed region.",
+  "recognition": [
+    "Sorted values plus a pair relation often allow opposite endpoints.",
+    "Symmetric constraints suggest comparing the two ends of an interval.",
+    "A local result limited by the smaller of two known boundaries suggests settling that side."
+  ],
+  "wrongTurns": [
+    {
+      "temptation": "Use sorted-pair pointer moves on arbitrary order.",
+      "counterexample": "[3,2,4], target 6: 3+4 is too large, moving right loses the valid pair 2+4.",
+      "repair": "Sort while preserving indices or use hashing."
+    },
+    {
+      "temptation": "At a palindrome mismatch always delete the left character.",
+      "counterexample": "\"abbab\": deleting rightmost b gives \"abba\"; deleting leftmost a gives \"bbab\", which fails.",
+      "repair": "Test both possible single deletions."
+    },
+    {
+      "temptation": "For rainwater, sum distances to the nearest taller neighbor.",
+      "counterexample": "[3,1,2,0,3] has water limited by the distant height-3 boundaries; nearest local peaks underestimate cells.",
+      "repair": "Use maximum boundary heights, not nearest neighbors."
+    }
+  ],
+  "diagram": {
+    "caption": "Sorted pair search discards a whole family of impossible pairs at each move.",
+    "nodes": [
+      "[1, 2, 4, 7], target 6",
+      "1 + 7 = 8 > 6",
+      "[1, 2, 4]: 1 + 4 = 5 < 6",
+      "[2, 4]: sum 6"
+    ],
+    "edges": [
+      [
+        0,
+        1,
+        "start at opposite ends"
+      ],
+      [
+        1,
+        2,
+        "discard 7: even smallest partner is too large"
+      ],
+      [
+        2,
+        3,
+        "discard 1: even largest partner is too small"
+      ]
+    ]
+  },
+  "trace": [
+    {
+      "state": "Sorted [1,2,4,7], target 6; l=0,r=3; sum=8",
+      "explanation": "The right value 7 is too large even with the smallest candidate; discard it."
+    },
+    {
+      "state": "l=0,r=2; sum=5",
+      "explanation": "The left value 1 is too small even with the largest remaining candidate; discard it."
+    },
+    {
+      "state": "l=1,r=2; sum=6",
+      "explanation": "Return indices [1,2]; neither prior elimination could remove a solution."
+    },
+    {
+      "state": "Rain [3,0,3]: leftMax=3,rightMax=3, unresolved middle height=0",
+      "explanation": "Either side can settle the middle; its exact contribution is 3."
+    }
+  ],
+  "problems": [
+    {
+      "title": "Pair Sum in Sorted Order",
+      "difficulty": "Easy",
+      "statement": "Given a non-null ascending int array and a long target, return zero-based indices of a matching distinct pair, or an empty array. Input is not modified.",
+      "example": "[1,2,4,7], target 6 => [1,2].",
+      "baseline": "Enumerate all O(n\u00b2) pairs with O(1) space.",
+      "reasoning": [
+        "Start left at 0 and right at n-1, covering all candidate pairs.",
+        "If sum is too small, all pairs using left with endpoints at most right are too small; increment left. If too large, decrement right.",
+        "Stop at equality or when pointers meet, leaving no distinct candidate pair."
+      ],
+      "invariant": "At each step any still-possible answer lies between the pointers; every discarded endpoint is proved unable to participate in a remaining answer.",
+      "java": "static int[] sortedPair(int[] a,long target) {\n    int l=0,r=a.length-1;\n    while(l<r) {\n        long sum=(long)a[l]+a[r];\n        if(sum==target) return new int[]{l,r};\n        if(sum<target) l++; else r--;\n    }\n    return new int[0];\n}",
+      "kotlin": "fun sortedPair(a: IntArray, target: Long): IntArray {\n    var l = 0; var r = a.lastIndex\n    while (l < r) {\n        val sum = a[l].toLong() + a[r]\n        if (sum == target) return intArrayOf(l, r)\n        if (sum < target) l++ else r--\n    }\n    return intArrayOf()\n}",
+      "complexity": "O(n) time because each move decreases the gap; O(1) auxiliary space.",
+      "edgeCases": [
+        "[] => []",
+        "[3], target 6 => []",
+        "[3,3], target 6 => [0,1]"
+      ],
+      "twist": "If input is unsorted and original indices are required, sort (value,index) records with O(n log n) time/O(n) space, or use a complement map.",
+      "source": "https://leetcode.com/problems/two-sum-ii-input-array-is-sorted/",
+      "testJava": "if (!(Arrays.equals(sortedPair(new int[]{1,2,4,7},6),new int[]{1,2}) && sortedPair(new int[]{},0).length==0)) throw new AssertionError(\"Pair Sum in Sorted Order\");",
+      "testKotlin": "check(sortedPair(intArrayOf(1,2,4,7),6L).contentEquals(intArrayOf(1,2)) && sortedPair(intArrayOf(),0L).isEmpty()) { \"Pair Sum in Sorted Order\" }"
+    },
+    {
+      "title": "Valid Palindrome After At Most One Deletion",
+      "difficulty": "Easy",
+      "statement": "Given a non-null string, decide whether deleting zero or one UTF-16 code unit can make it a palindrome. All characters matter, including punctuation and case. Empty string is valid.",
+      "example": "\"abca\" => true by removing b or c; \"abc\" => false.",
+      "baseline": "Try deleting each position and scan the remainder: O(n\u00b2) time, with O(n) copies if physically constructing strings.",
+      "reasoning": [
+        "Move inward while outer code units match. Matching endpoints can be retained in a valid one-deletion solution.",
+        "At the first mismatch, at least one endpoint must be deleted. Test the two remaining intervals, with no further deletion permitted.",
+        "Return true if either interval is an exact palindrome; two checks are linear, not a recursive exponential search."
+      ],
+      "invariant": "All pairs outside [l,r] already match. The one allowed deletion is unused until the first mismatch; thereafter exactly one endpoint is skipped.",
+      "java": "static boolean validPalindrome(String s) {\n    int l=0,r=s.length()-1;\n    while(l<r) {\n        if(s.charAt(l)!=s.charAt(r)) return exact(s,l+1,r)||exact(s,l,r-1);\n        l++; r--;\n    }\n    return true;\n}\nstatic boolean exact(String s,int l,int r) {\n    while(l<r) if(s.charAt(l++)!=s.charAt(r--)) return false;\n    return true;\n}",
+      "kotlin": "fun validPalindrome(s: String): Boolean {\n    fun exact(start: Int, end: Int): Boolean {\n        var l = start; var r = end\n        while (l < r) if (s[l++] != s[r--]) return false\n        return true\n    }\n    var l = 0; var r = s.lastIndex\n    while (l < r) {\n        if (s[l] != s[r]) return exact(l + 1, r) || exact(l, r - 1)\n        l++; r--\n    }\n    return true\n}",
+      "complexity": "O(n) time and O(1) auxiliary space under UTF-16 code-unit semantics.",
+      "edgeCases": [
+        "\"\" => true",
+        "\"a\" => true",
+        "\"deeee\" => true",
+        "\"abc\" => false"
+      ],
+      "twist": "If the intended characters are Unicode code points, convert to a code-point array first, using O(n) space. For k deletions, interval DP or bounded branching is needed; blindly skipping either mismatch no longer gives a linear proof.",
+      "source": "https://leetcode.com/problems/valid-palindrome-ii/",
+      "testJava": "if (!(validPalindrome(\"abca\") && validPalindrome(\"\") && validPalindrome(\"abbab\") && !validPalindrome(\"abc\"))) throw new AssertionError(\"Valid Palindrome After At Most One Deletion\");",
+      "testKotlin": "check(validPalindrome(\"abca\") && validPalindrome(\"\") && validPalindrome(\"abbab\") && !validPalindrome(\"abc\")) { \"Valid Palindrome After At Most One Deletion\" }"
+    },
+    {
+      "title": "Three Sum Without Duplicate Triples",
+      "difficulty": "Medium",
+      "statement": "Given a non-null int array, return every unique value triple summing to zero. Each triple uses three distinct indices. Order is arbitrary. Sort a copy, leaving input unchanged.",
+      "example": "[-1,0,1,2,-1,-4] => [[-1,-1,2],[-1,0,1]].",
+      "baseline": "Enumerate O(n\u00b3) triples, canonicalize each, and deduplicate.",
+      "reasoning": [
+        "Sort a copy so value order becomes monotone. Fix each distinct first value.",
+        "Run a pair scan on the suffix for target -first, using long sums to avoid overflow.",
+        "On equality record the triple, then skip all duplicates of both selected endpoint values; skip duplicate first values in the outer loop."
+      ],
+      "invariant": "For each fixed first value, the unresolved pair region contains all unseen solutions; endpoint moves discard impossible pairs, and duplicate skipping removes only identical value triples.",
+      "java": "static List<List<Integer>> threeSum(int[] nums) {\n    int[] a=nums.clone(); Arrays.sort(a);\n    List<List<Integer>> ans=new ArrayList<>();\n    for(int i=0;i<a.length-2;i++) {\n        if(i>0 && a[i]==a[i-1]) continue;\n        int l=i+1,r=a.length-1;\n        while(l<r) {\n            long sum=(long)a[i]+a[l]+a[r];\n            if(sum<0) l++; else if(sum>0) r--;\n            else {\n                ans.add(List.of(a[i],a[l],a[r]));\n                int lv=a[l],rv=a[r];\n                while(l<r && a[l]==lv) l++;\n                while(l<r && a[r]==rv) r--;\n            }\n        }\n    }\n    return ans;\n}",
+      "kotlin": "fun threeSum(nums: IntArray): List<List<Int>> {\n    val a = nums.copyOf(); a.sort()\n    val ans = mutableListOf<List<Int>>()\n    for (i in 0 until maxOf(0, a.size - 2)) {\n        if (i > 0 && a[i] == a[i - 1]) continue\n        var l = i + 1; var r = a.lastIndex\n        while (l < r) {\n            val sum = a[i].toLong() + a[l] + a[r]\n            when {\n                sum < 0 -> l++\n                sum > 0 -> r--\n                else -> {\n                    ans.add(listOf(a[i], a[l], a[r]))\n                    val lv = a[l]; val rv = a[r]\n                    while (l < r && a[l] == lv) l++\n                    while (l < r && a[r] == rv) r--\n                }\n            }\n        }\n    }\n    return ans\n}",
+      "complexity": "O(n\u00b2) time plus O(n log n) sorting; O(n) copy and O(log n) primitive-sort stack, plus O(k) triples in output.",
+      "edgeCases": [
+        "[] => []",
+        "[0,0,0,0] => [[0,0,0]]",
+        "[-2147483648,1,2147483647] => one triple"
+      ],
+      "twist": "If the output counts index triples, skipping duplicate values is wrong: multiply endpoint frequencies, with a combination count when both endpoints have the same value.",
+      "source": "https://leetcode.com/problems/3sum/",
+      "testJava": "if (!(new HashSet<>(threeSum(new int[]{-1,0,1,2,-1,-4})).equals(Set.of(List.of(-1,-1,2),List.of(-1,0,1))) && threeSum(new int[]{0,0,0,0}).equals(List.of(List.of(0,0,0))))) throw new AssertionError(\"Three Sum Without Duplicate Triples\");",
+      "testKotlin": "check(threeSum(intArrayOf(-1,0,1,2,-1,-4)).toSet() == setOf(listOf(-1,-1,2),listOf(-1,0,1)) && threeSum(intArrayOf(0,0,0,0)) == listOf(listOf(0,0,0))) { \"Three Sum Without Duplicate Triples\" }"
+    },
+    {
+      "title": "Trapping Rain Water",
+      "difficulty": "Hard",
+      "statement": "Given a non-null array of nonnegative int bar heights with unit width, return total trapped water as long. Empty input returns 0; input is unchanged.",
+      "example": "[0,1,0,2,1,0,1,3,2,1,2,1] => 6.",
+      "baseline": "For every position scan both sides for their maximum wall: O(n\u00b2) time/O(1) space. Prefix/suffix maxima improve to O(n) time/O(n) space.",
+      "reasoning": [
+        "At each index water equals min(maxLeft,maxRight)-height, never negative.",
+        "Track the largest settled wall from each side. Process the side with smaller current maximum; the opposite known wall is already high enough, so unseen bars cannot reduce the limiting boundary.",
+        "Add the gap for that side and advance it. Every position becomes settled once."
+      ],
+      "invariant": "All positions outside [l,r] have their exact contribution counted; leftMax and rightMax summarize the settled boundary heights, and the chosen smaller bound is sufficient to finalize the next cell.",
+      "java": "static long trap(int[] h) {\n    int l=0,r=h.length-1,leftMax=0,rightMax=0;\n    long water=0;\n    while(l<=r) {\n        if(leftMax<=rightMax) {\n            leftMax=Math.max(leftMax,h[l]);\n            water+=(long)leftMax-h[l++];\n        } else {\n            rightMax=Math.max(rightMax,h[r]);\n            water+=(long)rightMax-h[r--];\n        }\n    }\n    return water;\n}",
+      "kotlin": "fun trap(h: IntArray): Long {\n    var l = 0; var r = h.lastIndex\n    var leftMax = 0; var rightMax = 0; var water = 0L\n    while (l <= r) {\n        if (leftMax <= rightMax) {\n            leftMax = maxOf(leftMax, h[l]); water += leftMax.toLong() - h[l]; l++\n        } else {\n            rightMax = maxOf(rightMax, h[r]); water += rightMax.toLong() - h[r]; r--\n        }\n    }\n    return water\n}",
+      "complexity": "O(n) time, O(1) auxiliary space; long total avoids overflow across many bars.",
+      "edgeCases": [
+        "[] => 0",
+        "[3,0,3] => 3",
+        "[1,2,3] => 0",
+        "[3,0,0,3] => 6"
+      ],
+      "twist": "With variable widths, multiply each finalized gap by its bar width using long. In a 2D height map, opposite pointers do not describe the boundary; use a min-heap flood from the perimeter.",
+      "source": "https://leetcode.com/problems/trapping-rain-water/",
+      "testJava": "if (!(trap(new int[]{0,1,0,2,1,0,1,3,2,1,2,1})==6 && trap(new int[]{})==0 && trap(new int[]{3,0,0,3})==6)) throw new AssertionError(\"Trapping Rain Water\");",
+      "testKotlin": "check(trap(intArrayOf(0,1,0,2,1,0,1,3,2,1,2,1)) == 6L && trap(intArrayOf()) == 0L && trap(intArrayOf(3,0,0,3)) == 6L) { \"Trapping Rain Water\" }"
+    }
+  ],
+  "practice": [
+    {
+      "title": "Move Zeroes",
+      "difficulty": "Easy",
+      "url": "https://leetcode.com/problems/move-zeroes/",
+      "hint": "Separate the read position from the next write position.",
+      "approach": "Copy each nonzero forward, preserving order, then fill the tail with zero. O(n), O(1), mutates input; the written prefix contains exactly processed nonzero values."
+    },
+    {
+      "title": "Remove Duplicates from Sorted Array",
+      "difficulty": "Easy",
+      "url": "https://leetcode.com/problems/remove-duplicates-from-sorted-array/",
+      "hint": "The output prefix stores one representative per run.",
+      "approach": "Read every item and write only if it differs from the last retained value. O(n), O(1). Allowing at most k copies changes the comparison to write-k."
+    },
+    {
+      "title": "Container With Most Water",
+      "difficulty": "Medium",
+      "url": "https://leetcode.com/problems/container-with-most-water/",
+      "hint": "Which endpoint limits area, and what happens as width shrinks?",
+      "approach": "Record area and move the shorter endpoint; keeping it while reducing width cannot improve the area. O(n), O(1). This is a different objective from total rainwater."
+    },
+    {
+      "title": "Sort Colors",
+      "difficulty": "Medium",
+      "url": "https://leetcode.com/problems/sort-colors/",
+      "hint": "Maintain finished zero, one, unknown, and two regions.",
+      "approach": "Dutch-national-flag partition in O(n), O(1). After swapping an unknown with the right region, inspect the incoming value before advancing."
+    },
+    {
+      "title": "Four Sum",
+      "difficulty": "Medium",
+      "url": "https://leetcode.com/problems/4sum/",
+      "hint": "Fix two values, then solve a sorted pair problem.",
+      "approach": "Sort, skip duplicates at both outer levels, and two-pointer scan the suffix. O(n\u00b3) plus output, O(n) if preserving input. Use long sums."
+    },
+    {
+      "title": "Boats to Save People",
+      "difficulty": "Medium",
+      "url": "https://leetcode.com/problems/boats-to-save-people/",
+      "hint": "The heaviest remaining person must go now.",
+      "approach": "If lightest+heaviest fits, pair them; otherwise heaviest goes alone. Sort O(n log n), scan O(n). Assumes at most two per boat and every person individually fits."
+    }
+  ],
+  "quiz": [
+    {
+      "question": "For sorted pair sum, the current sum is too small. Which move is justified?",
+      "choices": [
+        "Decrease right",
+        "Increase left",
+        "Move either endpoint arbitrarily"
+      ],
+      "answer": 1,
+      "explanation": "Keeping the current left value with any smaller right value can only decrease the sum, so that left endpoint has no remaining valid partner."
+    },
+    {
+      "question": "For unique Three Sum value triples, when should duplicate endpoint values be skipped?",
+      "choices": [
+        "After recording a matching triple",
+        "Never",
+        "Before checking any pair, remove all repeated values from the array"
+      ],
+      "answer": 0,
+      "explanation": "After one matching value pair is recorded, equal endpoint values only repeat that triple. Globally removing duplicates would lose valid triples such as [-1,-1,2]."
+    }
+  ],
+  "transfer": {
+    "prompt": "A sorted list of sensor readings must be split into as many disjoint pairs as possible, each with sum at most a limit. Every unpaired reading is allowed. Return the maximum pair count.",
+    "hints": [
+      "Consider the largest remaining reading.",
+      "If it cannot fit with the smallest, can it fit with anyone?"
+    ],
+    "solution": "Use opposite endpoints. If smallest+largest exceeds the limit, discard the largest as unpairable. Otherwise pair them and advance both. An exchange argument shows an optimum can use this pair: if each endpoint was paired elsewhere, re-pair their partners, whose sum is no greater than the original feasible cross-sum. O(n) time and O(1) space; sortedness is required."
+  },
+  "review": [
+    "After one day: derive the maintained state from the brute-force repeated work without looking at code.",
+    "After three days: explain the counterexample to each wrong turn and repair it.",
+    "After one week: solve the transfer problem, state the invariant aloud, and compare both JVM implementations."
+  ],
+  "sources": [
+    {
+      "label": "Pair Sum in Sorted Order",
+      "url": "https://leetcode.com/problems/two-sum-ii-input-array-is-sorted/",
+      "note": "Reference link; not retrieved in this run. Canonical problem statement and constraints; used to identify the technique and offer optional practice, not as evidence of company frequency.",
+      "status": "unverified"
+    },
+    {
+      "label": "Valid Palindrome After At Most One Deletion",
+      "url": "https://leetcode.com/problems/valid-palindrome-ii/",
+      "note": "Reference link; not retrieved in this run. Canonical problem statement and constraints; used to identify the technique and offer optional practice, not as evidence of company frequency.",
+      "status": "unverified"
+    },
+    {
+      "label": "Three Sum Without Duplicate Triples",
+      "url": "https://leetcode.com/problems/3sum/",
+      "note": "Reference link; not retrieved in this run. Canonical problem statement and constraints; used to identify the technique and offer optional practice, not as evidence of company frequency.",
+      "status": "unverified"
+    },
+    {
+      "label": "Trapping Rain Water",
+      "url": "https://leetcode.com/problems/trapping-rain-water/",
+      "note": "Reference link; not retrieved in this run. Canonical problem statement and constraints; used to identify the technique and offer optional practice, not as evidence of company frequency.",
+      "status": "unverified"
+    }
+  ]
+}

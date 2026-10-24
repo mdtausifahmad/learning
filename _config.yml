@@ -1,7 +1,7 @@
 # GitHub Pages (Jekyll) config. index.html is the entry point; every *.md renders
 # through _layouts/default.html (with Mermaid). Course HTML pages are served as-is.
-title: Principal Engineering
-description: Senior → Staff → Principal — playbook, courses and deep dives.
+title: Software Engineering Library
+description: A growing home for software engineering learning — coding, systems, reliability, engineering practice, leadership and career development.
 markdown: kramdown
 kramdown:
   input: GFM
@@ -26,6 +26,12 @@ defaults:
   - scope: { path: "" }
     values: { layout: default }
 exclude:
+  - scripts
+  - coding-interview/GUIDE.md
+  - coding-interview/reference/*.md
+  - coding-interview/content
+  - coding-interview/scripts
+  - coding-interview/AUTHORING.md
   - .idea
   - .claude
   - .impeccable

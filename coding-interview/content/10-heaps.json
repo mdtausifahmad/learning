@@ -1,0 +1,268 @@
+{
+  "id": "10",
+  "slug": "heaps",
+  "title": "Heaps: keep the next winner and forget full order",
+  "group": "Structural patterns",
+  "prerequisites": "Arrays, hashing; Lesson 07 sorted merging; Lesson 08 queues",
+  "estimatedMinutes": 160,
+  "motivation": "Sorting establishes the order of every pair even when a problem needs only the next minimum, a few winners, or a middle boundary. A heap maintains enough partial order to expose one extreme quickly while supporting incremental changes.",
+  "recognition": [
+    "The next action repeatedly consumes the smallest or largest currently available candidate.",
+    "Only k winners matter, and k is much smaller than the full input size.",
+    "Several already sorted streams must become one: only their exposed heads can win next.",
+    "A dynamic median asks for the boundary between a lower half and an upper half, not a fully sorted sequence."
+  ],
+  "mentalModel": "A binary heap is a complete binary tree usually stored in an array. In a min-heap each parent is no larger than its children. Consequently the root is a minimum, but siblings and different subtrees are not sorted. Reading heap storage or iterating a priority queue does not return sorted order. To emit sorted values, repeatedly remove the root. Insertion restores order by moving a new leaf upward; removal replaces the root with a last leaf and moves that value downward. Both need O(log m) work for m stored values because the tree height is logarithmic.\n\nDerive the direction of the heap from what you need to discard. To keep the k largest values, the least desirable retained winner is the smallest of them; a min-heap exposes that eviction boundary. A max-heap of all inputs also works but keeps more state. Before coding, say aloud what the root means. If the root means worst retained winner, a better incoming item replaces it. If it means next output, removing it advances a stream. These are different invariants using the same structure.\n\nFor merging sorted streams, each stream hides a suffix behind its head. Nothing inside that suffix can be smaller than the head, so the global next value must be among the visible heads. Keep at most one entry per nonempty stream, including enough metadata to reveal its successor after removal. The heap eliminates a repeated scan across all stream heads.\n\nTwo heaps maintain a median by separating values rather than sorting them. The lower half is a max-heap, the upper half a min-heap. Every lower value must be at most every upper value. Keep the lower half the same size as the upper half or one larger. Then an odd median is the lower root, and an even median averages the two roots. Balance alone is insufficient if the ordering partition is wrong.\n\nComparators are part of correctness. Comparing integers by subtraction can overflow and reverse their order, so use Integer.compare or compareBy. Never change a heap entry\u2019s priority in place and expect the heap to reorganize itself; remove/reinsert it or use immutable entries and a deliberate stale-entry policy. The foundational top-k exercise below starts around medium because selection and eviction proofs matter more than syntax.",
+  "invariant": "A heap guarantees only its parent-child order and therefore one accessible extreme. The problem-specific invariant must say which candidates are stored, why omitted candidates cannot improve the requested answer, and what the root represents. Charge insert/remove costs to individual candidate events; peak heap size, rather than total input size, determines the logarithmic factor.",
+  "wrongTurns": [
+    {
+      "temptation": "Use a max-heap of k values to keep the k largest by evicting its root.",
+      "counterexample": "With k=2 and retained [10,9], incoming 8 followed by evicting the maximum leaves [9,8], discarding the true largest value 10.",
+      "repair": "Keep a min-heap so the smallest retained winner is evicted."
+    },
+    {
+      "temptation": "Compare heap priorities with a-b.",
+      "counterexample": "a=2147483647 and b=-1 gives overflowed a-b=-2147483648 in Int, incorrectly ordering the larger value first in an ascending comparator.",
+      "repair": "Use comparison APIs and promote sums before arithmetic; do not derive ordering by overflowing subtraction."
+    }
+  ],
+  "diagram": {
+    "caption": "Two heaps expose exactly the two values bordering the median.",
+    "nodes": [
+      "lower max-heap: 1,2,4; root 4",
+      "partition: every lower \u2264 every upper",
+      "upper min-heap: 7,9; root 7",
+      "odd median = lower root = 4"
+    ],
+    "edges": [
+      [
+        0,
+        1,
+        "ordered lower half"
+      ],
+      [
+        1,
+        2,
+        "ordered upper half"
+      ],
+      [
+        0,
+        3,
+        "one extra lower item"
+      ]
+    ]
+  },
+  "trace": [
+    {
+      "state": "Insert 5: lower=[5], upper=[]; median=5",
+      "explanation": "The lower half owns the extra item."
+    },
+    {
+      "state": "Insert 2: lower=[2], upper=[5]; median=3.5",
+      "explanation": "Move the previous lower maximum to upper to restore size balance."
+    },
+    {
+      "state": "Insert 8: lower=[5,2], upper=[8]; median=5",
+      "explanation": "Insert into upper, then transfer its minimum to lower."
+    },
+    {
+      "state": "Insert 1: lower=[2,1], upper=[5,8]; median=3.5",
+      "explanation": "All lower values stay no larger than all upper values while sizes become equal."
+    }
+  ],
+  "problems": [
+    {
+      "title": "Kth largest value, counting duplicates",
+      "difficulty": "Easy to Medium",
+      "statement": "Given non-null Int array a and 1\u2264k\u2264a.length, return the kth largest element with duplicate occurrences counted separately. Reject invalid k; input is unchanged. This is a foundational selection exercise.",
+      "example": "[3,2,1,5,6,4], k=2 returns 5; [5,5,1], k=2 returns 5.",
+      "baseline": "Sort a copy and select index n-k: O(n log n) time and O(n) copied space.",
+      "reasoning": [
+        "After reading a prefix, keep only its largest k values, or all values if fewer than k have arrived. The smallest retained value is the current kth-largest boundary.",
+        "Insert each value into a min-heap. If size exceeds k, remove its minimum. That removed value has at least k retained values no smaller, so it cannot improve the final kth-largest value.",
+        "At the end the heap contains exactly k winners. Its root is the kth largest, even when equal values occur because each occurrence is inserted independently."
+      ],
+      "invariant": "After each input item, the heap is a multiset of the min(k,prefixLength) largest occurrences in that prefix.",
+      "java": "static int kthLargest(int[] a,int k) {\n if(k<1||k>a.length) throw new IllegalArgumentException(\"invalid k\");\n PriorityQueue<Integer> heap=new PriorityQueue<>();\n for(int value:a) {\n  heap.add(value);\n  if(heap.size()>k) heap.remove();\n }\n return heap.element();\n}",
+      "kotlin": "fun kthLargest(a: IntArray, k: Int): Int {\n require(k >= 1 && k <= a.size)\n val heap = PriorityQueue<Int>()\n for (value in a) {\n  heap.add(value)\n  if (heap.size > k) heap.remove()\n }\n return heap.element()\n}",
+      "complexity": "O(n log(k+1)) time and O(k) auxiliary space. The +1 handles k=1 without claiming zero work.",
+      "edgeCases": [
+        "[1],k=1 \u21d2 1",
+        "[5,5,1],k=2 \u21d2 5",
+        "empty array \u21d2 invalid k"
+      ],
+      "twist": "A one-shot in-memory selection can use quickselect for expected O(n) time, but it mutates a copy/input and has different worst-case guarantees. A heap also supports a stream.",
+      "source": "https://leetcode.com/problems/kth-largest-element-in-an-array/",
+      "testJava": "if(kthLargest(new int[]{3,2,1,5,6,4},2)!=5||kthLargest(new int[]{5,5,1},2)!=5||kthLargest(new int[]{Integer.MIN_VALUE},1)!=Integer.MIN_VALUE)throw new AssertionError();",
+      "testKotlin": "check(kthLargest(intArrayOf(3,2,1,5,6,4),2)==5);check(kthLargest(intArrayOf(5,5,1),2)==5);check(kthLargest(intArrayOf(Int.MIN_VALUE),1)==Int.MIN_VALUE)"
+    },
+    {
+      "title": "Top k frequent values with deterministic ties",
+      "difficulty": "Medium",
+      "statement": "Given non-null Int array a and k\u22650, return k distinct values with highest frequency. Break ties by preferring smaller numeric values. Output order is unspecified. k must not exceed the number of distinct values; k=0 returns empty. Input is unchanged.",
+      "example": "[4,4,2,2,9], k=1 returns [2] because 2 and 4 tie and 2 is preferred.",
+      "baseline": "Count then sort all u distinct values by frequency descending and value ascending: O(n+u log u) time/O(u) space.",
+      "reasoning": [
+        "Frequencies are properties of distinct values, so count all occurrences first. A heap of raw occurrences would answer a different question. Each heap entry is a value plus its fixed final count.",
+        "The root must be the worst retained entry: lower frequency is worse; on a tie, larger numeric value is worse. Define both comparator levels explicitly to implement the requested preference.",
+        "Insert all distinct entries and evict whenever size exceeds k. Every evicted entry is no better than all remaining k candidates. Return their values; heap removal order need not match preference order because output order is unspecified."
+      ],
+      "invariant": "The heap contains the k most preferred entries among the distinct values examined, with the least preferred retained entry at its root.",
+      "java": "static int[] topFrequent(int[] a,int k) {\n Map<Integer,Integer> counts=new HashMap<>();\n for(int v:a) counts.merge(v,1,Integer::sum);\n if(k<0||k>counts.size()) throw new IllegalArgumentException(\"invalid k\");\n PriorityQueue<int[]> heap=new PriorityQueue<>((x,y)-> {\n  int c=Integer.compare(x[1],y[1]);\n  return c!=0?c:Integer.compare(y[0],x[0]);\n });\n for(Map.Entry<Integer,Integer> e:counts.entrySet()) {\n  heap.add(new int[]{e.getKey(),e.getValue()});\n  if(heap.size()>k) heap.remove();\n }\n int[] out=new int[k];\n for(int i=0;i<k;i++) out[i]=heap.remove()[0];\n return out;\n}",
+      "kotlin": "fun topFrequent(a: IntArray, k: Int): IntArray {\n val counts = HashMap<Int, Int>()\n for (v in a) counts[v] = (counts[v] ?: 0) + 1\n require(k >= 0 && k <= counts.size)\n val heap = PriorityQueue<IntArray>(Comparator { x, y ->\n  val c = x[1].compareTo(y[1])\n  if (c != 0) c else y[0].compareTo(x[0])\n })\n for ((value, count) in counts) {\n  heap.add(intArrayOf(value, count))\n  if (heap.size > k) heap.remove()\n }\n return IntArray(k) { heap.remove()[0] }\n}",
+      "complexity": "O(n+u log(k+1)) expected time with u distinct values; O(u) count map, O(k) heap, O(k) output.",
+      "edgeCases": [
+        "[],k=0 \u21d2 []",
+        "[1,1,2],k=2 \u21d2 {1,2}",
+        "[Int.MIN_VALUE,Int.MAX_VALUE],k=1 \u21d2 [Int.MIN_VALUE]"
+      ],
+      "twist": "If frequencies change after every event, mutating count fields inside existing heap entries breaks heap order. Use indexed updates or immutable versioned entries plus stale-entry removal.",
+      "source": "https://leetcode.com/problems/top-k-frequent-elements/",
+      "testJava": "if(!Arrays.equals(topFrequent(new int[]{4,4,2,2,9},1),new int[]{2})||topFrequent(new int[0],0).length!=0||!Arrays.equals(topFrequent(new int[]{Integer.MIN_VALUE,Integer.MAX_VALUE},1),new int[]{Integer.MIN_VALUE}))throw new AssertionError();",
+      "testKotlin": "check(topFrequent(intArrayOf(4,4,2,2,9),1).contentEquals(intArrayOf(2)));check(topFrequent(intArrayOf(),0).isEmpty());check(topFrequent(intArrayOf(Int.MIN_VALUE,Int.MAX_VALUE),1).contentEquals(intArrayOf(Int.MIN_VALUE)))"
+    },
+    {
+      "title": "Merge sorted streams",
+      "difficulty": "Hard",
+      "statement": "Given a non-null array of non-null Int arrays, each sorted in nondecreasing order, return all values in sorted order. Arrays may be empty. Input is unchanged. Total result length must fit Int indexing; throw if length overflows. Sortedness is a precondition.",
+      "example": "[[1,4],[1,3,5],[],[2]] returns [1,1,2,3,4,5].",
+      "baseline": "Concatenate then sort: O(N log N) time and O(N) output storage.",
+      "reasoning": [
+        "From each nonempty stream expose only its first unread value. Any hidden value is at least that stream head, so the global minimum must be one exposed head.",
+        "Store (value,row,column) in a min-heap. Remove the smallest entry and append its value. Its successor is now the only new candidate from that stream, so insert that successor if present.",
+        "When the heap empties all streams are exhausted. The emitted sequence is sorted because each emission was the smallest among every unread value, not merely among arbitrary samples."
+      ],
+      "invariant": "The heap contains exactly one head for every stream with unread values, and output is the sorted prefix of all input occurrences.",
+      "java": "static class Entry {\n int value,row,col;\n Entry(int v,int r,int c) { value=v; row=r; col=c; }\n}\nstatic int[] mergeStreams(int[][] streams) {\n int total=0;\n PriorityQueue<Entry> heap=new PriorityQueue<>(Comparator.comparingInt(e->e.value));\n for(int r=0;r<streams.length;r++) {\n  total=Math.addExact(total,streams[r].length);\n  if(streams[r].length>0) heap.add(new Entry(streams[r][0],r,0));\n }\n int[] out=new int[total]; int position=0;\n while(!heap.isEmpty()) {\n  Entry e=heap.remove(); out[position++]=e.value;\n  int next=e.col+1;\n  if(next<streams[e.row].length) heap.add(new Entry(streams[e.row][next],e.row,next));\n }\n return out;\n}",
+      "kotlin": "data class Entry(val value: Int, val row: Int, val col: Int)\nfun mergeStreams(streams: Array<IntArray>): IntArray {\n var total = 0\n val heap = PriorityQueue<Entry>(compareBy { it.value })\n for (r in streams.indices) {\n  total = Math.addExact(total, streams[r].size)\n  if (streams[r].isNotEmpty()) heap.add(Entry(streams[r][0], r, 0))\n }\n val out = IntArray(total)\n var position = 0\n while (heap.isNotEmpty()) {\n  val e = heap.remove()\n  out[position++] = e.value\n  val next = e.col + 1\n  if (next < streams[e.row].size) heap.add(Entry(streams[e.row][next], e.row, next))\n }\n return out\n}",
+      "complexity": "O(k+N log(k+1)) time for k streams and N total items; O(k) auxiliary heap and O(N) output. Entry allocation is O(N) cumulatively.",
+      "edgeCases": [
+        "[] \u21d2 []",
+        "[[],[]] \u21d2 []",
+        "[[2,2],[2]] \u21d2 [2,2,2]"
+      ],
+      "twist": "For lazy or infinite streams return an iterator and read only enough winners for the requested prefix. Equal values need a secondary stream/sequence tie-breaker only if stable identity order is required.",
+      "source": "https://leetcode.com/problems/merge-k-sorted-lists/",
+      "testJava": "if(!Arrays.equals(mergeStreams(new int[][]{{1,4},{1,3,5},{},{2}}),new int[]{1,1,2,3,4,5})||mergeStreams(new int[][]{{},{}}).length!=0)throw new AssertionError();",
+      "testKotlin": "check(mergeStreams(arrayOf(intArrayOf(1,4),intArrayOf(1,3,5),intArrayOf(),intArrayOf(2))).contentEquals(intArrayOf(1,1,2,3,4,5)));check(mergeStreams(arrayOf(intArrayOf(),intArrayOf())).isEmpty())"
+    },
+    {
+      "title": "Median of an insertion-only stream",
+      "difficulty": "Hard",
+      "statement": "Implement add(Int) and median(): Double over all inserted occurrences. Calling median before any insertion throws. Do not discard duplicates. The number of inserted values fits Int; no deletion operation is required.",
+      "example": "After adding 5,2,8,1, medians are 5.0,3.5,5.0,3.5.",
+      "baseline": "Keep a sorted array, inserting by shifting: O(n) insertion, O(1) median, O(n) space.",
+      "reasoning": [
+        "Partition values into lower and upper halves. A max-heap exposes the largest lower value and a min-heap exposes the smallest upper value, the only two values relevant to the median.",
+        "Insert relative to the lower root. If lower becomes two larger, move its maximum to upper. If upper becomes larger, move its minimum to lower. These root transfers preserve cross-half ordering.",
+        "For unequal sizes return lower.peek. For equal sizes average the two roots after converting to Long. This avoids Int overflow for two extreme values."
+      ],
+      "invariant": "Every lower value is \u2264every upper value, and lower.size equals upper.size or upper.size+1. Together these establish the middle rank(s).",
+      "java": "static class MedianStream {\n private final PriorityQueue<Integer> lower=new PriorityQueue<>(Comparator.reverseOrder());\n private final PriorityQueue<Integer> upper=new PriorityQueue<>();\n void add(int value) {\n  if(lower.isEmpty()||value<=lower.element()) lower.add(value);\n  else upper.add(value);\n  if(lower.size()>upper.size()+1) upper.add(lower.remove());\n  else if(upper.size()>lower.size()) lower.add(upper.remove());\n }\n double median() {\n  if(lower.isEmpty()) throw new IllegalStateException(\"empty stream\");\n  if(lower.size()>upper.size()) return lower.element();\n  return ((long)lower.element()+upper.element())/2.0;\n }\n}",
+      "kotlin": "class MedianStream {\n private val lower = PriorityQueue<Int>(Comparator.reverseOrder())\n private val upper = PriorityQueue<Int>()\n fun add(value: Int) {\n  if (lower.isEmpty() || value <= lower.element()) lower.add(value)\n  else upper.add(value)\n  if (lower.size > upper.size + 1) upper.add(lower.remove())\n  else if (upper.size > lower.size) lower.add(upper.remove())\n }\n fun median(): Double {\n  check(lower.isNotEmpty()) { \"empty stream\" }\n  if (lower.size > upper.size) return lower.element().toDouble()\n  return (lower.element().toLong() + upper.element()) / 2.0\n }\n}",
+      "complexity": "O(log(n+1)) per insertion, O(1) median, O(n) stored values after n insertions. No sorting is performed.",
+      "edgeCases": [
+        "add(Int.MAX_VALUE) twice \u21d2 median 2147483647.0",
+        "add(Int.MIN_VALUE),add(Int.MAX_VALUE) \u21d2 -0.5",
+        "empty median \u21d2 exception"
+      ],
+      "twist": "A sliding-window median additionally needs removal of expired values. Add identity-aware lazy deletion with logical heap sizes or use balanced multisets; ordinary priority-queue arbitrary removal is O(n).",
+      "source": "https://leetcode.com/problems/find-median-from-data-stream/",
+      "testJava": "MedianStream s=new MedianStream();s.add(5);if(s.median()!=5.0)throw new AssertionError();s.add(2);if(s.median()!=3.5)throw new AssertionError();s.add(8);if(s.median()!=5.0)throw new AssertionError();s.add(1);if(s.median()!=3.5)throw new AssertionError();MedianStream t=new MedianStream();t.add(Integer.MIN_VALUE);t.add(Integer.MAX_VALUE);if(t.median()!=-0.5)throw new AssertionError();",
+      "testKotlin": "val s=MedianStream();s.add(5);check(s.median()==5.0);s.add(2);check(s.median()==3.5);s.add(8);check(s.median()==5.0);s.add(1);check(s.median()==3.5);val t=MedianStream();t.add(Int.MIN_VALUE);t.add(Int.MAX_VALUE);check(t.median()== -0.5)"
+    }
+  ],
+  "practice": [
+    {
+      "title": "Last Stone Weight",
+      "difficulty": "Easy",
+      "url": "https://leetcode.com/problems/last-stone-weight/",
+      "hint": "Repeatedly take the two largest active values.",
+      "approach": "Use a max-heap, remove two, insert positive difference. O(n log n) time/O(n) space; a final empty heap means zero."
+    },
+    {
+      "title": "K Closest Points to Origin",
+      "difficulty": "Medium",
+      "url": "https://leetcode.com/problems/k-closest-points-to-origin/",
+      "hint": "Worst retained distance belongs at the root.",
+      "approach": "Maintain a max-heap of k points by squared distance. O(n log(k+1))/O(k); with unrestricted Int coordinates use BigInteger or a proven safe coordinate bound because two squared Int coordinates can exceed signed Long."
+    },
+    {
+      "title": "Find K Pairs with Smallest Sums",
+      "difficulty": "Medium",
+      "url": "https://leetcode.com/problems/find-k-pairs-with-smallest-sums/",
+      "hint": "Each row of pair sums is a sorted stream.",
+      "approach": "Seed (i,0) for up to k rows of sorted inputs, pop and advance the same row. O(k log(min(k,m)+1)) after seeding; use Long sums and stop at available pairs."
+    },
+    {
+      "title": "Reorganize String",
+      "difficulty": "Medium",
+      "url": "https://leetcode.com/problems/reorganize-string/",
+      "hint": "Choose the most frequent available symbol while withholding the last used one.",
+      "approach": "Max-heap remaining counts; release previous symbol only after choosing a different one. O(n log u)/O(u); impossible when maximum count>(n+1)/2."
+    },
+    {
+      "title": "IPO",
+      "difficulty": "Hard",
+      "url": "https://leetcode.com/problems/ipo/",
+      "hint": "Separate eligibility order from reward order.",
+      "approach": "Sort projects by required capital, insert newly affordable profits into max-heap, select up to k. O(n log n+k log n)/O(n); nonnegative profits justify stopping when none are available."
+    },
+    {
+      "title": "Smallest Range Covering Elements from K Lists",
+      "difficulty": "Hard",
+      "url": "https://leetcode.com/problems/smallest-range-covering-elements-from-k-lists/",
+      "hint": "A heap minimum plus a running maximum describes one covering range.",
+      "approach": "Keep one item per sorted list, update best range, advance the minimum list. Stop when a list ends. O(N log k)/O(k); compare widths using Long."
+    }
+  ],
+  "quiz": [
+    {
+      "question": "What does a min-heap of the k largest values expose?",
+      "choices": [
+        "The largest value overall",
+        "The smallest retained winner, which is the eviction boundary",
+        "The median of all values"
+      ],
+      "answer": 1,
+      "explanation": "The root is intentionally the worst winner; a larger incoming value may replace it."
+    },
+    {
+      "question": "Are balanced two-heap sizes sufficient for a correct median?",
+      "choices": [
+        "Yes",
+        "No, cross-half ordering must also hold",
+        "Only for odd counts"
+      ],
+      "answer": 1,
+      "explanation": "Lower=[100] and upper=[1] have equal sizes but the partition is reversed. Ordering and size must both be invariant."
+    }
+  ],
+  "transfer": {
+    "prompt": "A service reads many sorted files of timestamps and must publish only the first 1000 events globally, preserving source order for equal timestamps. Design the candidate state without loading all files.",
+    "hints": [
+      "Only one unread head per file can win next.",
+      "A deterministic tie rule can include file index and per-file sequence."
+    ],
+    "solution": "Maintain a min-heap of (timestamp,fileId,sequence,event) for one current head per nonempty file. Pop, publish, and read the next record from that file until 1000 events or exhaustion. O(k+1000 log(k+1)) heap work after seeding k files and O(k) memory, excluding output and I/O buffers. The tie key must match the exact meaning of source order; no global stable order exists across different files unless specified."
+  },
+  "review": [
+    "For each heap problem say what the root represents before choosing direction.",
+    "Reconstruct the median invariants and explain each rebalance transfer.",
+    "Explain why changing a stored entry priority silently can corrupt future results."
+  ],
+  "sources": [
+    {
+      "label": "Java PriorityQueue documentation",
+      "url": "https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/PriorityQueue.html",
+      "note": "Reference link; not retrieved in this run. Heap ordering, iterator order, and operation complexity.",
+      "status": "unverified"
+    },
+    {
+      "label": "LeetCode heap catalogue",
+      "url": "https://leetcode.com/tag/heap-priority-queue/",
+      "note": "Reference link; not retrieved in this run. Primary public practice statements; no company frequency inference.",
+      "status": "unverified"
+    }
+  ]
+}

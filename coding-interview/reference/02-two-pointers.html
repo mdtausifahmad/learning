@@ -1,0 +1,31 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="Learn coding interview reasoning from first principles, with Java and Kotlin solutions."><title>Two pointers and safe elimination: retrieval sheet · Coding interview</title><link rel="stylesheet" href="../assets/course.css"><script src="../assets/course.js" defer></script><link rel="stylesheet" href="../../assets/navigation.css">
+</head><body id="page-top">
+<!-- page-navigation:start -->
+<nav class="page-navigation" aria-label="Top page navigation"><div class="page-navigation-parents"><a href="../../index.html">Library home</a> <span aria-hidden="true">›</span> <a href="../../index.html#technical-foundations">Technical foundations and implementation</a> <span aria-hidden="true">›</span> <a href="../index.html">Coding Interviews: Patterns &amp; Problem Solving</a> <span aria-hidden="true">›</span> <a href="index.html">Reference sheets</a></div><div class="page-navigation-sections"><a href="../lessons/index.html">Lessons</a><a href="index.html">Reference sheets</a><a href="../materials.html">Guides and resources</a><a href="#page-top">Back to top ↑</a></div><div class="page-navigation-pager"><a href="01-hashing.html" rel="prev">← Previous: Hashing, complements, and canonical keys: retrieval sheet</a><a href="03-sliding-window.html" rel="next">Next: Sliding windows: expand, repair, and count: retrieval sheet →</a></div></nav>
+<!-- page-navigation:end -->
+<a class="skip" href="#main">Skip to content</a><nav class="top"><a href="../../index.html">Software Engineering Library</a><a href="../index.html">Coding interview</a><a href="../foundations.html">Start from zero</a><a href="../practice.html">Practice room</a><a href="../research.html">Sources</a></nav><main id="main" class="document"><h1>Two pointers and safe elimination: retrieval sheet</h1>
+<h2>Recognition</h2>
+<ul>
+<li>Sorted values plus a pair relation often allow opposite endpoints.</li>
+<li>Symmetric constraints suggest comparing the two ends of an interval.</li>
+<li>A local result limited by the smaller of two known boundaries suggests settling that side.</li>
+</ul>
+<h2>Invariant</h2>
+<p>Before each move, describe the candidates still unresolved. A pointer advances only when a comparison proves that every candidate it abandons is impossible or has been fully accounted for. Termination follows from a decreasing interval or increasing processed region.</p>
+<h2>Failure boundaries</h2>
+<ul>
+<li>Use sorted-pair pointer moves on arbitrary order.: [3,2,4], target 6: 3+4 is too large, moving right loses the valid pair 2+4. Repair: Sort while preserving indices or use hashing.</li>
+<li>At a palindrome mismatch always delete the left character.: &quot;abbab&quot;: deleting rightmost b gives &quot;abba&quot;; deleting leftmost a gives &quot;bbab&quot;, which fails. Repair: Test both possible single deletions.</li>
+<li>For rainwater, sum distances to the nearest taller neighbor.: [3,1,2,0,3] has water limited by the distant height-3 boundaries; nearest local peaks underestimate cells. Repair: Use maximum boundary heights, not nearest neighbors.</li>
+</ul>
+<h2>Recall</h2>
+<ul>
+<li>After one day: derive the maintained state from the brute-force repeated work without looking at code.</li>
+<li>After three days: explain the counterexample to each wrong turn and repair it.</li>
+<li>After one week: solve the transfer problem, state the invariant aloud, and compare both JVM implementations.</li>
+</ul>
+<a href="../lessons/02-two-pointers.html">Return to lesson</a></main><footer>Practice deriving the invariant. Explain why every discarded candidate is safe to discard. <a href="../research.html">Evidence and scope</a></footer><!-- page-navigation:start -->
+<nav class="page-navigation" aria-label="Bottom page navigation"><div class="page-navigation-parents"><a href="../../index.html">Library home</a> <span aria-hidden="true">›</span> <a href="../../index.html#technical-foundations">Technical foundations and implementation</a> <span aria-hidden="true">›</span> <a href="../index.html">Coding Interviews: Patterns &amp; Problem Solving</a> <span aria-hidden="true">›</span> <a href="index.html">Reference sheets</a></div><div class="page-navigation-sections"><a href="../lessons/index.html">Lessons</a><a href="index.html">Reference sheets</a><a href="../materials.html">Guides and resources</a><a href="#page-top">Back to top ↑</a></div><div class="page-navigation-pager"><a href="01-hashing.html" rel="prev">← Previous: Hashing, complements, and canonical keys: retrieval sheet</a><a href="03-sliding-window.html" rel="next">Next: Sliding windows: expand, repair, and count: retrieval sheet →</a></div></nav>
+<!-- page-navigation:end -->
+<script src="../../assets/course/links.js" defer></script>
+</body></html>

@@ -1,0 +1,241 @@
+{
+  "date": "2026-10-24",
+  "verification": "No external source was successfully retrieved. Browser Amazon and shell Microsoft requests failed because the automatic-review model was unavailable. User indicated access/material would be supplied; no primary-source material had arrived at this update. Research remains incomplete; references are an unverified review queue, not evidence reviewed today.",
+  "sources": [
+    {
+      "label": "Amazon SDE II interview preparation",
+      "url": "https://www.amazon.jobs/content/en/how-we-hire/sde-ii-interview-prep",
+      "note": "Candidate company guidance; request failed before retrieval.",
+      "status": "blocked"
+    },
+    {
+      "label": "Amazon software development topics",
+      "url": "https://www.amazon.jobs/content/en/how-we-hire/software-development-topics",
+      "note": "Candidate official topic scope; no contents reviewed.",
+      "status": "unverified"
+    },
+    {
+      "label": "Microsoft technical interviews",
+      "url": "https://careers.microsoft.com/v2/global/en/hiring-tips/technical-interviews.html",
+      "note": "Shell request blocked by unavailable automatic-review model; no current contents reviewed.",
+      "status": "blocked"
+    },
+    {
+      "label": "Google Tech Dev Guide",
+      "url": "https://techdevguide.withgoogle.com/",
+      "note": "Candidate first-party educational resources; not verified as hiring policy.",
+      "status": "unverified"
+    },
+    {
+      "label": "Meta Careers",
+      "url": "https://www.metacareers.com/",
+      "note": "Locate first-party guide; no guide retrieved.",
+      "status": "unverified"
+    },
+    {
+      "label": "LeetCode Top Interview 150",
+      "url": "https://leetcode.com/studyplan/top-interview-150/",
+      "note": "Practice taxonomy reference; not company-frequency evidence.",
+      "status": "unverified"
+    },
+    {
+      "label": "MIT 6.006 Spring 2020",
+      "url": "https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/",
+      "note": "Candidate algorithms foundation reference.",
+      "status": "unverified"
+    },
+    {
+      "label": "Princeton Algorithms",
+      "url": "https://algs4.cs.princeton.edu/home/",
+      "note": "Candidate established algorithms reference.",
+      "status": "unverified"
+    },
+    {
+      "label": "Java 17 API",
+      "url": "https://docs.oracle.com/en/java/javase/17/docs/api/",
+      "note": "Candidate API contract reference.",
+      "status": "unverified"
+    },
+    {
+      "label": "Java 17 expressions",
+      "url": "https://docs.oracle.com/javase/specs/jls/se17/html/jls-15.html",
+      "note": "Candidate integer/shift semantics reference.",
+      "status": "unverified"
+    },
+    {
+      "label": "Kotlin numbers",
+      "url": "https://kotlinlang.org/docs/numbers.html",
+      "note": "Candidate bitwise/numeric semantics reference.",
+      "status": "unverified"
+    },
+    {
+      "label": "Kotlin collections",
+      "url": "https://kotlinlang.org/docs/collections-overview.html",
+      "note": "Candidate collections API reference.",
+      "status": "unverified"
+    },
+    {
+      "label": "Kotlin null safety",
+      "url": "https://kotlinlang.org/docs/null-safety.html",
+      "note": "Candidate nullable contract reference.",
+      "status": "unverified"
+    }
+  ],
+  "findings": [
+    {
+      "claim": "No current company-specific frequency or format claims were verified in this research pass.",
+      "sources": []
+    },
+    {
+      "claim": "Curriculum grouping by maintained state and invariant is an editorial instructional design choice, not an empirical employer question distribution.",
+      "sources": []
+    },
+    {
+      "claim": "A broad coding course cannot guarantee passing every interview.",
+      "sources": []
+    }
+  ],
+  "curriculumMapping": [
+    {
+      "id": "01",
+      "pattern": "Hashing and complements",
+      "state": "A set or map stores exactly the previously useful values, counts, or canonical keys.",
+      "assumption": "Expected hash costs; query before insertion when self-pairing is illegal; a key must preserve required equality.",
+      "practice": "Pair sums \u2192 anagram grouping \u2192 consecutive runs \u2192 in-place membership."
+    },
+    {
+      "id": "02",
+      "pattern": "Two pointers",
+      "state": "A pair of boundaries discards candidates that cannot be part of a better answer.",
+      "assumption": "Sorted order, symmetry, or a proven dominance relation must justify each discarded region.",
+      "practice": "Sorted pair sum \u2192 deletion palindrome \u2192 unique triples \u2192 trapped water."
+    },
+    {
+      "id": "03",
+      "pattern": "Sliding windows",
+      "state": "Maintain statistics over one contiguous region while its boundaries advance.",
+      "assumption": "A shrink rule needs a valid monotonicity argument; signed sums break many nonnegative-sum windows.",
+      "practice": "Fixed sum \u2192 no-repeat substring \u2192 exactly K distinct \u2192 minimum coverage."
+    },
+    {
+      "id": "04",
+      "pattern": "Prefix sums and range counting",
+      "state": "Convert an interval question to a relation between two boundary aggregates.",
+      "assumption": "Empty-prefix seed, update order, normalized negative residues, and arithmetic width matter.",
+      "practice": "Range queries \u2192 balance \u2192 target-sum counts \u2192 bounded range-sum counting."
+    },
+    {
+      "id": "05",
+      "pattern": "Binary search",
+      "state": "Preserve a known answer region while eliminating a provably impossible half.",
+      "assumption": "Sorted structure or a monotone feasibility predicate; exact closed/half-open boundaries.",
+      "practice": "Lower bound \u2192 rotated search \u2192 answer capacity \u2192 two-array median."
+    },
+    {
+      "id": "06",
+      "pattern": "Sorting, intervals, and sweeps",
+      "state": "Expose event order, maintain active ranges, or commit to an exchange-safe schedule.",
+      "assumption": "Closed and half-open endpoints differ; same-coordinate events must be handled consistently.",
+      "practice": "Merge \u2192 insert \u2192 remove overlaps \u2192 skyline."
+    },
+    {
+      "id": "07",
+      "pattern": "Linked lists",
+      "state": "Keep the unprocessed path reachable while rewiring links or comparing relative speeds.",
+      "assumption": "Identity differs from value; acyclic versus cyclic and shared-node contracts change legality.",
+      "practice": "Reverse \u2192 cycle entry \u2192 merge chains \u2192 reverse k-group."
+    },
+    {
+      "id": "08",
+      "pattern": "Stacks, monotonic frontiers, and deques",
+      "state": "Retain unresolved obligations or undominated candidates until their answer is determined.",
+      "assumption": "Strict versus non-strict comparisons and expiration by index affect duplicates.",
+      "practice": "Brackets \u2192 next warmer \u2192 histogram rectangle \u2192 sliding maxima."
+    },
+    {
+      "id": "09",
+      "pattern": "Trees",
+      "state": "Pass inherited constraints down and compact child summaries up.",
+      "assumption": "Proper trees have unique parent paths; arbitrary graph cycles need visited state.",
+      "practice": "Depth \u2192 BST ancestor bounds \u2192 identity LCA \u2192 maximum path sum."
+    },
+    {
+      "id": "10",
+      "pattern": "Heaps and ordered frontiers",
+      "state": "Maintain the next winner or a limited set of current winners.",
+      "assumption": "A heap orders its root, not iteration; comparators and deterministic tie rules must be explicit.",
+      "practice": "Kth selection \u2192 top frequencies \u2192 merge streams \u2192 running median."
+    },
+    {
+      "id": "11",
+      "pattern": "Backtracking",
+      "state": "Explore a decision tree with a reversible partial solution and explicit stopping conditions.",
+      "assumption": "Undo mutations; positive candidates can bound reuse; canonical choices prevent duplicate output.",
+      "practice": "Subsets \u2192 reusable combinations \u2192 distinct permutations \u2192 queens."
+    },
+    {
+      "id": "12",
+      "pattern": "Tries",
+      "state": "Share common prefixes and reject impossible continuations early.",
+      "assumption": "Alphabet and whole-word terminal markers are part of the contract; wildcards branch.",
+      "practice": "Dictionary \u2192 shortest roots \u2192 wildcard lookup \u2192 board dictionary search."
+    },
+    {
+      "id": "13",
+      "pattern": "Graph traversal",
+      "state": "Discover reachable states, components, or equal-edge-cost distance layers.",
+      "assumption": "The state must include all future-relevant facts; mark at discovery for ordinary BFS.",
+      "practice": "Islands \u2192 clone identity graph \u2192 multi-source spread \u2192 word transformation."
+    },
+    {
+      "id": "14",
+      "pattern": "Topology and union-find",
+      "state": "Directed readiness counts produce an order; undirected equivalence classes track connectivity.",
+      "assumption": "DSU is not a directed-cycle test; component roots are representatives and can change.",
+      "practice": "Course feasibility \u2192 course order \u2192 redundant undirected edge \u2192 largest flipped island."
+    },
+    {
+      "id": "15",
+      "pattern": "Weighted shortest paths",
+      "state": "Relax tentative costs using the frontier order justified by the edge weights.",
+      "assumption": "BFS: equal costs; 0-1 BFS: binary costs; Dijkstra: nonnegative; bounded paths require resource state.",
+      "practice": "Minimum edges \u2192 network delay \u2192 bounded flights \u2192 minimum obstacles."
+    },
+    {
+      "id": "16",
+      "pattern": "Greedy reasoning",
+      "state": "Make an irreversible local choice only after proving exchange or dominance.",
+      "assumption": "A locally good-looking rule is not proof; weighted objectives often break unweighted exchanges.",
+      "practice": "Cookie assignment \u2192 reachable frontier \u2192 partition labels \u2192 candy lower bounds."
+    },
+    {
+      "id": "17",
+      "pattern": "Linear dynamic programming",
+      "state": "Merge histories with equivalent remaining choices into prefix or compact recursive states.",
+      "assumption": "State meaning, base cases, unreachable states, and loop direction must match the recurrence.",
+      "practice": "Climbing stairs \u2192 house robber \u2192 minimum coin change \u2192 weighted job scheduling."
+    },
+    {
+      "id": "18",
+      "pattern": "Grid and string dynamic programming",
+      "state": "Two changing boundaries define a subproblem whose smaller neighbors are already solved.",
+      "assumption": "Character representation, empty prefixes, matching semantics, and path-count overflow are explicit.",
+      "practice": "Grid paths \u2192 common subsequence \u2192 edit distance \u2192 full pattern matching."
+    },
+    {
+      "id": "19",
+      "pattern": "Dynamic range queries and ordered counts",
+      "state": "Maintain an aggregate decomposition that supports updates and range queries.",
+      "assumption": "Fenwick and segment-tree operations differ; coordinate compression preserves order, not numeric distances.",
+      "practice": "Dynamic sums \u2192 segment queries \u2192 compressed ranks \u2192 counts of smaller values."
+    },
+    {
+      "id": "20",
+      "pattern": "Bit manipulation and state compression",
+      "state": "Use bit parity for cancellation or a small membership vector for subset states.",
+      "assumption": "XOR retains parity only; signed width and shift semantics matter; 2^n remains exponential.",
+      "practice": "One singleton \u2192 count bits \u2192 two singletons \u2192 minimum XOR assignment."
+    }
+  ],
+  "followUp": "When normal access is restored, follow RESOURCES.md review protocol: company scope, attributable evidence, taxonomy coverage, exact language contracts, link/variant audit, and verified-status updates. Do not bypass the current review failure."
+}

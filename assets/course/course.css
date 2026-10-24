@@ -1,5 +1,5 @@
 /* ===========================================================================
-   Principal Engineering courses — shared lesson stylesheet
+   Software Engineering Library courses — shared lesson stylesheet
    Tufte-inspired: readable serif body, generous margins, print-friendly.
    Linked by every lesson, reference sheet and course map in every topic, so all
    courses read like one coherent book. Each topic adds its identity colours in
@@ -433,3 +433,9 @@ g.sf-actor.sf-active text {
   html { font-size: 16px; }
   body { margin: 2rem auto 4rem; }
 }
+
+/* Shared return path from course maps to the learning library. */
+.library-nav { display: flex; flex-wrap: wrap; gap: .6rem 1.2rem; margin-bottom: 2rem; padding-bottom: 1rem; border-bottom: 1px solid var(--rule, #e2e2da); font: .85rem/1.5 -apple-system, system-ui, sans-serif; }
+.library-nav a:first-child { margin-right: auto; font-weight: 600; }
+@media (max-width: 620px) { .library-nav a:first-child { flex-basis: 100%; } }
+@media print { .library-nav { display: none; } }

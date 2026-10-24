@@ -1,0 +1,198 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="Learn coding interview reasoning from first principles, with Java and Kotlin solutions."><title>Linked lists: preserve the path while changing links · Coding interview</title><link rel="stylesheet" href="../assets/course.css"><script src="../assets/course.js" defer></script><link rel="stylesheet" href="../../assets/navigation.css">
+</head><body id="page-top">
+<!-- page-navigation:start -->
+<nav class="page-navigation" aria-label="Top page navigation"><div class="page-navigation-parents"><a href="../../index.html">Library home</a> <span aria-hidden="true">›</span> <a href="../../index.html#technical-foundations">Technical foundations and implementation</a> <span aria-hidden="true">›</span> <a href="../index.html">Coding Interviews: Patterns &amp; Problem Solving</a> <span aria-hidden="true">›</span> <a href="index.html">Lessons</a></div><div class="page-navigation-sections"><a href="index.html">Lessons</a><a href="../reference/index.html">Reference sheets</a><a href="../materials.html">Guides and resources</a><a href="#page-top">Back to top ↑</a></div><div class="page-navigation-pager"><a href="06-sorting-intervals.html" rel="prev">← Previous: Sorting, intervals, scheduling, and sweep lines</a><a href="08-stacks-queues.html" rel="next">Next: Stacks, monotonic frontiers, and deques →</a></div></nav>
+<!-- page-navigation:end -->
+<a class="skip" href="#main">Skip to content</a><nav class="top"><a href="../../index.html">Software Engineering Library</a><a href="../index.html">Coding interview</a><a href="../foundations.html">Start from zero</a><a href="../practice.html">Practice room</a><a href="../research.html">Sources</a></nav><div class="layout"><aside class="rail"><a href="../index.html">Course map</a><p>Learning sequence</p><ol><li><a  href="01-hashing.html">Hashing, complements, and canonical keys</a></li><li><a  href="02-two-pointers.html">Two pointers and safe elimination</a></li><li><a  href="03-sliding-window.html">Sliding windows: expand, repair, and count</a></li><li><a  href="04-prefix-sums.html">Prefix sums, balance, and range counting</a></li><li><a  href="05-binary-search.html">Binary search on positions, structure, and answers</a></li><li><a  href="06-sorting-intervals.html">Sorting, intervals, scheduling, and sweep lines</a></li><li><a aria-current="page" href="07-linked-lists.html">Linked lists: preserve the path while changing links</a></li><li><a  href="08-stacks-queues.html">Stacks, monotonic frontiers, and deques</a></li><li><a  href="09-trees.html">Trees: decide what crosses each parent-child boundary</a></li><li><a  href="10-heaps.html">Heaps: keep the next winner and forget full order</a></li><li><a  href="11-backtracking.html">Backtracking: enumerate choices with a reversible state</a></li><li><a  href="12-tries.html">Tries: share prefixes and prune impossible continuations</a></li><li><a  href="13-graph-traversal.html">Graphs: reachability and shortest unweighted paths</a></li><li><a  href="14-topology-union-find.html">Dependency order and dynamic connectivity</a></li><li><a  href="15-shortest-paths.html">Shortest paths: matching the frontier to edge costs</a></li><li><a  href="16-greedy.html">Greedy choices and exchange arguments</a></li><li><a  href="17-dp-linear.html">Linear dynamic programming: decisions, states, and dependencies</a></li><li><a  href="18-dp-grids-strings.html">Dynamic programming on grids and strings</a></li><li><a  href="19-range-queries.html">Range queries: precompute reusable pieces, then update only dependencies</a></li><li><a  href="20-bit-manipulation.html">Bit manipulation and state compression</a></li></ol></aside><main id="main" class="lesson"><header><p class="sequence">Pattern 07 / Structural patterns</p><h1>Linked lists: preserve the path while changing links</h1><p class="lede">An array tells you where element i lives. A linked list gives you only an entry reference and one next reference at each node. The challenge is to rearrange connections without losing access to unfinished work. Dummy nodes, three-reference reversal, and unequal-speed pointers turn fragile special cases into repeatable reasoning.</p><p class="muted">Prerequisites: References, loops, arrays; Lesson 02 two pointers. Suggested study block: 150 minutes, excluding extra practice.</p><nav class="lesson-jumps"><a href="#model">Build the model</a><a href="#worked">Worked problems</a><a href="#practice">Practice ladder</a><a href="#transfer">Unseen transfer</a></nav></header><section id="model"><h2>Build the idea from zero</h2><p>A node is an object, and a reference is a handle to that object. Two references can identify the same node even when many nodes have equal values. Drawing only the values hides this distinction: write A(5), B(5) when identity matters. The variable head is an entry handle; moving a local cursor does not move the actual nodes. Assigning node.next changes the graph and can disconnect an entire suffix.</p>
+<p>Start every pointer problem by drawing the edges you intend to replace. For reversal, current points into the unprocessed suffix and previous points into the already reversed prefix. Before redirecting current.next, save its old target. This temporary reference is the only remaining entry to the suffix after the edge changes. Then advance the two region boundaries. The operation is constant work per node because no node needs a random lookup.</p>
+<p>A dummy node is an artificial predecessor whose next initially points to the real head. Removing or inserting at the beginning then uses exactly the same rule as removing or inserting later. The returned answer is dummy.next; the artificial node is never part of the result. A tail reference is a different role: it identifies where the next output node should be attached. Do not mix the two roles just because both are references.</p>
+<p>Fast and slow pointers measure relative distance. On an acyclic chain, a pointer advancing twice per iteration reaches the end when the other is around the midpoint. Inside a cycle of length c, their relative position advances by one modulo c, so they eventually meet. Identity comparison detects that meeting; equal payloads provide no evidence. For a cycle entry, resetting one cursor to head after a meeting and moving both one step uses the equation between distance to entry and distance traveled around the cycle.</p>
+<p>Build harder transformations by identifying a bounded segment, proving that segment exists, transforming it, and reconnecting its two boundaries. Never start modifying a group before knowing whether an incomplete trailing group must remain intact.</p>
+<h3>When to consider it</h3><ul><li><p>The input consists of node references and next links; changing connectivity can replace expensive copying.</p>
+</li><li><p>An operation treats the first node differently: a dummy predecessor can make the first position ordinary.</p>
+</li><li><p>A cycle or unknown midpoint asks about relative progress along one successor chain.</p>
+</li><li><p>Sorted chains must be combined while preserving their internal order: compare their current heads.</p>
+</li></ul><div class="proof"><h3>The invariant</h3><p>Maintain explicit reachability: every original node belongs to either the completed result or an unfinished region reachable through a saved reference. No node may silently disappear, and no unintended cycle may appear. For each operation, state which predecessor and successor remain fixed. Termination follows because the unfinished region shrinks or a cursor progresses toward an end; cycle algorithms instead use finite modular positions.</p>
+</div><figure><div class="diagram-scroll"><svg viewBox="0 0 760 180" role="img" aria-label="One reversal step preserves an entry to both regions before changing the edge."><defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#3a677e"/></marker></defs><path d="M365,72 Q385,72 405,72" stroke="#3a677e" fill="none" marker-end="url(#arrow)"/><text x="385" y="46" text-anchor="middle" font-size="12">save old next</text><path d="M365,72 Q195,15 25,72" stroke="#3a677e" fill="none" marker-end="url(#arrow)"/><text x="195" y="20" text-anchor="middle" font-size="12">redirect next</text><path d="M745,72 Q575,15 405,72" stroke="#3a677e" fill="none" marker-end="url(#arrow)"/><text x="575" y="20" text-anchor="middle" font-size="12">advance current to saved</text><rect x="25" y="52" width="150" height="66" rx="8" fill="#e9f1f6" stroke="#52748b"/><foreignObject x="30" y="57" width="140" height="60"><div xmlns="http://www.w3.org/1999/xhtml" style="font:14px system-ui;text-align:center;line-height:1.3;padding:5px;color:#203447">previous: 2→1→null</div></foreignObject><rect x="215" y="52" width="150" height="66" rx="8" fill="#e9f1f6" stroke="#52748b"/><foreignObject x="220" y="57" width="140" height="60"><div xmlns="http://www.w3.org/1999/xhtml" style="font:14px system-ui;text-align:center;line-height:1.3;padding:5px;color:#203447">current: 3</div></foreignObject><rect x="405" y="52" width="150" height="66" rx="8" fill="#e9f1f6" stroke="#52748b"/><foreignObject x="410" y="57" width="140" height="60"><div xmlns="http://www.w3.org/1999/xhtml" style="font:14px system-ui;text-align:center;line-height:1.3;padding:5px;color:#203447">saved: 4→5→null</div></foreignObject><rect x="595" y="52" width="150" height="66" rx="8" fill="#e9f1f6" stroke="#52748b"/><foreignObject x="600" y="57" width="140" height="60"><div xmlns="http://www.w3.org/1999/xhtml" style="font:14px system-ui;text-align:center;line-height:1.3;padding:5px;color:#203447">after: 3→2→1→null</div></foreignObject></svg></div><figcaption>One reversal step preserves an entry to both regions before changing the edge.</figcaption></figure></section><section><h2>Follow a concrete execution</h2><div class="trace" data-trace><script type="application/json">[{"state":"previous=null; current=A→B→C","explanation":"The completed prefix is empty; the entire input is still reachable."},{"state":"saved=B; A.next=null; previous=A; current=B","explanation":"Saving B before redirection preserves the suffix."},{"state":"saved=C; B.next=A; previous=B→A; current=C","explanation":"Exactly one node moves from unfinished suffix to reversed prefix."},{"state":"previous=C→B→A; current=null","explanation":"The suffix is empty, so previous is the new head."}]</script><p class="trace-count" aria-live="polite"></p><pre class="trace-state"></pre><p class="trace-explanation"></p><div class="trace-controls"><button type="button" data-step="-1">Previous state</button><button type="button" data-step="1">Next state</button><button type="button" data-reset>Reset</button></div></div></section><section><h2>Where the idea breaks</h2><details class="trap"><summary>Overwrite next and then advance through next.</summary><h4>Counterexample</h4><p>On A→B→C, setting A.next=null before saving B makes A.next lead nowhere; B and C are lost to the algorithm.</p>
+<h4>Repair the reasoning</h4><p>Save next=A.next before every destructive redirect, then advance using the saved reference.</p>
+</details><details class="trap"><summary>Detect a cycle by comparing node values.</summary><h4>Counterexample</h4><p>A(7)→B(7)→null has repeated values but no cycle. Value equality would incorrectly return true.</p>
+<h4>Repair the reasoning</h4><p>Compare reference identity: Java slow==fast; Kotlin slow===fast.</p>
+</details></section><section id="worked"><h2>Worked problem ladder</h2><p>Read the contract, draw a small example, and write a baseline before revealing the derivation. Code snippets include helpers; downloadable Java files add a class and standard imports. Kotlin files add imports. Input contracts are part of the solution.</p><article class="problem" id="problem-1"><div class="problem-heading"><h3>1. Reverse a chain</h3><span class="difficulty">Easy</span></div><p>Given a nullable head of a finite acyclic singly linked list, reverse the links in place and return the new head. Values are arbitrary Int values; node identity is preserved. Empty input returns null.</p>
+<div class="example"><strong>Example</strong><p>1→2→3 returns 3→2→1, using the original three nodes.</p>
+</div><details><summary>First attempt: the baseline</summary><p>Copy values into an array and rebuild nodes: O(n) time and O(n) extra space; rebuilding violates identity preservation.</p>
+</details><details class="solution"><summary>Reveal the derivation and solutions</summary><h4>Derive it step by step</h4><ol><li><p>First isolate the repeated work: every original edge must point in the opposite direction, but traversal still needs the old edge. Keep previous and current as the two region heads.</p>
+</li><li><p>Save current.next. Redirect current.next toward previous. Move previous to current and current to the saved suffix. This order matters because mutation destroys the old route.</p>
+</li><li><p>When current becomes null all original nodes are in the reversed region. Return previous; returning the original head would return only the last node.</p>
+</li></ol><div class="proof"><strong>Why it works</strong><p>Before each iteration previous is the reversed processed prefix, current is the untouched suffix, and the regions contain every node exactly once.</p>
+</div><div class="language-controls" role="group" aria-label="Solution language"><button type="button" data-lang="java">Java</button><button type="button" data-lang="kotlin">Kotlin</button><button type="button" data-lang="both">Both</button></div><div class="code" data-code="java"><h4>Java</h4><pre><code>static class Node { int val; Node next; Node(int v) { val=v; } }
+static Node reverse(Node head) {
+ Node previous=null, current=head;
+ while (current!=null) {
+  Node saved=current.next; current.next=previous;
+  previous=current; current=saved;
+ }
+ return previous;
+}</code></pre><a download href="../solutions/07-1.java">Download Java snippet</a></div><div class="code" data-code="kotlin"><h4>Kotlin</h4><pre><code>class Node(val value: Int, var next: Node? = null)
+fun reverse(head: Node?): Node? {
+ var previous: Node? = null
+ var current = head
+ while (current != null) {
+  val saved = current.next
+  current.next = previous
+  previous = current
+  current = saved
+ }
+ return previous
+}</code></pre><a download href="../solutions/07-1.kt">Download Kotlin snippet</a></div><h4>Cost and boundaries</h4><p>O(n) time for n nodes; O(1) auxiliary space; no output allocation.</p>
+<ul><li><p>null ⇒ null</p>
+</li><li><p>one node ⇒ same node</p>
+</li><li><p>1→1 ⇒ reversed node identities despite equal values</p>
+</li></ul><h4>Change one assumption</h4><p>Reverse only positions left through right: locate a dummy predecessor, reverse exactly that segment, then reconnect both boundaries. Validate positional bounds before mutation.</p>
+</details><p><a href="https://leetcode.com/problems/reverse-linked-list/" target="_blank" rel="noopener">Original practice problem</a> <label class="solved"><input type="checkbox" data-progress="07-1"> Solved independently</label></p></article><article class="problem" id="problem-2"><div class="problem-heading"><h3>2. Find the entry of a cycle</h3><span class="difficulty">Medium</span></div><p>Given a nullable head whose next references form either a terminating chain or a chain entering a cycle, return the entry node of that cycle by identity; otherwise return null. Do not mutate links.</p>
+<div class="example"><strong>Example</strong><p>A→B→C→D→B returns B. A→B→null returns null.</p>
+</div><details><summary>First attempt: the baseline</summary><p>Store every visited node identity in a hash set: O(n) time and O(n) space.</p>
+</details><details class="solution"><summary>Reveal the derivation and solutions</summary><h4>Derive it step by step</h4><ol><li><p>Move slow one edge and fast two edges while fast and fast.next exist. An end proves no cycle. In a cycle, the relative offset changes by one, guaranteeing a meeting.</p>
+</li><li><p>Let a be the distance to entry and b the distance from entry to meeting. At meeting slow traveled a+b; fast traveled twice that, so a+b is a multiple of the cycle length, allowing extra completed laps.</p>
+</li><li><p>Reset a cursor to head. Advance it and slow one edge together. After a moves, the first reaches the entry and the second advances from offset b to offset b+a≡0. The first identity match is the entry.</p>
+</li></ol><div class="proof"><strong>Why it works</strong><p>Before detection both pointers follow original edges. After a meeting, equally advancing the reset cursor and meeting cursor preserves the modular equation leading to the entry.</p>
+</div><div class="language-controls" role="group" aria-label="Solution language"><button type="button" data-lang="java">Java</button><button type="button" data-lang="kotlin">Kotlin</button><button type="button" data-lang="both">Both</button></div><div class="code" data-code="java"><h4>Java</h4><pre><code>static class Node { int val; Node next; Node(int v) { val=v; } }
+static Node cycleEntry(Node head) {
+ Node slow=head, fast=head;
+ while (fast!=null &amp;&amp; fast.next!=null) {
+  slow=slow.next; fast=fast.next.next;
+  if (slow==fast) {
+   Node p=head;
+   while (p!=slow) { p=p.next; slow=slow.next; }
+   return p;
+  }
+ }
+ return null;
+}</code></pre><a download href="../solutions/07-2.java">Download Java snippet</a></div><div class="code" data-code="kotlin"><h4>Kotlin</h4><pre><code>class Node(val value: Int, var next: Node? = null)
+fun cycleEntry(head: Node?): Node? {
+ var slow = head
+ var fast = head
+ while (fast != null &amp;&amp; fast.next != null) {
+  slow = slow?.next
+  fast = fast.next?.next
+  if (slow === fast) {
+   var p = head
+   while (p !== slow) { p = p?.next; slow = slow?.next }
+   return p
+  }
+ }
+ return null
+}</code></pre><a download href="../solutions/07-2.kt">Download Kotlin snippet</a></div><h4>Cost and boundaries</h4><p>O(n) time and O(1) extra space, where n counts distinct reachable nodes. Detection and entry search each take at most a constant multiple of n steps.</p>
+<ul><li><p>null ⇒ null</p>
+</li><li><p>single self-loop ⇒ that node</p>
+</li><li><p>two equal values without cycle ⇒ null</p>
+</li></ul><h4>Change one assumption</h4><p>If asked for the midpoint of an acyclic list, reuse unequal speeds but define which middle is required for even length; initializing fast=head returns the second middle.</p>
+</details><p><a href="https://leetcode.com/problems/linked-list-cycle-ii/" target="_blank" rel="noopener">Original practice problem</a> <label class="solved"><input type="checkbox" data-progress="07-2"> Solved independently</label></p></article><article class="problem" id="problem-3"><div class="problem-heading"><h3>3. Merge two sorted chains</h3><span class="difficulty">Easy to Medium</span></div><p>Given two nullable, disjoint, acyclic lists sorted in nondecreasing order, splice their existing nodes into one sorted chain. Return its head. This mutates links; shared input nodes are outside the contract. Equal values from the first list should come first.</p>
+<div class="example"><strong>Example</strong><p>1→3 and 1→2 produce 1(first)→1(second)→2→3.</p>
+</div><details><summary>First attempt: the baseline</summary><p>Collect nodes, sort by value, and relink: O((m+n) log(m+n)) time and O(m+n) space.</p>
+</details><details class="solution"><summary>Reveal the derivation and solutions</summary><h4>Derive it step by step</h4><ol><li><p>Sorted order means the smallest remaining value must be at one of the two current heads. Compare only those heads; no scan into their suffixes is necessary.</p>
+</li><li><p>Use a dummy predecessor and a tail. Attach the smaller head, advance that input, then advance tail. Choosing the first input on equality preserves the requested stable tie order.</p>
+</li><li><p>When one input ends, attach the other suffix as a whole. It is already sorted, and all its values are at least the last chosen value. Return dummy.next.</p>
+</li></ol><div class="proof"><strong>Why it works</strong><p>The chain through tail is sorted and contains exactly the consumed nodes; each unconsumed input suffix is still sorted and reachable.</p>
+</div><div class="language-controls" role="group" aria-label="Solution language"><button type="button" data-lang="java">Java</button><button type="button" data-lang="kotlin">Kotlin</button><button type="button" data-lang="both">Both</button></div><div class="code" data-code="java"><h4>Java</h4><pre><code>static class Node { int val; Node next; Node(int v) { val=v; } }
+static Node merge(Node a, Node b) {
+ Node dummy=new Node(0), tail=dummy;
+ while (a!=null &amp;&amp; b!=null) {
+  if (a.val&lt;=b.val) { tail.next=a; a=a.next; }
+  else { tail.next=b; b=b.next; }
+  tail=tail.next;
+ }
+ tail.next=(a!=null?a:b);
+ return dummy.next;
+}</code></pre><a download href="../solutions/07-3.java">Download Java snippet</a></div><div class="code" data-code="kotlin"><h4>Kotlin</h4><pre><code>class Node(val value: Int, var next: Node? = null)
+fun merge(first: Node?, second: Node?): Node? {
+ val dummy = Node(0)
+ var tail = dummy
+ var a = first
+ var b = second
+ while (a != null &amp;&amp; b != null) {
+  if (a.value &lt;= b.value) { tail.next = a; a = a.next }
+  else { tail.next = b; b = b.next }
+  tail = tail.next!!
+ }
+ tail.next = a ?: b
+ return dummy.next
+}</code></pre><a download href="../solutions/07-3.kt">Download Kotlin snippet</a></div><h4>Cost and boundaries</h4><p>O(m+n) time for input lengths m,n; O(1) auxiliary space including one dummy node. Output reuses input nodes.</p>
+<ul><li><p>both null ⇒ null</p>
+</li><li><p>one null ⇒ the other head</p>
+</li><li><p>all equal ⇒ first-list nodes before second-list nodes</p>
+</li></ul><h4>Change one assumption</h4><p>For k sorted lists, the choice has k candidates instead of two; use a min-heap of current heads for O(N log k) time or pairwise merge rounds.</p>
+</details><p><a href="https://leetcode.com/problems/merge-two-sorted-lists/" target="_blank" rel="noopener">Original practice problem</a> <label class="solved"><input type="checkbox" data-progress="07-3"> Solved independently</label></p></article><article class="problem" id="problem-4"><div class="problem-heading"><h3>4. Reverse complete groups of k</h3><span class="difficulty">Hard</span></div><p>Given a finite acyclic list and k≥1, reverse each complete consecutive group of k nodes in place. Leave the final group unchanged if it has fewer than k nodes. Return the resulting head. Throw for k&lt;1.</p>
+<div class="example"><strong>Example</strong><p>1→2→3→4→5 with k=2 returns 2→1→4→3→5.</p>
+</div><details><summary>First attempt: the baseline</summary><p>Store all node references, reorder groups, relink: O(n) time, O(n) auxiliary space.</p>
+</details><details class="solution"><summary>Reveal the derivation and solutions</summary><h4>Derive it step by step</h4><ol><li><p>Place a dummy before head and maintain before, the predecessor of the next group. Walk k edges from before to find the group end before changing anything. If that node is absent, preserve the suffix and finish.</p>
+</li><li><p>Save after=end.next. Reverse the segment with previous initialized to after so that the original first node automatically reconnects to the untouched suffix. Stop when current reaches after by identity.</p>
+</li><li><p>Connect before.next to the old end. The old first node is now the group tail, so make it the next before. Each completed step advances by k nodes, and no incomplete group is mutated.</p>
+</li></ol><div class="proof"><strong>Why it works</strong><p>Everything before before is finalized. The suffix beginning at before.next retains its original internal order until a full group is confirmed; segment reversal preserves the after boundary.</p>
+</div><div class="language-controls" role="group" aria-label="Solution language"><button type="button" data-lang="java">Java</button><button type="button" data-lang="kotlin">Kotlin</button><button type="button" data-lang="both">Both</button></div><div class="code" data-code="java"><h4>Java</h4><pre><code>static class Node { int val; Node next; Node(int v) { val=v; } }
+static Node reverseGroups(Node head, int k) {
+ if (k&lt;1) throw new IllegalArgumentException(&quot;k must be positive&quot;);
+ Node dummy=new Node(0); dummy.next=head; Node before=dummy;
+ while (true) {
+  Node end=before;
+  for (int i=0;i&lt;k &amp;&amp; end!=null;i++) end=end.next;
+  if (end==null) return dummy.next;
+  Node after=end.next, current=before.next, previous=after;
+  while (current!=after) {
+   Node saved=current.next; current.next=previous;
+   previous=current; current=saved;
+  }
+  Node oldFirst=before.next; before.next=end; before=oldFirst;
+ }
+}</code></pre><a download href="../solutions/07-4.java">Download Java snippet</a></div><div class="code" data-code="kotlin"><h4>Kotlin</h4><pre><code>class Node(val value: Int, var next: Node? = null)
+fun reverseGroups(head: Node?, k: Int): Node? {
+ require(k &gt;= 1)
+ val dummy = Node(0, head)
+ var before = dummy
+ while (true) {
+  var end: Node? = before
+  var count = 0
+  while (count &lt; k &amp;&amp; end != null) { end = end?.next; count++ }
+  val groupEnd = end ?: return dummy.next
+  val after = groupEnd.next
+  var current = before.next
+  var previous = after
+  while (current !== after) {
+   val node = current!!
+   val saved = node.next
+   node.next = previous
+   previous = node
+   current = saved
+  }
+  val oldFirst = before.next!!
+  before.next = groupEnd
+  before = oldFirst
+ }
+}</code></pre><a download href="../solutions/07-4.kt">Download Kotlin snippet</a></div><h4>Cost and boundaries</h4><p>O(n) time for n nodes: each complete group is scanned then reversed, and the final probe stops at null. O(1) auxiliary space.</p>
+<ul><li><p>null with k=1 ⇒ null</p>
+</li><li><p>1→2 with k=3 ⇒ unchanged</p>
+</li><li><p>k=1 ⇒ unchanged identities</p>
+</li></ul><h4>Change one assumption</h4><p>Reverse alternating complete groups: keep an additional boolean phase; both phases must use the same completeness check and boundary advancement.</p>
+</details><p><a href="https://leetcode.com/problems/reverse-nodes-in-k-group/" target="_blank" rel="noopener">Original practice problem</a> <label class="solved"><input type="checkbox" data-progress="07-4"> Solved independently</label></p></article></section><section id="practice"><h2>Practice with gradually less help</h2><details class="practice-item"><summary>Remove Nth Node From End <span class="muted">Medium</span></summary><a href="https://leetcode.com/problems/remove-nth-node-from-end-of-list/" target="_blank" rel="noopener">Open problem</a><details><summary>A small hint</summary><p>Keep a gap of n between two cursors starting around a dummy.</p>
+</details><details><summary>Solution outline and cost</summary><p>Advance fast n steps from head, then move fast and a dummy predecessor together; unlink predecessor.next. O(n) time/O(1) space; reject n outside 1..length.</p>
+</details><label><input type="checkbox" data-progress="07-practice-0"> Solved independently</label></details><details class="practice-item"><summary>Palindrome Linked List <span class="muted">Easy</span></summary><a href="https://leetcode.com/problems/palindrome-linked-list/" target="_blank" rel="noopener">Open problem</a><details><summary>A small hint</summary><p>Compare the first half with a reversed second half.</p>
+</details><details><summary>Solution outline and cost</summary><p>Find midpoint, reverse second half, compare, and restore links before returning. O(n) time/O(1) extra; odd middle is ignored.</p>
+</details><label><input type="checkbox" data-progress="07-practice-1"> Solved independently</label></details><details class="practice-item"><summary>Reorder List <span class="muted">Medium</span></summary><a href="https://leetcode.com/problems/reorder-list/" target="_blank" rel="noopener">Open problem</a><details><summary>A small hint</summary><p>Split, reverse, weave.</p>
+</details><details><summary>Solution outline and cost</summary><p>Find first-half tail, detach second half, reverse it, then alternate nodes while saving both next references. O(n) time/O(1) space; detachment avoids a cycle.</p>
+</details><label><input type="checkbox" data-progress="07-practice-2"> Solved independently</label></details><details class="practice-item"><summary>Intersection of Two Linked Lists <span class="muted">Easy</span></summary><a href="https://leetcode.com/problems/intersection-of-two-linked-lists/" target="_blank" rel="noopener">Open problem</a><details><summary>A small hint</summary><p>Equalize total distance without comparing values.</p>
+</details><details><summary>Solution outline and cost</summary><p>For acyclic lists, switch each cursor to the other head at null; both travel m+n edges before meeting or both reaching null. O(m+n)/O(1); cycles require a different contract.</p>
+</details><label><input type="checkbox" data-progress="07-practice-3"> Solved independently</label></details><details class="practice-item"><summary>Copy List with Random Pointer <span class="muted">Medium</span></summary><a href="https://leetcode.com/problems/copy-list-with-random-pointer/" target="_blank" rel="noopener">Open problem</a><details><summary>A small hint</summary><p>A node identity map separates allocation from wiring.</p>
+</details><details><summary>Solution outline and cost</summary><p>Allocate one clone per node, then assign next and random via the map; O(n) time/space. Interleaving clones can reduce auxiliary space but temporarily mutates the source.</p>
+</details><label><input type="checkbox" data-progress="07-practice-4"> Solved independently</label></details><details class="practice-item"><summary>Sort List <span class="muted">Medium</span></summary><a href="https://leetcode.com/problems/sort-list/" target="_blank" rel="noopener">Open problem</a><details><summary>A small hint</summary><p>Merge is the combining operation; midpoint supplies division.</p>
+</details><details><summary>Solution outline and cost</summary><p>Split with slow/fast, recursively sort each half, then merge. O(n log n) time/O(log n) stack; bottom-up merge sort yields O(1) auxiliary space.</p>
+</details><label><input type="checkbox" data-progress="07-practice-5"> Solved independently</label></details></section><section><h2>Check the reasoning</h2><fieldset class="quiz" data-answer="0"><legend>Why initialize previous to after when reversing a bounded group?</legend><label><input type="radio" name="q0" value="0"> It connects the new tail directly to the untouched suffix.</label><label><input type="radio" name="q0" value="1"> It sorts the group.</label><label><input type="radio" name="q0" value="2"> It avoids needing to find the group end.</label><button type="button" data-check>Check reasoning</button><p class="feedback" aria-live="polite" data-explanation="The original first node receives next=after during the first reversal step; completeness still must be checked."></p></fieldset><fieldset class="quiz" data-answer="1"><legend>Two cursors hold nodes with value 9. What proves they met?</legend><label><input type="radio" name="q1" value="0"> Equal values</label><label><input type="radio" name="q1" value="1"> Reference identity</label><label><input type="radio" name="q1" value="2"> Equal distance traveled</label><button type="button" data-check>Check reasoning</button><p class="feedback" aria-live="polite" data-explanation="Different nodes may carry the same value. The cycle proof requires occupying the same object."></p></fieldset></section><section id="transfer"><h2>An unfamiliar version</h2><p>A conveyor log is a chain of event objects. Reverse each consecutive block whose size is specified by the next entry in a size array; leave an incomplete final block untouched. Preserve every event identity. Derive an in-place algorithm.</p>
+<details><summary>Hint 1</summary><p>A block size changes how far you probe, not the reversal primitive.</p>
+</details><details><summary>Hint 2</summary><p>Keep a predecessor and validate the entire block before changing edges.</p>
+</details><details><summary>Derivation</summary><p>Use a dummy and a boundary predecessor. For each positive block size, probe that many nodes; if absent, stop. Save the successor, reverse until that successor, reconnect the predecessor, advance to the old first node. Across processed blocks, each node is scanned at most twice: O(n+s) time for n reachable nodes and s sizes examined, O(1) auxiliary space. Reject nonpositive sizes before mutating if all-or-nothing validation is required.</p>
+</details></section><section><h2>Retrieve it without looking</h2><ul><li><p>Draw reversal with named node identities and identify the reference that would be lost.</p>
+</li><li><p>Prove the cycle-entry reset using distances a,b,c.</p>
+</li><li><p>Implement group reversal without looking at code; state both boundaries first.</p>
+</li></ul><p>Repeat after 1, 3, 7 and 21 days. A check mark records your self-report, not a mastery score. Explain the proof and solve a changed version before calling a pattern fluent.</p></section><section><h2>Sources and further study</h2><ul><li><a href="https://leetcode.com/tag/linked-list/">LeetCode linked-list problem contracts</a>: Reference link; not retrieved in this run. Practice taxonomy and public problem contracts; no company frequency inference.</li><li><a href="https://leetcode.com/problems/linked-list-cycle-ii/">Cycle entry problem</a>: Reference link; not retrieved in this run. Canonical identity-based cycle-entry task.</li></ul><p class="muted">These are reference links. See the research page for live-verification limits and the distinction between a canonical algorithm and a confirmed company question.</p></section><p class="next">Next: <a href="08-stacks-queues.html">Stacks, monotonic frontiers, and deques</a></p></main></div><footer>Practice deriving the invariant. Explain why every discarded candidate is safe to discard. <a href="../research.html">Evidence and scope</a></footer><!-- page-navigation:start -->
+<nav class="page-navigation" aria-label="Bottom page navigation"><div class="page-navigation-parents"><a href="../../index.html">Library home</a> <span aria-hidden="true">›</span> <a href="../../index.html#technical-foundations">Technical foundations and implementation</a> <span aria-hidden="true">›</span> <a href="../index.html">Coding Interviews: Patterns &amp; Problem Solving</a> <span aria-hidden="true">›</span> <a href="index.html">Lessons</a></div><div class="page-navigation-sections"><a href="index.html">Lessons</a><a href="../reference/index.html">Reference sheets</a><a href="../materials.html">Guides and resources</a><a href="#page-top">Back to top ↑</a></div><div class="page-navigation-pager"><a href="06-sorting-intervals.html" rel="prev">← Previous: Sorting, intervals, scheduling, and sweep lines</a><a href="08-stacks-queues.html" rel="next">Next: Stacks, monotonic frontiers, and deques →</a></div></nav>
+<!-- page-navigation:end -->
+<script src="../../assets/course/links.js" defer></script>
+</body></html>

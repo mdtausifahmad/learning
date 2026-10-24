@@ -1,0 +1,34 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="Learn coding interview reasoning from first principles, with Java and Kotlin solutions."><title>Graphs: reachability and shortest unweighted paths: retrieval sheet · Coding interview</title><link rel="stylesheet" href="../assets/course.css"><script src="../assets/course.js" defer></script><link rel="stylesheet" href="../../assets/navigation.css">
+</head><body id="page-top">
+<!-- page-navigation:start -->
+<nav class="page-navigation" aria-label="Top page navigation"><div class="page-navigation-parents"><a href="../../index.html">Library home</a> <span aria-hidden="true">›</span> <a href="../../index.html#technical-foundations">Technical foundations and implementation</a> <span aria-hidden="true">›</span> <a href="../index.html">Coding Interviews: Patterns &amp; Problem Solving</a> <span aria-hidden="true">›</span> <a href="index.html">Reference sheets</a></div><div class="page-navigation-sections"><a href="../lessons/index.html">Lessons</a><a href="index.html">Reference sheets</a><a href="../materials.html">Guides and resources</a><a href="#page-top">Back to top ↑</a></div><div class="page-navigation-pager"><a href="12-tries.html" rel="prev">← Previous: Tries: share prefixes and prune impossible continuations: retrieval sheet</a><a href="14-topology-union-find.html" rel="next">Next: Dependency order and dynamic connectivity: retrieval sheet →</a></div></nav>
+<!-- page-navigation:end -->
+<a class="skip" href="#main">Skip to content</a><nav class="top"><a href="../../index.html">Software Engineering Library</a><a href="../index.html">Coding interview</a><a href="../foundations.html">Start from zero</a><a href="../practice.html">Practice room</a><a href="../research.html">Sources</a></nav><main id="main" class="document"><h1>Graphs: reachability and shortest unweighted paths: retrieval sheet</h1>
+<h2>Recognition</h2>
+<ul>
+<li>An answer depends on what can be reached through local moves: define vertices and edges, even if the input never says graph.</li>
+<li>You need the minimum number of equal-cost moves: FIFO breadth-first search explores distance layers.</li>
+<li>Several sources spread simultaneously: initialize one BFS queue with all sources at distance zero.</li>
+<li>Objects reference one another and can form cycles: store visited identity or an original-to-copy map before following outgoing references.</li>
+</ul>
+<h2>Invariant</h2>
+<p>Every frontier state has already been marked discovered and is reachable from the starting set. Every processed state&#39;s legal neighbors have been discovered. At termination no reachable state can remain undiscovered: on a hypothetical path to one, the first undiscovered state would follow a processed reachable predecessor. For BFS, frontier distances are nondecreasing, and first discovery is a shortest distance because all shorter predecessor layers were processed earlier. This proof assumes equal edge costs. For cloning, the map additionally preserves one distinct copy per discovered original; recording before expansion handles cycles and self-loops.</p>
+<h2>Failure boundaries</h2>
+<ul>
+<li>Use DFS and return the first path as the shortest path.: Edges S-A, A-B, B-T and S-T. DFS taking A first finds length 3 although direct S-T has length 1. Repair: Use BFS for equal-cost edges; use weighted shortest-path methods when costs differ.</li>
+<li>Mark visited only when a node is removed from the queue.: S connects to A and B; both connect to C. A and B can enqueue C before C is processed, repeating its work. A layered graph compounds the duplication. Repair: Mark at enqueue time. The first BFS discovery already has a shortest distance.</li>
+<li>Clone graph nodes by label instead of identity.: Two distinct adjacent objects both labeled 7 collapse into one self-loop if a map keyed only by label is used. Repair: Map original object identity to its one copy.</li>
+</ul>
+<h2>Recall</h2>
+<ul>
+<li>Model a word transformation graph without drawing every possible edge.</li>
+<li>Explain why marking on enqueue prevents duplicate frontier work.</li>
+<li>Derive the simultaneous-spread algorithm from nearest-source distance.</li>
+<li>Show a cyclic two-node graph and the moment each clone enters the map.</li>
+<li>Give a maze where position alone is insufficient state.</li>
+</ul>
+<a href="../lessons/13-graph-traversal.html">Return to lesson</a></main><footer>Practice deriving the invariant. Explain why every discarded candidate is safe to discard. <a href="../research.html">Evidence and scope</a></footer><!-- page-navigation:start -->
+<nav class="page-navigation" aria-label="Bottom page navigation"><div class="page-navigation-parents"><a href="../../index.html">Library home</a> <span aria-hidden="true">›</span> <a href="../../index.html#technical-foundations">Technical foundations and implementation</a> <span aria-hidden="true">›</span> <a href="../index.html">Coding Interviews: Patterns &amp; Problem Solving</a> <span aria-hidden="true">›</span> <a href="index.html">Reference sheets</a></div><div class="page-navigation-sections"><a href="../lessons/index.html">Lessons</a><a href="index.html">Reference sheets</a><a href="../materials.html">Guides and resources</a><a href="#page-top">Back to top ↑</a></div><div class="page-navigation-pager"><a href="12-tries.html" rel="prev">← Previous: Tries: share prefixes and prune impossible continuations: retrieval sheet</a><a href="14-topology-union-find.html" rel="next">Next: Dependency order and dynamic connectivity: retrieval sheet →</a></div></nav>
+<!-- page-navigation:end -->
+<script src="../../assets/course/links.js" defer></script>
+</body></html>

@@ -1,0 +1,225 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="Learn coding interview reasoning from first principles, with Java and Kotlin solutions."><title>Prefix sums, balance, and range counting · Coding interview</title><link rel="stylesheet" href="../assets/course.css"><script src="../assets/course.js" defer></script><link rel="stylesheet" href="../../assets/navigation.css">
+</head><body id="page-top">
+<!-- page-navigation:start -->
+<nav class="page-navigation" aria-label="Top page navigation"><div class="page-navigation-parents"><a href="../../index.html">Library home</a> <span aria-hidden="true">›</span> <a href="../../index.html#technical-foundations">Technical foundations and implementation</a> <span aria-hidden="true">›</span> <a href="../index.html">Coding Interviews: Patterns &amp; Problem Solving</a> <span aria-hidden="true">›</span> <a href="index.html">Lessons</a></div><div class="page-navigation-sections"><a href="index.html">Lessons</a><a href="../reference/index.html">Reference sheets</a><a href="../materials.html">Guides and resources</a><a href="#page-top">Back to top ↑</a></div><div class="page-navigation-pager"><a href="03-sliding-window.html" rel="prev">← Previous: Sliding windows: expand, repair, and count</a><a href="05-binary-search.html" rel="next">Next: Binary search on positions, structure, and answers →</a></div></nav>
+<!-- page-navigation:end -->
+<a class="skip" href="#main">Skip to content</a><nav class="top"><a href="../../index.html">Software Engineering Library</a><a href="../index.html">Coding interview</a><a href="../foundations.html">Start from zero</a><a href="../practice.html">Practice room</a><a href="../research.html">Sources</a></nav><div class="layout"><aside class="rail"><a href="../index.html">Course map</a><p>Learning sequence</p><ol><li><a  href="01-hashing.html">Hashing, complements, and canonical keys</a></li><li><a  href="02-two-pointers.html">Two pointers and safe elimination</a></li><li><a  href="03-sliding-window.html">Sliding windows: expand, repair, and count</a></li><li><a aria-current="page" href="04-prefix-sums.html">Prefix sums, balance, and range counting</a></li><li><a  href="05-binary-search.html">Binary search on positions, structure, and answers</a></li><li><a  href="06-sorting-intervals.html">Sorting, intervals, scheduling, and sweep lines</a></li><li><a  href="07-linked-lists.html">Linked lists: preserve the path while changing links</a></li><li><a  href="08-stacks-queues.html">Stacks, monotonic frontiers, and deques</a></li><li><a  href="09-trees.html">Trees: decide what crosses each parent-child boundary</a></li><li><a  href="10-heaps.html">Heaps: keep the next winner and forget full order</a></li><li><a  href="11-backtracking.html">Backtracking: enumerate choices with a reversible state</a></li><li><a  href="12-tries.html">Tries: share prefixes and prune impossible continuations</a></li><li><a  href="13-graph-traversal.html">Graphs: reachability and shortest unweighted paths</a></li><li><a  href="14-topology-union-find.html">Dependency order and dynamic connectivity</a></li><li><a  href="15-shortest-paths.html">Shortest paths: matching the frontier to edge costs</a></li><li><a  href="16-greedy.html">Greedy choices and exchange arguments</a></li><li><a  href="17-dp-linear.html">Linear dynamic programming: decisions, states, and dependencies</a></li><li><a  href="18-dp-grids-strings.html">Dynamic programming on grids and strings</a></li><li><a  href="19-range-queries.html">Range queries: precompute reusable pieces, then update only dependencies</a></li><li><a  href="20-bit-manipulation.html">Bit manipulation and state compression</a></li></ol></aside><main id="main" class="lesson"><header><p class="sequence">Pattern 04 / Linear data</p><h1>Prefix sums, balance, and range counting</h1><p class="lede">A prefix is everything before a boundary. Define P[0]=0 and P[i+1]=P[i]+a[i]. P[i] is the sum of exactly the first i elements, so the half-open range [l,r) has sum P[r]-P[l]. The empty prefix is a real state, not a special trick: it allows ranges beginning at zero to obey the same formula as every other range. Drawing boundaries between elements often prevents the off-by-one mistakes that arise when prefixes are described vaguely as sums up to an index.</p><p class="muted">Prerequisites: Lesson 00; arrays, loops, functions, and Big-O. Suggested study block: 150 minutes, excluding extra practice.</p><nav class="lesson-jumps"><a href="#model">Build the model</a><a href="#worked">Worked problems</a><a href="#practice">Practice ladder</a><a href="#transfer">Unseen transfer</a></nav></header><section id="model"><h2>Build the idea from zero</h2><p>A prefix is everything before a boundary. Define P[0]=0 and P[i+1]=P[i]+a[i]. P[i] is the sum of exactly the first i elements, so the half-open range [l,r) has sum P[r]-P[l]. The empty prefix is a real state, not a special trick: it allows ranges beginning at zero to obey the same formula as every other range. Drawing boundaries between elements often prevents the off-by-one mistakes that arise when prefixes are described vaguely as sums up to an index.</p>
+<p>Begin with repeated static range queries. Computing every query by a loop repeats addition over overlapping ranges. One linear preprocessing pass stores cumulative sums, then each query needs two lookups and one subtraction. This works because addition has an inverse. Minimum does not: knowing the minimum of a large prefix and a smaller prefix does not reveal the minimum of their difference. For mutable input, changing one element invalidates many ordinary prefixes; Fenwick trees or segment trees provide a different update/query tradeoff.</p>
+<p>Now turn the representation around. Instead of asking for the sum of a known range, ask which earlier boundary creates a desired range ending here. The equation P[r]-P[l]=k becomes P[l]=P[r]-k. A hash map can count earlier prefixes with exactly that value. Query before inserting P[r], because l must be strictly earlier for a nonempty range. Insert the empty prefix with count one so a range beginning at zero is counted naturally. Unlike a positive-sum sliding window, this equation remains correct when values are negative.</p>
+<p>The value stored per prefix depends on the objective. A count answers how many ranges. The earliest index gives the longest range. The latest index gives the shortest nonempty range, with careful query-before-update order. The map key may change too: divisibility of a range sum by k means the two prefixes have the same remainder modulo k. Normalize negative remainders so mathematically equal residue classes share a key on the JVM.</p>
+<p>An equilibrium index is a local application of the same decomposition. Let left be the sum strictly before the index, total the whole-array sum, and x the current value. The right sum is total-left-x. Check equality before adding x to left. The difference between before and through is the entire source of many bugs.</p>
+<p>The advanced range-sum-count problem asks for a whole interval of eligible prefix values rather than one equality. Hashing is no longer sufficient. Divide-and-conquer sorts prefix values in each half while preserving the distinction between earlier left-half boundaries and later right-half boundaries. Two moving bounds count right values whose difference lies in [lower,upper], then a merge prepares the next level. This connects prefix representation to ordered counting: derive the equation first, then choose the data structure that answers it.</p>
+<h3>When to consider it</h3><ul><li><p>Many static range-sum queries suggest one cumulative preprocessing pass.</p>
+</li><li><p>A subarray sum constraint can be rewritten as a relation between two prefixes.</p>
+</li><li><p>Divisibility means equality of normalized residues, even with negative values.</p>
+</li></ul><div class="proof"><h3>The invariant</h3><p>A prefix is tied to a boundary, not vaguely to an element. Store P[0]=0; after consuming i values, P[i] is their exact sum. For counting, only earlier eligible boundaries belong in the query state. Translate the range condition algebraically before choosing equality hashing or ordered counting.</p>
+</div><figure><div class="diagram-scroll"><svg viewBox="0 0 760 180" role="img" aria-label="A range is the difference between two cumulative boundary sums."><defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#3a677e"/></marker></defs><path d="M175,72 Q195,72 215,72" stroke="#3a677e" fill="none" marker-end="url(#arrow)"/><text x="195" y="46" text-anchor="middle" font-size="12">one cumulative pass</text><path d="M365,72 Q385,72 405,72" stroke="#3a677e" fill="none" marker-end="url(#arrow)"/><text x="385" y="46" text-anchor="middle" font-size="12">inclusive end becomes boundary r+1</text><path d="M555,72 Q575,72 595,72" stroke="#3a677e" fill="none" marker-end="url(#arrow)"/><text x="575" y="46" text-anchor="middle" font-size="12">cancel the shared prefix</text><rect x="25" y="52" width="150" height="66" rx="8" fill="#e9f1f6" stroke="#52748b"/><foreignObject x="30" y="57" width="140" height="60"><div xmlns="http://www.w3.org/1999/xhtml" style="font:14px system-ui;text-align:center;line-height:1.3;padding:5px;color:#203447">Array [2, −1, 4, 3]</div></foreignObject><rect x="215" y="52" width="150" height="66" rx="8" fill="#e9f1f6" stroke="#52748b"/><foreignObject x="220" y="57" width="140" height="60"><div xmlns="http://www.w3.org/1999/xhtml" style="font:14px system-ui;text-align:center;line-height:1.3;padding:5px;color:#203447">Boundary prefixes [0, 2, 1, 5, 8]</div></foreignObject><rect x="405" y="52" width="150" height="66" rx="8" fill="#e9f1f6" stroke="#52748b"/><foreignObject x="410" y="57" width="140" height="60"><div xmlns="http://www.w3.org/1999/xhtml" style="font:14px system-ui;text-align:center;line-height:1.3;padding:5px;color:#203447">Query indices [1,3] = boundaries [1,4)</div></foreignObject><rect x="595" y="52" width="150" height="66" rx="8" fill="#e9f1f6" stroke="#52748b"/><foreignObject x="600" y="57" width="140" height="60"><div xmlns="http://www.w3.org/1999/xhtml" style="font:14px system-ui;text-align:center;line-height:1.3;padding:5px;color:#203447">P[4] − P[1] = 8 − 2 = 6</div></foreignObject></svg></div><figcaption>A range is the difference between two cumulative boundary sums.</figcaption></figure></section><section><h2>Follow a concrete execution</h2><div class="trace" data-trace><script type="application/json">[{"state":"a=[1,-1,0],k=0; prefix=0; freq={0:1}; answer=0","explanation":"The empty boundary is eligible before any element."},{"state":"After 1: prefix=1; query freq[1]=0; freq={0:1,1:1}","explanation":"No zero-sum range ends at the first item."},{"state":"After -1: prefix=0; add freq[0]=1; freq={0:2,1:1}; answer=1","explanation":"The first two values sum to zero."},{"state":"After 0: prefix=0; add freq[0]=2; answer=3","explanation":"Two earlier zero prefixes produce [0] and [1,-1,0]."}]</script><p class="trace-count" aria-live="polite"></p><pre class="trace-state"></pre><p class="trace-explanation"></p><div class="trace-controls"><button type="button" data-step="-1">Previous state</button><button type="button" data-step="1">Next state</button><button type="button" data-reset>Reset</button></div></div></section><section><h2>Where the idea breaks</h2><details class="trap"><summary>Forget the empty prefix.</summary><h4>Counterexample</h4><p>[3], k=3: there is no previously stored prefix 0, so the only valid range is missed.</p>
+<h4>Repair the reasoning</h4><p>Seed frequency[0]=1 or prefix index 0 before scanning.</p>
+</details><details class="trap"><summary>Insert the current prefix before counting matches.</summary><h4>Counterexample</h4><p>[5],k=0: the current prefix matches itself, incorrectly counting an empty subarray.</p>
+<h4>Repair the reasoning</h4><p>Query first, then insert.</p>
+</details><details class="trap"><summary>Compare raw JVM negative remainders.</summary><h4>Counterexample</h4><p>[-1,2], k=2 has prefixes with raw residues -1 and 1; their difference is divisible by 2, but raw equality misses [2].</p>
+<h4>Repair the reasoning</h4><p>Normalize remainders into 0..k-1 using floorMod.</p>
+</details></section><section id="worked"><h2>Worked problem ladder</h2><p>Read the contract, draw a small example, and write a baseline before revealing the derivation. Code snippets include helpers; downloadable Java files add a class and standard imports. Kotlin files add imports. Input contracts are part of the solution.</p><article class="problem" id="problem-1"><div class="problem-heading"><h3>1. Immutable Range Sum Queries</h3><span class="difficulty">Easy</span></div><p>Given a non-null int array and non-null queries [l,r] with 0&lt;=l&lt;=r&lt;n, return a long sum for each inclusive range. Invalid query bounds throw IllegalArgumentException. Empty arrays may have zero queries. Input is unchanged.</p>
+<div class="example"><strong>Example</strong><p>a=[2,-1,4,3], queries=[[0,2],[1,3]] =&gt; [5,6].</p>
+</div><details><summary>First attempt: the baseline</summary><p>Sum each range independently: O(qn) worst-case time and O(q) output.</p>
+</details><details class="solution"><summary>Reveal the derivation and solutions</summary><h4>Derive it step by step</h4><ol><li><p>Build a long prefix array of length n+1 with prefix[0]=0.</p>
+</li><li><p>Translate inclusive [l,r] into boundaries l and r+1. Subtract prefix[l] from prefix[r+1].</p>
+</li><li><p>Validate bounds before indexing. Each output is exact because the common first l terms cancel.</p>
+</li></ol><div class="proof"><strong>Why it works</strong><p>prefix[i] equals the sum of a[0..i), so subtraction removes exactly the elements outside a queried interval.</p>
+</div><div class="language-controls" role="group" aria-label="Solution language"><button type="button" data-lang="java">Java</button><button type="button" data-lang="kotlin">Kotlin</button><button type="button" data-lang="both">Both</button></div><div class="code" data-code="java"><h4>Java</h4><pre><code>static long[] rangeSums(int[] a,int[][] queries) {
+    long[] prefix=new long[a.length+1];
+    for(int i=0;i&lt;a.length;i++) prefix[i+1]=prefix[i]+a[i];
+    long[] ans=new long[queries.length];
+    for(int i=0;i&lt;queries.length;i++) {
+        int l=queries[i][0],r=queries[i][1];
+        if(l&lt;0 || l&gt;r || r&gt;=a.length) throw new IllegalArgumentException(&quot;bounds&quot;);
+        ans[i]=prefix[r+1]-prefix[l];
+    }
+    return ans;
+}</code></pre><a download href="../solutions/04-1.java">Download Java snippet</a></div><div class="code" data-code="kotlin"><h4>Kotlin</h4><pre><code>fun rangeSums(a: IntArray, queries: Array&lt;IntArray&gt;): LongArray {
+    val prefix = LongArray(a.size + 1)
+    for (i in a.indices) prefix[i + 1] = prefix[i] + a[i]
+    return LongArray(queries.size) { i -&gt;
+        val l = queries[i][0]; val r = queries[i][1]
+        require(l &gt;= 0 &amp;&amp; l &lt;= r &amp;&amp; r &lt; a.size) { &quot;bounds&quot; }
+        prefix[r + 1] - prefix[l]
+    }
+}</code></pre><a download href="../solutions/04-1.kt">Download Kotlin snippet</a></div><h4>Cost and boundaries</h4><p>O(n+q) time, O(n) auxiliary prefix space, plus O(q) output; query rows must contain exactly two entries.</p>
+<ul><li><p>a=[],queries=[] =&gt; []</p>
+</li><li><p>a=[5],queries=[[0,0]] =&gt; [5]</p>
+</li><li><p>[2147483647,2147483647],query=[0,1] =&gt; 4294967294</p>
+</li></ul><h4>Change one assumption</h4><p>With point updates between queries, ordinary prefixes become expensive to maintain. A Fenwick tree supports updates and range sums in O(log n), with O(n) storage.</p>
+</details><p><a href="https://leetcode.com/problems/range-sum-query-immutable/" target="_blank" rel="noopener">Original practice problem</a> <label class="solved"><input type="checkbox" data-progress="04-1"> Solved independently</label></p></article><article class="problem" id="problem-2"><div class="problem-heading"><h3>2. Find the Leftmost Equilibrium Index</h3><span class="difficulty">Easy</span></div><p>Given a non-null int array, return the smallest index whose elements strictly to the left and right have equal sums, or -1. Empty sides have sum 0. Input is unchanged.</p>
+<div class="example"><strong>Example</strong><p>[1,7,3,6,5,6] =&gt; 3 because both side sums are 11.</p>
+</div><details><summary>First attempt: the baseline</summary><p>For each index sum both sides: O(n²) time/O(1) space.</p>
+</details><details class="solution"><summary>Reveal the derivation and solutions</summary><h4>Derive it step by step</h4><ol><li><p>Compute total once in long. Keep left=0 before examining index 0.</p>
+</li><li><p>At i, derive right=total-left-a[i]. Compare left and right before adding the current element.</p>
+</li><li><p>Return the first match; otherwise advance left by a[i].</p>
+</li></ol><div class="proof"><strong>Why it works</strong><p>Before index i, left is exactly the sum of indices below i; total-left-a[i] is exactly the sum of indices above i.</p>
+</div><div class="language-controls" role="group" aria-label="Solution language"><button type="button" data-lang="java">Java</button><button type="button" data-lang="kotlin">Kotlin</button><button type="button" data-lang="both">Both</button></div><div class="code" data-code="java"><h4>Java</h4><pre><code>static int pivotIndex(int[] a) {
+    long total=0,left=0; for(int x:a) total+=x;
+    for(int i=0;i&lt;a.length;i++) {
+        if(left==total-left-a[i]) return i;
+        left+=a[i];
+    }
+    return -1;
+}</code></pre><a download href="../solutions/04-2.java">Download Java snippet</a></div><div class="code" data-code="kotlin"><h4>Kotlin</h4><pre><code>fun pivotIndex(a: IntArray): Int {
+    var total = 0L; for (x in a) total += x
+    var left = 0L
+    for (i in a.indices) {
+        if (left == total - left - a[i]) return i
+        left += a[i]
+    }
+    return -1
+}</code></pre><a download href="../solutions/04-2.kt">Download Kotlin snippet</a></div><h4>Cost and boundaries</h4><p>O(n) time, O(1) auxiliary space. Long sums support arbitrary int values.</p>
+<ul><li><p>[] =&gt; -1</p>
+</li><li><p>[9] =&gt; 0</p>
+</li><li><p>[0,0] =&gt; 0</p>
+</li><li><p>[1,2,3] =&gt; -1</p>
+</li></ul><h4>Change one assumption</h4><p>For all equilibrium indices, collect every match instead of returning early. For an online mutable array, updates require a different representation; this two-pass scan assumes static data.</p>
+</details><p><a href="https://leetcode.com/problems/find-pivot-index/" target="_blank" rel="noopener">Original practice problem</a> <label class="solved"><input type="checkbox" data-progress="04-2"> Solved independently</label></p></article><article class="problem" id="problem-3"><div class="problem-heading"><h3>3. Count Subarrays With a Given Sum</h3><span class="difficulty">Medium</span></div><p>Given a non-null int array and a long k, return the count of nonempty contiguous subarrays whose sum equals k. Negative values and zero are allowed. Input is unchanged.</p>
+<div class="example"><strong>Example</strong><p>[1,-1,0], k=0 =&gt; 3: [1,-1], [0], and [1,-1,0].</p>
+</div><details><summary>First attempt: the baseline</summary><p>Grow every start with a running sum: O(n²) time/O(1) auxiliary space.</p>
+</details><details class="solution"><summary>Reveal the derivation and solutions</summary><h4>Derive it step by step</h4><ol><li><p>Write P[r]-P[l]=k, then rearrange to earlierPrefix=P[r]-k.</p>
+</li><li><p>Initialize frequency[0]=1 for the empty prefix. For each new prefix, add its required earlier frequency before inserting the new prefix.</p>
+</li><li><p>Store frequencies and answer in long because repeated zero prefixes create quadratically many subarrays.</p>
+</li></ol><div class="proof"><strong>Why it works</strong><p>Before querying prefix P[r], the map counts exactly P[0] through P[r-1]; each hit corresponds one-to-one to a nonempty range ending at r-1.</p>
+</div><div class="language-controls" role="group" aria-label="Solution language"><button type="button" data-lang="java">Java</button><button type="button" data-lang="kotlin">Kotlin</button><button type="button" data-lang="both">Both</button></div><div class="code" data-code="java"><h4>Java</h4><pre><code>static long countSum(int[] a,long k) {
+    Map&lt;Long,Long&gt; freq=new HashMap&lt;&gt;(); freq.put(0L,1L);
+    long prefix=0,answer=0;
+    for(int x:a) {
+        prefix+=x;
+        // Prefix sums fit long for any JVM int array. Guard subtraction overflow.
+        if(!((k&gt;0 &amp;&amp; prefix&lt;Long.MIN_VALUE+k) || (k&lt;0 &amp;&amp; prefix&gt;Long.MAX_VALUE+k)))
+            answer+=freq.getOrDefault(prefix-k,0L);
+        freq.merge(prefix,1L,Long::sum);
+    }
+    return answer;
+}</code></pre><a download href="../solutions/04-3.java">Download Java snippet</a></div><div class="code" data-code="kotlin"><h4>Kotlin</h4><pre><code>fun countSum(a: IntArray, k: Long): Long {
+    val freq = HashMap&lt;Long, Long&gt;(); freq[0L] = 1L
+    var prefix = 0L; var answer = 0L
+    for (x in a) {
+        prefix += x
+        val overflow = (k &gt; 0 &amp;&amp; prefix &lt; Long.MIN_VALUE + k) ||
+            (k &lt; 0 &amp;&amp; prefix &gt; Long.MAX_VALUE + k)
+        if (!overflow) answer += freq[prefix - k] ?: 0L
+        freq[prefix] = (freq[prefix] ?: 0L) + 1L
+    }
+    return answer
+}</code></pre><a download href="../solutions/04-3.kt">Download Kotlin snippet</a></div><h4>Cost and boundaries</h4><p>Expected O(n) time, O(n) auxiliary map space; long answer can hold at most n(n+1)/2 for a JVM int array.</p>
+<ul><li><p>[] =&gt; 0</p>
+</li><li><p>[0,0],k=0 =&gt; 3</p>
+</li><li><p>[1],k=1 =&gt; 1</p>
+</li><li><p>[1],k=Long.MIN_VALUE =&gt; 0</p>
+</li></ul><h4>Change one assumption</h4><p>For the longest matching range, store the earliest index for each prefix rather than its count. Preserve the first occurrence; later overwrites lose longer candidates.</p>
+</details><p><a href="https://leetcode.com/problems/subarray-sum-equals-k/" target="_blank" rel="noopener">Original practice problem</a> <label class="solved"><input type="checkbox" data-progress="04-3"> Solved independently</label></p></article><article class="problem" id="problem-4"><div class="problem-heading"><h3>4. Count Subarrays Divisible by K</h3><span class="difficulty">Medium</span></div><p>Given a non-null int array and positive int k, return the count of nonempty contiguous subarrays with sum divisible by k as long. Throw for k&lt;=0. Negative values are permitted; input is unchanged.</p>
+<div class="example"><strong>Example</strong><p>[4,5,0,-2,-3,1], k=5 =&gt; 7.</p>
+</div><details><summary>First attempt: the baseline</summary><p>Enumerate O(n²) running subarray sums and test each modulus.</p>
+</details><details class="solution"><summary>Reveal the derivation and solutions</summary><h4>Derive it step by step</h4><ol><li><p>A range sum is divisible by k exactly when its endpoint prefixes have equal residues modulo k.</p>
+</li><li><p>Maintain the current normalized residue, using long for residue+x. The JVM remainder may be negative, so normalize with floorMod.</p>
+</li><li><p>Add the number of earlier occurrences of this residue, then increment its frequency. Seed residue zero once for the empty prefix.</p>
+</li></ol><div class="proof"><strong>Why it works</strong><p>Residue frequencies count exactly earlier prefix boundaries; each equal-residue pair defines one nonempty divisible range.</p>
+</div><div class="language-controls" role="group" aria-label="Solution language"><button type="button" data-lang="java">Java</button><button type="button" data-lang="kotlin">Kotlin</button><button type="button" data-lang="both">Both</button></div><div class="code" data-code="java"><h4>Java</h4><pre><code>static long countDivisible(int[] a,int k) {
+    if(k&lt;=0) throw new IllegalArgumentException(&quot;k must be positive&quot;);
+    Map&lt;Integer,Long&gt; freq=new HashMap&lt;&gt;(); freq.put(0,1L);
+    int residue=0; long answer=0;
+    for(int x:a) {
+        residue=(int)Math.floorMod((long)residue+x,(long)k);
+        answer+=freq.getOrDefault(residue,0L);
+        freq.merge(residue,1L,Long::sum);
+    }
+    return answer;
+}</code></pre><a download href="../solutions/04-4.java">Download Java snippet</a></div><div class="code" data-code="kotlin"><h4>Kotlin</h4><pre><code>fun countDivisible(a: IntArray, k: Int): Long {
+    require(k &gt; 0) { &quot;k must be positive&quot; }
+    val freq = HashMap&lt;Int, Long&gt;(); freq[0] = 1L
+    var residue = 0; var answer = 0L
+    for (x in a) {
+        residue = Math.floorMod(residue.toLong() + x, k.toLong()).toInt()
+        answer += freq[residue] ?: 0L
+        freq[residue] = (freq[residue] ?: 0L) + 1L
+    }
+    return answer
+}</code></pre><a download href="../solutions/04-4.kt">Download Kotlin snippet</a></div><h4>Cost and boundaries</h4><p>Expected O(n) time, O(min(n,k)) auxiliary map space. A frequency array uses O(k) space when k is suitably small.</p>
+<ul><li><p>[] with k=3 =&gt; 0</p>
+</li><li><p>[-1,2,9],k=2 =&gt; 2</p>
+</li><li><p>[0,0],k=1 =&gt; 3</p>
+</li></ul><h4>Change one assumption</h4><p>For subarrays with remainder q, query normalized(currentResidue-q) rather than equal residues. For a length-at-least-two requirement, retain earliest indices or delay frequency eligibility.</p>
+</details><p><a href="https://leetcode.com/problems/subarray-sums-divisible-by-k/" target="_blank" rel="noopener">Original practice problem</a> <label class="solved"><input type="checkbox" data-progress="04-4"> Solved independently</label></p></article><article class="problem" id="problem-5"><div class="problem-heading"><h3>5. Count Range Sums in a Numeric Band</h3><span class="difficulty">Hard</span></div><p>Given a non-null int array and long lower&lt;=upper with both bounds between -10^18 and 10^18, count nonempty contiguous ranges whose sums lie in [lower,upper]. Input is unchanged. Invalid bounds throw.</p>
+<div class="example"><strong>Example</strong><p>[-2,5,-1], lower=-2, upper=2 =&gt; 3: [-2], [-1], [-2,5,-1].</p>
+</div><details><summary>First attempt: the baseline</summary><p>Enumerate all O(n²) running sums and count those in the band.</p>
+</details><details class="solution"><summary>Reveal the derivation and solutions</summary><h4>Derive it step by step</h4><ol><li><p>Form long prefix sums. A valid earlier/later pair satisfies lower&lt;=P[r]-P[l]&lt;=upper.</p>
+</li><li><p>Divide prefix indices into halves. Recursively count pairs wholly inside either half, then sort each half by prefix value. For each left prefix, maintain two advancing right-half boundaries delimiting differences in the band.</p>
+</li><li><p>Count high-low cross pairs and merge the halves. Every pair belongs uniquely to a recursive side or the cross step at its first split.</p>
+</li></ol><div class="proof"><strong>Why it works</strong><p>Recursive calls return sorted prefix values and exact pair counts for their original index halves. During a cross step every left-half prefix occurred earlier than every right-half prefix in the original array.</p>
+</div><div class="language-controls" role="group" aria-label="Solution language"><button type="button" data-lang="java">Java</button><button type="button" data-lang="kotlin">Kotlin</button><button type="button" data-lang="both">Both</button></div><div class="code" data-code="java"><h4>Java</h4><pre><code>static long countRangeSum(int[] a,long lower,long upper) {
+    if(lower&gt;upper || lower&lt; -1_000_000_000_000_000_000L || upper&gt;1_000_000_000_000_000_000L)
+        throw new IllegalArgumentException(&quot;bounds&quot;);
+    long[] p=new long[a.length+1],tmp=new long[p.length];
+    for(int i=0;i&lt;a.length;i++) p[i+1]=p[i]+a[i];
+    return countMerge(p,tmp,0,p.length,lower,upper);
+}
+static long countMerge(long[] p,long[] tmp,int lo,int hi,long lower,long upper) {
+    if(hi-lo&lt;=1) return 0;
+    int mid=lo+(hi-lo)/2;
+    long ans=countMerge(p,tmp,lo,mid,lower,upper)+countMerge(p,tmp,mid,hi,lower,upper);
+    int first=mid,after=mid;
+    for(int i=lo;i&lt;mid;i++) {
+        while(first&lt;hi &amp;&amp; p[first]-p[i]&lt;lower) first++;
+        while(after&lt;hi &amp;&amp; p[after]-p[i]&lt;=upper) after++;
+        ans+=after-first;
+    }
+    int i=lo,j=mid,w=lo;
+    while(i&lt;mid || j&lt;hi) tmp[w++]=(j==hi || (i&lt;mid &amp;&amp; p[i]&lt;=p[j])) ? p[i++] : p[j++];
+    System.arraycopy(tmp,lo,p,lo,hi-lo);
+    return ans;
+}</code></pre><a download href="../solutions/04-5.java">Download Java snippet</a></div><div class="code" data-code="kotlin"><h4>Kotlin</h4><pre><code>fun countRangeSum(a: IntArray, lower: Long, upper: Long): Long {
+    require(lower &lt;= upper &amp;&amp; lower &gt;= -1_000_000_000_000_000_000L &amp;&amp; upper &lt;= 1_000_000_000_000_000_000L)
+    val p = LongArray(a.size + 1); val tmp = LongArray(p.size)
+    for (i in a.indices) p[i + 1] = p[i] + a[i]
+    fun solve(lo: Int, hi: Int): Long {
+        if (hi - lo &lt;= 1) return 0L
+        val mid = lo + (hi - lo) / 2
+        var ans = solve(lo, mid) + solve(mid, hi)
+        var first = mid; var after = mid
+        for (i in lo until mid) {
+            while (first &lt; hi &amp;&amp; p[first] - p[i] &lt; lower) first++
+            while (after &lt; hi &amp;&amp; p[after] - p[i] &lt;= upper) after++
+            ans += (after - first).toLong()
+        }
+        var i = lo; var j = mid; var w = lo
+        while (i &lt; mid || j &lt; hi) {
+            if (j == hi || (i &lt; mid &amp;&amp; p[i] &lt;= p[j])) tmp[w++] = p[i++] else tmp[w++] = p[j++]
+        }
+        for (k in lo until hi) p[k] = tmp[k]
+        return ans
+    }
+    return solve(0, p.size)
+}</code></pre><a download href="../solutions/04-5.kt">Download Kotlin snippet</a></div><h4>Cost and boundaries</h4><p>O(n log n) time, O(n) prefix/merge buffers and O(log n) recursion stack. JVM int-array length bounds keep actual prefix differences within long.</p>
+<ul><li><p>[] =&gt; 0</p>
+</li><li><p>[0,0],lower=upper=0 =&gt; 3</p>
+</li><li><p>[1],lower=2,upper=3 =&gt; 0</p>
+</li></ul><h4>Change one assumption</h4><p>If sums are queried online, coordinate compression plus a Fenwick tree can count earlier prefixes in [current-upper,current-lower]. The offline merge works because future prefix values are known.</p>
+</details><p><a href="https://leetcode.com/problems/count-of-range-sum/" target="_blank" rel="noopener">Original practice problem</a> <label class="solved"><input type="checkbox" data-progress="04-5"> Solved independently</label></p></article></section><section id="practice"><h2>Practice with gradually less help</h2><details class="practice-item"><summary>Product of Array Except Self <span class="muted">Medium</span></summary><a href="https://leetcode.com/problems/product-of-array-except-self/" target="_blank" rel="noopener">Open problem</a><details><summary>A small hint</summary><p>Separate the product strictly before and strictly after each position.</p>
+</details><details><summary>Solution outline and cost</summary><p>Write prefix products to output, then multiply by a rolling suffix product. O(n), O(1) extra excluding output. Avoid division to support zeros; specify bounded products or use big integers.</p>
+</details><label><input type="checkbox" data-progress="04-practice-0"> Solved independently</label></details><details class="practice-item"><summary>Contiguous Array <span class="muted">Medium</span></summary><a href="https://leetcode.com/problems/contiguous-array/" target="_blank" rel="noopener">Open problem</a><details><summary>A small hint</summary><p>Equal zero/one counts become zero sum after mapping 0 to -1.</p>
+</details><details><summary>Solution outline and cost</summary><p>Store the first index of each balance, initialized balance 0 at index -1. Maximize currentIndex-earliestIndex. O(n), O(n); input must be binary.</p>
+</details><label><input type="checkbox" data-progress="04-practice-1"> Solved independently</label></details><details class="practice-item"><summary>Continuous Subarray Sum <span class="muted">Medium</span></summary><a href="https://leetcode.com/problems/continuous-subarray-sum/" target="_blank" rel="noopener">Open problem</a><details><summary>A small hint</summary><p>Same residue plus a distance constraint.</p>
+</details><details><summary>Solution outline and cost</summary><p>Store earliest prefix index per residue and require distance&gt;=2. O(n), O(min(n,k)) for positive k. If allowing k=0, seek equal exact prefixes instead.</p>
+</details><label><input type="checkbox" data-progress="04-practice-2"> Solved independently</label></details><details class="practice-item"><summary>Make Sum Divisible by P <span class="muted">Medium</span></summary><a href="https://leetcode.com/problems/make-sum-divisible-by-p/" target="_blank" rel="noopener">Open problem</a><details><summary>A small hint</summary><p>Remove a range whose residue equals the total residue.</p>
+</details><details><summary>Solution outline and cost</summary><p>For each current residue, query current-total mod p, keeping latest indices for shortest removal. O(n), O(min(n,p)). Reject removing the entire array.</p>
+</details><label><input type="checkbox" data-progress="04-practice-3"> Solved independently</label></details><details class="practice-item"><summary>Range Sum Query 2D - Immutable <span class="muted">Medium</span></summary><a href="https://leetcode.com/problems/range-sum-query-2d-immutable/" target="_blank" rel="noopener">Open problem</a><details><summary>A small hint</summary><p>Draw the overlap of two excluded rectangles.</p>
+</details><details><summary>Solution outline and cost</summary><p>2D prefix sums answer rectangles by inclusion-exclusion: bottom-right minus top strip minus left strip plus their overlap. O(rows×cols) build, O(1) query.</p>
+</details><label><input type="checkbox" data-progress="04-practice-4"> Solved independently</label></details><details class="practice-item"><summary>Corporate Flight Bookings <span class="muted">Medium</span></summary><a href="https://leetcode.com/problems/corporate-flight-bookings/" target="_blank" rel="noopener">Open problem</a><details><summary>A small hint</summary><p>A range increment changes only two boundaries in a difference representation.</p>
+</details><details><summary>Solution outline and cost</summary><p>Add seats at start and subtract after end, then prefix the difference array. O(n+q), O(n), long if aggregate seats may exceed int.</p>
+</details><label><input type="checkbox" data-progress="04-practice-5"> Solved independently</label></details></section><section><h2>Check the reasoning</h2><fieldset class="quiz" data-answer="1"><legend>Why initialize earlierPrefixCount[0] to one?</legend><label><input type="radio" name="q0" value="0"> To count an empty output range</label><label><input type="radio" name="q0" value="1"> To represent the boundary before index zero</label><label><input type="radio" name="q0" value="2"> To avoid sorting</label><button type="button" data-check>Check reasoning</button><p class="feedback" aria-live="polite" data-explanation="A nonempty range starting at element zero needs the earlier empty prefix boundary. Query-before-insert still excludes empty subarrays."></p></fieldset><fieldset class="quiz" data-answer="1"><legend>For the longest range with sum K, what belongs behind each prefix key?</legend><label><input type="radio" name="q1" value="0"> Its latest index</label><label><input type="radio" name="q1" value="1"> Its earliest index</label><label><input type="radio" name="q1" value="2"> Its frequency only</label><button type="button" data-check>Check reasoning</button><p class="feedback" aria-live="polite" data-explanation="For a fixed right boundary, the earliest matching left boundary maximizes distance. Overwriting it with a later occurrence loses candidates."></p></fieldset></section><section id="transfer"><h2>An unfamiliar version</h2><p>Given daily integer profit, return the longest nonempty period whose total profit is divisible by a positive integer m. Loss days are allowed.</p>
+<details><summary>Hint 1</summary><p>What relation must the two boundary prefixes satisfy?</p>
+</details><details><summary>Hint 2</summary><p>For the longest period, which occurrence of each residue should survive?</p>
+</details><details><summary>Derivation</summary><p>Normalize cumulative residues modulo m. Seed residue 0 at boundary index 0. At each boundary r, if its residue first appeared at l, r-l is a divisible period; retain only the earliest l and maximize the distance. Expected O(n) time and O(min(n,m)) space. Unlike counting, frequencies are unnecessary.</p>
+</details></section><section><h2>Retrieve it without looking</h2><ul><li><p>After one day: derive the maintained state from the brute-force repeated work without looking at code.</p>
+</li><li><p>After three days: explain the counterexample to each wrong turn and repair it.</p>
+</li><li><p>After one week: solve the transfer problem, state the invariant aloud, and compare both JVM implementations.</p>
+</li></ul><p>Repeat after 1, 3, 7 and 21 days. A check mark records your self-report, not a mastery score. Explain the proof and solve a changed version before calling a pattern fluent.</p></section><section><h2>Sources and further study</h2><ul><li><a href="https://leetcode.com/problems/range-sum-query-immutable/">Immutable Range Sum Queries</a>: Reference link; not retrieved in this run. Canonical problem statement and constraints; used to identify the technique and offer optional practice, not as evidence of company frequency.</li><li><a href="https://leetcode.com/problems/find-pivot-index/">Find the Leftmost Equilibrium Index</a>: Reference link; not retrieved in this run. Canonical problem statement and constraints; used to identify the technique and offer optional practice, not as evidence of company frequency.</li><li><a href="https://leetcode.com/problems/subarray-sum-equals-k/">Count Subarrays With a Given Sum</a>: Reference link; not retrieved in this run. Canonical problem statement and constraints; used to identify the technique and offer optional practice, not as evidence of company frequency.</li><li><a href="https://leetcode.com/problems/subarray-sums-divisible-by-k/">Count Subarrays Divisible by K</a>: Reference link; not retrieved in this run. Canonical problem statement and constraints; used to identify the technique and offer optional practice, not as evidence of company frequency.</li><li><a href="https://leetcode.com/problems/count-of-range-sum/">Count Range Sums in a Numeric Band</a>: Reference link; not retrieved in this run. Canonical problem statement and constraints; used to identify the technique and offer optional practice, not as evidence of company frequency.</li></ul><p class="muted">These are reference links. See the research page for live-verification limits and the distinction between a canonical algorithm and a confirmed company question.</p></section><p class="next">Next: <a href="05-binary-search.html">Binary search on positions, structure, and answers</a></p></main></div><footer>Practice deriving the invariant. Explain why every discarded candidate is safe to discard. <a href="../research.html">Evidence and scope</a></footer><!-- page-navigation:start -->
+<nav class="page-navigation" aria-label="Bottom page navigation"><div class="page-navigation-parents"><a href="../../index.html">Library home</a> <span aria-hidden="true">›</span> <a href="../../index.html#technical-foundations">Technical foundations and implementation</a> <span aria-hidden="true">›</span> <a href="../index.html">Coding Interviews: Patterns &amp; Problem Solving</a> <span aria-hidden="true">›</span> <a href="index.html">Lessons</a></div><div class="page-navigation-sections"><a href="index.html">Lessons</a><a href="../reference/index.html">Reference sheets</a><a href="../materials.html">Guides and resources</a><a href="#page-top">Back to top ↑</a></div><div class="page-navigation-pager"><a href="03-sliding-window.html" rel="prev">← Previous: Sliding windows: expand, repair, and count</a><a href="05-binary-search.html" rel="next">Next: Binary search on positions, structure, and answers →</a></div></nav>
+<!-- page-navigation:end -->
+<script src="../../assets/course/links.js" defer></script>
+</body></html>

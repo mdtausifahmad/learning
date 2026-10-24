@@ -1,0 +1,84 @@
+# Coding interview research ledger
+
+Research date: **24 October 2026**. This ledger separates verified evidence, references awaiting review, and editorial curriculum decisions.
+
+## Verification limitation
+
+**No external page was successfully retrieved in this research pass.** The official Amazon SDE II preparation page was requested through the browser, but the browser's automatic approval service failed because its configured review model was unavailable. A separate shell request for Microsoft technical-interview guidance was also blocked by the same unavailable automatic-review model. Neither action retrieved page content. Other official pages below were not visited; they are candidate reading links, not evidence reviewed today. We do not quote them, claim their current contents, or use them to establish company-specific question frequencies. The site may have moved or changed since these reference URLs became known.
+
+The failed request was to <https://www.amazon.jobs/content/en/how-we-hire/sde-ii-interview-prep>. Tool error: `Invalid model name passed in model=codex-auto-review`. The tool explicitly prohibited bypassing the approval failure through alternate browser surfaces. Local lesson authoring can proceed independently; live company research remains incomplete until ordinary approved access is restored. The user indicated that access would be restored or materials provided; no primary-source material had arrived when this ledger was updated. This is a technical approval-service failure, not a determination that reading these public pages is unsafe. No further network attempts are part of this research pass.
+
+## Primary-source review queue
+
+| Owner and candidate page | Review purpose | Status |
+| --- | --- | --- |
+| [Amazon: SDE II interview preparation](https://www.amazon.jobs/content/en/how-we-hire/sde-ii-interview-prep) | Confirm current coding-round format, expectations, and role-specific guidance. | Retrieval blocked; contents unverified. |
+| [Amazon: Software development interview topics](https://www.amazon.jobs/content/en/how-we-hire/software-development-topics) | Confirm the officially stated technical topic scope. | Not visited; candidate URL. |
+| [Microsoft: Technical interviews](https://careers.microsoft.com/v2/global/en/hiring-tips/technical-interviews.html) | Confirm problem-solving, coding, testing, and complexity expectations. | Shell request blocked by unavailable review model; no content retrieved; candidate URL may have moved. |
+| [Google Tech Dev Guide](https://techdevguide.withgoogle.com/) | Locate Google's public learning material and distinguish it from hiring policy. | Not visited. |
+| [Meta Careers](https://www.metacareers.com/) | Locate a current first-party full-loop engineering preparation guide; avoid relying on reposted PDFs. | Not visited; no specific guide verified. |
+| [LeetCode: Top Interview 150](https://leetcode.com/studyplan/top-interview-150/) | Compare topic coverage against a first-party curated practice collection. This is a practice site's taxonomy, not employer frequency data. | Not visited. |
+| [MIT OCW: 6.006 Introduction to Algorithms, Spring 2020](https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/) | Check foundations and the order in which data structures and algorithm design are introduced. | Not visited. |
+| [Princeton: Algorithms, 4th Edition](https://algs4.cs.princeton.edu/home/) | Check established algorithms, correctness models, and analysis references. | Not visited. |
+| [Oracle: Java 17 API](https://docs.oracle.com/en/java/javase/17/docs/api/) | Verify collection contracts, priority queues, comparators, and integer helpers when reviewing Java snippets. | Not visited. |
+| [Oracle: Java Language Specification, Java 17, expressions](https://docs.oracle.com/javase/specs/jls/se17/html/jls-15.html) | Verify shifts, integer operations, overflow, and evaluation semantics. | Not visited. |
+| [Kotlin: Collections overview](https://kotlinlang.org/docs/collections-overview.html) | Verify collection APIs, mutability, and JVM implementation distinctions. | Not visited. |
+| [Kotlin: Numbers](https://kotlinlang.org/docs/numbers.html) | Verify numeric types, shifts, bitwise operations, and conversion behavior. | Not visited. |
+| [Kotlin: Null safety](https://kotlinlang.org/docs/null-safety.html) | Check nullable contracts and avoid unsafe assertions in examples. | Not visited. |
+
+## Curriculum synthesis and rationale
+
+The following are **editorial teaching decisions based on standard algorithm knowledge**, not findings attributed to the unvisited pages above.
+
+1. **Teach reasoning before labels.** Begin with a precise input/output contract, a small example, and a correct exhaustive baseline. Identify repeated work before introducing a data structure or optimization. This makes a pattern a consequence of the problem rather than a keyword guessing exercise.
+2. **Use a state-and-invariant taxonomy.** Hashing remembers useful facts; two pointers exploit order; sliding windows maintain a contiguous feasible region; prefix sums turn range questions into boundary questions; stacks preserve unresolved candidates; binary search eliminates a provably impossible half. Trees and graphs teach reachability, state, and ordering; backtracking explores decisions; dynamic programming merges equivalent subproblems; greedy algorithms require an exchange or dominance argument. The same problem can legitimately fit several patterns.
+3. **Progress by changing one assumption.** Contrast sorted versus unsorted arrays, nonnegative versus signed values, contiguous versus subsequence, static versus streaming input, trees versus cyclic graphs, one answer versus all answers, and offline versus online queries. These changes expose the conditions under which a familiar solution fails.
+4. **Make proof visible.** Each lesson states what its maintained state means, why each transition preserves that meaning, why termination yields the requested result, and how the bounds follow. Traces and diagrams support this proof; diagrams alone do not establish correctness.
+5. **Use counterexamples as training.** A negative number invalidates many sum-based shrinking windows; weighted edges invalidate ordinary BFS shortest paths; a DAG dependency invalidates arbitrary evaluation order; duplicate values invalidate some rank-based assumptions. Recognition includes detecting when a method's prerequisites are absent.
+6. **Separate practice labels from hiring evidence.** Difficulty labels are editorial guidance for these specific lesson contracts. Labels such as “Easy to Medium,” “Easy foundation,” and “Advanced” are deliberate teaching descriptions; even Easy/Medium/Hard labels are not promised to match a practice site's current categorization. Some graph and advanced lessons begin at Medium and explain why. A changed output or input contract can change difficulty. They do not imply that an employer asks that problem or that any particular pattern has a known probability.
+7. **Train implementation as well as ideas.** Java and Kotlin examples need explicit mutation, null, overflow, character-encoding, recursion-depth, and collection-complexity contracts. Code compilation and selected behavioral checks validate examples but cannot establish interview completeness.
+8. **Include mixed, unnamed transfer problems.** After guided examples, ask the learner to explain the structure without a pattern label, propose a baseline, discover a bottleneck, and adapt the maintained state. Follow with timed sessions and postmortems of incorrect assumptions.
+
+## Twenty-pattern curriculum map
+
+This map records the course's **editorial taxonomy**, not a measured distribution of interview questions. One problem may combine several rows: for example, shortest paths can use heaps, board search can use tries plus backtracking, and bitmask assignment uses dynamic programming. Practice progression names describe the lesson contracts; they are not claims that any company asks them. Lesson 17 and 19 implementation details should be read in their final lessons rather than inferred from this high-level route.
+
+| Lesson | Pattern | Maintained structure or reasoning | Assumption to test when a question is twisted | Practice progression |
+| --- | --- | --- | --- | --- |
+| 01 | Hashing and complements | A set or map stores exactly the previously useful values, counts, or canonical keys. | Expected hash costs; query before insertion when self-pairing is illegal; a key must preserve required equality. | Pair sums → anagram grouping → consecutive runs → in-place membership. |
+| 02 | Two pointers | A pair of boundaries discards candidates that cannot be part of a better answer. | Sorted order, symmetry, or a proven dominance relation must justify each discarded region. | Sorted pair sum → deletion palindrome → unique triples → trapped water. |
+| 03 | Sliding windows | Maintain statistics over one contiguous region while its boundaries advance. | A shrink rule needs a valid monotonicity argument; signed sums break many nonnegative-sum windows. | Fixed sum → no-repeat substring → exactly K distinct → minimum coverage. |
+| 04 | Prefix sums and range counting | Convert an interval question to a relation between two boundary aggregates. | Empty-prefix seed, update order, normalized negative residues, and arithmetic width matter. | Range queries → balance → target-sum counts → bounded range-sum counting. |
+| 05 | Binary search | Preserve a known answer region while eliminating a provably impossible half. | Sorted structure or a monotone feasibility predicate; exact closed/half-open boundaries. | Lower bound → rotated search → answer capacity → two-array median. |
+| 06 | Sorting, intervals, and sweeps | Expose event order, maintain active ranges, or commit to an exchange-safe schedule. | Closed and half-open endpoints differ; same-coordinate events must be handled consistently. | Merge → insert → remove overlaps → skyline. |
+| 07 | Linked lists | Keep the unprocessed path reachable while rewiring links or comparing relative speeds. | Identity differs from value; acyclic versus cyclic and shared-node contracts change legality. | Reverse → cycle entry → merge chains → reverse k-group. |
+| 08 | Stacks, monotonic frontiers, and deques | Retain unresolved obligations or undominated candidates until their answer is determined. | Strict versus non-strict comparisons and expiration by index affect duplicates. | Brackets → next warmer → histogram rectangle → sliding maxima. |
+| 09 | Trees | Pass inherited constraints down and compact child summaries up. | Proper trees have unique parent paths; arbitrary graph cycles need visited state. | Depth → BST ancestor bounds → identity LCA → maximum path sum. |
+| 10 | Heaps and ordered frontiers | Maintain the next winner or a limited set of current winners. | A heap orders its root, not iteration; comparators and deterministic tie rules must be explicit. | Kth selection → top frequencies → merge streams → running median. |
+| 11 | Backtracking | Explore a decision tree with a reversible partial solution and explicit stopping conditions. | Undo mutations; positive candidates can bound reuse; canonical choices prevent duplicate output. | Subsets → reusable combinations → distinct permutations → queens. |
+| 12 | Tries | Share common prefixes and reject impossible continuations early. | Alphabet and whole-word terminal markers are part of the contract; wildcards branch. | Dictionary → shortest roots → wildcard lookup → board dictionary search. |
+| 13 | Graph traversal | Discover reachable states, components, or equal-edge-cost distance layers. | The state must include all future-relevant facts; mark at discovery for ordinary BFS. | Islands → clone identity graph → multi-source spread → word transformation. |
+| 14 | Topology and union-find | Directed readiness counts produce an order; undirected equivalence classes track connectivity. | DSU is not a directed-cycle test; component roots are representatives and can change. | Course feasibility → course order → redundant undirected edge → largest flipped island. |
+| 15 | Weighted shortest paths | Relax tentative costs using the frontier order justified by the edge weights. | BFS: equal costs; 0-1 BFS: binary costs; Dijkstra: nonnegative; bounded paths require resource state. | Minimum edges → network delay → bounded flights → minimum obstacles. |
+| 16 | Greedy reasoning | Make an irreversible local choice only after proving exchange or dominance. | A locally good-looking rule is not proof; weighted objectives often break unweighted exchanges. | Cookie assignment → reachable frontier → partition labels → candy lower bounds. |
+| 17 | Linear dynamic programming | Merge histories with equivalent remaining choices into prefix or compact recursive states. | State meaning, base cases, unreachable states, and loop direction must match the recurrence. | Climbing stairs → house robber → minimum coin change → weighted job scheduling. |
+| 18 | Grid and string dynamic programming | Two changing boundaries define a subproblem whose smaller neighbors are already solved. | Character representation, empty prefixes, matching semantics, and path-count overflow are explicit. | Grid paths → common subsequence → edit distance → full pattern matching. |
+| 19 | Dynamic range queries and ordered counts | Maintain an aggregate decomposition that supports updates and range queries. | Fenwick and segment-tree operations differ; coordinate compression preserves order, not numeric distances. | Dynamic sums → segment queries → compressed ranks → counts of smaller values. |
+| 20 | Bit manipulation and state compression | Use bit parity for cancellation or a small membership vector for subset states. | XOR retains parity only; signed width and shift semantics matter; 2^n remains exponential. | One singleton → count bits → two singletons → minimum XOR assignment. |
+
+## Review protocol when access is restored
+
+1. **Company expectations first.** Retrieve current role/level-specific Amazon, Microsoft, Google, and Meta guidance from first-party origins. Record the exact page title, URL, access date, role scope, and attributable section. If a page is unavailable, record that rather than citing a repost as current policy.
+2. **Separate distinct kinds of evidence.** Employer preparation instructions establish public expectations. Official educational materials establish teaching content. A curated practice collection establishes that collection's selection. None establishes exact employer question probabilities without representative employer-published data.
+3. **Compare curriculum coverage.** For each explicit topic or evaluation criterion, map it to the table above or to foundations and mock-interview practice. Record a gap if no lesson covers it. Do not force a one-to-one mapping where several patterns share a technique.
+4. **Verify language contracts.** Check the exact Java 17 and Kotlin/JVM APIs used by examples, including collection bounds, signed arithmetic, comparator behavior, code units versus code points, and mutation contracts. Distinguish a documentation check from compiling and running code locally.
+5. **Audit practice links.** Confirm a linked task matches the lesson's stated variant. Note added requirements, relaxed constraints, changed output, or custom exercises; review editorial difficulty labels without silently replacing the lesson contract.
+6. **Publish the evidence boundary.** Replace each reviewed source's unverified status only after content is actually read. Attach specific supporting notes to each research finding, keep unsupported questions open, and update the date. Keep the current blocker history as an audit trail.
+
+## What this course can and cannot establish
+
+A broad curriculum can build strong transferable skill. **No finite question list or course guarantees passing every interview.** Questions, evaluation, role expectations, and interview formats vary. A coding section also does not replace system design, behavioral preparation, role-specific knowledge, or an employer's current instructions.
+
+Unresolved research questions: current official Google and Meta coding guidance; role/level-specific format differences; current permitted languages/tools; accessibility and interview accommodations; and whether any primary source publishes a representative question distribution. Until verified, there are no numerical frequency, company-specific probability, or completeness claims in this course.
+
+To complete live research later, retrieve each page, record access date and a short attributable passage or precise section reference, distinguish explicit statements from interpretation, and revise the curriculum only where evidence changes the instructional choice.

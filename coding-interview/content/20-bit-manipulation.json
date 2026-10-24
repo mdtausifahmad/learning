@@ -1,0 +1,307 @@
+{
+  "id": "20",
+  "slug": "bit-manipulation",
+  "title": "Bit manipulation and state compression",
+  "group": "Advanced tools",
+  "prerequisites": "Foundations, hashing, and dynamic programming before the final problem",
+  "estimatedMinutes": 150,
+  "motivation": "Represent yes/no facts directly in binary digits, cancel paired information, or compress a small chosen set into one integer. Derive each operation from its meaning before using a formula.",
+  "recognition": [
+    "Every value occurs an even number of times except a few: XOR cancels equal pairs without storing a frequency table.",
+    "The question manipulates membership of a small fixed universe: one bit per element can encode the entire chosen set.",
+    "You need to count, isolate, or remove set bits: inspect how the lowest 1 changes under subtraction.",
+    "You see subset enumeration and n is roughly 20 or smaller: an exponential bitmask state may be feasible; inspect the actual memory/time bound first."
+  ],
+  "mentalModel": "A bit is one binary digit, either 0 or 1. A nonnegative integer is a row of such digits. For example 13 is binary 1101 because it contains 8 + 4 + 1. Number the positions from the right, starting at zero. Bit i represents the value 2^i. A mask can instead use position i to mean \u201citem i has been selected.\u201d Then mask 1101 represents the set {0, 2, 3}; its numeric value is merely a compact encoding of that set. Do not confuse a value's magnitude with the membership meaning you choose for its bits.\n\nWork one column at a time. AND produces 1 only when both inputs have 1. OR produces 1 when either has 1. XOR produces 1 when the inputs differ. Therefore x XOR x = 0 and x XOR 0 = x. XOR is associative and commutative, so a sequence containing pairs cancels independently of order. That is a precise frequency-parity fact. It does not recover arbitrary frequency counts: three copies leave the original bit pattern because three is odd. An XOR accumulator is useful only when the output can be derived from the parity information it retains.\n\nIn Java use &, |, ^, ~, <<, >>, and >>>. In Kotlin use and, or, xor, inv(), shl, shr, and ushr. Parenthesize expressions instead of trusting mixed operator precedence. A membership test is (mask & (1 << i)) != 0 in Java, or (mask and (1 shl i)) != 0 in Kotlin. Adding membership is OR; removing membership is AND with the complemented single-bit mask. XOR toggles membership, which removes a present bit but adds an absent one. That distinction matters.\n\nA signed Int has 32 bits, including its sign representation. XOR cancellation still works for negative values because it operates on the complete fixed-width bit pattern. Arithmetic right shift copies the sign bit; unsigned right shift fills with zeros. A positive-power mask represented with Int is most straightforward for positions 0 through 30. Java and Kotlin/JVM mask shift distances for Int operations, so shifting by 32 does not create a thirty-third bit. Use Long when the intended universe is wider, and still respect its finite width.\n\nTwo small identities are worth deriving. If x is positive, subtracting one turns its lowest 1 into 0 and changes lower zero bits to ones. Consequently x AND (x - 1) removes exactly the lowest set bit. In fixed-width two's complement, x AND (-x) isolates that bit, including the sign bit when it is the only set bit. These are representations with proof, not incantations.\n\nFinally, a bitmask does not make exponential search polynomial. A subset of n elements has 2^n possible masks. Compression makes state storage and transitions convenient. The final assignment problem combines that representation with dynamic programming, merging all histories that selected the same items. Its optimization comes from equivalent future choices, not from the presence of bitwise symbols.",
+  "invariant": "Always say what each bit or accumulator means. For parity accumulation, after consuming the first k values, bit b equals the parity of the number of consumed values having bit b set. Appending a value flips exactly its set columns, preserving that meaning. Equal paired values flip each of their columns twice and disappear. For a subset mask, bit j is 1 exactly when item j is used. A transition may set a previously zero bit; then the number of chosen items increases by exactly one. In dynamic programming, dp[mask] is the best cost among every partial assignment having precisely that used set. These invariants are different; using XOR cancellation does not justify a subset optimization or vice versa.",
+  "wrongTurns": [
+    {
+      "temptation": "XOR all values to find the value that appears once even if the others occur three times.",
+      "counterexample": "[2, 2, 2, 3] XORs to 1, not the unique value 3. Three copies have odd parity and do not disappear.",
+      "repair": "For triplicates, count each bit modulo 3, or derive a two-register finite-state machine. State the frequency assumption first."
+    },
+    {
+      "temptation": "Use XOR as an unconditional \u201cremove this element\u201d operation.",
+      "counterexample": "mask = 0100, remove item 1 using XOR 0010 gives 0110, adding an absent item.",
+      "repair": "Use mask & ~(1 << i), or prove membership before toggling."
+    },
+    {
+      "temptation": "Assume a compact mask makes an arbitrary large subset problem cheap.",
+      "counterexample": "n = 40 needs 2^40 states, over one trillion, despite each state fitting in one Long.",
+      "repair": "Compute state count before allocation. Find a different structure, meet-in-the-middle, or a valid pruning argument."
+    }
+  ],
+  "diagram": {
+    "caption": "A subset records membership; a DP transition adds one unused item and remembers the least cost.",
+    "nodes": [
+      "mask 001: item 0 used; next position 1",
+      "choose unused item 1",
+      "mask 011: items 0 and 1 used",
+      "choose unused item 2",
+      "mask 101: items 0 and 2 used"
+    ],
+    "edges": [
+      [
+        0,
+        1,
+        "test bit 1 = 0"
+      ],
+      [
+        1,
+        2,
+        "set bit 1; add XOR cost"
+      ],
+      [
+        0,
+        3,
+        "test bit 2 = 0"
+      ],
+      [
+        3,
+        4,
+        "set bit 2; add XOR cost"
+      ]
+    ]
+  },
+  "trace": [
+    {
+      "state": "Single Number input [4, 1, 4, 2, 2]; accumulator = 0",
+      "explanation": "No values consumed, so every bit has even parity."
+    },
+    {
+      "state": "Consume 4 => 4; consume 1 => 5 (0101)",
+      "explanation": "The accumulator stores column parity, not the largest or most recent value."
+    },
+    {
+      "state": "Consume second 4 => 1",
+      "explanation": "Both copies of 4 cancel; 1 remains."
+    },
+    {
+      "state": "Consume 2 => 3; consume second 2 => 1",
+      "explanation": "The second pair cancels, leaving the sole unpaired value."
+    },
+    {
+      "state": "Assignment a=[1,2], b=[2,3]: dp[00]=0; dp[01]=3; dp[10]=2",
+      "explanation": "The first a value is assigned to either b position, recording which one was used."
+    },
+    {
+      "state": "dp[11]=min(3+(2 XOR 3), 2+(2 XOR 2)) = min(4,2)=2",
+      "explanation": "Different histories converge to the same completed set; retain the minimum."
+    }
+  ],
+  "problems": [
+    {
+      "title": "One unpaired integer",
+      "difficulty": "Easy",
+      "statement": "Given a nonnull, nonempty Int array, exactly one value occurs once and every other distinct value occurs twice. Return the unpaired value. Values may be negative. Do not mutate the array. The frequency promise is a precondition, not validated by the implementation.",
+      "example": "[4,1,4,2,2] => 1; paired 4 and 2 cancel.",
+      "baseline": "Count each value in a hash map, then find count 1: expected O(n) time and O(n) space. A pairwise search needs O(n\u00b2) time and O(1) extra space.",
+      "reasoning": [
+        "Each paired value contributes an even number of occurrences to every bit column.",
+        "Use one XOR accumulator to remember column parity rather than complete counts.",
+        "XOR all values. The only uncancelled bit pattern is the once-occurring integer."
+      ],
+      "invariant": "After each prefix, accumulator equals the XOR of that prefix. By associativity, all full pairs cancel at the end and leave the unique value.",
+      "java": "static int singleNumber(int[] nums) {\n    Objects.requireNonNull(nums, \"nums\");\n    if (nums.length == 0) throw new IllegalArgumentException(\"nonempty required\");\n    int answer = 0;\n    for (int x : nums) answer ^= x;\n    return answer;\n}",
+      "kotlin": "fun singleNumber(nums: IntArray): Int {\n    require(nums.isNotEmpty()) { \"nonempty required\" }\n    var answer = 0\n    for (x in nums) answer = answer xor x\n    return answer\n}",
+      "complexity": "O(n) time for n values; O(1) extra space, no output collection. Java null throws; Kotlin nonnull parameters reject null.",
+      "edgeCases": [
+        "[0] => 0",
+        "[-1,2,2] => -1",
+        "[Int.MIN_VALUE,7,7] => Int.MIN_VALUE"
+      ],
+      "twist": "If all other values appear three times, parity loses necessary information. Count each of the 32 bit columns modulo 3, then assemble the remaining pattern; O(32n) time, O(1) space.",
+      "source": "https://leetcode.com/problems/single-number/",
+      "testJava": "if(singleNumber(new int[]{4,1,4,2,2}) != 1 || singleNumber(new int[]{Integer.MIN_VALUE,7,7}) != Integer.MIN_VALUE) throw new AssertionError();",
+      "testKotlin": "check(singleNumber(intArrayOf(4,1,4,2,2)) == 1); check(singleNumber(intArrayOf(Int.MIN_VALUE,7,7)) == Int.MIN_VALUE)"
+    },
+    {
+      "title": "Count set bits for every prefix value",
+      "difficulty": "Easy",
+      "statement": "Given n in [0, 1_000_000], return an Int array answer of length n+1 with answer[x] equal to the number of 1 bits in nonnegative x. The bound explicitly limits allocation. There is no input mutation.",
+      "example": "n=5 => [0,1,1,2,1,2], corresponding to 0,1,10,11,100,101.",
+      "baseline": "For each x, inspect every binary position independently: O(n log(n+1)) time and O(n) output space.",
+      "reasoning": [
+        "Deleting the lowest set bit produces a smaller integer with exactly one fewer 1.",
+        "Thus count[x] = count[x & (x-1)] + 1. Initialize count[0]=0.",
+        "Process x increasingly so the smaller dependency is already available."
+      ],
+      "invariant": "After finishing x, count[0..x] is correct. The recurrence removes exactly one 1 and references a smaller correct value.",
+      "java": "static int[] countBits(int n) {\n    if (n < 0 || n > 1_000_000) throw new IllegalArgumentException(\"n out of range\");\n    int[] count = new int[n + 1];\n    for (int x = 1; x <= n; x++) count[x] = count[x & (x - 1)] + 1;\n    return count;\n}",
+      "kotlin": "fun countBits(n: Int): IntArray {\n    require(n in 0..1_000_000) { \"n out of range\" }\n    val count = IntArray(n + 1)\n    for (x in 1..n) count[x] = count[x and (x - 1)] + 1\n    return count\n}",
+      "complexity": "O(n+1) time and O(n+1) output space; O(1) auxiliary space excluding the required result. Fixed-width Int operations are constant time.",
+      "edgeCases": [
+        "n=0 => [0]",
+        "n=1 => [0,1]",
+        "n=8 => [0,1,1,2,1,2,2,3,1]"
+      ],
+      "twist": "For one arbitrary signed Int, repeatedly clear the lowest set bit until zero. At most 32 iterations count the complete two's-complement representation, including the sign bit.",
+      "source": "https://leetcode.com/problems/counting-bits/",
+      "testJava": "if(!Arrays.equals(countBits(5),new int[]{0,1,1,2,1,2}) || !Arrays.equals(countBits(0),new int[]{0})) throw new AssertionError();",
+      "testKotlin": "check(countBits(5).contentEquals(intArrayOf(0,1,1,2,1,2))); check(countBits(0).contentEquals(intArrayOf(0)))"
+    },
+    {
+      "title": "Two unpaired integers",
+      "difficulty": "Medium",
+      "statement": "Given a nonnull Int array, exactly two distinct values occur once each; every other value occurs twice. Return the two unique values in ascending order. Negative values are allowed. Input is not mutated. The frequency promise is assumed.",
+      "example": "[1,2,1,3,2,5] => [3,5]. All XOR = 6 (0110); bit 1 separates 3 and 5.",
+      "baseline": "A frequency map uses expected O(n) time and O(n) space. Sorting a copy uses O(n log n) time and O(n) space.",
+      "reasoning": [
+        "XORing everything yields a XOR b. It is nonzero because a and b are distinct.",
+        "Choose any set bit in this result; at this position a and b differ. Isolate the lowest one with diff & -diff.",
+        "Partition values by that bit and XOR within each group. Equal pairs stay in one group and cancel; each unique value lands in a different group.",
+        "Sort the two recovered values for the specified output contract."
+      ],
+      "invariant": "Within each partition, paired equal values cancel. Since the chosen bit differs between the two singletons, exactly one uncancelled value remains in each partition.",
+      "java": "static int[] twoSingles(int[] nums) {\n    Objects.requireNonNull(nums, \"nums\");\n    int diff = 0;\n    for (int x : nums) diff ^= x;\n    if (diff == 0) throw new IllegalArgumentException(\"promise violated\");\n    int bit = diff & -diff;\n    int a = 0, b = 0;\n    for (int x : nums) {\n        if ((x & bit) == 0) a ^= x;\n        else b ^= x;\n    }\n    return new int[] {Math.min(a, b), Math.max(a, b)};\n}",
+      "kotlin": "fun twoSingles(nums: IntArray): IntArray {\n    var diff = 0\n    for (x in nums) diff = diff xor x\n    require(diff != 0) { \"promise violated\" }\n    val bit = diff and -diff\n    var a = 0\n    var b = 0\n    for (x in nums) {\n        if ((x and bit) == 0) a = a xor x\n        else b = b xor x\n    }\n    return intArrayOf(minOf(a, b), maxOf(a, b))\n}",
+      "complexity": "O(n) time across two scans; O(1) auxiliary and output space. The negation of Int.MIN_VALUE wraps on JVM by design; diff & -diff still isolates the sign bit correctly.",
+      "edgeCases": [
+        "[0,1] => [0,1]",
+        "[-1,0,2,2] => [-1,0]",
+        "[Int.MIN_VALUE,0] => [Int.MIN_VALUE,0]"
+      ],
+      "twist": "If three values are unique, the total XOR and a single separating bit do not in general isolate all three. A hash map is a clear general solution; do not extrapolate the two-value partition proof.",
+      "source": "https://leetcode.com/problems/single-number-iii/",
+      "testJava": "if(!Arrays.equals(twoSingles(new int[]{1,2,1,3,2,5}),new int[]{3,5}) || !Arrays.equals(twoSingles(new int[]{Integer.MIN_VALUE,0}),new int[]{Integer.MIN_VALUE,0})) throw new AssertionError();",
+      "testKotlin": "check(twoSingles(intArrayOf(1,2,1,3,2,5)).contentEquals(intArrayOf(3,5))); check(twoSingles(intArrayOf(Int.MIN_VALUE,0)).contentEquals(intArrayOf(Int.MIN_VALUE,0)))"
+    },
+    {
+      "title": "Minimum XOR assignment",
+      "difficulty": "Hard",
+      "statement": "Given nonnull arrays a and b of equal length n, 0 <= n <= 14, values in [0, 10_000_000], assign every b position to exactly one a position. Return the minimum sum of (a[i] XOR assignedB[i]) as Long. Equal values at different indices are separate items. Inputs are not mutated. Empty arrays return 0.",
+      "example": "a=[1,2], b=[2,3] => 2 by assigning [3,2]: (1 XOR 3)+(2 XOR 2)=2+0. The original order costs 3+1=4.",
+      "baseline": "Enumerate all n! permutations of b and evaluate each in O(n), giving O(n*n!) time and O(n) recursion/path space.",
+      "reasoning": [
+        "Fix the order of a. After k assignments, only which b indices were used determines the remaining choices.",
+        "Encode used indices as mask. The next a index is popcount(mask), so no second state coordinate is needed.",
+        "Define dp[mask] as the minimum partial sum for exactly that used set; initialize only dp[0]=0.",
+        "For each zero bit j, set it and add a[k] XOR b[j]. Retain the minimum when histories merge.",
+        "Every assignment reaches the all-ones mask. Each transition adds a bit and increases the mask numerically, so increasing-mask iteration respects dependencies."
+      ],
+      "invariant": "Before processing a mask, dp[mask] is minimal over all ways to assign the first popcount(mask) elements to its used indices. Every predecessor is smaller and has been processed. Trying each unused j covers every next assignment, and discarding a more expensive history with the same mask cannot worsen any common future completion.",
+      "java": "static long minimumXorSum(int[] a, int[] b) {\n    Objects.requireNonNull(a, \"a\");\n    Objects.requireNonNull(b, \"b\");\n    int n = a.length;\n    if (n != b.length || n > 14) throw new IllegalArgumentException(\"invalid lengths\");\n    for (int x : a) if (x < 0 || x > 10_000_000) throw new IllegalArgumentException(\"value out of range\");\n    for (int x : b) if (x < 0 || x > 10_000_000) throw new IllegalArgumentException(\"value out of range\");\n    int size = 1 << n;\n    long[] dp = new long[size];\n    Arrays.fill(dp, Long.MAX_VALUE);\n    dp[0] = 0;\n    for (int mask = 0; mask < size - 1; mask++) {\n        int k = Integer.bitCount(mask);\n        if (dp[mask] == Long.MAX_VALUE) continue;\n        for (int j = 0; j < n; j++) {\n            int bit = 1 << j;\n            if ((mask & bit) == 0) {\n                int next = mask | bit;\n                dp[next] = Math.min(dp[next], dp[mask] + (long) (a[k] ^ b[j]));\n            }\n        }\n    }\n    return dp[size - 1];\n}",
+      "kotlin": "fun minimumXorSum(a: IntArray, b: IntArray): Long {\n    val n = a.size\n    require(n == b.size && n <= 14) { \"invalid lengths\" }\n    require(a.all { it in 0..10_000_000 } && b.all { it in 0..10_000_000 }) { \"value out of range\" }\n    val size = 1 shl n\n    val dp = LongArray(size) { Long.MAX_VALUE }\n    dp[0] = 0L\n    for (mask in 0 until size - 1) {\n        val k = Integer.bitCount(mask)\n        if (dp[mask] == Long.MAX_VALUE) continue\n        for (j in 0 until n) {\n            val bit = 1 shl j\n            if ((mask and bit) == 0) {\n                val next = mask or bit\n                dp[next] = minOf(dp[next], dp[mask] + (a[k] xor b[j]).toLong())\n            }\n        }\n    }\n    return dp[size - 1]\n}",
+      "complexity": "O(n*2^n) time and O(2^n) auxiliary space, O(1) output space. Bit counting is constant time for the fixed 32-bit state. Long sums prevent overflow under the stated bounds.",
+      "edgeCases": [
+        "a=[], b=[] => 0",
+        "a=[0], b=[7] => 7",
+        "a=[2,2], b=[2,2] => 0",
+        "a=[1,2], b=[2,3] => 2"
+      ],
+      "twist": "For a general n-by-n cost matrix, replace XOR cost with cost[k][j]; the state proof is unchanged. For much larger n, investigate polynomial assignment algorithms rather than allocating 2^n states.",
+      "source": "https://leetcode.com/problems/minimum-xor-sum-of-two-arrays/",
+      "testJava": "if(minimumXorSum(new int[]{1,2},new int[]{2,3}) != 2L || minimumXorSum(new int[0],new int[0]) != 0L) throw new AssertionError();",
+      "testKotlin": "check(minimumXorSum(intArrayOf(1,2),intArrayOf(2,3)) == 2L); check(minimumXorSum(intArrayOf(),intArrayOf()) == 0L)"
+    }
+  ],
+  "practice": [
+    {
+      "title": "Number of 1 Bits",
+      "difficulty": "Easy",
+      "url": "https://leetcode.com/problems/number-of-1-bits/",
+      "hint": "Remove the lowest remaining 1 each iteration.",
+      "approach": "Use x &= x-1 until zero. O(w) worst-case time, O(1) space for w-bit integers. Twist: count the full two's-complement representation of negative inputs; unsigned shifts avoid nontermination in a scanning version."
+    },
+    {
+      "title": "Missing Number",
+      "difficulty": "Easy",
+      "url": "https://leetcode.com/problems/missing-number/",
+      "hint": "Both index range and input are almost the same multiset.",
+      "approach": "XOR all integers 0..n and all input values: common elements cancel. O(n) time, O(1) space. Requires distinct input values drawn from 0..n; duplicates break the promise."
+    },
+    {
+      "title": "Power of Two",
+      "difficulty": "Easy",
+      "url": "https://leetcode.com/problems/power-of-two/",
+      "hint": "A positive power of two has exactly one set bit.",
+      "approach": "Require n>0 and (n & (n-1))==0. O(1) time/space for fixed-width inputs. Zero must be rejected, and a negative sign-bit-only Int is not a positive power of two."
+    },
+    {
+      "title": "Single Number II",
+      "difficulty": "Medium",
+      "url": "https://leetcode.com/problems/single-number-ii/",
+      "hint": "Parity is insufficient for triplicates; retain count modulo three.",
+      "approach": "For each of 32 bit positions, count set bits across inputs modulo 3; reconstruct the remaining bit pattern. O(32n) time, O(1) space. Use unsigned extraction and preserve bit 31 to support negative unique values."
+    },
+    {
+      "title": "Subsets",
+      "difficulty": "Medium",
+      "url": "https://leetcode.com/problems/subsets/",
+      "hint": "Each subset is a membership vector.",
+      "approach": "Enumerate masks 0 through 2^n-1 and include element i when bit i is set. O(n*2^n) time and output space, O(n) transient storage. This enumerates indices; duplicate values need deduplication logic if the requested subsets must be unique."
+    },
+    {
+      "title": "Maximum XOR of Two Numbers in an Array",
+      "difficulty": "Medium",
+      "url": "https://leetcode.com/problems/maximum-xor-of-two-numbers-in-an-array/",
+      "hint": "Maximize the highest differing bit first.",
+      "approach": "For nonnegative 31-bit values, insert binary representations in a trie, then greedily choose the opposite bit when present. O(31n) time and O(31n) space; positive high bits dominate all lower bits combined. Signed maximum requires a changed sign-bit preference."
+    },
+    {
+      "title": "Shortest Path Visiting All Nodes",
+      "difficulty": "Hard",
+      "url": "https://leetcode.com/problems/shortest-path-visiting-all-nodes/",
+      "hint": "Location alone does not describe progress; combine it with a visited set.",
+      "approach": "Multi-source BFS on (node,mask), starting at every node with its own bit. First state with full mask is optimal in an unweighted connected graph. O((n+m)*2^n) time, O(n*2^n) state space; revisits to a node with a different mask are meaningful."
+    },
+    {
+      "title": "Partition to K Equal Sum Subsets",
+      "difficulty": "Medium",
+      "url": "https://leetcode.com/problems/partition-to-k-equal-sum-subsets/",
+      "hint": "A used-item mask can describe completed groups and a current remainder.",
+      "approach": "With nonnegative values, positive target, and small n, dp[mask] stores a feasible partial-bucket remainder, advancing only if adding an unused value does not exceed target. O(n*2^n) time, O(2^n) space. Handle total=0 separately; signed values invalidate the simple no-overflow-bucket pruning."
+    }
+  ],
+  "quiz": [
+    {
+      "question": "When does XORing all array values recover the sole value occurring once?",
+      "choices": [
+        "Every other value occurs an even number of times.",
+        "Every other value occurs exactly three times.",
+        "Every value is nonnegative, regardless of frequency."
+      ],
+      "answer": 0,
+      "explanation": "XOR retains parity, so even multiplicities cancel. Signedness is irrelevant to cancellation."
+    },
+    {
+      "question": "Why can an assignment DP discard the order used to reach a mask?",
+      "choices": [
+        "Every ordering always has the same accumulated cost.",
+        "Only the best accumulated cost and used set affect the remaining choices.",
+        "Masks automatically sort the input."
+      ],
+      "answer": 1,
+      "explanation": "Histories can have different costs, but their available future assignments are identical once the used set and next position are fixed."
+    }
+  ],
+  "transfer": {
+    "prompt": "A workshop has n <= 15 jobs and n workers. cost[i][j] is the fee for worker j doing job i. Every worker can do exactly one job. Find the minimum total fee without enumerating all n! assignments. Fees are nonnegative and totals fit Long.",
+    "hints": [
+      "Process jobs in a fixed order; what information determines which workers remain available?",
+      "Represent that chosen set with a mask and derive the next job index from its number of set bits."
+    ],
+    "solution": "Let dp[mask] be the minimum fee for assigning the first popcount(mask) jobs to exactly the workers in mask. Start dp[0]=0. For every unused worker j, relax dp[mask | (1<<j)] with dp[mask]+cost[popcount(mask)][j]. Future choices depend only on this set, so discard more expensive histories. Return dp[(1<<n)-1]. O(n*2^n) time, O(2^n) space, with no input mutation. This is the final XOR assignment problem with a general cost matrix."
+  },
+  "review": [
+    "Derive x & (x - 1) using the binary representation of 12.",
+    "Explain why Single Number allows negative values and fails for triplicates.",
+    "Show why two unique values have at least one differing bit and why partitioning by that bit separates them.",
+    "Reconstruct the assignment mask invariant without looking at the code.",
+    "Contrast arithmetic shift with unsigned shift for a negative Int."
+  ],
+  "sources": [
+    {
+      "label": "Java Language Specification: expressions",
+      "url": "https://docs.oracle.com/javase/specs/jls/se17/html/jls-15.html",
+      "note": "Primary reference for shifts and integer operators; not retrieved during this pass. No company frequency claim.",
+      "status": "unverified"
+    },
+    {
+      "label": "Kotlin numbers",
+      "url": "https://kotlinlang.org/docs/numbers.html",
+      "note": "Primary reference for Kotlin numeric/bitwise operations; not retrieved during this pass.",
+      "status": "unverified"
+    }
+  ]
+}

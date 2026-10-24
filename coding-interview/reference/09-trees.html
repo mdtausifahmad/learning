@@ -1,0 +1,31 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="Learn coding interview reasoning from first principles, with Java and Kotlin solutions."><title>Trees: decide what crosses each parent-child boundary: retrieval sheet · Coding interview</title><link rel="stylesheet" href="../assets/course.css"><script src="../assets/course.js" defer></script><link rel="stylesheet" href="../../assets/navigation.css">
+</head><body id="page-top">
+<!-- page-navigation:start -->
+<nav class="page-navigation" aria-label="Top page navigation"><div class="page-navigation-parents"><a href="../../index.html">Library home</a> <span aria-hidden="true">›</span> <a href="../../index.html#technical-foundations">Technical foundations and implementation</a> <span aria-hidden="true">›</span> <a href="../index.html">Coding Interviews: Patterns &amp; Problem Solving</a> <span aria-hidden="true">›</span> <a href="index.html">Reference sheets</a></div><div class="page-navigation-sections"><a href="../lessons/index.html">Lessons</a><a href="index.html">Reference sheets</a><a href="../materials.html">Guides and resources</a><a href="#page-top">Back to top ↑</a></div><div class="page-navigation-pager"><a href="08-stacks-queues.html" rel="prev">← Previous: Stacks, monotonic frontiers, and deques: retrieval sheet</a><a href="10-heaps.html" rel="next">Next: Heaps: keep the next winner and forget full order: retrieval sheet →</a></div></nav>
+<!-- page-navigation:end -->
+<a class="skip" href="#main">Skip to content</a><nav class="top"><a href="../../index.html">Software Engineering Library</a><a href="../index.html">Coding interview</a><a href="../foundations.html">Start from zero</a><a href="../practice.html">Practice room</a><a href="../research.html">Sources</a></nav><main id="main" class="document"><h1>Trees: decide what crosses each parent-child boundary: retrieval sheet</h1>
+<h2>Recognition</h2>
+<ul>
+<li>Every node has a unique route from the root: inherited constraints or prefix state can follow that route.</li>
+<li>A parent answer depends on its children: compute children first with postorder.</li>
+<li>Answers are organized by distance from a root: process a FIFO queue in complete levels.</li>
+<li>A path can turn at one node but cannot branch into three directions: separate a global completed answer from a one-branch return value.</li>
+</ul>
+<h2>Invariant</h2>
+<p>Each helper processes exactly its subtree, receives a precise inherited context, and returns a summary sufficient for its parent. Structural induction proves correctness: establish the empty case, assume child contracts, then show the parent composition preserves the contract. For BFS, the queue at a level boundary contains exactly the next depth in left-to-right order.</p>
+<h2>Failure boundaries</h2>
+<ul>
+<li>Validate a BST using only node.left.val &lt; node.val &lt; node.right.val.: Root 10 has right child 15, and 15 has left child 6. Every local comparison passes, but 6 lies in the right subtree of 10 and violates its ancestor bound. Repair: Propagate the entire legal interval from all ancestors, or verify strictly increasing inorder values.</li>
+<li>Return a path containing both child gains to the parent.: At node 2 with children 3 and 4, returning 3+2+4=9 to parent 1 creates three incident path edges at node 2 after adding 1. That object is a fork, not a simple path. Repair: Use both children only for a completed candidate; return node plus at most one child gain.</li>
+</ul>
+<h2>Recall</h2>
+<ul>
+<li>Write a helper contract before coding LCA or path sum.</li>
+<li>Explain the difference between inherited bounds and synthesized gain.</li>
+<li>Convert recursive postorder into an explicit stack with visited-state frames.</li>
+</ul>
+<a href="../lessons/09-trees.html">Return to lesson</a></main><footer>Practice deriving the invariant. Explain why every discarded candidate is safe to discard. <a href="../research.html">Evidence and scope</a></footer><!-- page-navigation:start -->
+<nav class="page-navigation" aria-label="Bottom page navigation"><div class="page-navigation-parents"><a href="../../index.html">Library home</a> <span aria-hidden="true">›</span> <a href="../../index.html#technical-foundations">Technical foundations and implementation</a> <span aria-hidden="true">›</span> <a href="../index.html">Coding Interviews: Patterns &amp; Problem Solving</a> <span aria-hidden="true">›</span> <a href="index.html">Reference sheets</a></div><div class="page-navigation-sections"><a href="../lessons/index.html">Lessons</a><a href="index.html">Reference sheets</a><a href="../materials.html">Guides and resources</a><a href="#page-top">Back to top ↑</a></div><div class="page-navigation-pager"><a href="08-stacks-queues.html" rel="prev">← Previous: Stacks, monotonic frontiers, and deques: retrieval sheet</a><a href="10-heaps.html" rel="next">Next: Heaps: keep the next winner and forget full order: retrieval sheet →</a></div></nav>
+<!-- page-navigation:end -->
+<script src="../../assets/course/links.js" defer></script>
+</body></html>

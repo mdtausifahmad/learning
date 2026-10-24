@@ -1,0 +1,284 @@
+{
+  "id": "06",
+  "slug": "sorting-intervals",
+  "title": "Sorting, intervals, scheduling, and sweep lines",
+  "group": "Linear data",
+  "prerequisites": "Lesson 00; arrays, loops, functions, and Big-O",
+  "estimatedMinutes": 150,
+  "motivation": "Intervals carry two coordinates, so an unsorted collection appears to require comparing every pair. Sorting chooses a useful direction in which to process them. Once intervals are ordered by start, every future interval starts at least as late as the current one. That fact lets us finish old components: if the next start lies beyond the current merged end, no still-later interval can bridge the gap. Sorting is therefore part of the proof, not cosmetic preparation.",
+  "mentalModel": "Intervals carry two coordinates, so an unsorted collection appears to require comparing every pair. Sorting chooses a useful direction in which to process them. Once intervals are ordered by start, every future interval starts at least as late as the current one. That fact lets us finish old components: if the next start lies beyond the current merged end, no still-later interval can bridge the gap. Sorting is therefore part of the proof, not cosmetic preparation.\n\nBefore touching code, define endpoint semantics. Closed intervals [a,b] include both endpoints, so [1,3] and [3,5] overlap and merge. Half-open appointments [a,b) allow one meeting to start exactly when another ends. An overlap comparison that uses < instead of <= can change the answer at every boundary. Empty intervals, zero duration, invalid reversed endpoints, and whether touching counts as conflict belong in the problem contract. Most interview mistakes in interval code are disagreements about these details.\n\nMerging maintains one unfinished union component. If the next start is within its current end, extend the end to the larger endpoint; never replace it with a smaller nested interval's end. Otherwise emit the component and begin a new one. Inserting one interval into an already sorted disjoint list is the same proof without sorting: copy intervals strictly before it, absorb every overlap into the growing new interval, emit it, then copy the suffix. The input promise provides the ordering work for free.\n\nScheduling asks a different question from merging. To retain the maximum number of nonoverlapping appointments, choose the appointment that finishes earliest, then repeat among compatible choices. Why earliest finish rather than earliest start or shortest duration? An exchange proof says the first appointment of an optimal schedule can be replaced by an earliest-finishing appointment, leaving at least as much room for every later choice. Applying the same argument to the remaining suffix proves optimality. If appointments have different rewards, the number-based exchange argument no longer proves anything about total reward; use weighted interval scheduling DP.\n\nA sweep line treats endpoints as events. Imagine moving a vertical line from left to right and updating which intervals are active. Counting active intervals answers overlap queries. Keeping the maximum active height answers a skyline. A heap alone does not directly support arbitrary ending-building deletion; a multiset such as TreeMap with occurrence counts does. Process every event at the same coordinate as one batch before emitting a visible-height change, so the output does not contain artificial intermediate states.\n\nTo adapt this family to twists, identify what order exposes future information, what state summarizes active or unfinished work, and when an answer can be finalized. For every comparison, narrate what happens when endpoints are equal. Then distinguish union, selection, overlap count, and maximum active value: all use intervals, but they demand different invariants and data structures.",
+  "invariant": "State endpoint semantics first. Sorting makes the unprocessed future obey a monotone order. Finalize a component only when the next start proves no future interval can reach it; select an interval only with an exchange argument; emit a sweep answer only after all events at the same coordinate have been applied.",
+  "recognition": [
+    "Union of overlapping ranges suggests sorting by start and maintaining a current component.",
+    "Maximum number of compatible unweighted appointments suggests earliest finish.",
+    "Questions about simultaneous activity across coordinates suggest endpoint events and a sweep line."
+  ],
+  "wrongTurns": [
+    {
+      "temptation": "When merging, replace the current end with the next end.",
+      "counterexample": "[[1,10],[2,3],[4,5]] would shrink the component to 3 and wrongly split [4,5], although all belong to [1,10].",
+      "repair": "Update end=max(end,next.end)."
+    },
+    {
+      "temptation": "Select intervals by earliest start for maximum count.",
+      "counterexample": "[1,10),[2,3),[3,4),[4,5): earliest start keeps one while earliest finish keeps three.",
+      "repair": "Use earliest finish with its exchange proof."
+    },
+    {
+      "temptation": "Emit a skyline point after each individual event.",
+      "counterexample": "Buildings [1,2,3] and [2,3,3] may emit a spurious drop to zero and rise at x=2.",
+      "repair": "Batch all events with the same x before observing height."
+    }
+  ],
+  "diagram": {
+    "caption": "Closed-interval union finalizes only when sorted starts expose a gap.",
+    "nodes": [
+      "Sort: [1,3], [2,6], [8,10], [10,12]",
+      "Absorb overlap: [1,6]",
+      "Start 8 > end 6: finalize [1,6]",
+      "Touch 10: remaining union [8,12]"
+    ],
+    "edges": [
+      [
+        0,
+        1,
+        "next start lies within current end"
+      ],
+      [
+        1,
+        2,
+        "future starts cannot bridge this gap"
+      ],
+      [
+        2,
+        3,
+        "closed endpoints merge when equal"
+      ]
+    ]
+  },
+  "trace": [
+    {
+      "state": "Merge sorted [[1,3],[2,6],[8,10],[10,12]]; current=[1,3]",
+      "explanation": "The first component is unfinished until the next start is known."
+    },
+    {
+      "state": "Next [2,6] starts before end 3; current=[1,6]",
+      "explanation": "Absorb the overlap; keep the greater endpoint."
+    },
+    {
+      "state": "Next [8,10] starts after end 6; emit [1,6], current=[8,10]",
+      "explanation": "Every future start is at least 8, so no later interval can bridge the gap."
+    },
+    {
+      "state": "Next [10,12] touches end 10; current=[8,12]; emit at end",
+      "explanation": "Closed endpoint semantics treat touching as overlap. Final union is [[1,6],[8,12]]."
+    }
+  ],
+  "problems": [
+    {
+      "title": "Merge Closed Intervals",
+      "difficulty": "Medium",
+      "statement": "Given a non-null array of two-element int intervals [start,end] with start<=end, return their union as sorted disjoint closed intervals. Touching intervals merge. Empty input returns an empty array. Do not mutate input; invalid reversed intervals throw.",
+      "example": "[[1,3],[2,6],[8,10],[10,12]] => [[1,6],[8,12]].",
+      "baseline": "Repeatedly find and merge any overlapping pair until stable: up to O(n\u00b3) in a straightforward implementation.",
+      "reasoning": [
+        "Clone intervals and sort by start, breaking ties by end. Use comparison functions rather than subtraction to avoid overflow.",
+        "Maintain one current component [start,end]. If next.start<=end, it overlaps and extends end to max(end,next.end).",
+        "Otherwise emit the old component: sortedness proves that no future interval can reach back across this gap. Emit the last component after the loop."
+      ],
+      "invariant": "Emitted intervals are final disjoint union components; the current component is exactly the union of the remaining processed overlapping chain.",
+      "java": "static int[][] mergeIntervals(int[][] intervals) {\n    int[][] a=new int[intervals.length][2];\n    for(int i=0;i<a.length;i++) {\n        if(intervals[i][0]>intervals[i][1]) throw new IllegalArgumentException(\"reversed interval\");\n        a[i]=intervals[i].clone();\n    }\n    Arrays.sort(a,Comparator.comparingInt((int[] x)->x[0]).thenComparingInt(x->x[1]));\n    List<int[]> ans=new ArrayList<>();\n    for(int[] x:a) {\n        if(ans.isEmpty() || x[0]>ans.get(ans.size()-1)[1]) ans.add(x.clone());\n        else ans.get(ans.size()-1)[1]=Math.max(ans.get(ans.size()-1)[1],x[1]);\n    }\n    return ans.toArray(new int[0][]);\n}",
+      "kotlin": "fun mergeIntervals(intervals: Array<IntArray>): Array<IntArray> {\n    val a = intervals.map { require(it[0] <= it[1]); it.copyOf() }\n        .sortedWith(compareBy<IntArray> { it[0] }.thenBy { it[1] })\n    val ans = mutableListOf<IntArray>()\n    for (x in a) {\n        if (ans.isEmpty() || x[0] > ans.last()[1]) ans.add(x.copyOf())\n        else ans.last()[1] = maxOf(ans.last()[1], x[1])\n    }\n    return ans.toTypedArray()\n}",
+      "complexity": "O(n log n) time, O(n) auxiliary copies/sorting references plus O(n) output intervals.",
+      "edgeCases": [
+        "[] => []",
+        "[[1,4],[2,3]] => [[1,4]]",
+        "[[1,1],[1,2]] => [[1,2]]"
+      ],
+      "twist": "For half-open intervals, touching [1,3) and [3,5) may be treated as separate appointments even though their set union can still be represented as [1,5). Decide whether the output represents union components or conflicts before changing the comparison.",
+      "source": "https://leetcode.com/problems/merge-intervals/",
+      "testJava": "if (!(Arrays.deepEquals(mergeIntervals(new int[][]{{1,3},{2,6},{8,10},{10,12}}),new int[][]{{1,6},{8,12}}) && Arrays.deepEquals(mergeIntervals(new int[][]{{1,10},{2,3}}),new int[][]{{1,10}}) && mergeIntervals(new int[][]{}).length==0)) throw new AssertionError(\"Merge Closed Intervals\");",
+      "testKotlin": "check(mergeIntervals(arrayOf(intArrayOf(1,3),intArrayOf(2,6),intArrayOf(8,10),intArrayOf(10,12))).contentDeepEquals(arrayOf(intArrayOf(1,6),intArrayOf(8,12))) && mergeIntervals(arrayOf(intArrayOf(1,10),intArrayOf(2,3))).contentDeepEquals(arrayOf(intArrayOf(1,10))) && mergeIntervals(emptyArray()).isEmpty()) { \"Merge Closed Intervals\" }"
+    },
+    {
+      "title": "Insert Into Sorted Disjoint Closed Intervals",
+      "difficulty": "Medium",
+      "statement": "Given non-null closed intervals sorted by start with previous.end<next.start, and one new closed interval, return the merged union after insertion. Rows have two entries and start<=end. Do not mutate any input. Empty lists are supported; invalid ordering or endpoints throw.",
+      "example": "[[1,3],[6,9]], new=[2,5] => [[1,5],[6,9]].",
+      "baseline": "Append then sort and merge: O(n log n) time/O(n) space.",
+      "reasoning": [
+        "Copy intervals whose end<new.start; they cannot overlap the inserted component.",
+        "While interval.start<=growingEnd, absorb it by taking min starts and max ends. The growing end can reveal more overlaps.",
+        "Emit the merged new component and copy the untouched suffix. Only a linear scan is required because input is already ordered and disjoint."
+      ],
+      "invariant": "The prefix is final and strictly before the growing inserted union; every absorbed interval belongs to that union, and the remaining suffix is sorted and unprocessed.",
+      "java": "static int[][] insertInterval(int[][] a,int[] added) {\n    if(added[0]>added[1]) throw new IllegalArgumentException(\"new interval\");\n    for(int j=0;j<a.length;j++) {\n        if(a[j][0]>a[j][1] || (j>0 && a[j-1][1]>=a[j][0]))\n            throw new IllegalArgumentException(\"sorted disjoint intervals required\");\n    }\n    List<int[]> ans=new ArrayList<>(); int i=0,start=added[0],end=added[1];\n    while(i<a.length && a[i][1]<start) ans.add(a[i++].clone());\n    while(i<a.length && a[i][0]<=end) {\n        start=Math.min(start,a[i][0]); end=Math.max(end,a[i][1]); i++;\n    }\n    ans.add(new int[]{start,end});\n    while(i<a.length) ans.add(a[i++].clone());\n    return ans.toArray(new int[0][]);\n}",
+      "kotlin": "fun insertInterval(a: Array<IntArray>, added: IntArray): Array<IntArray> {\n    require(added[0] <= added[1])\n    for (j in a.indices) require(a[j][0] <= a[j][1] && (j == 0 || a[j - 1][1] < a[j][0]))\n    val ans = mutableListOf<IntArray>(); var i = 0; var start = added[0]; var end = added[1]\n    while (i < a.size && a[i][1] < start) ans.add(a[i++].copyOf())\n    while (i < a.size && a[i][0] <= end) {\n        start = minOf(start, a[i][0]); end = maxOf(end, a[i][1]); i++\n    }\n    ans.add(intArrayOf(start, end))\n    while (i < a.size) ans.add(a[i++].copyOf())\n    return ans.toTypedArray()\n}",
+      "complexity": "O(n) time including validation, O(n) output and list references; O(1) scalar working state beyond output construction.",
+      "edgeCases": [
+        "[],new=[2,3] => [[2,3]]",
+        "[[1,2],[4,5]],new=[2,4] => [[1,5]]",
+        "[[1,10]],new=[3,4] => [[1,10]]"
+      ],
+      "twist": "If existing intervals may overlap, validate/sort/merge first or use a more general merge algorithm. The three-phase scan relies on the sorted-disjoint promise.",
+      "source": "https://leetcode.com/problems/insert-interval/",
+      "testJava": "if (!(Arrays.deepEquals(insertInterval(new int[][]{{1,3},{6,9}},new int[]{2,5}),new int[][]{{1,5},{6,9}}) && Arrays.deepEquals(insertInterval(new int[][]{},new int[]{2,3}),new int[][]{{2,3}}))) throw new AssertionError(\"Insert Into Sorted Disjoint Closed Intervals\");",
+      "testKotlin": "check(insertInterval(arrayOf(intArrayOf(1,3),intArrayOf(6,9)),intArrayOf(2,5)).contentDeepEquals(arrayOf(intArrayOf(1,5),intArrayOf(6,9))) && insertInterval(emptyArray(),intArrayOf(2,3)).contentDeepEquals(arrayOf(intArrayOf(2,3)))) { \"Insert Into Sorted Disjoint Closed Intervals\" }"
+    },
+    {
+      "title": "Minimum Removals for a Nonoverlapping Schedule",
+      "difficulty": "Medium",
+      "statement": "Given non-null half-open intervals [start,end) with start<end, return the fewest intervals to remove so the rest do not overlap. Touching endpoints are compatible. Input is unchanged; invalid intervals throw.",
+      "example": "[[1,2],[2,3],[3,4],[1,3]] => 1, removing [1,3].",
+      "baseline": "Enumerate all subsets and check compatibility: exponential time, O(n) recursion state.",
+      "reasoning": [
+        "Removing the fewest is equivalent to keeping the most. Sort a copied reference array by finishing time.",
+        "Keep an interval if its start is at least the end of the last kept one. Earliest finish leaves maximal room for the future.",
+        "The exchange argument replaces the first interval of an optimum by this earliest-finishing one without invalidating any later interval; repeat on the remaining suffix."
+      ],
+      "invariant": "After each greedy selection, some optimal-cardinality schedule begins with all chosen intervals. Skipped intervals conflict with the last selected interval under the current earliest-finish ordering.",
+      "java": "static int eraseOverlap(int[][] intervals) {\n    int[][] a=intervals.clone();\n    for(int[] x:a) if(x[0]>=x[1]) throw new IllegalArgumentException(\"nonempty interval required\");\n    Arrays.sort(a,Comparator.comparingInt((int[] x)->x[1]).thenComparingInt(x->x[0]));\n    int kept=0; long end=Long.MIN_VALUE;\n    for(int[] x:a) if(x[0]>=end) { kept++; end=x[1]; }\n    return a.length-kept;\n}",
+      "kotlin": "fun eraseOverlap(intervals: Array<IntArray>): Int {\n    for (x in intervals) require(x[0] < x[1])\n    val a = intervals.sortedWith(compareBy<IntArray> { it[1] }.thenBy { it[0] })\n    var kept = 0; var end = Long.MIN_VALUE\n    for (x in a) if (x[0].toLong() >= end) { kept++; end = x[1].toLong() }\n    return a.size - kept\n}",
+      "complexity": "O(n log n) time, O(n) copied references/sorting space; rows are only read and never mutated.",
+      "edgeCases": [
+        "[] => 0",
+        "[[1,2],[2,3]] => 0",
+        "[[1,4],[2,3],[3,4]] => 1"
+      ],
+      "twist": "If each interval has a reward, earliest finish no longer maximizes total reward. Sort by end and use DP: best[i]=max(best[i-1],reward[i]+best[last compatible]). Binary-search compatibility for O(n log n).",
+      "source": "https://leetcode.com/problems/non-overlapping-intervals/",
+      "testJava": "if (!(eraseOverlap(new int[][]{{1,2},{2,3},{3,4},{1,3}})==1 && eraseOverlap(new int[][]{{1,2},{2,3}})==0 && eraseOverlap(new int[][]{})==0)) throw new AssertionError(\"Minimum Removals for a Nonoverlapping Schedule\");",
+      "testKotlin": "check(eraseOverlap(arrayOf(intArrayOf(1,2),intArrayOf(2,3),intArrayOf(3,4),intArrayOf(1,3))) == 1 && eraseOverlap(arrayOf(intArrayOf(1,2),intArrayOf(2,3))) == 0 && eraseOverlap(emptyArray()) == 0) { \"Minimum Removals for a Nonoverlapping Schedule\" }"
+    },
+    {
+      "title": "The Skyline: Sweep a Multiset of Active Heights",
+      "difficulty": "Hard",
+      "statement": "Given non-null building rows [left,right,height] with left<right and height>0, return skyline key points [x,newHeight], sorted by x, suppressing consecutive equal heights. Buildings cover [left,right); ground height is zero. Input is unchanged; invalid rows throw.",
+      "example": "[[2,9,10],[3,7,15],[5,12,12]] => [[2,10],[3,15],[7,12],[12,0]].",
+      "baseline": "At every distinct endpoint, scan every building to find the maximum active height: O(n\u00b2) time plus sorting.",
+      "reasoning": [
+        "Convert each building into a start event (height,+1) and end event (height,-1), then sort events by x.",
+        "Maintain a TreeMap height\u2192active occurrence count, seeded with ground height 0. At each x apply every event at that coordinate before looking at the maximum.",
+        "If the maximum differs from the previously emitted height, append one key point. Counts preserve overlapping buildings with equal heights."
+      ],
+      "invariant": "After processing all events at x, the multiset contains exactly buildings covering points immediately to the right of x. Its maximum is the skyline height until the next event coordinate.",
+      "java": "static List<List<Integer>> skyline(int[][] buildings) {\n    List<int[]> events=new ArrayList<>();\n    for(int[] b:buildings) {\n        if(b[0]>=b[1] || b[2]<=0) throw new IllegalArgumentException(\"building\");\n        events.add(new int[]{b[0],b[2],1}); events.add(new int[]{b[1],b[2],-1});\n    }\n    events.sort(Comparator.comparingInt(e->e[0]));\n    TreeMap<Integer,Integer> active=new TreeMap<>(); active.put(0,1);\n    List<List<Integer>> ans=new ArrayList<>(); int i=0,previous=0;\n    while(i<events.size()) {\n        int x=events.get(i)[0];\n        while(i<events.size() && events.get(i)[0]==x) {\n            int[] e=events.get(i++); int count=active.getOrDefault(e[1],0)+e[2];\n            if(count==0) active.remove(e[1]); else active.put(e[1],count);\n        }\n        int height=active.lastKey();\n        if(height!=previous) { ans.add(List.of(x,height)); previous=height; }\n    }\n    return ans;\n}",
+      "kotlin": "fun skyline(buildings: Array<IntArray>): List<List<Int>> {\n    val events = mutableListOf<IntArray>()\n    for (b in buildings) {\n        require(b[0] < b[1] && b[2] > 0)\n        events.add(intArrayOf(b[0], b[2], 1)); events.add(intArrayOf(b[1], b[2], -1))\n    }\n    events.sortBy { it[0] }\n    val active = TreeMap<Int, Int>(); active[0] = 1\n    val ans = mutableListOf<List<Int>>(); var i = 0; var previous = 0\n    while (i < events.size) {\n        val x = events[i][0]\n        while (i < events.size && events[i][0] == x) {\n            val e = events[i++]; val count = (active[e[1]] ?: 0) + e[2]\n            if (count == 0) active.remove(e[1]) else active[e[1]] = count\n        }\n        val height = active.lastKey()\n        if (height != previous) { ans.add(listOf(x, height)); previous = height }\n    }\n    return ans\n}",
+      "complexity": "O(n log n) time for event sorting and ordered multiset updates; O(n) events/active state and O(n) output.",
+      "edgeCases": [
+        "[] => []",
+        "[[1,2,3],[2,3,3]] => [[1,3],[3,0]]",
+        "[[1,4,3],[2,3,3]] => [[1,3],[4,0]]"
+      ],
+      "twist": "For maximum simultaneous meetings, replace the height multiset with an active counter and track its maximum. For reporting room assignments, a heap of ending times tracks which room becomes free.",
+      "source": "https://leetcode.com/problems/the-skyline-problem/",
+      "testJava": "if (!(skyline(new int[][]{{2,9,10},{3,7,15},{5,12,12}}).equals(List.of(List.of(2,10),List.of(3,15),List.of(7,12),List.of(12,0))) && skyline(new int[][]{{1,2,3},{2,3,3}}).equals(List.of(List.of(1,3),List.of(3,0))) && skyline(new int[][]{}).isEmpty())) throw new AssertionError(\"The Skyline: Sweep a Multiset of Active Heights\");",
+      "testKotlin": "check(skyline(arrayOf(intArrayOf(2,9,10),intArrayOf(3,7,15),intArrayOf(5,12,12))) == listOf(listOf(2,10),listOf(3,15),listOf(7,12),listOf(12,0)) && skyline(arrayOf(intArrayOf(1,2,3),intArrayOf(2,3,3))) == listOf(listOf(1,3),listOf(3,0)) && skyline(emptyArray()).isEmpty()) { \"The Skyline: Sweep a Multiset of Active Heights\" }"
+    }
+  ],
+  "practice": [
+    {
+      "title": "Meeting Rooms II",
+      "difficulty": "Medium",
+      "url": "https://leetcode.com/problems/meeting-rooms-ii/",
+      "hint": "A room can be reused exactly when its previous meeting ends.",
+      "approach": "Sort starts, use a min-heap of occupied ending times, release all ends<=next start, then add the meeting and track peak size. O(n log n), O(n); half-open semantics."
+    },
+    {
+      "title": "Minimum Number of Arrows to Burst Balloons",
+      "difficulty": "Medium",
+      "url": "https://leetcode.com/problems/minimum-number-of-arrows-to-burst-balloons/",
+      "hint": "An arrow at the earliest finishing balloon endpoint preserves future choices.",
+      "approach": "Sort closed intervals by end. Place an arrow at the first end, then add another only when the next start is strictly greater than that coordinate. O(n log n), O(n) if preserving input."
+    },
+    {
+      "title": "Partition Labels",
+      "difficulty": "Medium",
+      "url": "https://leetcode.com/problems/partition-labels/",
+      "hint": "An observed symbol commits you through its last occurrence.",
+      "approach": "Compute last occurrence, scan while extending the required end, and close when current index reaches it. O(n), O(alphabet). This is interval union induced by symbols."
+    },
+    {
+      "title": "My Calendar I",
+      "difficulty": "Medium",
+      "url": "https://leetcode.com/problems/my-calendar-i/",
+      "hint": "Only the predecessor and successor can conflict in an ordered disjoint calendar.",
+      "approach": "Use a TreeMap of start\u2192end; test predecessor.end<=newStart and successor.start>=newEnd. O(log n) per booking, O(n) state; half-open intervals."
+    },
+    {
+      "title": "Maximum Profit in Job Scheduling",
+      "difficulty": "Hard",
+      "url": "https://leetcode.com/problems/maximum-profit-in-job-scheduling/",
+      "hint": "Greedy count scheduling loses reward information.",
+      "approach": "Sort by finish, binary-search the latest compatible job, and compute take/skip DP with long rewards. O(n log n), O(n); reconstruct choices with parent decisions if required."
+    },
+    {
+      "title": "Employee Free Time",
+      "difficulty": "Hard",
+      "url": "https://leetcode.com/problems/employee-free-time/",
+      "hint": "Free periods are gaps in the union of all busy intervals.",
+      "approach": "Flatten and merge busy schedules in O(N log N), then output finite gaps. A k-way heap merge exploits each employee schedule already being sorted, giving O(N log k)."
+    }
+  ],
+  "quiz": [
+    {
+      "question": "For half-open appointments, are [1,3) and [3,5) compatible?",
+      "choices": [
+        "Yes",
+        "No",
+        "Only if they have equal duration"
+      ],
+      "answer": 0,
+      "explanation": "The first appointment excludes time 3, so the second may start there. Closed-interval merging uses a different equality rule."
+    },
+    {
+      "question": "Why does a skyline multiset need height frequencies?",
+      "choices": [
+        "The skyline is the sum of heights",
+        "Two overlapping buildings may have equal heights",
+        "All building coordinates must be unique"
+      ],
+      "answer": 1,
+      "explanation": "Ending one of two height-3 buildings must leave the other height-3 building active. A plain set would remove the height too early."
+    }
+  ],
+  "transfer": {
+    "prompt": "A service receives temporary capacity grants [start,end,units]. Find the earliest time at which active capacity reaches at least a target, using half-open time intervals.",
+    "hints": [
+      "Which two events does each grant create?",
+      "What does an end and start at the same coordinate mean for the observed capacity?"
+    ],
+    "solution": "Create +units at start and -units at end; sort by coordinate and sum all deltas at equal coordinates before checking the threshold. The aggregate is capacity on the following time span. Return the first coordinate meeting the target, or absence. O(n log n) time, O(n) events; use long for units totals. If target<=0 and time is unbounded, \"earliest\" needs an explicit domain start."
+  },
+  "review": [
+    "After one day: derive the maintained state from the brute-force repeated work without looking at code.",
+    "After three days: explain the counterexample to each wrong turn and repair it.",
+    "After one week: solve the transfer problem, state the invariant aloud, and compare both JVM implementations."
+  ],
+  "sources": [
+    {
+      "label": "Merge Closed Intervals",
+      "url": "https://leetcode.com/problems/merge-intervals/",
+      "note": "Reference link; not retrieved in this run. Canonical problem statement and constraints; used to identify the technique and offer optional practice, not as evidence of company frequency.",
+      "status": "unverified"
+    },
+    {
+      "label": "Insert Into Sorted Disjoint Closed Intervals",
+      "url": "https://leetcode.com/problems/insert-interval/",
+      "note": "Reference link; not retrieved in this run. Canonical problem statement and constraints; used to identify the technique and offer optional practice, not as evidence of company frequency.",
+      "status": "unverified"
+    },
+    {
+      "label": "Minimum Removals for a Nonoverlapping Schedule",
+      "url": "https://leetcode.com/problems/non-overlapping-intervals/",
+      "note": "Reference link; not retrieved in this run. Canonical problem statement and constraints; used to identify the technique and offer optional practice, not as evidence of company frequency.",
+      "status": "unverified"
+    },
+    {
+      "label": "The Skyline: Sweep a Multiset of Active Heights",
+      "url": "https://leetcode.com/problems/the-skyline-problem/",
+      "note": "Reference link; not retrieved in this run. Canonical problem statement and constraints; used to identify the technique and offer optional practice, not as evidence of company frequency.",
+      "status": "unverified"
+    }
+  ]
+}

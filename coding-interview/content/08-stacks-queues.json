@@ -1,0 +1,269 @@
+{
+  "id": "08",
+  "slug": "stacks-queues",
+  "title": "Stacks, monotonic frontiers, and deques",
+  "group": "Structural patterns",
+  "prerequisites": "Arrays, loops; Lesson 02 two pointers; Lesson 03 sliding windows",
+  "estimatedMinutes": 170,
+  "motivation": "A stack remembers unfinished obligations in the order they must be resolved. A queue remembers arrival order. Monotonic stacks and deques go further: they delete candidates that can never win again, avoiding repeated scans into the past.",
+  "recognition": [
+    "Nested opening and closing operations require resolving the most recently opened obligation first.",
+    "For each position, find the first greater or smaller position on one side: unresolved indices can form an ordered stack.",
+    "An element becomes irrelevant forever when a newer, better element arrives: maintain a monotonic frontier.",
+    "A moving window needs an extreme value and expiration by index: a deque supports removing both dominated candidates and expired candidates."
+  ],
+  "mentalModel": "Imagine a stack of plates: you can add or remove only the top. This restriction is useful when the most recent unfinished task must be completed first. In bracket matching, an opening bracket creates an obligation; a closing bracket must discharge the latest obligation of the matching kind. Merely counting openings loses nesting information. A queue instead removes the earliest arrival. A deque permits insertion and removal at both ends, combining chronological expiration at the front with candidate elimination at the back.\n\nA monotonic stack is not a magical data structure. It is an ordinary stack plus a rule that its values stay ordered. Derive that rule from the question. In next-greater-element problems, keep indices whose answers remain unknown and whose values are nonincreasing from bottom to top. When a larger value arrives, it is the first larger value for every smaller top that it pops: earlier positions between that top and the new position already failed to exceed it. Store indices because distances, duplicate values, and window expiration all depend on position.\n\nThe harder leap is dominance. Suppose a later window element is at least as large as an earlier element. The later element is better for a maximum, and it expires later. The earlier candidate can never become useful again, so removing it is safe. This argument needs both value quality and lifetime; value order alone is insufficient. For a minimum window, reverse the comparison. For the nearest strictly greater position, preserve equal unresolved values because equality does not answer the question.\n\nHistogram rectangles use the same frontier for a different meaning. A bar remains pending until a smaller bar proves its rectangle cannot extend farther right. After popping a bar, the new top marks the last smaller boundary on the left. The width is rightBoundary-leftBoundary-1, not a distance between arbitrary neighboring bars. A virtual zero-height bar flushes pending positive bars at the end without changing the input.\n\nNested while loops do not imply quadratic time. Charge each pop to the unique earlier push of the same index. Across the whole scan, each index enters once and leaves at most once. This accounting is the amortized proof behind linear time.",
+  "invariant": "The container stores exactly the unresolved obligations or nondominated candidates needed for future answers. Its order is stated explicitly: chronological indices plus either nonincreasing or nondecreasing values. A deletion must have a proof: resolved forever, expired forever, or dominated forever. Since indices enter once and leave at most once, total container work is O(n).",
+  "wrongTurns": [
+    {
+      "temptation": "Match brackets using three independent counters.",
+      "counterexample": "([)] has balanced counts for parentheses and square brackets but invalid nesting. The first closing parenthesis conflicts with the latest open square bracket.",
+      "repair": "Keep opening kinds in a stack and compare each close with the top."
+    },
+    {
+      "temptation": "Keep only values for a sliding maximum.",
+      "counterexample": "For [5,5,1] with window size 2, the first 5 expires while the second remains. A value alone cannot identify which 5 expired.",
+      "repair": "Store indices; remove front indices outside the active window, then read their values."
+    }
+  ],
+  "diagram": {
+    "caption": "For a maximum window, later larger values dominate earlier smaller ones.",
+    "nodes": [
+      "index 0: value 4",
+      "index 1: value 2",
+      "index 2: value 5",
+      "deque after index 2: [2]"
+    ],
+    "edges": [
+      [
+        2,
+        1,
+        "5 dominates 2"
+      ],
+      [
+        2,
+        0,
+        "5 dominates 4"
+      ],
+      [
+        2,
+        3,
+        "push newest candidate"
+      ]
+    ]
+  },
+  "trace": [
+    {
+      "state": "a=[4,2,5,3], k=3; i=0; deque=[0:4]",
+      "explanation": "First value is the only candidate."
+    },
+    {
+      "state": "i=1; deque=[0:4,1:2]",
+      "explanation": "The smaller later value might outlive 4, so keep it."
+    },
+    {
+      "state": "i=2; deque=[2:5]; output=[5]",
+      "explanation": "5 removes both smaller older candidates and is the maximum of indices 0..2."
+    },
+    {
+      "state": "i=3; deque=[2:5,3:3]; output=[5,5]",
+      "explanation": "5 remains active in indices 1..3; 3 may matter after it expires."
+    }
+  ],
+  "problems": [
+    {
+      "title": "Validate nested brackets",
+      "difficulty": "Easy",
+      "statement": "Given a non-null string containing only ()[]{} characters, return whether all brackets are correctly nested and closed. Empty string is valid. Any other character returns false. Input is unchanged.",
+      "example": "([]{}) returns true; ([)] returns false.",
+      "baseline": "Repeatedly delete adjacent matched pairs until stable: O(n\u00b2) time with repeated string copying and O(n) space.",
+      "reasoning": [
+        "An opening bracket creates a required future closing bracket. Push that required closer, which makes a comparison at closing time direct.",
+        "For a closing bracket, the stack must be nonempty and its top must equal this character. Popping any deeper item would cross nesting boundaries.",
+        "After scanning, accept only an empty stack. A nonempty stack represents openings never closed, even when no mismatched close appeared."
+      ],
+      "invariant": "The stack from bottom to top contains exactly the unmatched required closers, with the latest obligation on top.",
+      "java": "static boolean validBrackets(String s) {\n Objects.requireNonNull(s);\n Deque<Character> stack=new ArrayDeque<>();\n for (int i=0;i<s.length();i++) {\n  char c=s.charAt(i);\n  if(c=='(') stack.push(')');\n  else if(c=='[') stack.push(']');\n  else if(c=='{') stack.push('}');\n  else if(c==')'||c==']'||c=='}') {\n   if(stack.isEmpty()||stack.pop()!=c) return false;\n  } else return false;\n }\n return stack.isEmpty();\n}",
+      "kotlin": "fun validBrackets(s: String): Boolean {\n val stack = ArrayDeque<Char>()\n for (c in s) {\n  when (c) {\n   '(' -> stack.push(')')\n   '[' -> stack.push(']')\n   '{' -> stack.push('}')\n   ')', ']', '}' -> if (stack.isEmpty() || stack.pop() != c) return false\n   else -> return false\n  }\n }\n return stack.isEmpty()\n}",
+      "complexity": "O(n) time, O(n) auxiliary space in the all-open case; n is the number of characters.",
+      "edgeCases": [
+        "empty \u21d2 true",
+        "] \u21d2 false",
+        "(( \u21d2 false"
+      ],
+      "twist": "If ordinary text is allowed, skip it explicitly; do not quietly change the validation contract. For wildcard brackets the state may branch, so one deterministic stack is no longer automatically sufficient.",
+      "source": "https://leetcode.com/problems/valid-parentheses/",
+      "testJava": "if(!validBrackets(\"([]{})\")||validBrackets(\"([)]\")||!validBrackets(\"\")||validBrackets(\"x\"))throw new AssertionError();",
+      "testKotlin": "check(validBrackets(\"([]{})\"));check(!validBrackets(\"([)]\"));check(validBrackets(\"\"));check(!validBrackets(\"x\"))"
+    },
+    {
+      "title": "Wait for a warmer temperature",
+      "difficulty": "Medium",
+      "statement": "Given a non-null Int array of daily temperatures, return an equally sized array where answer[i] is days until the first strictly warmer day, or 0 if none exists. Arbitrary Int values are supported; do not mutate input.",
+      "example": "[73,71,72,75] returns [3,1,1,0].",
+      "baseline": "For every day scan future days: O(n\u00b2) time and O(n) output space.",
+      "reasoning": [
+        "A day cannot be answered until a strictly warmer day appears. Store unanswered indices on a stack, maintaining nonincreasing temperatures.",
+        "At day i, repeatedly pop while temperature[i] is strictly greater than the top temperature. The current day is the first qualifying day because every earlier scanned day failed for that pending index.",
+        "Assign i-index for each pop, then push i. Leave unpopped positions as zero. Equality must not pop because the request says strictly warmer."
+      ],
+      "invariant": "Stack indices are increasing and their temperatures are nonincreasing; all have no warmer day among the positions already scanned.",
+      "java": "static int[] warmer(int[] t) {\n int[] answer=new int[t.length]; Deque<Integer> stack=new ArrayDeque<>();\n for(int i=0;i<t.length;i++) {\n  while(!stack.isEmpty() && t[i]>t[stack.peek()]) {\n   int j=stack.pop(); answer[j]=i-j;\n  }\n  stack.push(i);\n }\n return answer;\n}",
+      "kotlin": "fun warmer(t: IntArray): IntArray {\n val answer = IntArray(t.size)\n val stack = ArrayDeque<Int>()\n for (i in t.indices) {\n  while (stack.isNotEmpty() && t[i] > t[stack.peek()]) {\n   val j = stack.pop()\n   answer[j] = i - j\n  }\n  stack.push(i)\n }\n return answer\n}",
+      "complexity": "O(n) time because every index is pushed once and popped at most once; O(n) auxiliary stack and O(n) output.",
+      "edgeCases": [
+        "[] \u21d2 []",
+        "[2,2] \u21d2 [0,0]",
+        "[3,2,1] \u21d2 [0,0,0]"
+      ],
+      "twist": "For circular next-greater values, scan 2n logical positions and push original indices only on the first pass. Return values rather than distances if the contract changes.",
+      "source": "https://leetcode.com/problems/daily-temperatures/",
+      "testJava": "if(!Arrays.equals(warmer(new int[]{73,71,72,75}),new int[]{3,1,1,0})||!Arrays.equals(warmer(new int[]{2,2}),new int[]{0,0})||warmer(new int[0]).length!=0)throw new AssertionError();",
+      "testKotlin": "check(warmer(intArrayOf(73,71,72,75)).contentEquals(intArrayOf(3,1,1,0)));check(warmer(intArrayOf(2,2)).contentEquals(intArrayOf(0,0)));check(warmer(intArrayOf()).isEmpty())"
+    },
+    {
+      "title": "Largest rectangle under a histogram",
+      "difficulty": "Hard",
+      "statement": "Given a non-null array of nonnegative Int bar heights, each with width 1, return the maximum area as Long. Empty input returns 0. Reject negative heights. Do not mutate input.",
+      "example": "[2,1,5,6,2,3] returns 10 from the height-5 rectangle spanning indices 2..3.",
+      "baseline": "For every interval maintain its minimum height: O(n\u00b2) time, O(1) auxiliary space.",
+      "reasoning": [
+        "Every optimal rectangle can be expanded until blocked by a smaller bar, so choose a bar as the limiting height and find its maximal legal span. Keep indices of nondecreasing heights.",
+        "When a shorter bar arrives at i, pop a taller index j. The current index is the first smaller boundary on its right; after popping, the new stack top is a usable left boundary. Compute height[j] \u00d7 (i-left-1).",
+        "Equal bars can remain. Their individual widths may differ, but the earliest equal bar eventually obtains the full span. At i=n, use virtual height zero to resolve all positive bars; zero bars cannot improve a positive area."
+      ],
+      "invariant": "Pending indices have nondecreasing heights; a popped positive bar has just discovered its right boundary, and its candidate span contains no smaller bar.",
+      "java": "static long largestRectangle(int[] h) {\n for(int value:h) if(value<0) throw new IllegalArgumentException(\"negative height\");\n Deque<Integer> stack=new ArrayDeque<>(); long best=0;\n for(int i=0;i<=h.length;i++) {\n  int current=i==h.length?0:h[i];\n  while(!stack.isEmpty() && h[stack.peek()]>current) {\n   int j=stack.pop(); int left=stack.isEmpty()?-1:stack.peek();\n   best=Math.max(best,(long)h[j]*(i-left-1));\n  }\n  if(i<h.length) stack.push(i);\n }\n return best;\n}",
+      "kotlin": "fun largestRectangle(h: IntArray): Long {\n require(h.all { it >= 0 })\n val stack = ArrayDeque<Int>()\n var best = 0L\n for (i in 0..h.size) {\n  val current = if (i == h.size) 0 else h[i]\n  while (stack.isNotEmpty() && h[stack.peek()] > current) {\n   val j = stack.pop()\n   val left = if (stack.isEmpty()) -1 else stack.peek()\n   best = maxOf(best, h[j].toLong() * (i - left - 1))\n  }\n  if (i < h.size) stack.push(i)\n }\n return best\n}",
+      "complexity": "O(n) time and O(n) auxiliary space. Convert height to Long before multiplication; Int height times an Int-sized array length fits signed Long.",
+      "edgeCases": [
+        "[] \u21d2 0",
+        "[2,2] \u21d2 4",
+        "[0,0] \u21d2 0",
+        "[2147483647,2147483647] \u21d2 4294967294"
+      ],
+      "twist": "For a binary matrix, accumulate consecutive-one heights row by row and solve this histogram at each row: O(rows\u00d7columns) time, O(columns) space.",
+      "source": "https://leetcode.com/problems/largest-rectangle-in-histogram/",
+      "testJava": "if(largestRectangle(new int[]{2,1,5,6,2,3})!=10L||largestRectangle(new int[]{Integer.MAX_VALUE,Integer.MAX_VALUE})!=4294967294L||largestRectangle(new int[0])!=0)throw new AssertionError();",
+      "testKotlin": "check(largestRectangle(intArrayOf(2,1,5,6,2,3))==10L);check(largestRectangle(intArrayOf(Int.MAX_VALUE,Int.MAX_VALUE))==4294967294L);check(largestRectangle(intArrayOf())==0L)"
+    },
+    {
+      "title": "Maximum in every sliding window",
+      "difficulty": "Hard",
+      "statement": "Given non-null Int array a and window width k with 1\u2264k\u2264a.length, return maxima of each consecutive width-k window. Reject invalid k, including empty input with any k. Input is unchanged.",
+      "example": "[1,3,-1,-3,5,3,6,7], k=3 returns [3,3,5,5,6,7].",
+      "baseline": "Scan all k entries of every window: O(nk) time, O(n-k+1) output space.",
+      "reasoning": [
+        "An index is useful only while it remains in the current window. Remove front indices \u2264i-k before producing the answer. Chronological index order makes expiration local to the front.",
+        "Remove back indices whose values are \u2264a[i]. The current index is at least as large and expires later, so those candidates can never again be the maximum. Push i at the back.",
+        "After i reaches k-1, the front is the current maximum: every removed active candidate was dominated, and remaining candidates are ordered by decreasing value. Emit one result per complete window."
+      ],
+      "invariant": "Deque indices increase from front to back, their values strictly decrease, and all indices are in the current window. Each excluded active index has a newer candidate at least as large.",
+      "java": "static int[] windowMax(int[] a,int k) {\n if(k<1||k>a.length) throw new IllegalArgumentException(\"invalid window\");\n int[] out=new int[a.length-k+1]; Deque<Integer> q=new ArrayDeque<>();\n for(int i=0;i<a.length;i++) {\n  while(!q.isEmpty() && q.peekFirst()<=i-k) q.removeFirst();\n  while(!q.isEmpty() && a[q.peekLast()]<=a[i]) q.removeLast();\n  q.addLast(i);\n  if(i>=k-1) out[i-k+1]=a[q.peekFirst()];\n }\n return out;\n}",
+      "kotlin": "fun windowMax(a: IntArray, k: Int): IntArray {\n require(k >= 1 && k <= a.size)\n val out = IntArray(a.size - k + 1)\n val q = ArrayDeque<Int>()\n for (i in a.indices) {\n  while (q.isNotEmpty() && q.peekFirst() <= i - k) q.removeFirst()\n  while (q.isNotEmpty() && a[q.peekLast()] <= a[i]) q.removeLast()\n  q.addLast(i)\n  if (i >= k - 1) out[i - k + 1] = a[q.peekFirst()]\n }\n return out\n}",
+      "complexity": "O(n) time, O(k) auxiliary deque space, and O(n-k+1) output space. Each index enters once and leaves once.",
+      "edgeCases": [
+        "[4],k=1 \u21d2 [4]",
+        "[5,5,1],k=2 \u21d2 [5,5]",
+        "[1,2],k=3 \u21d2 rejected"
+      ],
+      "twist": "When the condition bounds max-min rather than fixed width, maintain both decreasing and increasing deques and move the left boundary until the difference is legal; subtract using Long.",
+      "source": "https://leetcode.com/problems/sliding-window-maximum/",
+      "testJava": "if(!Arrays.equals(windowMax(new int[]{1,3,-1,-3,5,3,6,7},3),new int[]{3,3,5,5,6,7})||!Arrays.equals(windowMax(new int[]{5,5,1},2),new int[]{5,5})||!Arrays.equals(windowMax(new int[]{4},1),new int[]{4}))throw new AssertionError();",
+      "testKotlin": "check(windowMax(intArrayOf(1,3,-1,-3,5,3,6,7),3).contentEquals(intArrayOf(3,3,5,5,6,7)));check(windowMax(intArrayOf(5,5,1),2).contentEquals(intArrayOf(5,5)));check(windowMax(intArrayOf(4),1).contentEquals(intArrayOf(4)))"
+    }
+  ],
+  "practice": [
+    {
+      "title": "Min Stack",
+      "difficulty": "Medium",
+      "url": "https://leetcode.com/problems/min-stack/",
+      "hint": "Store the minimum alongside each pushed value.",
+      "approach": "Each frame stores value and prefix minimum; pop restores the previous minimum automatically. O(1) each operation/O(n) space; handle duplicate minima."
+    },
+    {
+      "title": "Evaluate Reverse Polish Notation",
+      "difficulty": "Medium",
+      "url": "https://leetcode.com/problems/evaluate-reverse-polish-notation/",
+      "hint": "An operator resolves the latest two values.",
+      "approach": "Pop right then left, compute left operator right, push result. O(n) time/O(n) space; operand order matters for subtraction and division."
+    },
+    {
+      "title": "Next Greater Element II",
+      "difficulty": "Medium",
+      "url": "https://leetcode.com/problems/next-greater-element-ii/",
+      "hint": "Circularity changes traversal count, not dominance.",
+      "approach": "Scan twice modulo n; resolve pending indices with strict greater comparison, push once. O(n) time/O(n) space; guard empty input before modulo."
+    },
+    {
+      "title": "Sum of Subarray Minimums",
+      "difficulty": "Medium",
+      "url": "https://leetcode.com/problems/sum-of-subarray-minimums/",
+      "hint": "Count intervals for which each index is the selected minimum.",
+      "approach": "Find previous strictly smaller and next smaller-or-equal boundaries, then multiply left choices by right choices by value. O(n)/O(n); asymmetric ties prevent double counting; use required modulus."
+    },
+    {
+      "title": "Remove K Digits",
+      "difficulty": "Medium",
+      "url": "https://leetcode.com/problems/remove-k-digits/",
+      "hint": "A smaller incoming digit can improve the earliest undecided position.",
+      "approach": "Pop larger prior digits while deletions remain, append current digit, delete remaining suffix, strip leading zeros. O(n)/O(n); return 0 for empty result."
+    },
+    {
+      "title": "Longest Continuous Subarray with Absolute Diff \u2264 Limit",
+      "difficulty": "Medium",
+      "url": "https://leetcode.com/problems/longest-continuous-subarray-with-absolute-diff-less-than-or-equal-to-limit/",
+      "hint": "Two deques summarize window extremes.",
+      "approach": "Extend right, maintain max/min deques, shrink left while max-min exceeds limit. O(n)/O(n); cast to Long before subtraction."
+    }
+  ],
+  "quiz": [
+    {
+      "question": "Why is the histogram algorithm linear despite an inner while?",
+      "choices": [
+        "The stack has constant size.",
+        "Each bar is pushed once and popped at most once.",
+        "The bars must be sorted."
+      ],
+      "answer": 1,
+      "explanation": "The accounting is global across all iterations; a long pop sequence consumes indices that cannot be popped again."
+    },
+    {
+      "question": "For strictly warmer days, should equal temperatures resolve each other?",
+      "choices": [
+        "Yes, always.",
+        "Only for negative temperatures.",
+        "No."
+      ],
+      "answer": 2,
+      "explanation": "Equality does not satisfy strictly greater, so both days remain pending until a larger value arrives."
+    }
+  ],
+  "transfer": {
+    "prompt": "A monitoring service receives timestamped scores in increasing timestamp order. After each event, report the maximum score among events no more than 60 seconds old. Several events can share a timestamp. Design the state.",
+    "hints": [
+      "Expiration uses timestamps rather than a fixed count.",
+      "A newer score at least as large can replace an older score."
+    ],
+    "solution": "Keep a deque of (timestamp,sequence,score). Remove front records with timestamp<now-60, remove back records with score\u2264newScore, then append the event. Front is the maximum. Each event enters and leaves at most once: amortized O(1) processing and O(w) space for events in the active time span. Specify inclusive age and require nondecreasing input time; out-of-order arrivals break the expiration and dominance proof."
+  },
+  "review": [
+    "Derive the comparison sign for next greater, previous smaller, and window minimum.",
+    "Explain why both index age and value matter for dominance.",
+    "Draw histogram left and right boundaries and derive the minus one."
+  ],
+  "sources": [
+    {
+      "label": "LeetCode stack taxonomy",
+      "url": "https://leetcode.com/tag/stack/",
+      "note": "Reference link; not retrieved in this run. Primary practice catalogue and task statements.",
+      "status": "unverified"
+    },
+    {
+      "label": "Sliding window maximum",
+      "url": "https://leetcode.com/problems/sliding-window-maximum/",
+      "note": "Reference link; not retrieved in this run. Canonical fixed-window extrema contract; no frequency claim.",
+      "status": "unverified"
+    }
+  ]
+}
