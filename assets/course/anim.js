@@ -51,6 +51,11 @@
   function setup(root) {
     var els = [].slice.call(root.querySelectorAll(".anim-el"));
     var caps = [].slice.call(root.querySelectorAll(".anim-cap"));
+    var captions = root.querySelector(".anim-caps");
+    if (captions) {
+      captions.setAttribute("aria-live", "polite");
+      captions.setAttribute("aria-atomic", "true");
+    }
 
     var maxStep = 1;
     els.forEach(function (el) {
@@ -101,6 +106,7 @@
         var shown = current >= b.from && current <= b.to;
         el.classList.toggle("is-shown", shown);
         el.classList.toggle("is-active", shown && current === b.from);
+        el.setAttribute("aria-hidden", String(!shown));
       });
       caps.forEach(function (c) {
         c.classList.toggle("is-active", (num(c, "data-step") || 1) === current);
@@ -108,6 +114,7 @@
       dots.forEach(function (dot, idx) {
         dot.classList.toggle("is-active", idx + 1 === current);
         dot.classList.toggle("is-past", idx + 1 < current);
+        dot.setAttribute("aria-current", idx + 1 === current ? "step" : "false");
       });
       if (count) count.textContent = current + " / " + maxStep;
       if (btnPrev) btnPrev.disabled = current === 1;
@@ -122,6 +129,7 @@
     function label(playing) {
       btnPlay.innerHTML = playing ? "&#10073;&#10073;&nbsp;Pause" : "&#9654;&nbsp;Play";
       btnPlay.setAttribute("aria-label", playing ? "Pause" : "Play");
+      btnPlay.setAttribute("aria-pressed", String(playing));
       btnPlay.classList.toggle("is-playing", playing);
     }
 

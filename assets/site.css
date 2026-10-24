@@ -7,14 +7,14 @@
   --accent: #2e5a7a; --link: #2e5a7a; --code-bg: #eef0f2;
   --c-obs: #14615f; --c-async: #7a2e2e; --c-es: #4b3f8f;
   --c-sd: #1f4f8f; --c-ts: #8a5a12; --c-ls: #6d2e6b;
-  --maxw: 50rem;
+  --maxw: 44rem;
 }
-html { font-size: 17px; }
+html { font-size: 18px; }
 body {
   font-family: Palatino, "Palatino Linotype", "Book Antiqua", Georgia, serif;
   color: var(--ink); background: var(--paper);
   max-width: var(--maxw); margin: 3.5rem auto 6rem; padding: 0 1.4rem;
-  line-height: 1.55; -webkit-font-smoothing: antialiased;
+  line-height: 1.65; -webkit-font-smoothing: antialiased;
 }
 h1, h2, h3, h4 { line-height: 1.2; font-weight: 600; }
 h1 { font-size: 2.3rem; margin: 0 0 .4rem; letter-spacing: -0.015em; }
@@ -114,3 +114,7 @@ body.library { max-width: 65rem; margin-top: 2rem; }
   .library-entry { margin-left: 0; }
 }
 @media print { .library-nav, .topic-nav, .skip-link { display: none; } }
+
+main:focus { outline: none; }
+main > p, main > ul, main > ol { max-width: 72ch; }
+summary { min-height: 44px; padding-block: .5rem; box-sizing: border-box; }

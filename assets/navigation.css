@@ -1,12 +1,26 @@
-/* Shared, static navigation for standalone lessons and Jekyll documents. */
-.page-navigation { box-sizing: border-box; max-width: 1200px; margin: 1rem auto; padding: 1rem clamp(.8rem, 3vw, 1.5rem); border: 1px solid #c7d4dc; border-radius: .5rem; background: #f4f7f9; color: #243746; font: 0.9rem/1.6 system-ui, sans-serif; clear: both; }
+/* Quiet reading navigation: breadcrumbs above, one sequence pager below. */
+.page-navigation { box-sizing: border-box; margin: 0 auto 1.6rem; padding: .6rem 0 .9rem; border-bottom: 1px solid #c7d4dc; color: #243746; font: .85rem/1.6 system-ui, sans-serif; clear: both; }
 .page-navigation a { color: #174f75; text-decoration: underline; text-underline-offset: .18em; overflow-wrap: anywhere; }
-.page-navigation a:focus-visible { outline: 3px solid #bc5b16; outline-offset: 4px; border-radius: 2px; }
-.page-navigation-parents { display: flex; flex-wrap: wrap; align-items: baseline; gap: .25rem .6rem; }
-.page-navigation-sections { display: flex; flex-wrap: wrap; gap: .4rem 1.2rem; margin-top: .6rem; }
-.page-navigation-pager { display: flex; justify-content: space-between; gap: 1rem; border-top: 1px solid #c7d4dc; margin-top: .8rem; padding-top: .8rem; }
+.page-navigation a:focus-visible, .navigation-menu summary:focus-visible { outline: 3px solid #bc5b16; outline-offset: 4px; border-radius: 2px; }
+.page-navigation-top { display: flex; flex-wrap: wrap; align-items: baseline; gap: .4rem 1.5rem; }
+.page-navigation-parents { display: flex; flex: 1; flex-wrap: wrap; align-items: baseline; gap: .25rem .6rem; }
+.page-navigation-sections { display: flex; flex-wrap: wrap; gap: .4rem 1.2rem; }
+.navigation-menu { margin: 0; padding: 0; border: 0; border-radius: 0; }
+.navigation-menu summary { font: inherit; color: #174f75; cursor: pointer; min-height: 44px; padding: .5rem .3rem; box-sizing: border-box; }
+.navigation-menu[open] { flex-basis: 100%; }
+.navigation-menu[open] > summary { margin-bottom: .3rem; }
+.page-navigation-bottom { margin-top: 2.5rem; border-top: 1px solid #c7d4dc; border-bottom: 0; padding-top: 1rem; }
+.page-navigation-bottom .page-navigation-sections { margin-top: 1rem; }
+.page-navigation-pager { display: flex; justify-content: space-between; gap: 1.5rem; font-size: 1rem; }
 .page-navigation-pager > * { flex: 1; min-width: 0; }
 .page-navigation-pager > :last-child { text-align: right; }
-.section-index { max-width: 960px; margin: 2rem auto; padding: 0 1rem; }
+.page-navigation-pager a { min-height: 44px; }
+.section-index { margin: 2rem auto; }
 .section-index li { margin-block: .65rem; }
-@media (max-width: 600px) { .page-navigation { margin: .5rem; } .page-navigation-pager { flex-direction: column; gap: .6rem; } .page-navigation-pager > :last-child { text-align: left; } }
+.skip-link { position: absolute; left: 1rem; top: -10rem; padding: .7rem 1rem; background: #fff; color: #174f75; z-index: 100; font: 1rem/1.5 system-ui, sans-serif; }
+.skip-link:focus { top: 1rem; outline: 3px solid #bc5b16; outline-offset: 3px; }
+/* Coding lessons use a full-width shell instead of a centered reading body. */
+body:has(.layout) > .page-navigation, body:has(.course-hero) > .page-navigation,
+body:has(.document) > .page-navigation { max-width: 1288px; margin-inline: auto; padding-inline: 1.5rem; }
+@media (max-width: 600px) { .page-navigation-pager { flex-direction: column; gap: .8rem; } .page-navigation-pager > :last-child { text-align: left; } }
+@media print { .page-navigation, .skip-link { display: none; } }

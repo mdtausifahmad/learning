@@ -21,6 +21,9 @@
   }
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
   function logger(box) {
+    box.setAttribute("role", "log");
+    box.setAttribute("aria-live", "polite");
+    box.setAttribute("aria-label", "Simulator activity");
     return function (msg, cls) {
       var d = h("div", { "class": cls || "" }, esc(msg));
       box.appendChild(d);
@@ -48,7 +51,7 @@
           '<div class="sim-big" data-bal></div><div class="sim-state" data-state></div>' +
           '<h4 style="margin-top:.8rem">CRUD row (no history)</h4><div class="sim-state" data-crud></div></div>' +
       '</div>' +
-      '<div class="sim-btns" style="margin-top:.7rem">Amount <input type="number" value="30" min="1" data-amt>' +
+      '<div class="sim-btns" style="margin-top:.7rem">Amount <input type="number" value="30" min="1" data-amt aria-label="Transaction amount">' +
         '<button class="primary" data-dep>Deposit</button><button class="primary" data-wd>Withdraw</button>' +
         '<button data-reset>Reset</button></div>' +
       '<div class="sim-log" data-log></div>';

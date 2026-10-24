@@ -24,9 +24,23 @@
     var explain = quiz.querySelector(".quiz-explain");
     var allowRetry = quiz.hasAttribute("data-retry");
     var answered = false;
+    var question = quiz.querySelector(".quiz-q");
+    if (question) {
+      if (!question.id) question.id = "quiz-question-" + Array.prototype.indexOf.call(document.querySelectorAll(".quiz[data-quiz]"), quiz);
+      quiz.setAttribute("role", "group");
+      quiz.setAttribute("aria-labelledby", question.id);
+    }
+    if (explain) {
+      explain.setAttribute("role", "status");
+      explain.setAttribute("aria-live", "polite");
+      explain.setAttribute("aria-atomic", "true");
+      // Establish the empty live region before a learner requests feedback.
+      explain.hidden = false;
+    }
 
     buttons.forEach(function (btn) {
       btn.addEventListener("click", function () {
+        if (btn.getAttribute("aria-disabled") === "true") return;
         if (answered && !allowRetry) return;
 
         var isCorrect = btn.getAttribute("data-correct") === "true";
@@ -34,7 +48,7 @@
         if (allowRetry && !isCorrect) {
           // Gentle retry mode: mark just this wrong choice, keep going.
           btn.classList.add("incorrect");
-          btn.disabled = true;
+          btn.setAttribute("aria-disabled", "true");
           revealFeedback(explain, false, btn.getAttribute("data-feedback"));
           return;
         }
@@ -45,7 +59,8 @@
         // Always reveal the correct option so the learner sees the truth.
         buttons.forEach(function (b) {
           if (b.getAttribute("data-correct") === "true") b.classList.add("correct");
-          b.disabled = true;
+          // Preserve keyboard focus on the chosen answer while announcing feedback.
+          b.setAttribute("aria-disabled", "true");
         });
 
         revealFeedback(explain, isCorrect, btn.getAttribute("data-feedback"));

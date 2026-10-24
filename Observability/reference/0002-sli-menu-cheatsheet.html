@@ -17,11 +17,11 @@
 <link rel="stylesheet" href="../../assets/navigation.css">
 </head>
 <body id="page-top">
+<a class="skip-link" href="#main">Skip to content</a>
 <!-- page-navigation:start -->
-<nav class="page-navigation" aria-label="Top page navigation"><div class="page-navigation-parents"><a href="../../index.html">Library home</a> <span aria-hidden="true">›</span> <a href="../../index.html#quality-delivery-operations">Quality, delivery, and operations</a> <span aria-hidden="true">›</span> <a href="../index.html">Reliability &amp; Observability</a> <span aria-hidden="true">›</span> <a href="index.html">Reference sheets</a></div><div class="page-navigation-sections"><a href="../lessons/index.html">Lessons</a><a href="index.html">Reference sheets</a><a href="../materials.html">Guides and resources</a><a href="#page-top">Back to top ↑</a></div><div class="page-navigation-pager"><a href="0001-sli-slo-error-budget-cheatsheet.html" rel="prev">← Previous: SLI · SLO · Error Budget — Cheat Sheet</a><a href="0003-latency-sli-prometheus-recipe.html" rel="next">Next: Latency &amp; Availability SLIs in Prometheus →</a></div></nav>
+<nav class="page-navigation page-navigation-top" aria-label="Top page navigation"><div class="page-navigation-parents"><a href="../../index.html">Library home</a> <span aria-hidden="true">›</span> <a href="../../index.html#quality-delivery-operations">Quality, delivery, and operations</a> <span aria-hidden="true">›</span> <a href="../index.html">Reliability &amp; Observability</a> <span aria-hidden="true">›</span> <a href="index.html">Reference sheets</a></div><details class="navigation-menu"><summary>Explore</summary><div class="page-navigation-sections"><a href="../lessons/index.html">Lessons</a><a href="index.html">Reference sheets</a><a href="../materials.html">Guides and resources</a></div></details></nav>
 <!-- page-navigation:end -->
-
-
+<main id="main" tabindex="-1">
 <header class="lesson-header">
   <p class="eyebrow">Reliability &amp; SRE · Reference 02</p>
   <h1>Choosing SLIs &mdash; Menu &amp; Method</h1>
@@ -106,15 +106,11 @@ sum(rate(http_requests_total{code!~"5.."}[28d]))
 sum(rate(http_request_duration_seconds_bucket{le="0.3"}[28d]))
   / sum(rate(http_request_duration_seconds_count[28d]))</code></pre>
 
-<nav class="lesson-nav">
-  <span class="group"><b>From</b><a href="../lessons/0002-choosing-good-slis.html">&larr; Lesson 02 · Choosing good SLIs</a></span>
-  <span class="group"><b>Course map</b><a href="../index.html">&uarr; All lessons</a></span>
-  <span class="group"><b>Canonical terms</b><a href="../GLOSSARY.md">GLOSSARY.md</a></span>
-  <span class="group"><b>Primary source</b><a href="https://sre.google/workbook/implementing-slos/" target="_blank" rel="noopener">SRE Workbook · Implementing SLOs</a></span>
-</nav>
+<aside class="related-reading" aria-label="Related reading"><a href="../lessons/0002-choosing-good-slis.html">&larr; Lesson 02 · Choosing good SLIs</a><a href="../GLOSSARY.md">GLOSSARY.md</a><a href="https://sre.google/workbook/implementing-slos/" target="_blank" rel="noopener">SRE Workbook · Implementing SLOs</a></aside>
 
+</main>
 <!-- page-navigation:start -->
-<nav class="page-navigation" aria-label="Bottom page navigation"><div class="page-navigation-parents"><a href="../../index.html">Library home</a> <span aria-hidden="true">›</span> <a href="../../index.html#quality-delivery-operations">Quality, delivery, and operations</a> <span aria-hidden="true">›</span> <a href="../index.html">Reliability &amp; Observability</a> <span aria-hidden="true">›</span> <a href="index.html">Reference sheets</a></div><div class="page-navigation-sections"><a href="../lessons/index.html">Lessons</a><a href="index.html">Reference sheets</a><a href="../materials.html">Guides and resources</a><a href="#page-top">Back to top ↑</a></div><div class="page-navigation-pager"><a href="0001-sli-slo-error-budget-cheatsheet.html" rel="prev">← Previous: SLI · SLO · Error Budget — Cheat Sheet</a><a href="0003-latency-sli-prometheus-recipe.html" rel="next">Next: Latency &amp; Availability SLIs in Prometheus →</a></div></nav>
+<nav class="page-navigation page-navigation-bottom" aria-label="Bottom page navigation"><div class="page-navigation-pager"><a href="0001-sli-slo-error-budget-cheatsheet.html" rel="prev">← Previous: SLI · SLO · Error Budget — Cheat Sheet</a><a href="0003-latency-sli-prometheus-recipe.html" rel="next">Next: Latency &amp; Availability SLIs in Prometheus →</a></div><div class="page-navigation-sections"><a href="../lessons/index.html">Lessons</a><a href="index.html">Reference sheets</a><a href="../materials.html">Guides and resources</a><a href="#page-top">Back to top</a></div></nav>
 <!-- page-navigation:end -->
 </body>
 </html>

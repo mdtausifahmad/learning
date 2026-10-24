@@ -14,11 +14,11 @@
 <link rel="stylesheet" href="../../assets/navigation.css">
 </head>
 <body id="page-top">
+<a class="skip-link" href="#main">Skip to content</a>
 <!-- page-navigation:start -->
-<nav class="page-navigation" aria-label="Top page navigation"><div class="page-navigation-parents"><a href="../../index.html">Library home</a> <span aria-hidden="true">›</span> <a href="../../index.html#quality-delivery-operations">Quality, delivery, and operations</a> <span aria-hidden="true">›</span> <a href="../index.html">Reliability &amp; Observability</a> <span aria-hidden="true">›</span> <a href="index.html">Reference sheets</a></div><div class="page-navigation-sections"><a href="../lessons/index.html">Lessons</a><a href="index.html">Reference sheets</a><a href="../materials.html">Guides and resources</a><a href="#page-top">Back to top ↑</a></div><div class="page-navigation-pager"><a href="0002-sli-menu-cheatsheet.html" rel="prev">← Previous: Choosing SLIs — Menu &amp; Method</a><a href="0004-setting-slo-budget-math.html" rel="next">Next: Setting an SLO &amp; Budget Math →</a></div></nav>
+<nav class="page-navigation page-navigation-top" aria-label="Top page navigation"><div class="page-navigation-parents"><a href="../../index.html">Library home</a> <span aria-hidden="true">›</span> <a href="../../index.html#quality-delivery-operations">Quality, delivery, and operations</a> <span aria-hidden="true">›</span> <a href="../index.html">Reliability &amp; Observability</a> <span aria-hidden="true">›</span> <a href="index.html">Reference sheets</a></div><details class="navigation-menu"><summary>Explore</summary><div class="page-navigation-sections"><a href="../lessons/index.html">Lessons</a><a href="index.html">Reference sheets</a><a href="../materials.html">Guides and resources</a></div></details></nav>
 <!-- page-navigation:end -->
-
-
+<main id="main" tabindex="-1">
 <header class="lesson-header">
   <p class="eyebrow">Reliability &amp; SRE · Reference 03</p>
   <h1>Latency &amp; Availability SLIs in Prometheus</h1>
@@ -163,15 +163,11 @@ sum(rate(http_requests_total{job="checkout", code!~"5.."}[28d]))
   </p>
 </div>
 
-<nav class="lesson-nav">
-  <span class="group"><b>From</b><a href="../lessons/0002-choosing-good-slis.html">&larr; Lesson 02 · Choosing good SLIs</a></span>
-  <span class="group"><b>Course map</b><a href="../index.html">&uarr; All lessons</a></span>
-  <span class="group"><b>See also</b><a href="0002-sli-menu-cheatsheet.html">SLI menu cheat sheet</a></span>
-  <span class="group"><b>Primary source</b><a href="https://prometheus.io/docs/practices/histograms/" target="_blank" rel="noopener">Prometheus · Histograms &amp; summaries</a></span>
-</nav>
+<aside class="related-reading" aria-label="Related reading"><a href="../lessons/0002-choosing-good-slis.html">&larr; Lesson 02 · Choosing good SLIs</a><a href="https://prometheus.io/docs/practices/histograms/" target="_blank" rel="noopener">Prometheus · Histograms &amp; summaries</a></aside>
 
+</main>
 <!-- page-navigation:start -->
-<nav class="page-navigation" aria-label="Bottom page navigation"><div class="page-navigation-parents"><a href="../../index.html">Library home</a> <span aria-hidden="true">›</span> <a href="../../index.html#quality-delivery-operations">Quality, delivery, and operations</a> <span aria-hidden="true">›</span> <a href="../index.html">Reliability &amp; Observability</a> <span aria-hidden="true">›</span> <a href="index.html">Reference sheets</a></div><div class="page-navigation-sections"><a href="../lessons/index.html">Lessons</a><a href="index.html">Reference sheets</a><a href="../materials.html">Guides and resources</a><a href="#page-top">Back to top ↑</a></div><div class="page-navigation-pager"><a href="0002-sli-menu-cheatsheet.html" rel="prev">← Previous: Choosing SLIs — Menu &amp; Method</a><a href="0004-setting-slo-budget-math.html" rel="next">Next: Setting an SLO &amp; Budget Math →</a></div></nav>
+<nav class="page-navigation page-navigation-bottom" aria-label="Bottom page navigation"><div class="page-navigation-pager"><a href="0002-sli-menu-cheatsheet.html" rel="prev">← Previous: Choosing SLIs — Menu &amp; Method</a><a href="0004-setting-slo-budget-math.html" rel="next">Next: Setting an SLO &amp; Budget Math →</a></div><div class="page-navigation-sections"><a href="../lessons/index.html">Lessons</a><a href="index.html">Reference sheets</a><a href="../materials.html">Guides and resources</a><a href="#page-top">Back to top</a></div></nav>
 <!-- page-navigation:end -->
 </body>
 </html>

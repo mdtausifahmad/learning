@@ -13,6 +13,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -23,6 +31,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ]
   },
@@ -44,6 +56,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -54,6 +74,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ]
   },
@@ -79,6 +103,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -89,6 +121,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ],
     "previous": null,
@@ -119,6 +155,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -129,6 +173,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ],
     "previous": {
@@ -162,6 +210,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -172,6 +228,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ],
     "previous": {
@@ -205,6 +265,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -215,6 +283,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ],
     "previous": {
@@ -248,6 +320,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -258,6 +338,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ],
     "previous": {
@@ -291,6 +375,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -301,6 +393,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ],
     "previous": {
@@ -334,6 +430,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -344,6 +448,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ],
     "previous": {
@@ -377,6 +485,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -387,6 +503,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ],
     "previous": {
@@ -420,6 +540,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -430,6 +558,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ],
     "previous": {
@@ -463,6 +595,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -473,6 +613,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ],
     "previous": {
@@ -506,6 +650,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -516,6 +668,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ],
     "previous": {
@@ -549,6 +705,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -559,6 +723,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ],
     "previous": {
@@ -592,6 +760,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -602,6 +778,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ],
     "previous": {
@@ -635,6 +815,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -645,6 +833,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ],
     "previous": {
@@ -678,6 +870,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -688,6 +888,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ],
     "previous": {
@@ -721,6 +925,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -731,6 +943,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ],
     "previous": {
@@ -764,6 +980,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -774,6 +998,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ],
     "previous": {
@@ -807,6 +1035,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -817,6 +1053,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ],
     "previous": {
@@ -850,6 +1090,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -860,6 +1108,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ],
     "previous": {
@@ -893,6 +1145,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -903,6 +1163,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ],
     "previous": {
@@ -929,6 +1193,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -939,6 +1211,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ]
   },
@@ -964,6 +1240,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -974,6 +1258,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ],
     "previous": null,
@@ -1004,6 +1292,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -1014,6 +1310,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ],
     "previous": {
@@ -1047,6 +1347,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -1057,6 +1365,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ],
     "previous": {
@@ -1090,6 +1402,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -1100,6 +1420,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ],
     "previous": {
@@ -1133,6 +1457,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -1143,6 +1475,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ],
     "previous": {
@@ -1176,6 +1512,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -1186,6 +1530,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ],
     "previous": {
@@ -1219,6 +1567,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -1229,6 +1585,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ],
     "previous": {
@@ -1262,6 +1622,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -1272,6 +1640,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ],
     "previous": {
@@ -1305,6 +1677,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -1315,6 +1695,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ],
     "previous": {
@@ -1348,6 +1732,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -1358,6 +1750,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ],
     "previous": {
@@ -1391,6 +1787,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -1401,6 +1805,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ],
     "previous": {
@@ -1434,6 +1842,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -1444,6 +1860,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ],
     "previous": {
@@ -1477,6 +1897,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -1487,6 +1915,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ],
     "previous": {
@@ -1520,6 +1952,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -1530,6 +1970,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ],
     "previous": {
@@ -1563,6 +2007,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -1573,6 +2025,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ],
     "previous": {
@@ -1606,6 +2062,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -1616,6 +2080,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ],
     "previous": {
@@ -1649,6 +2117,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -1659,6 +2135,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ],
     "previous": {
@@ -1692,6 +2172,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -1702,6 +2190,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ],
     "previous": {
@@ -1735,6 +2227,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -1745,6 +2245,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ],
     "previous": {
@@ -1778,6 +2282,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -1788,6 +2300,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ],
     "previous": {
@@ -1814,6 +2330,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -1824,6 +2348,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ]
   },
@@ -1849,6 +2377,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -1859,6 +2395,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ],
     "previous": null,
@@ -1889,6 +2429,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -1899,6 +2447,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ],
     "previous": {
@@ -1932,6 +2484,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -1942,6 +2502,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ],
     "previous": {
@@ -1975,6 +2539,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -1985,6 +2557,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ],
     "previous": {
@@ -2018,6 +2594,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -2028,6 +2612,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ],
     "previous": {
@@ -2061,6 +2649,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -2071,6 +2667,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ],
     "previous": {
@@ -2104,6 +2704,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -2114,6 +2722,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ],
     "previous": {
@@ -2147,6 +2759,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -2157,6 +2777,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ],
     "previous": {
@@ -2190,6 +2814,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -2200,6 +2832,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ],
     "previous": {
@@ -11318,6 +11954,14 @@
       {
         "url": "index.html#topics",
         "title": "All learning areas"
+      },
+      {
+        "url": "index.html#learning-paths",
+        "title": "Learning paths"
+      },
+      {
+        "url": "career-path/index.html",
+        "title": "Career development"
       }
     ]
   },
@@ -11333,6 +11977,14 @@
       {
         "url": "index.html#topics",
         "title": "All learning areas"
+      },
+      {
+        "url": "index.html#learning-paths",
+        "title": "Learning paths"
+      },
+      {
+        "url": "career-path/index.html",
+        "title": "Career development"
       }
     ]
   },
@@ -11348,6 +12000,14 @@
       {
         "url": "index.html#topics",
         "title": "All learning areas"
+      },
+      {
+        "url": "index.html#learning-paths",
+        "title": "Learning paths"
+      },
+      {
+        "url": "career-path/index.html",
+        "title": "Career development"
       }
     ]
   },
@@ -11400,6 +12060,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -11410,6 +12078,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ]
   },
@@ -11431,6 +12103,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -11441,6 +12121,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ]
   },
@@ -11462,6 +12146,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -11472,6 +12164,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ]
   },
@@ -11493,6 +12189,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -11503,6 +12207,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ]
   },
@@ -11524,6 +12232,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -11534,6 +12250,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ]
   },
@@ -11555,6 +12275,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -11565,6 +12293,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ]
   },
@@ -11586,6 +12318,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -11596,6 +12336,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ]
   },
@@ -11617,6 +12361,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -11627,6 +12379,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ]
   },
@@ -11648,6 +12404,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -11658,6 +12422,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ]
   },
@@ -11679,6 +12447,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -11689,6 +12465,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ]
   },
@@ -11710,6 +12490,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -11720,6 +12508,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ]
   },
@@ -11741,6 +12533,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -11751,6 +12551,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ]
   },
@@ -11772,6 +12576,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -11782,6 +12594,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ]
   },
@@ -11803,6 +12619,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -11813,6 +12637,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ]
   },
@@ -11834,6 +12662,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -11844,6 +12680,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ]
   },
@@ -11865,6 +12705,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -11875,6 +12723,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ]
   },
@@ -11896,6 +12748,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -11906,6 +12766,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ]
   },
@@ -11927,6 +12791,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -11937,6 +12809,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ]
   },
@@ -11958,6 +12834,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -11968,6 +12852,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ]
   },
@@ -11989,6 +12877,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -11999,6 +12895,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ]
   },
@@ -12020,6 +12920,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -12030,6 +12938,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ]
   },
@@ -12051,6 +12963,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -12061,6 +12981,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ]
   },
@@ -12082,6 +13006,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -12092,6 +13024,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ]
   },
@@ -12113,6 +13049,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -12123,6 +13067,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ]
   },
@@ -12144,6 +13092,14 @@
     ],
     "sections": [
       {
+        "url": "coding-interview/foundations.html",
+        "title": "Foundations"
+      },
+      {
+        "url": "coding-interview/practice.html",
+        "title": "Mixed practice"
+      },
+      {
         "url": "coding-interview/lessons/index.html",
         "title": "Lessons"
       },
@@ -12154,6 +13110,10 @@
       {
         "url": "coding-interview/materials.html",
         "title": "Guides and resources"
+      },
+      {
+        "url": "coding-interview/research.html",
+        "title": "Sources"
       }
     ]
   },
@@ -12169,6 +13129,14 @@
       {
         "url": "index.html#topics",
         "title": "All learning areas"
+      },
+      {
+        "url": "index.html#learning-paths",
+        "title": "Learning paths"
+      },
+      {
+        "url": "career-path/index.html",
+        "title": "Career development"
       }
     ]
   },
@@ -12184,6 +13152,14 @@
       {
         "url": "index.html#topics",
         "title": "All learning areas"
+      },
+      {
+        "url": "index.html#learning-paths",
+        "title": "Learning paths"
+      },
+      {
+        "url": "career-path/index.html",
+        "title": "Career development"
       }
     ]
   },
@@ -12199,6 +13175,14 @@
       {
         "url": "index.html#topics",
         "title": "All learning areas"
+      },
+      {
+        "url": "index.html#learning-paths",
+        "title": "Learning paths"
+      },
+      {
+        "url": "career-path/index.html",
+        "title": "Career development"
       }
     ]
   },
@@ -12214,6 +13198,14 @@
       {
         "url": "index.html#topics",
         "title": "All learning areas"
+      },
+      {
+        "url": "index.html#learning-paths",
+        "title": "Learning paths"
+      },
+      {
+        "url": "career-path/index.html",
+        "title": "Career development"
       }
     ]
   },
@@ -12229,6 +13221,14 @@
       {
         "url": "index.html#topics",
         "title": "All learning areas"
+      },
+      {
+        "url": "index.html#learning-paths",
+        "title": "Learning paths"
+      },
+      {
+        "url": "career-path/index.html",
+        "title": "Career development"
       }
     ]
   }

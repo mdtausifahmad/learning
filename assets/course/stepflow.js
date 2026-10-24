@@ -37,6 +37,11 @@
     var btnNext = root.querySelector(".sf-next");
     var btnReset = root.querySelector(".sf-reset");
     var btnPlay = root.querySelector(".sf-play");
+    var captionEl = root.querySelector(".sf-caption");
+    if (captionEl) {
+      captionEl.setAttribute("aria-live", "polite");
+      captionEl.setAttribute("aria-atomic", "true");
+    }
 
     var toggleSet = {}, actorSet = {};
     steps.forEach(function (s) {
@@ -78,12 +83,13 @@
     }
 
     function stopPlay() {
-      if (timer) { clearInterval(timer); timer = null; if (btnPlay) btnPlay.textContent = "▶ Play"; }
+      if (timer) { clearInterval(timer); timer = null; if (btnPlay) { btnPlay.textContent = "▶ Play"; btnPlay.setAttribute("aria-pressed", "false"); } }
     }
     function play() {
       if (timer) { stopPlay(); return; }
       if (i === steps.length - 1) render(0);
       if (btnPlay) btnPlay.textContent = "❚❚ Pause";
+      if (btnPlay) btnPlay.setAttribute("aria-pressed", "true");
       timer = setInterval(function () {
         if (i >= steps.length - 1) stopPlay(); else render(i + 1);
       }, 2200);
@@ -92,7 +98,7 @@
     if (btnNext) btnNext.addEventListener("click", function () { stopPlay(); render(i + 1); });
     if (btnPrev) btnPrev.addEventListener("click", function () { stopPlay(); render(i - 1); });
     if (btnReset) btnReset.addEventListener("click", function () { stopPlay(); render(0); });
-    if (btnPlay) btnPlay.addEventListener("click", play);
+    if (btnPlay) { btnPlay.setAttribute("aria-pressed", "false"); btnPlay.addEventListener("click", play); }
 
     root.setAttribute("tabindex", "0");
     root.addEventListener("keydown", function (ev) {

@@ -8,13 +8,9 @@
 <link rel="stylesheet" href="{{ "/assets/navigation.css" | relative_url }}">
 </head>
 <body id="page-top">
+<a class="skip-link" href="#main">Skip to content</a>
 {% include page-navigation.html position="top" %}
-<nav class="site-nav">
-  <a href="{{ '/' | relative_url }}">Software Engineering Library</a>
-  <a href="{{ '/career-path/index.html' | relative_url }}">Career development</a>
-  <a href="https://github.com/mdtausifahmad/principal-engineering/blob/main/{{ page.path }}">View source</a>
-</nav>
-<main>
+<main id="main" tabindex="-1">
 {{ content }}
 </main>
 <script type="module">
@@ -34,6 +30,7 @@
   }
 </script>
 {% include page-navigation.html position="bottom" %}
+<footer><a href="https://github.com/mdtausifahmad/principal-engineering/blob/main/{{ page.path }}">View source</a></footer>
 <script src="{{ "/assets/course/links.js" | relative_url }}" defer></script>
 </body>
 </html>

@@ -43,11 +43,11 @@
   --sig-good:     #1f7a5e;
   --sig-warn:     #c98a1a;
   --sig-bad:      #b23b3b;
-  --maxw:         46rem;
+  --maxw:         44rem;
 }
 
 /* ------- Base typography ------------------------------------------------- */
-html { font-size: 17px; }
+html { font-size: 18px; }
 body {
   font-family: Palatino, "Palatino Linotype", "Book Antiqua", Georgia, serif;
   color: var(--ink);
@@ -55,12 +55,13 @@ body {
   max-width: var(--maxw);
   margin: 3.5rem auto 6rem;
   padding: 0 1.4rem;
-  line-height: 1.55;
+  line-height: 1.65;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
 
-p, li { font-size: 1.02rem; }
+p, li { font-size: 1rem; }
+p { max-width: 72ch; }
 p { margin: 0 0 1rem; }
 
 h1, h2, h3 { line-height: 1.2; font-weight: 600; }
@@ -88,13 +89,13 @@ blockquote p:last-child { margin-bottom: 0; }
 /* ------- Lesson header --------------------------------------------------- */
 .eyebrow {
   font-family: -apple-system, system-ui, sans-serif;
-  text-transform: uppercase; letter-spacing: .14em;
-  font-size: .68rem; color: var(--muted); margin: 0 0 .5rem;
+  letter-spacing: .025em;
+  font-size: .8rem; color: var(--muted); margin: 0 0 .5rem;
 }
 .lesson-header { margin-bottom: 1.4rem; }
 .meta {
   font-family: -apple-system, system-ui, sans-serif;
-  font-size: .74rem; color: var(--muted);
+  font-size: .85rem; color: var(--muted);
   display: flex; flex-wrap: wrap; gap: .4rem 1rem; margin-top: .7rem;
 }
 .meta span { display: inline-flex; align-items: center; gap: .35rem; }
@@ -116,7 +117,7 @@ blockquote p:last-child { margin-bottom: 0; }
 .callout p:last-child { margin-bottom: 0; }
 .callout .label {
   font-family: -apple-system, system-ui, sans-serif;
-  font-size: .68rem; text-transform: uppercase; letter-spacing: .1em;
+  font-size: .8rem; letter-spacing: .025em;
   font-weight: 700; display: block; margin-bottom: .35rem;
 }
 .callout.insight { background: var(--insight-bg); border-left-color: var(--insight-br); }
@@ -134,7 +135,7 @@ blockquote p:last-child { margin-bottom: 0; }
 }
 .primary-source .label {
   font-family: -apple-system, system-ui, sans-serif;
-  font-size: .68rem; text-transform: uppercase; letter-spacing: .1em;
+  font-size: .8rem; letter-spacing: .025em;
   font-weight: 700; color: #7a5f1f; display: block; margin-bottom: .4rem;
 }
 .primary-source p:last-child { margin-bottom: 0; }
@@ -186,7 +187,7 @@ table { border-collapse: collapse; width: 100%; margin: 1.5rem 0; font-size: .92
 th, td { text-align: left; padding: .55rem .7rem; border-bottom: 1px solid var(--rule); vertical-align: top; }
 th {
   font-family: -apple-system, system-ui, sans-serif;
-  font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted);
+  font-size: .82rem; letter-spacing: .06em; color: var(--muted);
 }
 tbody tr:hover { background: var(--surface-alt); }
 .table-wrap { overflow-x: auto; margin: 1.5rem 0; }
@@ -219,7 +220,7 @@ tbody tr:hover { background: var(--surface-alt); }
 }
 .ebudget-cap {
   display: flex; justify-content: space-between; margin-top: .35rem;
-  font-family: -apple-system, system-ui, sans-serif; font-size: .72rem; color: var(--muted);
+  font-family: -apple-system, system-ui, sans-serif; font-size: .82rem; color: var(--muted);
 }
 
 /* ------- Quiz widget (see quiz.js) -------------------------------------- */
@@ -229,7 +230,7 @@ tbody tr:hover { background: var(--surface-alt); }
 }
 .quiz .quiz-kicker {
   font-family: -apple-system, system-ui, sans-serif;
-  font-size: .66rem; text-transform: uppercase; letter-spacing: .12em;
+  font-size: .8rem; letter-spacing: .025em;
   color: var(--accent); font-weight: 700; margin-bottom: .5rem;
 }
 .quiz-q { font-weight: 600; margin: 0 0 .9rem; }
@@ -241,8 +242,8 @@ tbody tr:hover { background: var(--surface-alt); }
   padding: .6rem .8rem; cursor: pointer; transition: background .12s, border-color .12s;
   color: var(--ink);
 }
-.quiz-options button:hover:not(:disabled) { background: var(--btn-hover-bg); border-color: var(--btn-hover-br); }
-.quiz-options button:disabled { cursor: default; }
+.quiz-options button:hover:not(:disabled):not([aria-disabled="true"]) { background: var(--btn-hover-bg); border-color: var(--btn-hover-br); }
+.quiz-options button:is(:disabled, [aria-disabled="true"]) { cursor: default; }
 .quiz-options button.correct {
   background: var(--insight-bg); border-color: var(--ok); color: var(--correct-ink); font-weight: 600;
 }
@@ -274,7 +275,7 @@ tbody tr:hover { background: var(--surface-alt); }
 .lesson-nav a { text-decoration: none; }
 .lesson-nav .group { display: flex; flex-direction: column; gap: .25rem; }
 .lesson-nav .group b {
-  font-size: .66rem; text-transform: uppercase; letter-spacing: .1em; color: var(--muted);
+  font-size: .8rem; letter-spacing: .025em; color: var(--muted);
 }
 
 .checklist { list-style: none; padding-left: 0; }
@@ -319,14 +320,20 @@ tbody tr:hover { background: var(--surface-alt); }
 .anim-btn-play { background: var(--accent); color: #fff; border-color: var(--accent); }
 .anim-btn-play:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); }
 
-.anim-dots { display: inline-flex; gap: .3rem; margin-left: .3rem; }
+.anim-dots { display: inline-flex; flex-wrap: wrap; gap: .15rem; }
 .anim-dot {
-  width: .62rem; height: .62rem; border-radius: 50%; padding: 0;
-  border: 1px solid var(--accent); background: #fff; cursor: pointer; transition: transform .12s, background .12s;
+  width: 44px; height: 44px; padding: 0; border: 0; border-radius: 5px;
+  background: transparent; cursor: pointer; display: inline-grid; place-items: center;
 }
-.anim-dot.is-past { background: var(--accent-past); }
-.anim-dot.is-active { background: var(--accent); transform: scale(1.3); }
-.anim-count { font-size: .72rem; color: var(--muted); margin-left: auto; }
+.anim-dot::before {
+  content: ""; width: .62rem; height: .62rem; border-radius: 50%;
+  border: 1px solid var(--accent); background: #fff;
+  transition: transform .12s, background .12s;
+}
+.anim-dot.is-past::before { background: var(--accent-past); }
+.anim-dot.is-active::before { background: var(--accent); transform: scale(1.3); }
+.anim-dot:hover { background: var(--surface-alt); }
+.anim-count { font-size: .82rem; color: var(--muted); margin-left: auto; }
 
 /* ------- Step-through animation (see stepflow.js) ----------------------- */
 .stepflow {
@@ -371,7 +378,9 @@ g.sf-actor.sf-active text {
 .sf-next:hover:not(:disabled) { background: #264d68; border-color: #264d68; }
 .sf-counter { margin-left: auto; font-size: .78rem; color: var(--muted); }
 @media (prefers-reduced-motion: reduce) {
-  .sf-token, .sf-actor, .sf-btn { transition: none; }
+  .sf-token, .sf-actor, .sf-btn, .anim-el, .anim-btn, .anim-dot::before,
+  .quiz-options button { transition: none; }
+  .anim-cap.is-active { animation: none; }
 }
 
 /* ------- Atlas navigation (chapter grid, fact cards) -------------------- */
@@ -387,11 +396,11 @@ g.sf-actor.sf-active text {
 }
 .chapter-index a:hover { background: var(--surface-alt); border-color: var(--btn-hover-br); }
 .chapter-index b { display: block; color: var(--accent-2); font-size: .78rem; margin-bottom: .18rem; }
-.chapter-index span { display: block; color: var(--muted); font-size: .72rem; }
+.chapter-index span { display: block; color: var(--muted); font-size: .82rem; }
 .scene-kicker {
   font-family: -apple-system, system-ui, sans-serif;
-  color: var(--accent-2); font-size: .72rem; font-weight: 700;
-  text-transform: uppercase; letter-spacing: .1em; margin: 2.5rem 0 -.45rem;
+  color: var(--accent-2); font-size: .82rem; font-weight: 700;
+  letter-spacing: .025em; margin: 2.5rem 0 -.45rem;
 }
 .fact-grid {
   display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
@@ -430,7 +439,7 @@ g.sf-actor.sf-active text {
 }
 
 @media (max-width: 480px) {
-  html { font-size: 16px; }
+  html { font-size: 18px; }
   body { margin: 2rem auto 4rem; }
 }
 
@@ -439,3 +448,13 @@ g.sf-actor.sf-active text {
 .library-nav a:first-child { margin-right: auto; font-weight: 600; }
 @media (max-width: 620px) { .library-nav a:first-child { flex-basis: 100%; } }
 @media print { .library-nav { display: none; } }
+
+/* Reading and interaction defaults shared by every ordinary course. */
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 4px; }
+main:focus { outline: none; }
+button, select, input[type=number], input[type=range] { min-height: 44px; box-sizing: border-box; }
+button { min-width: 44px; }
+summary { cursor: pointer; min-height: 44px; padding-block: .5rem; box-sizing: border-box; }
+.related-reading { display: flex; flex-wrap: wrap; gap: .6rem 1.4rem; margin-block: 2rem; padding-top: 1rem; border-top: 1px solid var(--rule); font: .9rem/1.6 system-ui, sans-serif; }
+
+.quiz-explain:empty { margin: 0; padding: 0; border: 0; }

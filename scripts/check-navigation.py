@@ -17,8 +17,13 @@ groups = json.loads((ROOT / '_data/navigation-sequences.json').read_text())
 class Page(HTMLParser):
     def __init__(self):
         super().__init__(); self.ids = []; self.navs = []; self.active = None; self.depth = 0; self.nav_depth = 0; self.all_links = []
+        self.mains = []; self.skips = []; self.focusable = []; self.legacy_navs = []
     def handle_starttag(self, tag, attrs):
         a = dict(attrs)
+        if tag == 'main': self.mains.append(a)
+        if tag == 'a' and 'skip-link' in a.get('class', '').split(): self.skips.append(a)
+        if tag in ('a', 'button', 'input', 'select', 'textarea', 'summary') and (tag != 'a' or 'href' in a): self.focusable.append(a)
+        if tag == 'nav' and set(a.get('class', '').split()) & {'lesson-nav', 'library-nav', 'site-nav', 'top'}: self.legacy_navs.append(a)
         if 'id' in a: self.ids.append(a['id'])
         if tag == 'nav': self.nav_depth += 1
         if tag == 'a' and self.nav_depth and 'href' in a: self.all_links.append(a['href'])
@@ -57,8 +62,14 @@ for p, parsed in pages.items():
     data = metadata[key]
     if len(parsed.navs) != 2: errors.append(f'{key}: expected top and bottom navigation')
     if parsed.ids.count('page-top') != 1: errors.append(f'{key}: expected one page-top anchor')
-    expected = [*data['parents'], *data['sections']]
-    for nav in parsed.navs:
+    if len(parsed.mains) != 1: errors.append(f'{key}: expected one main landmark')
+    if len(parsed.skips) != 1 or not parsed.focusable or parsed.focusable[0] not in parsed.skips:
+        errors.append(f'{key}: skip link must be the first focusable control')
+    elif not parsed.mains or parsed.skips[0].get('href') != '#' + parsed.mains[0].get('id', '') or parsed.mains[0].get('tabindex') != '-1':
+        errors.append(f'{key}: skip link must target the focusable main landmark')
+    if parsed.legacy_navs: errors.append(f'{key}: redundant legacy navigation')
+    for position, nav in enumerate(parsed.navs):
+        expected = [*data['parents'], *data['sections']] if position == 0 else data['sections']
         resolved = []
         for a in nav:
             u = urlsplit(a['href']); target = (p.parent / unquote(u.path)).resolve() if u.path else p
@@ -74,7 +85,7 @@ for p, parsed in pages.items():
                 errors.append(f'{key}: missing parent/section link {entry["url"]}')
         for relation, field in [('prev', 'previous'), ('next', 'next')]:
             actual = [a for a in nav if a.get('rel') == relation]
-            wanted = data.get(field)
+            wanted = data.get(field) if position == 1 else None
             if len(actual) != int(bool(wanted)):
                 errors.append(f'{key}: incorrect {field} count')
             elif wanted and (p.parent / actual[0]['href']).resolve() != (ROOT / wanted['url']).resolve():

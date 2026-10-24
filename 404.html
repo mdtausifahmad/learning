@@ -23,16 +23,18 @@ layout: null
 <link rel="stylesheet" href="assets/navigation.css">
 </head>
 <body id="page-top">
+<a class="skip-link" href="#main">Skip to content</a>
 <!-- page-navigation:start -->
-<nav class="page-navigation" aria-label="Top page navigation"><div class="page-navigation-parents"><a href="index.html">Library home</a></div><div class="page-navigation-sections"><a href="index.html#topics">All learning areas</a><a href="#page-top">Back to top ↑</a></div></nav>
+<nav class="page-navigation page-navigation-top" aria-label="Top page navigation"><div class="page-navigation-parents"><a href="index.html">Library home</a></div><details class="navigation-menu"><summary>Explore</summary><div class="page-navigation-sections"><a href="index.html#topics">All learning areas</a><a href="index.html#learning-paths">Learning paths</a><a href="career-path/index.html">Career development</a></div></details></nav>
 <!-- page-navigation:end -->
-
-  <p class="eyebrow">404</p>
+<main id="main" tabindex="-1">
+<p class="eyebrow">404</p>
   <h1>Page not found</h1>
   <p>That page doesn’t exist. Head back to the <a href="{{ '/' | relative_url }}">learning library</a>.</p>
-<!-- page-navigation:start -->
-<nav class="page-navigation" aria-label="Bottom page navigation"><div class="page-navigation-parents"><a href="index.html">Library home</a></div><div class="page-navigation-sections"><a href="index.html#topics">All learning areas</a><a href="#page-top">Back to top ↑</a></div></nav>
-<!-- page-navigation:end -->
 <script src="assets/course/links.js" defer></script>
+</main>
+<!-- page-navigation:start -->
+<nav class="page-navigation page-navigation-bottom" aria-label="Bottom page navigation"><div class="page-navigation-sections"><a href="index.html#topics">All learning areas</a><a href="index.html#learning-paths">Learning paths</a><a href="career-path/index.html">Career development</a><a href="#page-top">Back to top</a></div></nav>
+<!-- page-navigation:end -->
 </body>
 </html>

@@ -56,18 +56,56 @@ def render(source, data, position):
     crumbs = ' <span aria-hidden="true">›</span> '.join(anchor(source, x) for x in data['parents'])
     links = ''.join(anchor(source, x) for x in data['sections'])
     pager = ''
-    if data.get('previous') or data.get('next'):
+    if position == 'bottom' and (data.get('previous') or data.get('next')):
         parts = []
         if data.get('previous'): parts.append(anchor(source, data['previous'], '← Previous: ' + data['previous']['title'], 'prev'))
         else: parts.append('<span>Start of this section</span>')
         if data.get('next'): parts.append(anchor(source, data['next'], 'Next: ' + data['next']['title'] + ' →', 'next'))
         else: parts.append('<span>End of this section</span>')
         pager = '<div class="page-navigation-pager">' + ''.join(parts) + '</div>'
-    return START + f'\n<nav class="page-navigation" aria-label="{position.capitalize()} page navigation"><div class="page-navigation-parents">{crumbs}</div><div class="page-navigation-sections">{links}<a href="#page-top">Back to top ↑</a></div>{pager}</nav>\n' + END
+    if position == 'top':
+        content = f'<div class="page-navigation-parents">{crumbs}</div><details class="navigation-menu"><summary>Explore</summary><div class="page-navigation-sections">{links}</div></details>'
+    else:
+        content = pager + f'<div class="page-navigation-sections">{links}<a href="#page-top">Back to top</a></div>'
+    return START + f'\n<nav class="page-navigation page-navigation-{position}" aria-label="{position.capitalize()} page navigation">{content}</nav>\n' + END
 
 
 def strip_nav(text):
     return re.sub(re.escape(START) + r'.*?' + re.escape(END) + r'\n?', '', text, flags=re.S)
+
+
+def reading_structure(text, source, data):
+    """Migrate legacy chrome while keeping specialized teaching links visible.
+
+    This also runs after content generators, so rebuilding a course cannot
+    reintroduce duplicate navigation or omit the reading landmark.
+    """
+    text = strip_nav(text)
+    text = re.sub(r'<a\b[^>]*class="(?:skip|skip-link)"[^>]*>.*?</a>\s*', '', text, flags=re.S)
+    text = re.sub(r'<nav\b[^>]*class="(?:library-nav|site-nav|top)"[^>]*>.*?</nav>\s*', '', text, flags=re.S)
+    destinations = {rel(source, e['url']) for e in [*data['parents'], *data['sections'],
+                    *[data[k] for k in ('previous', 'next') if data.get(k)]]}
+
+    def related(match):
+        # Retain reference sheets and links outside this page's sequence.
+        links = []
+        for link in re.finditer(r'<a\b[^>]*href="([^"]+)"[^>]*>.*?</a>', match[0], re.S):
+            if html.unescape(link[1]) not in destinations and link[0] not in links:
+                links.append(link[0])
+        return '<aside class="related-reading" aria-label="Related reading">' + ''.join(links) + '</aside>' if links else ''
+
+    text = re.sub(r'<nav\b[^>]*class="lesson-nav"[^>]*>.*?</nav>', related, text, flags=re.S)
+    if re.search(r'<main\b', text):
+        def landmark(match):
+            attrs = match[1]
+            if not re.search(r'\bid=', attrs): attrs += ' id="main"'
+            if not re.search(r'\btabindex=', attrs): attrs += ' tabindex="-1"'
+            return '<main' + attrs + '>'
+        text = re.sub(r'<main\b([^>]*)>', landmark, text, count=1)
+    else:
+        text = re.sub(r'(<body\b[^>]*>)\s*', r'\1\n<main id="main" tabindex="-1">\n', text, count=1)
+        text = text.replace('</body>', '</main>\n</body>', 1)
+    return text
 
 
 def build():
@@ -130,23 +168,28 @@ def build():
             else:
                 metadata[key] = {'title': title(p), 'parents': [home], 'sections': [all_areas]}
     for source, data in metadata.items():
+        if source.startswith('coding-interview/'):
+            data['sections'] = [item('coding-interview/foundations.html', 'Foundations'),
+                                item('coding-interview/practice.html', 'Mixed practice'),
+                                *data['sections'], item('coding-interview/research.html', 'Sources')]
+        elif len(data['parents']) == 1:
+            data['sections'] = [all_areas, item('index.html#learning-paths', 'Learning paths'),
+                                item('career-path/index.html', 'Career development')]
         path = ROOT / source
         if path.suffix != '.html': continue
         text = path.read_text()
-        if text.count(START) == text.count(END) == 2:
-            positions = iter(['top', 'bottom'])
-            text = re.sub(re.escape(START) + r'.*?' + re.escape(END), lambda m: render(source, data, next(positions)), text, flags=re.S)
-        else:
-            text = strip_nav(text)
-            text = re.sub(r'<body([^>]*)>', lambda m: '<body' + m[1] + '>' + '\n' + render(source, data, 'top') + '\n', text, count=1, flags=re.I)
-            text = re.sub(r'</body>', render(source, data, 'bottom') + '\n</body>', text, count=1, flags=re.I)
+        if 'assets/course/links.js' not in text:
+            text = text.replace('</body>', f'<script src="{rel(source, "assets/course/links.js")}" defer></script>\n</body>')
+        text = reading_structure(text, source, data)
+        main_id = re.search(r'<main\b[^>]*\bid="([^"]+)"', text)[1]
+        opening = f'\n<a class="skip-link" href="#{main_id}">Skip to content</a>\n' + render(source, data, 'top') + '\n'
+        text = re.sub(r'(<body\b[^>]*>)\s*', lambda m: m[1] + opening, text, count=1, flags=re.I)
+        text = re.sub(r'\s*</body>', '\n' + render(source, data, 'bottom') + '\n</body>', text, count=1, flags=re.I)
         if 'id="page-top"' not in text:
             text = re.sub(r'<body([^>]*)>', r'<body\1 id="page-top">', text, count=1, flags=re.I)
         css = rel(source, 'assets/navigation.css')
         if 'assets/navigation.css' not in text:
             text = text.replace('</head>', f'<link rel="stylesheet" href="{css}">\n</head>')
-        if 'assets/course/links.js' not in text:
-            text = text.replace('</body>', f'<script src="{rel(source, "assets/course/links.js")}" defer></script>\n</body>')
         path.write_text(text)
     (ROOT / '_data').mkdir(exist_ok=True)
     (ROOT / '_data/navigation.json').write_text(json.dumps(metadata, indent=2, ensure_ascii=False) + '\n')

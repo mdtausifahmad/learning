@@ -32,16 +32,16 @@
   padding: 1rem 1.1rem; margin: 1.8rem 0;
   font-family: -apple-system, system-ui, sans-serif; font-size: .86rem;
 }
-.sim-title { font-size: .66rem; text-transform: uppercase; letter-spacing: .12em; color: var(--accent); font-weight: 700; margin: 0 0 .6rem; }
+.sim-title { font-size: .8rem; letter-spacing: .025em; color: var(--accent); font-weight: 700; margin: 0 0 .6rem; }
 .sim-intro { font-family: Palatino, Georgia, serif; font-size: .95rem; color: var(--muted); margin: 0 0 .8rem; }
 .sim-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .9rem; }
 .sim-grid.three { grid-template-columns: 1fr 1fr 1fr; }
 @media (max-width: 620px) { .sim-grid, .sim-grid.three { grid-template-columns: 1fr; } }
 .sim-panel { border: 1px solid var(--rule); border-radius: 6px; padding: .6rem .7rem; background: #fafaf7; min-width: 0; }
-.sim-panel h4 { margin: 0 0 .45rem; font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.sim-panel h4 { margin: 0 0 .45rem; font-size: .82rem; letter-spacing: .025em; color: var(--muted); }
 .sim-btns { display: flex; flex-wrap: wrap; gap: .35rem; margin: .4rem 0; }
 .sim button, .sim select, .sim input[type=number] {
-  font-family: inherit; font-size: .8rem; border: 1px solid var(--rule); border-radius: 5px;
+  font-family: inherit; font-size: .9rem; border: 1px solid var(--rule); border-radius: 5px;
   background: #fff; padding: .3rem .6rem; color: var(--ink); cursor: pointer;
 }
 .sim input[type=number] { width: 5rem; cursor: text; }
@@ -55,7 +55,7 @@
   display: flex; gap: .5rem; align-items: baseline; padding: .28rem .45rem; margin: .18rem 0;
   border-radius: 4px; border-left: 4px solid var(--rule); background: #fff; transition: opacity .25s, background .25s;
 }
-.sim-events li .pos { font-family: "SF Mono", Menlo, monospace; font-size: .72rem; color: var(--muted); min-width: 2.2rem; }
+.sim-events li .pos { font-family: "SF Mono", Menlo, monospace; font-size: .82rem; color: var(--muted); min-width: 2.2rem; }
 .sim-events li.applied { border-left-color: var(--accent); }
 .sim-events li.future { opacity: .32; }
 .sim-events li.current { background: var(--insight-bg); }
@@ -64,14 +64,18 @@
 .sim-events li.dup { background: #fbf1e7; border-left-color: var(--sig-warn); }
 .sim-state { font-family: "SF Mono", Menlo, monospace; font-size: .8rem; background: var(--code-bg); border-radius: 5px; padding: .5rem .6rem; white-space: pre-wrap; margin: .3rem 0; }
 .sim-big { font-size: 1.6rem; font-weight: 700; color: var(--accent); }
-.sim-log { font-family: "SF Mono", Menlo, monospace; font-size: .74rem; background: #1f1d2b; color: #e6e3f5; border-radius: 6px; padding: .55rem .7rem; max-height: 11rem; overflow-y: auto; margin-top: .7rem; }
+.sim-log { font-family: "SF Mono", Menlo, monospace; font-size: .82rem; background: #1f1d2b; color: #e6e3f5; border-radius: 6px; padding: .55rem .7rem; max-height: 11rem; overflow-y: auto; margin-top: .7rem; }
 .sim-log div { margin: .1rem 0; }
 .sim-log .ok { color: #8fe3b5; } .sim-log .err { color: #ff9c9c; } .sim-log .warn { color: #ffd479; } .sim-log .dim { color: #a9a4c4; }
 .sim-toggle { display: inline-flex; align-items: center; gap: .35rem; margin-right: .9rem; cursor: pointer; }
-.sim-badge { display: inline-block; font-size: .68rem; font-weight: 700; padding: .05rem .4rem; border-radius: 10px; background: var(--code-bg); color: var(--muted); }
+.sim-badge { display: inline-block; font-size: .8rem; font-weight: 700; padding: .05rem .4rem; border-radius: 10px; background: var(--code-bg); color: var(--muted); }
 .sim-badge.good { background: #e3f3ec; color: var(--sig-good); }
 .sim-badge.bad { background: #f8eaea; color: var(--sig-bad); }
 
 @media print {
   .sim { break-inside: avoid; }
 }
+
+.sim-toggle { min-height: 44px; }
+.sim input[type=checkbox], .sim input[type=radio] { width: 20px; height: 20px; }
+@media (prefers-reduced-motion: reduce) { .sim-events li { transition: none; } }
