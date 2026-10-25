@@ -8626,6 +8626,49 @@
       "title": "Event Sourcing — Resources"
     },
     "next": {
+      "url": "event-sourcing/event-sourcing-short-notes.md",
+      "title": "Event Sourcing Short Notes"
+    }
+  },
+  "event-sourcing/event-sourcing-short-notes.md": {
+    "title": "Event Sourcing Short Notes",
+    "parents": [
+      {
+        "url": "index.html",
+        "title": "Library home"
+      },
+      {
+        "url": "index.html#software-design",
+        "title": "Software design and architecture"
+      },
+      {
+        "url": "event-sourcing/index.html",
+        "title": "Event Sourcing"
+      },
+      {
+        "url": "event-sourcing/materials.html",
+        "title": "Guides and resources"
+      }
+    ],
+    "sections": [
+      {
+        "url": "event-sourcing/lessons/index.html",
+        "title": "Lessons"
+      },
+      {
+        "url": "event-sourcing/reference/index.html",
+        "title": "Reference sheets"
+      },
+      {
+        "url": "event-sourcing/materials.html",
+        "title": "Guides and resources"
+      }
+    ],
+    "previous": {
+      "url": "event-sourcing/assets/lab/README.md",
+      "title": "Local event-sourcing lab"
+    },
+    "next": {
       "url": "event-sourcing/learning-records/0001-course-delivered.md",
       "title": "Course delivered: event sourcing, level zero → Staff"
     }
@@ -8665,8 +8708,8 @@
       }
     ],
     "previous": {
-      "url": "event-sourcing/assets/lab/README.md",
-      "title": "Local event-sourcing lab"
+      "url": "event-sourcing/event-sourcing-short-notes.md",
+      "title": "Event Sourcing Short Notes"
     },
     "next": null
   },
